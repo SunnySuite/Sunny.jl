@@ -4,8 +4,14 @@ mutable struct SampledCorrelations
     const M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
     const crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
     const origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above)
-    const Δω             :: Float64                              # Energy step size (could make this a virtual property)  
-    measure              :: MeasureSpec                          # Observable, correlation pairs, and combiner
+    const Δω             :: Float64                              # Energy step size 
+
+    # Observable information
+    measure            :: MeasureSpec                            # Storehouse for combiner. Mutable so combiner can be changed.
+    const observables  # :: Array{Op, 5}                         # (nobs × npos x latsize) -- note change of ordering relative to MeasureSpec. TODO: determine type strategy
+    const positions    :: Array{Vec3, 4}                         # Position of each operator in fractional coordinates (latsize x npos)
+    const atom_idcs    :: Array{Int64, 4}                        # Atom index corresponding to position of observable.
+    const corr_pairs   :: Vector{NTuple{2, Int}}                 # (ncorr)
 
     # Trajectory specs
     const measperiod   :: Int                                    # Steps to skip between saving observables (i.e., downsampling factor for trajectories)
@@ -49,7 +55,8 @@ function clone_correlations(sc::SampledCorrelations)
     corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations(
-        copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω, deepcopy(sc.measure), 
+        copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
+        deepcopy(sc.measure), copy(sc.observables), copy(sc.positions), copy(sc.atom_idcs), copy(sc.corr_pairs),
         sc.measperiod, sc.dt, sc.nsamples,
         copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
     )
@@ -126,7 +133,7 @@ can can then be extracted as pair-correlation [`intensities`](@ref) with
 appropriate classical-to-quantum correction factors. See also
 [`intensities_static`](@ref), which integrates over energy.
 """
-function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false)
+function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, positions=nothing)
     if isnothing(energies)
         n_all_ω = 1
         measperiod = 1
@@ -143,17 +150,31 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
         Δω = ωmax/(nω-1)
     end
 
-    # Preallocation
-    na = natoms(sys.crystal)
+    # Determine the positions of the observables in the MeasureSpec. By default,
+    # these will just be the atom indices. 
+    positions = if isnothing(positions)
+        map(eachsite(sys)) do site
+            sys.crystal.positions[site.I[4]]
+        end
+    else
+        positions
+    end
 
-    # The sample buffer holds n_non_neg_ω measurements, and the rest is a zero buffer
+    # Determine the number of positions. For an unentangled system, this will
+    # just be the number of atoms.
+    npos = size(positions, 4) 
+
+    # Determine which atom index is used to derive information about a given
+    # physical position. This becomes relevant for entangled units. 
+    atom_idcs = map(site -> site.I[4], eachsite(sys))
+
     measure = isnothing(measure) ? ssf_trace(sys) : measure
     num_observables(measure)
-    samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., na, n_all_ω)
+    samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., npos, n_all_ω)
     corrbuf = zeros(ComplexF64, sys.dims..., n_all_ω)
 
     # The output data has n_all_ω many (positive and negative and zero) frequencies
-    data = zeros(ComplexF64, num_correlations(measure), na, na, sys.dims..., n_all_ω)
+    data = zeros(ComplexF64, num_correlations(measure), npos, npos, sys.dims..., n_all_ω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
     # The normalization is defined so that the prod(sys.dims)-many estimates of
@@ -173,7 +194,9 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
 
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
-    sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω, measure, measperiod, dt, nsamples,
+    sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω,
+                             measure, copy(measure.observables), positions, atom_idcs, copy(measure.corr_pairs),
+                             measperiod, dt, nsamples,
                              samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
     return sc
@@ -192,13 +215,12 @@ excitation spectrum cannot be performed.
 """
 struct SampledCorrelationsStatic
     parent :: SampledCorrelations
-
-    function SampledCorrelationsStatic(sys::System; measure, calculate_errors=false)
-        parent = SampledCorrelations(sys; measure, energies=nothing, dt=NaN, calculate_errors)
-        return new(parent)
-    end
 end
 
+function SampledCorrelationsStatic(sys::System; measure, calculate_errors=false)
+    parent = SampledCorrelations(sys; measure, energies=nothing, dt=NaN, calculate_errors)
+    return SampledCorrelationsStatic(parent)
+end
 
 function Base.show(io::IO, ::SampledCorrelations)
     print(io, "SampledCorrelations")
@@ -211,24 +233,25 @@ end
 
 
 function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
-    (; crystal, sys_dims, nsamples) = sc
-    nω = Int(size(sc.data, 7)/2+1)
-    Δω = round(sc.Δω, digits=4)
+    (; crystal, nsamples) = sc
+    nω = round(Int, size(sc.data)[7]/2)
+    sys_dims = size(sc.data[4:6])
     printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q,ω)"; bold=true)
-    print(io," | nω = $nω, Δω = $Δω")
+    print(io," | nω = $nω, Δω = $(round(sc.Δω, digits=4))")
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io, supercell_to_str(sys_dims, crystal))
+    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelationsStatic)
-    (; crystal, sys_dims, nsamples) = sc.parent
+    (; crystal, nsamples) = sc.parent
+    sys_dims = size(sc.parent.data[4:6])
     printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q)"; bold=true)
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io, supercell_to_str(sys_dims, crystal))
+    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end
