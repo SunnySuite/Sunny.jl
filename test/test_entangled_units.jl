@@ -25,7 +25,6 @@ end
 @testitem "Test Dimer Interactions" begin
     J = 1.0
     J′ = 0.1
-    dims = (1, 1, 1)
     latvecs = [
         1  0  0
         0  1  0
@@ -34,7 +33,7 @@ end
     positions = [[0, 0, 0], [0.0, 0.5, 0.0]] 
 
     crystal = Crystal(latvecs, positions, 1; types = ["A", "B"])
-    sys = System(crystal, dims, [SpinInfo(1; S=1/2, g=2), SpinInfo(2; S=1/2, g=2)], :SUN)
+    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
     set_exchange!(sys, J, Bond(1, 2, [0, 0, 0]))
     set_exchange!(sys, J′, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))  # Needed because we broke the symmetry equivalence of the two sites
