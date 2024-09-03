@@ -47,11 +47,11 @@ end
 Create an `EntangledSystem` from an existing `System`. `units` is a list of
 tuples specifying the atoms inside each unit cell that will be grouped into a
 single "entangled unit." All entangled units must lie entirely inside a unit
-cell and cannot span different units cells. Currently this feature is only
-supported for systems that can be viewed as a regular lattice of a single unit
-type (all dimers, all trimers, etc). Sunny will use the SU(_N_) formalism to
-model each one of these units as a distinct Hilbert space in which the full
-quantum mechanical structure is locally preserved.
+cell. Currently this feature is only supported for systems that can be viewed as
+a regular lattice of a single unit type (all dimers, all trimers, etc). Sunny
+will use the SU(_N_) formalism to model each one of these units as a distinct
+Hilbert space in which the full quantum mechanical structure is locally
+preserved.
 
 Interactions must be specified for the original `System`. Sunny will
 automatically reconstruct the appropriate interactions for the
