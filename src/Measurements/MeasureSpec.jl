@@ -48,7 +48,7 @@ function empty_measurespec(sys)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
     formfactors = zeros(FormFactor, 0, natoms(sys.crystal))
-    offsets = [Vec3(0,0,0) for _ in 0:0, i in 1:natoms(sys.crystal)]
+    offsets = zeros(Vec3, 0, natoms(sys.crystal))
     return MeasureSpec(observables, corr_pairs, combiner, formfactors, offsets)
 end
 
@@ -149,7 +149,6 @@ See also the Sunny documentation on [Structure Factor Conventions](@ref).
 """
 function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
     observables = all_dipole_observables(sys; apply_g)
-    offsets = [Vec3(0,0,0) for _ in 1:3, _ in 1:natoms(sys.crystal)]
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     combiner(q, data) = f(q, SA[
         data[6]       data[5]       data[3]
@@ -157,6 +156,7 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
         conj(data[3]) conj(data[2]) data[1]
     ])
     formfactors = propagate_form_factors(sys, formfactors)
+    offsets = zeros(Vec3, 3, natoms(sys.crystal))
     return MeasureSpec(observables, corr_pairs, combiner, formfactors, offsets)
 end
 
