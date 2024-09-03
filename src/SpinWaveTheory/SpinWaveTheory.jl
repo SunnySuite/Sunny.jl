@@ -69,9 +69,6 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     # Rotate local operators to quantization axis
     data = swt_data(sys, measure)
 
-    # TODO: Rebuild MeasureSpec internal to SpinWaveTheory, in particular
-    # observable indexing and position offsets.
-
     return SpinWaveTheory(sys, data, measure, regularization)
 end
 
