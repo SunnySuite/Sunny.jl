@@ -40,5 +40,5 @@ plot_intensities(res; units)
 # Integrate intensities between 3.5 and 4 meV using [`intensities_static`](@ref)
 # with the `bounds` option.
 
-res = intensities_static(swt, grid; bounds=(3.5, 4.0))
+res = intensities_static(swt, grid; bounds=(3.5, 4.01))
 plot_intensities(res; units)
