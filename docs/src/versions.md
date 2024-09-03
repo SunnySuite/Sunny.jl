@@ -1,7 +1,12 @@
 # Version History
 
 ## v0.7.1
-(In development)
+(Sep 3, 2024)
+
+* Fix crash in `plot_intensities!` when all data is uniform.
+* Correctness fix for scalar biquadratic interactions specified with option
+  `biquad` to [`set_exchange!`](@ref).
+* Prototype implementation of entangled units.
 
 ## v0.7.0
 (Aug 30, 2024)

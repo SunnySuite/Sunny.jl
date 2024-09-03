@@ -244,9 +244,9 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
 
     # Renormalize biquadratic interactions (from rcs_factors with k=2)
     if sys.mode == :dipole
-        S1 = spin_label(sys, bond.i)
-        S2 = spin_label(sys, bond.j)
-        biquad *= (1 - 1/2S1) * (1 - 1/2S2)
+        s1 = spin_label(sys, bond.i)
+        s2 = spin_label(sys, bond.j)
+        biquad *= (1 - 1/2s1) * (1 - 1/2s2)
     end
 
     # Propagate all couplings by symmetry
@@ -315,6 +315,33 @@ function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=tr
 end
 
 
+# Use the operator identity Qᵢ⋅g Qⱼ = (Sᵢ⋅Sⱼ)² + Sᵢ⋅Sⱼ/2 - Sᵢ²Sⱼ²/3, where Qᵢ
+# are the five Stevens quadrupoles, and g is the `scalar_biquad_metric`. The
+# parameter `biquad` is accepted as the coefficient to (Sᵢ⋅Sⱼ)², but is returned
+# as the coefficient to Qᵢ⋅g Qⱼ. This is achieved via a shift of the bilinear
+# and scalar parts. In the special case of :dipole_large_s, the limiting
+# behavior is Sᵢ²Sⱼ² → sᵢ²sⱼ² (just the spin labels squared), and 𝒪(s²) → 0
+# (homogeneous in quartic order of spin).
+function adapt_for_biquad(scalar, bilin, biquad, sys, site1, site2)
+    bilin = to_float_or_mat3(bilin)
+    biquad = Float64(biquad)
+
+    if !iszero(biquad)
+        if sys.mode in (:SUN, :dipole)
+            s1 = spin_label(sys, to_atom(site1))
+            s2 = spin_label(sys, to_atom(site2))
+            bilin -= (bilin isa Number) ? biquad/2 : (biquad/2)*I
+            scalar += biquad * s1*(s1+1) * s2*(s2+1) / 3
+        else
+            @assert sys.mode == :dipole_large_s
+            s1 = sys.κs[to_cartesian(site1)]
+            s2 = sys.κs[to_cartesian(site2)]
+            scalar += biquad * s1^2 * s2^2 / 3
+        end
+    end
+    return scalar, bilin, biquad
+end
+
 """
     set_exchange!(sys::System, J, bond::Bond; biquad=0)
 
@@ -330,9 +357,9 @@ antisymmetric part of the exchange, where `D` is the Dzyaloshinskii-Moriya
 pseudo-vector. The resulting interaction will be ``𝐃⋅(𝐒_i×𝐒_j)``.
 
 The optional numeric parameter `biquad` multiplies a scalar biquadratic
-interaction, ``(𝐒_i⋅𝐒_j)^2``, with appropriate [Interaction
-Renormalization](@ref). For more general interactions, use
-[`set_pair_coupling!`](@ref) instead.
+interaction, ``(𝐒_i⋅𝐒_j)^2``, with [Interaction Renormalization](@ref) if
+appropriate. For more general interactions, use [`set_pair_coupling!`](@ref)
+instead.
 
 # Examples
 ```julia
@@ -350,17 +377,9 @@ set_exchange!(sys, J, bond)
 ```
 """
 function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.0) where N
-    if !iszero(biquad)
-        # Reinterpret `biquad (Sᵢ⋅Sⱼ)²` by shifting its bilinear part into the
-        # usual 3×3 exchange J. What remains in `biquad` is a coupling between
-        # quadratic Stevens operators O[2,q] via `scalar_biquad_metric`.
-        biquad = Float64(biquad)
-        J -= (J isa Number) ? biquad/2 : (biquad/2)*I
-    end
-
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
-    bilin = to_float_or_mat3(J)
-    set_pair_coupling_aux!(sys, 0.0, bilin, biquad, zero(TensorDecomposition), bond)
+    scalar, bilin, biquad = adapt_for_biquad(0.0, J, biquad, sys, (1, 1, 1, bond.i), (1, 1, 1, bond.j))
+    set_pair_coupling_aux!(sys, scalar, bilin, biquad, zero(TensorDecomposition), bond)
     return
 end
 
@@ -448,16 +467,8 @@ See also [`set_exchange!`](@ref) for more details on specifying `J` and
 instead.
 """
 function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad::Number=0.0, offset=nothing) where N
-    if !iszero(biquad)
-        # Reinterpret `biquad (Sᵢ⋅Sⱼ)²` by shifting its bilinear part into the
-        # usual 3×3 exchange J. What remains in `biquad` is a coupling between
-        # quadratic Stevens operators O[2,q] via `scalar_biquad_metric`.
-        biquad = Float64(biquad)
-        J -= (J isa Number) ? biquad/2 : (biquad/2)*I
-    end
-
-    bilin = to_float_or_mat3(J)
-    set_pair_coupling_at_aux!(sys, 0.0, bilin, biquad, zero(TensorDecomposition), site1, site2, offset)
+    scalar, bilin, biquad = adapt_for_biquad(0.0, J, biquad, sys, site1, site2)
+    set_pair_coupling_at_aux!(sys, scalar, bilin, biquad, zero(TensorDecomposition), site1, site2, offset)
     return
 end
 
