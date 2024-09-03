@@ -118,7 +118,7 @@ end
 
     # Reference scalar biquadratic without renormalization
     set_exchange!(sys1, 0, Bond(1, 1, [1,0,0]); biquad=1)
-    @test sys1.interactions_union[1].pair[1].bilin ≈ -1/2
+    @test sys1.interactions_union[1].pair[1].bilin ≈ 0
     @test sys1.interactions_union[1].pair[1].biquad ≈ 1
 
     # Same thing, but with renormalization
@@ -136,4 +136,41 @@ end
     set_pair_coupling!(sys2, (S1, S2) -> (S1'*S2)^2, Bond(1, 1, [1,0,0]))
     @test sys2.interactions_union[1].pair[1].bilin ≈ -1/2
     @test sys2.interactions_union[1].pair[1].biquad ≈ 1 * rcs
+end
+
+@testitem "Biquadratic renormalization 2" begin
+    # Simple dimer model
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0, 0, 0], [0.3, 0, 0]]; types=["A", "B"])
+    s1 = 3/2
+    s2 = 2
+    v1 = randn(3)
+    v2 = randn(3)
+    biquad = 1.2
+    bond = Bond(1, 2, [0, 0, 0])
+
+    # Biquadratic energy in dipole mode with RCS
+    sys = System(cryst, [1 => Moment(s=s1, g=-1), 2 => Moment(s=s1, g=-1)], :dipole)
+    set_dipole!(sys, v1, (1, 1, 1, 1))
+    set_dipole!(sys, v2, (1, 1, 1, 2))
+    set_exchange!(sys, 0.0, bond; biquad)
+    E_dipole = energy(sys)
+
+    # Biquadratic energy in SU(N) mode is same
+    sys = System(cryst, [1 => Moment(s=s1, g=-1), 2 => Moment(s=s1, g=-1)], :SUN)
+    set_dipole!(sys, v1, (1, 1, 1, 1))
+    set_dipole!(sys, v2, (1, 1, 1, 2))
+    set_exchange!(sys, 0.0, bond; biquad)
+    E_SUN_1 = energy(sys)
+    set_pair_coupling!(sys, (Si, Sj) -> biquad * (Si'*Sj)^2, bond)
+    E_SUN_2 = energy(sys)
+    @test E_dipole ≈ E_SUN_1 ≈ E_SUN_2
+
+    # Biquadratic energy in large-s limit is classical formula
+    sys = System(cryst, [1 => Moment(s=s1, g=-1), 2 => Moment(s=s2, g=-1)], :dipole_large_s)
+    set_dipole!(sys, v1, (1, 1, 1, 1))
+    set_dipole!(sys, v2, (1, 1, 1, 2))
+    set_exchange!(sys, 0.0, bond; biquad)
+    E_large_s = energy(sys)
+    @test E_large_s ≈ biquad * (sys.dipoles[1]' * sys.dipoles[2])^2
 end
