@@ -10,7 +10,7 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     offsets :: Array{Vec3, 2}            # (nobs × natoms)
 
     # TODO: Default combiner will be SVector?
-    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors, offsets) where {Op, F}
+    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors; offsets=nothing) where {Op, F}
         # Lift return type of combiner function to type-level
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         @assert isbitstype(Ret)
@@ -18,10 +18,10 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
         if isone(ndims(formfactors))
             formfactors = [ff for _ in axes(observables, 1), ff in formfactors]
         end
-        if isone(ndims(offsets))
-            offsets = [offset for _ in axes(observables, 1), offset in offsets]
+        if isnothing(offsets)
+            offsets = zeros(Vec3, size(observables)[[1,5]]...)
         end
-        @assert size(observables)[[1,5]] == size(formfactors)
+        @assert size(observables)[[1,5]] == size(formfactors) == size(offsets)
         return new{Op, F, Ret}(observables, corr_pairs, combiner, formfactors, offsets)
     end
 end
@@ -47,8 +47,7 @@ function empty_measurespec(sys)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
     formfactors = zeros(FormFactor, 0, natoms(sys.crystal))
-    offsets = zeros(Vec3, 0, natoms(sys.crystal))
-    return MeasureSpec(observables, corr_pairs, combiner, formfactors, offsets)
+    return MeasureSpec(observables, corr_pairs, combiner, formfactors)
 end
 
 function all_dipole_observables(sys::System{0}; apply_g)
@@ -155,8 +154,7 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
         conj(data[3]) conj(data[2]) data[1]
     ])
     formfactors = propagate_form_factors(sys, formfactors)
-    offsets = zeros(Vec3, 3, natoms(sys.crystal))
-    return MeasureSpec(observables, corr_pairs, combiner, formfactors, offsets)
+    return MeasureSpec(observables, corr_pairs, combiner, formfactors)
 end
 
 """
