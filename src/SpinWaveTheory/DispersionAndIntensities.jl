@@ -163,8 +163,8 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     Nq = length(qpts.qs)
 
     # Temporary storage for pair correlations
-    Nobs = size(measure.observables, 1)
-    Ncorr = length(measure.corr_pairs)
+    Nobs = num_observables(measure)
+    Ncorr = num_correlations(measure)
     corrbuf = zeros(ComplexF64, Ncorr)
 
     # Preallocation
@@ -180,7 +180,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:Na, μ in 1:Nobs
-            r_global = global_position(sys, (1,1,1,i)) # + offsets[μ,i]  # Offsets will enter here
+            r_global = global_position(sys, (1,1,1,i)) # + offsets[μ,i]
             ff = get_swt_formfactor(measure, 1, i)
             Avec_pref[μ, i] = exp(- im * dot(q_global, r_global))
             Avec_pref[μ, i] *= compute_form_factor(ff, norm2(q_global))

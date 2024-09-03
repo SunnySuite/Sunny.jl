@@ -31,7 +31,7 @@ function Base.show(io::IO, ::MeasureSpec)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", m::MeasureSpec)
-    nobs = size(m.observables, 1)
+    nobs = num_observables(m)
     ret = eltype(m)
     println(io, "MeasureSpec [$nobs observables, returns $ret]")
 end
@@ -39,7 +39,6 @@ end
 
 Base.eltype(::MeasureSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
-# Replicate Sam's observables code for the moment
 num_observables(measure::MeasureSpec) = size(measure.observables, 1)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs) 
 
