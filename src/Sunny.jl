@@ -139,17 +139,17 @@ export set_external_field!, set_external_field_at!, meV_per_K,
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
 ### ext/PlottingExt.jl, dependent on Makie
-function view_crystal(args...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+function view_crystal(args...; opts...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import Makie to enable plotting")
 end
-function plot_spins!(args...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+function plot_spins!(args...; opts...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import Makie to enable plotting")
 end
-function plot_spins(args...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+function plot_spins(args...; opts...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import Makie to enable plotting")
 end
 function plot_intensities!(args...; opts...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+    error(isloaded("Makie") ? "Invalid method call" : "Import Makie to enable plotting")
 end
 function plot_intensities(args...; opts...)
     error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
