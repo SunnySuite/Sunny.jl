@@ -190,6 +190,9 @@ function ssf_custom_bm(f, sys::System; u, v, apply_g=true, formfactors=nothing)
     e3 = normalize(u × v)
 
     return ssf_custom(sys::System; apply_g, formfactors) do q, ssf
+        if iszero(q)
+            error("Blume-Maleev axis system not defined at zero q")
+        end
         if abs(q ⋅ e3) > 1e-12
             error("Momentum transfer q not in scattering plane")
         end
