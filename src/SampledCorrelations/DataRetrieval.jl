@@ -14,8 +14,11 @@ function pruned_wave_vector_info(sc::SampledCorrelations, qs)
     # Convert to absolute units (for form factors)
     qabs_rounded = map(m -> sc.crystal.recipvecs * (m ./ sc.sys_dims), ms)
 
-    # List of "starting" pointers i where idcs[i-1] != idcs[i]
-    starts = findall(i -> i == 1 || idcs[i-1] != idcs[i], eachindex(idcs))
+    # List of "starting" pointers i where qabs_rounded[i-1] != qabs_rounded[i]
+    # WARNING: This test cannot be done on idcs, since they wrap and a
+    # distinction must be made between wave vectors in different Brillouin
+    # zones which nonetheless index the same underlying data.
+    starts = findall(i -> i == 1 || !isapprox(qabs_rounded[i-1], qabs_rounded[i]), eachindex(qabs_rounded))
 
     # Length of each run of repeated values
     counts = starts[2:end] - starts[1:end-1]

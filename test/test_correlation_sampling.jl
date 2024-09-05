@@ -93,6 +93,14 @@
     true_static_vals = intensities_static(res, qgrid)
     true_static_total = sum(true_static_vals.data)
     @test isapprox(true_static_total / prod(sys.dims), 1.0; atol=1e-12)
+
+    # Make sure a list that contains successive wave vectors that rely on the
+    # same underlying data point (but require different treatment w.r.t. phase
+    # averaging and form factors) do not produce the same output.
+    formfactors = [1 => FormFactor("Fe2")]
+    sc.measure = ssf_trace(sys; apply_g=false, formfactors)
+    res = intensities_static(sc, [[0, 0, 1/2], [1, 0, 1/2]]; kT=nothing)
+    @test res.data[1] != res.data[2]
 end
 
 @testitem "Merge correlations" begin
