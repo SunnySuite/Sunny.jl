@@ -94,9 +94,8 @@
     true_static_total = sum(true_static_vals.data)
     @test isapprox(true_static_total / prod(sys.dims), 1.0; atol=1e-12)
 
-    # Test the case in which a list of wave vectors contains succesive elements
-    # that rely on the same underlying data point (same index into sc.data) but
-    # require different treatment w.r.t. phase averaging and/or form factors.
+    # Test whether two distinct wave vectors referencing the same underlying
+    # data point in sc.data are in fact treated differently.
     formfactors = [1 => FormFactor("Fe2")]
     sc.measure = ssf_trace(sys; apply_g=false, formfactors)
     res = intensities_static(sc, [[0, 0, 1/2], [1, 0, 1/2]]; kT=nothing)
