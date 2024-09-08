@@ -84,7 +84,7 @@ end
 # Constructs a crystal from the complete list of atom positions `positions`,
 # representing fractions (between 0 and 1) of the lattice vectors `latvecs`.
 # All symmetry information is automatically inferred.
-function Crystal(latvecs, positions; types::Union{Nothing,Vector{String}}=nothing, symprec=1e-5)
+function Crystal(latvecs, positions; types::Union{Nothing, Vector{String}}=nothing, symprec=1e-5)
     print_crystal_warnings(latvecs, positions)
     latvecs = convert(Mat3, latvecs)
     positions = [convert(Vec3, p) for p in positions]
@@ -96,28 +96,16 @@ end
 
 
 # Builds a crystal by applying the symmetry operators for a given spacegroup
-# symbol.
-function Crystal(latvecs, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+# (number or symbol).
+function Crystal(latvecs, positions, symbol::Union{Int, String}; types::Union{Nothing, Vector{String}}=nothing, setting=nothing, symprec=1e-5)
     print_crystal_warnings(latvecs, positions)
     latvecs = convert(Mat3, latvecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
         types = fill("", length(positions))
     end
-    crystal_from_symbol(latvecs, positions, types, symbol; setting, symprec)
-end
 
-# Builds a crystal by applying symmetry operators for a given international
-# spacegroup number.
-function Crystal(latvecs, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
-    print_crystal_warnings(latvecs, positions)
-    latvecs = convert(Mat3, latvecs)
-    positions = [convert(Vec3, p) for p in positions]
-    if isnothing(types)
-        types = fill("", length(positions))
-    end
-    symbol = string(spacegroup_number)
-    crystal_from_symbol(latvecs, positions, types, symbol; setting, symprec)
+    crystal_from_symbol(latvecs, positions, types, string(symbol); setting, symprec)
 end
 
 function print_crystal_warnings(latvecs, positions)

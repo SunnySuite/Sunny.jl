@@ -1,5 +1,6 @@
-# TODO: Optimize performance, perhaps via `unitary_irrep_for_rotation`. Runtime
-# is 1.1s on Sunny 0.7.
+# TODO: Investigate TestItemRunner slowdown. Runtime is 1.1s on Sunny 0.7,
+# mainly due to type inference. But the same code, compiled in a function from
+# the terminal, is a small fraction of a second.
 @testitem "Magnetization Observables" begin
     using LinearAlgebra
 
