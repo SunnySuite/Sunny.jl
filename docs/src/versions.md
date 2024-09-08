@@ -1,5 +1,11 @@
 # Version History
 
+## v0.7.2
+(In development)
+
+* Fix error in `SampledCorrelations` with a coarse ``𝐪``-grid. ([PR
+  #314](https://github.com/SunnySuite/Sunny.jl/pull/314))
+
 ## v0.7.1
 (Sep 3, 2024)
 
