@@ -4,12 +4,14 @@
 (In development)
 
 * Fix error in `SampledCorrelations` with a coarse ``𝐪``-grid. ([PR
-  #314](https://github.com/SunnySuite/Sunny.jl/pull/314))
+  #314](https://github.com/SunnySuite/Sunny.jl/pull/314)).
+* Fix colorbar in `plot_intensities!` when all data is uniform ([PR
+  #315](https://github.com/SunnySuite/Sunny.jl/pull/315)).
+
 
 ## v0.7.1
 (Sep 3, 2024)
 
-* Fix crash in `plot_intensities!` when all data is uniform.
 * Correctness fix for scalar biquadratic interactions specified with option
   `biquad` to [`set_exchange!`](@ref).
 * Prototype implementation of entangled units.
