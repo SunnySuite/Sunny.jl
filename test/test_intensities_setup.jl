@@ -66,8 +66,7 @@ end
     s = 1/2
     g = 2.3
     cryst = Sunny.diamond_crystal()
-    dims = (1, 2, 1) # TODO: why not (1,1,1)?
-    sys = System(cryst, [1 => Moment(; s, g)], :SUN; dims)
+    sys = System(cryst, [1 => Moment(; s, g)], :SUN)
     randomize_spins!(sys)
     sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)
@@ -93,17 +92,16 @@ end
 end
 
 @testitem "Sublattice sum rule" begin
-    latvecs = lattice_vectors(2, 1, 1, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0, 0, 0], [0.5, 0, 0]]; types=["A", "B"])
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0, 0, 0], [0, 0, 0.5]]; types=["A", "B"])
     s = 1/2
     g1 = 2
     g2 = 2.3
-    dims = (2, 1, 1) # TODO: Why won't (1,1,1) work?
-    sys = System(cryst, [1 => Moment(; s, g=g1), 2 => Moment(; s, g=g2)], :dipole; dims)
+    sys = System(cryst, [1 => Moment(; s, g=g1), 2 => Moment(; s, g=g2)], :dipole)
     randomize_spins!(sys)
 
     sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys))
-    qs = Sunny.available_wave_vectors(sc.parent; counts=(2, 1, 1))
+    qs = Sunny.available_wave_vectors(sc.parent; counts=(1, 1, 2))
     add_sample!(sc, sys)
     res = intensities_static(sc, qs[:])
     @test sum(res.data) / length(qs) ≈ s^2 * (g1^2 + g2^2)
