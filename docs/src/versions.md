@@ -8,7 +8,6 @@
 * Fix colorbar in `plot_intensities!` when all data is uniform ([PR
   #315](https://github.com/SunnySuite/Sunny.jl/pull/315)).
 
-
 ## v0.7.1
 (Sep 3, 2024)
 
