@@ -1013,17 +1013,17 @@ function colorrange_from_data(; data, saturation, sensitivity, allpositive)
     cmax = Statistics.quantile(vec(maximum(data; dims=1)), saturation)
     cmin = Statistics.quantile(vec(minimum(data; dims=1)), 1 - saturation)
 
-    # The returned (lo, hi) should satisfy lo < hi in all cases to allow for a
-    # meaningful Makie.Colorbar.
+    # The returned pair (lo, hi) should be strictly ordered, lo < hi, for use in
+    # Makie.Colorbar
     if allpositive
         # Intensities are supposed to be non-negative in this branch, but might
-        # not be due to any of: User error, very small roundative around
-        # negative zero, or Gibbs ringing in a KPM calculation.
+        # not be due to any of: User error, very small round-off around negative
+        # zero, or Gibbs ringing in a KPM calculation.
         @assert 0 <= sensitivity < 1
-        if iszero(abs(cmax))
+        if cmax <= 0
             return (0, 1e-15)
         else
-            (sensitivity, 1) .* abs(cmax)
+            (sensitivity, 1) .* cmax
         end
     else
         cscale = max(abs(cmax), abs(cmin))

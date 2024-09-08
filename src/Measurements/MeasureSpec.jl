@@ -13,7 +13,7 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors; offsets=nothing) where {Op, F}
         # Lift return type of combiner function to type-level
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
-        @assert isbitstype(Ret)
+        isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
         # Create inner `nobs` dimension, if missing
         if isone(ndims(formfactors))
             formfactors = [ff for _ in axes(observables, 1), ff in formfactors]

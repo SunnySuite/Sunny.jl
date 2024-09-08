@@ -8,8 +8,8 @@
 
 using Sunny, GLMakie
 
-# Build a [`Crystal`](@ref) for Ba₃NbFe₃Si₂O₁₄ using the crystal
-# structure from [Marty et al., Phys. Rev. Lett. **101**, 247201
+# Specify the Ba₃NbFe₃Si₂O₁₄ [`Crystal`](@ref) cell following [Marty et al.,
+# Phys. Rev. Lett. **101**, 247201
 # (2008)](http://dx.doi.org/10.1103/PhysRevLett.101.247201).
 
 units = Units(:meV, :angstrom)
@@ -23,8 +23,8 @@ langasite = Crystal(latvecs, positions, 150; types)
 cryst = subcrystal(langasite, "Fe")
 view_crystal(cryst)
 
-# Create a [`System`](@ref) and set Ba₃NbFe₃Si₂O₁₄ exchange interactions as
-# parametrized in [Loire et al., Phys. Rev. Lett. **106**, 207201
+# Create a [`System`](@ref) and set exchange interactions as parametrized in
+# [Loire et al., Phys. Rev. Lett. **106**, 207201
 # (2011)](http://dx.doi.org/10.1103/PhysRevLett.106.207201).
 
 sys = System(cryst, [1 => Moment(s=5/2, g=2)], :dipole; seed=0)
@@ -54,8 +54,8 @@ end
 # This compound is known to have a spiral order with approximate propagation
 # wavevector ``𝐤 ≈ [0, 0, 1/7]``. Search for this magnetic order with
 # [`minimize_spiral_energy!`](@ref). Due to reflection symmetry, one of two
-# possible propagation wavevectors may appear, ``𝐤 = ± [0, 0, 0.1426...]``.
-# Note that ``k_z = 0.1426...`` is very close to ``1/7 = 0.1428...``.
+# possible propagation wavevectors may appear, ``𝐤 = ± [0, 0, 0.1426…]``.
+# Note that ``k_z = 0.1426…`` is very close to ``1/7 = 0.1428…``.
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
@@ -95,4 +95,5 @@ measure = ssf_custom_bm(sys; u=[0, 1, 0], v=[0, 0, 1]) do q, ssf
 end
 swt = SpinWaveTheorySpiral(sys; measure, k, axis)
 res = intensities(swt, path; energies, kernel=gaussian(fwhm=0.25))
-plot_intensities(res; units, saturation=0.8, allpositive=false, title="Im[S²³(q, ω) - S³²(q, ω)]")
+plot_intensities(res; units, saturation=0.8, allpositive=false,
+                 title="Im[S²³(q, ω) - S³²(q, ω)]")
