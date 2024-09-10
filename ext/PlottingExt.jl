@@ -1050,8 +1050,9 @@ plot_intensities!(fig[2, 1], res2; title="Panel 2")
 display(fig)
 ```
 """
-function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; colormap=nothing, saturation=0.9, sensitivity=0.0025, allpositive=true,
-                                 units=nothing, into=nothing, fwhm=nothing, ylims=nothing, title="", axisopts=NamedTuple())
+function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; colormap=nothing, colorrange=nothing,
+                                 saturation=0.9, sensitivity=0.0025, allpositive=true, units=nothing, into=nothing,
+                                 fwhm=nothing, ylims=nothing, title="", axisopts=NamedTuple())
     unit_energy, ylabel = get_unit_energy(units, into)
     axisopts = (; title, axisopts...)
  
@@ -1060,10 +1061,13 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
         ylims = @something ylims (min(0, mindisp), 1.2*maxdisp)
         energies = range(ylims[1], ylims[2], 512)
         fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
-        broadened = Sunny.broaden(res; energies, kernel=gaussian(; fwhm))
+        σ = fwhm/2√(2log(2))
+        kernel = Sunny.Broadening(x -> exp(-x^2/2σ^2)) # Gaussian without normalization
+        broadened = Sunny.broaden(res; energies, kernel)
 
-        colorrange = colorrange_from_data(; broadened.data, saturation, sensitivity, allpositive)
+        colorrange_suggest = colorrange_from_data(; broadened.data, saturation, sensitivity, allpositive)
         colormap = @something colormap (allpositive ? Makie.Reverse(:thermal) : :bwr)
+        colorrange = @something colorrange colorrange_suggest
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), res.qpts.xticks, xticklabelrotation, axisopts...)
@@ -1196,28 +1200,31 @@ end
     for details.
 =#
 """
-    plot_intensities(res::BandIntensities; colormap=nothing, allpositive=true, saturation=0.9,
-                     sensitivity=0.0025, fwhm=nothing, ylims=nothing, units=nothing, into=nothing, 
-                     title="")
-
+    plot_intensities(res::BandIntensities; colormap=nothing, colorrange=nothing, allpositive=true,
+                     saturation=0.9, sensitivity=0.0025, fwhm=nothing, ylims=nothing, units=nothing,
+                     into=nothing, title="")
     plot_intensities(res::Intensities; colormap=nothing, colorrange=nothing, allpositive=true, 
                      saturation=0.9, units=nothing, into=nothing, title="")
-
+    plot_intensities(res::StaticIntensities; colormap=nothing, colorrange=nothing, allpositive=true, 
+                     saturation=0.9, units=nothing, into=nothing, title="")
     plot_intensities(res::PowderIntensities; colormap=nothing, colorrange=nothing, allpositive=true, 
                      saturation=0.9, units=nothing, into=nothing, title="")
 
 Keyword arguments:
 
-  * `colormap` and `colorange`: Optionally override the default mapping from
-    intensity values to colors. If specified, these parameters will be passed
-    directly to `Makie.heatmap`.
+  * `colormap`: Color palette for plotting broadened intensities. See Makie docs
+    for allowed values.
+  * `colorrange`: A lower and upper bound on intensities. For heatmaps, these
+    bounds define the intensity values that saturate the colormap.
   * `allpositive`: Should intensities be all positive, apart from numerical
     error? If true, the default colors will clip below zero intensity. If false,
     the default colors will be symmetric about zero intensity.
-  * `saturation`: If `colorrange` is not explicitly set, this defines the
-    saturation value as a quantile of intensities over all wavevectors.
+  * `saturation`: If `colorrange` is not explicitly set, this dimensionless
+    parameter defines the upper saturated intensity value as a quantile of
+    maximum intensities taken over wavevectors.
   * `sensitivity`: When plotting `BandIntensities`, this defines a lower bound
-    on the visible intensities as a fraction of the saturated intensity value.
+    on the visible intensities as a fraction of the upper saturated intensity
+    value.
   * `fwhm`: When plotting `BandIntensities`, this overrides the full-width at
     half-maximum value used for Gaussian broadening.
   * `ylims`: Limits of the y-axis.

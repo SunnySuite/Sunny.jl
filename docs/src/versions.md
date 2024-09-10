@@ -7,6 +7,7 @@
   #314](https://github.com/SunnySuite/Sunny.jl/pull/314)).
 * Fix colorbar in `plot_intensities!` when all data is uniform ([PR
   #315](https://github.com/SunnySuite/Sunny.jl/pull/315)).
+* An explicit `colorrange` can be used for plotting `intensities_bands`.
 
 ## v0.7.1
 (Sep 3, 2024)
