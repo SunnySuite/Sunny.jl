@@ -46,7 +46,7 @@ minimize_energy!(sys_lr)
 plot_spins(sys_lr; ghost_radius=8, color=[:red, :blue, :yellow, :purple])
 
 # Copy this configuration to the other two systems. Note that the original `sys`
-# has a continuum of degenerate ground states.
+# has a _continuum_ of degenerate ground states.
 
 sys.dipoles .= sys_lr.dipoles
 sys_lr_cut.dipoles .= sys_lr.dipoles;
@@ -67,11 +67,12 @@ swt = SpinWaveTheory(sys_lr; measure)
 res2 = intensities_bands(swt, path)
 
 swt = SpinWaveTheory(sys_lr_cut; measure)
-res3 = intensities_bands(swt, path)
+res3 = intensities_bands(swt, path);
 
 # Create a panel corresponding to Fig. 2 of [Del Maestro and
-# Gingras](https://arxiv.org/abs/cond-mat/0403494). That previous work
-# underreported the energy scale by a factor of two, and requires slight
+# Gingras](https://arxiv.org/abs/cond-mat/0403494). Dashed lines show the effect
+# of truncating dipole-dipole interactions at 5 Å. The Del Maestro and Gingras
+# paper underreported the energy scale by a factor of two, and requires slight
 # corrections to its third dispersion band.
 
 fig = Figure(size=(768, 300))
