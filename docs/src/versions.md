@@ -1,7 +1,7 @@
 # Version History
 
 ## v0.7.2
-(In development)
+(Sep 11, 2024)
 
 * Fix error in `SampledCorrelations` with a coarse ``𝐪``-grid. ([PR
   #314](https://github.com/SunnySuite/Sunny.jl/pull/314)).
@@ -52,7 +52,7 @@ This **major release** introduces breaking interface changes.
 
 
 ## v0.6.1
-(August 2, 2024)
+(Aug 2, 2024)
 
 * **Breaking changes**: [`magnetic_moment`](@ref) is now reported in units of
   the Bohr magneton, ``μ_B``. For model systems where the Zeeman coupling aligns
@@ -64,7 +64,7 @@ This **major release** introduces breaking interface changes.
   that can be obtained from `units.vacuum_permeability`.
 
 ## v0.6.0
-(June 18, 2024)
+(Jun 18, 2024)
 
 * Various correctness fixes. The magnetic moment is now anti-aligned with the
   spin dipole ([Issue 190](https://github.com/SunnySuite/Sunny.jl/issues/190)),
@@ -84,7 +84,7 @@ This **major release** introduces breaking interface changes.
   positions.
 
 ## v0.5.11
-(June 2, 2024)
+(Jun 2, 2024)
 
 * Fixes for Makie 0.21.
 
@@ -198,7 +198,7 @@ to work with deprecation warnings, but these will become hard errors Sunny v0.6.
   al., [arXiv:2310.19905]](https://arxiv.org/abs/2310.19905).
 
 ## v0.5.5
-(Sept 29, 2023)
+(Sep 29, 2023)
 
 * [`reshape_supercell`](@ref) now allows reshaping to multiples of the primitive
   unit cell, which can speed up certain calculations. This is illustrated in the
@@ -210,7 +210,7 @@ to work with deprecation warnings, but these will become hard errors Sunny v0.6.
   uniformly calculate a `3x3` matrix of complex numbers.
 
 ## v0.5.4
-(Sept 11, 2023)
+(Sep 11, 2023)
 
 * Various enhancements to [`view_crystal`](@ref). Atoms are now labeled by
   index, and bonds support interactive inspection (GLMakie only). Font sizes
@@ -228,7 +228,7 @@ to work with deprecation warnings, but these will become hard errors Sunny v0.6.
 * Fix [`export_vtk`](@ref) functionality.
 
 ## v0.5.3
-(Sept 8, 2023)
+(Sep 8, 2023)
 
 * Add `large_S_spin_operators` and `large_S_stevens_operators`
   to support single-ion anisotropies in dipole mode without renormalization. Set
