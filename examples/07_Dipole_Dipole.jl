@@ -16,52 +16,64 @@ positions = [[1/8, 1/8, 1/8]]
 cryst = Crystal(latvecs, positions, 227, setting="1")
 view_crystal(cryst)
 
-# Create a system with antiferromagnetic nearest neighbor exchange.
+# Create a system and reshape to the primitive cell, which contains four atoms.
+# Add antiferromagnetic nearest neighbor exchange interactions.
 
-sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole)
+primitive_cell = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
+sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole; seed=0)
+sys = reshape_supercell(sys, primitive_cell)
 J1 = 0.304 # (K)
 set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
 
-# Reshape to the primitive cell, which contains four atoms. To facilitate
-# indexing, the function [`position_to_site`](@ref) accepts positions with
-# respect to the original (cubic) cell.
+# Create a copy of the system and enable long-range dipole-dipole interactions
+# using Ewald summation.
 
-shape = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
-sys_prim = reshape_supercell(sys, shape)
+sys_lr = clone_system(sys)
+enable_dipole_dipole!(sys_lr, units.vacuum_permeability)
 
-set_dipole!(sys_prim, [+1, -1, 0], position_to_site(sys_prim, [1/8, 1/8, 1/8]))
-set_dipole!(sys_prim, [-1, +1, 0], position_to_site(sys_prim, [3/8, 3/8, 1/8]))
-set_dipole!(sys_prim, [+1, +1, 0], position_to_site(sys_prim, [3/8, 1/8, 3/8]))
-set_dipole!(sys_prim, [-1, -1, 0], position_to_site(sys_prim, [1/8, 3/8, 3/8]))
+# Create a copy of the system and add long-range dipole-dipole interactions up
+# to a 5 Å cutoff distance.
 
-plot_spins(sys_prim; ghost_radius=8, color=[:red, :blue, :yellow, :purple])
+sys_lr_cut = clone_system(sys)
+modify_exchange_with_truncated_dipole_dipole!(sys_lr_cut, 5.0, units.vacuum_permeability)
 
-# Calculate dispersions with and without long-range dipole interactions. The
-# high-symmetry ``𝐪``-points are specified with respect to the conventional
+# Find an energy minimizing spin configuration accounting for the long-range
+# dipole-dipole interactions. This will arbitrarily select from a discrete set
+# of possible ground states based on the system `seed`.
+
+randomize_spins!(sys_lr)
+minimize_energy!(sys_lr)
+plot_spins(sys_lr; ghost_radius=8, color=[:red, :blue, :yellow, :purple])
+
+# Copy this configuration to the other two systems. Note that the original `sys`
+# has a _continuum_ of degenerate ground states.
+
+sys.dipoles .= sys_lr.dipoles
+sys_lr_cut.dipoles .= sys_lr.dipoles;
+
+# Calculate dispersions for the three systems. The high-symmetry ``𝐪``-points
+# are specified in reciprocal lattice units with respect to the conventional
 # cubic cell.
 
 qs = [[0,0,0], [0,1,0], [1,1/2,0], [1/2,1/2,1/2], [3/4,3/4,0], [0,0,0]]
 labels = ["Γ", "X", "W", "L", "K", "Γ"]
 path = q_space_path(cryst, qs, 500; labels)
 
-measure = ssf_trace(sys_prim)
-swt = SpinWaveTheory(sys_prim; measure)
+measure = ssf_trace(sys)
+swt = SpinWaveTheory(sys; measure)
 res1 = intensities_bands(swt, path)
 
-sys_prim_dd = clone_system(sys_prim)
-enable_dipole_dipole!(sys_prim_dd, units.vacuum_permeability)
-swt = SpinWaveTheory(sys_prim_dd; measure)
+swt = SpinWaveTheory(sys_lr; measure)
 res2 = intensities_bands(swt, path)
 
-sys_prim_tdd = clone_system(sys_prim)
-modify_exchange_with_truncated_dipole_dipole!(sys_prim_tdd, 5.0, units.vacuum_permeability)
-swt = SpinWaveTheory(sys_prim_tdd; measure)
-res3 = intensities_bands(swt, path)
+swt = SpinWaveTheory(sys_lr_cut; measure)
+res3 = intensities_bands(swt, path);
 
-# Create a panel that qualitatively reproduces Fig. 2 of [Del Maestro and
-# Gingras](https://arxiv.org/abs/cond-mat/0403494). That previous work had two
-# errors: Its energy scale is too small by a factor of 2 and, in addition,
-# slight corrections are needed for the third dispersion band.
+# Create a panel corresponding to Fig. 2 of [Del Maestro and
+# Gingras](https://arxiv.org/abs/cond-mat/0403494). Dashed lines show the effect
+# of truncating dipole-dipole interactions at 5 Å. The Del Maestro and Gingras
+# paper underreported the energy scale by a factor of two, and requires slight
+# corrections to its third dispersion band.
 
 fig = Figure(size=(768, 300))
 plot_intensities!(fig[1, 1], res1; units, title="Without long-range dipole")
