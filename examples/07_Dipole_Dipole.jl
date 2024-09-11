@@ -17,8 +17,7 @@ cryst = Crystal(latvecs, positions, 227, setting="1")
 view_crystal(cryst)
 
 # Create a system and reshape to the primitive cell, which contains four atoms.
-# Add antiferromagnetic nearest neighbor exchange interactions. Note that the
-# ground state of this system is highly degenerate
+# Add antiferromagnetic nearest neighbor exchange interactions.
 
 primitive_cell = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
 sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole; seed=0)
@@ -38,19 +37,19 @@ enable_dipole_dipole!(sys_lr, units.vacuum_permeability)
 sys_lr_cut = clone_system(sys)
 modify_exchange_with_truncated_dipole_dipole!(sys_lr_cut, 5.0, units.vacuum_permeability)
 
-# Find the energy minimizing dipole configuration for the system with fully
-# long-range interactions. It serves as a valid ground state for the other two
-# systems and, in particular, breaks the very large degeneracy of the ground
-# state for the original `sys`.
+# Find an energy minimizing spin configuration accounting for the long-range
+# dipole-dipole interactions. This will arbitrarily select from a discrete set
+# of possible ground states based on the system `seed`.
 
 randomize_spins!(sys_lr)
 minimize_energy!(sys_lr)
-sys.dipoles .= sys_lr.dipoles
-sys_lr_cut.dipoles .= sys_lr.dipoles
-
-# Visualize the four spins on each tetrahedron.
-
 plot_spins(sys_lr; ghost_radius=8, color=[:red, :blue, :yellow, :purple])
+
+# Copy this configuration to the other two systems. Note that the original `sys`
+# has a continuum of degenerate ground states.
+
+sys.dipoles .= sys_lr.dipoles
+sys_lr_cut.dipoles .= sys_lr.dipoles;
 
 # Calculate dispersions for the three systems. The high-symmetry ``𝐪``-points
 # are specified in reciprocal lattice units with respect to the conventional
