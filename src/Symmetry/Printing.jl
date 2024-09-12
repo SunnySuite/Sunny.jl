@@ -190,7 +190,7 @@ end
 
 
 """
-    print_suggested_frame(cryst, i; digits=4)
+    print_suggested_frame(cryst, i)
 
 Print a suggested reference frame, as a rotation matrix `R`, that can be used as
 input to `print_site()`. The purpose is to simplify the description of allowed
@@ -227,12 +227,11 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6], io=stdout)
     # Tolerance below which coefficients are dropped
     atol = 1e-12
     # How many digits to use in printing coefficients
-    digits = 14
+    digits = 10
 
     R = convert(Mat3, R) # Rotate to frame of R
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
-    # TODO: `R` should be passed to `basis_for_symmetry_allowed_couplings` to
-    # get a nicer basis.
+    # TODO: `basis_for_symmetry_allowed_couplings` should accept R instead
     basis = [R * b * R' for b in basis]
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
     println(io, formatted_matrix(basis_strs; prefix="Allowed g-tensor: "))
@@ -260,23 +259,28 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
     lines = String[]
     cnt = 1
     for k in ks
-        B = stevens_basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
+        B = basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
 
         if size(B, 2) > 0
             terms = String[]
             for b in reverse(collect(eachcol(B)))
+                # rescale column so that the largest component is 1
+                b /= argmax(abs, b)
 
-                if any(x -> 1e-12 < abs(x) < 1e-6, b)
+                if any(x -> atol < abs(x) < sqrt(atol), b)
                     @info """Found a very small but nonzero expansion coefficient.
                              This may indicate a slightly misaligned reference frame."""
                 end
 
-                # rescale column by its minimum nonzero value
-                _, min = findmin(b) do x
-                    abs(x) < 1e-12 ? Inf : abs(x)
+                # rescale by up to 60× if it makes all coefficients integer
+                denoms = denominator.(rationalize.(b; tol=atol))
+                if all(<=(60), denoms)
+                    factor = lcm(denominator.(rationalize.(b; tol=atol)))
+                    if factor <= 60
+                        b .*= factor
+                    end
                 end
-                b /= b[min]
-                
+
                 # reverse b elements to print q-components in ascending order, q=-k...k
                 ops = String[]
                 for (b_q, q) in zip(reverse(b), -k:k)
@@ -299,8 +303,6 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
     println(io, join(lines, " +\n"))
 
     if R != I
-        println(io)
-        println(io, "Modified reference frame! Transform using `rotate_operator(op, R)` where")
-        println(io, formatted_matrix(number_to_math_string.(R); prefix="R = "))
+        println(io, "Modified reference frame! Transform using `rotate_operator(op, R)`.")
     end
 end

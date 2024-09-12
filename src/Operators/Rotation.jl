@@ -137,7 +137,6 @@ function unitary_tensor_for_rotation(R::Mat3; Ns)
     end
 end
 
-# TODO: Replace this with a function that takes generators.
 """
     rotate_operator(A, R)
 
