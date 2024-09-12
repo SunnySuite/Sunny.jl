@@ -69,9 +69,11 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     end
 
     # If 𝒜 is symmetry-allowed, then its Hermitian and anti-Hermitian parts are
-    # independently symmetry-allowed. These are given by the real and imaginary
-    # parts of B. Create a real matrix with these two parts, and eliminate
-    # linearly-dependent vectors from the column space.
+    # independently symmetry-allowed. These are associated with the real and
+    # imaginary parts of B. Use the real and imaginary parts of B to construct
+    # an over-complete set of symmetry-allowed operators that are guaranteed to
+    # be Hermitian. Create a widened real matrix from these two parts, and
+    # eliminate linearly-dependent vectors from the column space.
     B = colspace(hcat(real(B), imag(B)); atol=1e-12)
 
     # Find linear combination of columns that sparsifies B
