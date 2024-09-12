@@ -273,10 +273,13 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
                              This may indicate a slightly misaligned reference frame."""
                 end
 
-                # Rescale by a factor <= 60 if it makes all coefficients integer
-                factor = lcm(denominator.(rationalize.(b; tol=atol)))
-                if factor <= 60
-                    b .*= factor
+                # Rescale by a factor up to 60 to make all coefficients integer
+                denoms = denominator.(rationalize.(b; tol=atol))
+                if all(<=(60), denoms)
+                    factor = lcm(denominator.(rationalize.(b; tol=atol)))
+                    if factor <= 60
+                        b .*= factor
+                    end
                 end
 
                 # reverse b elements to print q-components in ascending order, q=-k...k
