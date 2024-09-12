@@ -274,7 +274,7 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
                 end
 
                 # Rescale by a factor <= 60 if it makes all coefficients integer
-                factor = lcm(denominator.(rationalize.(b; tol=1e-12)))
+                factor = lcm(denominator.(rationalize.(b; tol=atol)))
                 if factor <= 60
                     b .*= factor
                 end
