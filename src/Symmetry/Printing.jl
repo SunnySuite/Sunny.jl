@@ -273,6 +273,12 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
                              This may indicate a slightly misaligned reference frame."""
                 end
 
+                # Rescale by a factor <= 60 if it makes all coefficients integer
+                factor = lcm(denominator.(rationalize.(b; tol=1e-12)))
+                if factor <= 60
+                    b .*= factor
+                end
+
                 # reverse b elements to print q-components in ascending order, q=-k...k
                 ops = String[]
                 for (b_q, q) in zip(reverse(b), -k:k)
