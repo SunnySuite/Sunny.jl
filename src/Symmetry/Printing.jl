@@ -260,23 +260,19 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
     lines = String[]
     cnt = 1
     for k in ks
-        B = stevens_basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
+        B = basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
 
         if size(B, 2) > 0
             terms = String[]
             for b in reverse(collect(eachcol(B)))
+                # rescale column so that the largest component is 1
+                b /= argmax(abs, b)
 
-                if any(x -> 1e-12 < abs(x) < 1e-6, b)
+                if any(x -> atol < abs(x) < sqrt(atol), b)
                     @info """Found a very small but nonzero expansion coefficient.
                              This may indicate a slightly misaligned reference frame."""
                 end
 
-                # rescale column by its minimum nonzero value
-                _, min = findmin(b) do x
-                    abs(x) < 1e-12 ? Inf : abs(x)
-                end
-                b /= b[min]
-                
                 # reverse b elements to print q-components in ascending order, q=-k...k
                 ops = String[]
                 for (b_q, q) in zip(reverse(b), -k:k)
