@@ -227,12 +227,11 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6], io=stdout)
     # Tolerance below which coefficients are dropped
     atol = 1e-12
     # How many digits to use in printing coefficients
-    digits = 12
+    digits = 10
 
     R = convert(Mat3, R) # Rotate to frame of R
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
-    # TODO: `R` should be passed to `basis_for_symmetry_allowed_couplings` to
-    # get a nicer basis.
+    # TODO: `basis_for_symmetry_allowed_couplings` should accept R instead
     basis = [R * b * R' for b in basis]
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
     println(io, formatted_matrix(basis_strs; prefix="Allowed g-tensor: "))
@@ -304,8 +303,6 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
     println(io, join(lines, " +\n"))
 
     if R != I
-        println(io)
-        println(io, "Modified reference frame! Transform using `rotate_operator(op, R)` where")
-        println(io, formatted_matrix(number_to_math_string.(R; digits); prefix="R = "))
+        println(io, "Modified reference frame! Transform using `rotate_operator(op, R)`.")
     end
 end

@@ -320,11 +320,7 @@ end
             c₁*𝒪[2,0] +
             c₂*𝒪[4,-3] + c₃*𝒪[4,0] +
             c₄*𝒪[6,-3] + c₅*𝒪[6,0] + c₆*𝒪[6,6]
-        
-        Modified reference frame! Transform using `rotate_operator(op, R)` where
-        R = [1/√2      0  1/√2
-             1/√6 -√2/√3 -1/√6
-             1/√3   1/√3 -1/√3]
+        Modified reference frame! Transform using `rotate_operator(op, R)`.
         """
 
     capt = IOCapture.capture() do
@@ -356,33 +352,32 @@ end
     @test capt.output == """
         Atom 1
         Type 'A', position [0, 0, 0], multiplicity 1
-        Allowed g-tensor: [A-0.992169953261B                 0                0
-                                           0 A-0.992169953261B                0
-                                           0                 0 A+2.00000688994B]
+        Allowed g-tensor: [A-0.9921699533B               0             0
+                                         0 A-0.9921699533B             0
+                                         0               0 A+2.00000689B]
         Allowed anisotropy in Stevens operators:
             c₁*𝒪[2,0] +
             c₂*𝒪[4,-3] + c₃*𝒪[4,0] +
             c₄*𝒪[6,-3] + c₅*𝒪[6,0] + c₆*𝒪[6,6]
-
-        Modified reference frame! Transform using `rotate_operator(op, R)` where
-        R = [ 0.70803177573 -0.706180575035               0
-             0.408782336313  0.409853929291 -0.815424281073
-             0.575836787706  0.577346301702  0.578863750667]
+        Modified reference frame! Transform using `rotate_operator(op, R)`.
         Atom 2
         Type 'B', position [1/2, 1/2, 0], multiplicity 3
-        Allowed g-tensor: [A-0.997385427097B                                                                              0                                                                              0
-                                           0                 0.335083241836A+0.335961638032B+0.664916758164C-1.33332874006D 0.472019557727A+0.473256922453B-0.472019557727C-0.465845640879D-1.41236599017E
-                                           0 0.472019557727A+0.473256922453B-0.472019557727C-0.465845640879D+1.41236599017E                 0.664916758164A+0.666659788783B+0.335083241836C+1.33332874006D]
+        Allowed g-tensor: [A-0.9973854271B                                                                   0                                                                   0
+                                         0                0.3350832418A+0.335961638B+0.6649167582C-1.33332874D 0.4720195577A+0.4732569225B-0.4720195577C-0.4658456409D-1.41236599E
+                                         0 0.4720195577A+0.4732569225B-0.4720195577C-0.4658456409D+1.41236599E               0.6649167582A+0.6666597888B+0.3350832418C+1.33332874D]
         Allowed anisotropy in Stevens operators:
             c₁*𝒪[2,-1] + c₂*𝒪[2,0] + c₃*𝒪[2,2] +
             c₄*𝒪[4,-3] + c₅*𝒪[4,-1] + c₆*𝒪[4,0] + c₇*𝒪[4,2] + c₈*𝒪[4,4] +
             c₉*𝒪[6,-5] + c₁₀*𝒪[6,-3] + c₁₁*𝒪[6,-1] + c₁₂*𝒪[6,0] + c₁₃*𝒪[6,2] + c₁₄*𝒪[6,4] + c₁₅*𝒪[6,6]
-
-        Modified reference frame! Transform using `rotate_operator(op, R)` where
-        R = [ 0.70803177573 -0.706180575035               0
-             0.408782336313  0.409853929291 -0.815424281073
-             0.575836787706  0.577346301702  0.578863750667]
+        Modified reference frame! Transform using `rotate_operator(op, R)`.
         """
+
+    # These operators should be symmetry allowed
+    s = 4
+    sys = System(crystal, [1 => Moment(; s, g=2), 2 => Moment(; s, g=2)], :dipole)
+    O = stevens_matrices(s)
+    set_onsite_coupling!(sys, O[6,-1]+0.997385420O[6,1], 2)
+    set_onsite_coupling!(sys, rotate_operator(O[6,2], R), 2)
 end
 
 
