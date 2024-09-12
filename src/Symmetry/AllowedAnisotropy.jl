@@ -68,7 +68,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
         transform_spherical_to_stevens_coefficients(k, c)
     end
 
-    # If 𝒜 is symmetry allowed, then its Hermitian and anti-Hermitian parts are
+    # If 𝒜 is symmetry-allowed, then its Hermitian and anti-Hermitian parts are
     # independently symmetry-allowed. These are given by the real and imaginary
     # parts of B. Create a real matrix with these two parts, and eliminate
     # linearly-dependent vectors from the column space.
