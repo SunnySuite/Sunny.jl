@@ -190,7 +190,7 @@ end
 
 
 """
-    print_suggested_frame(cryst, i; digits=4)
+    print_suggested_frame(cryst, i)
 
 Print a suggested reference frame, as a rotation matrix `R`, that can be used as
 input to `print_site()`. The purpose is to simplify the description of allowed
@@ -297,6 +297,6 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
     if R != I
         println(io)
         println(io, "Modified reference frame! Transform using `rotate_operator(op, R)` where")
-        println(io, formatted_matrix(number_to_math_string.(R); prefix="R = "))
+        println(io, formatted_matrix(number_to_math_string.(R; digits); prefix="R = "))
     end
 end
