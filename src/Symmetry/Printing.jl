@@ -227,7 +227,7 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6], io=stdout)
     # Tolerance below which coefficients are dropped
     atol = 1e-12
     # How many digits to use in printing coefficients
-    digits = 14
+    digits = 12
 
     R = convert(Mat3, R) # Rotate to frame of R
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
