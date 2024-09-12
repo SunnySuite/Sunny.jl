@@ -254,8 +254,8 @@ end
                            B B A]
         Allowed anisotropy in Stevens operators:
             c₁*(𝒪[2,-2]+2𝒪[2,-1]+2𝒪[2,1]) +
-            c₂*(-7𝒪[4,-3]-2𝒪[4,-2]+𝒪[4,-1]+𝒪[4,1]+7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
-            c₄*(-11𝒪[6,-6]-8𝒪[6,-3]+𝒪[6,-2]-8𝒪[6,-1]-8𝒪[6,1]+8𝒪[6,3]) + c₅*(𝒪[6,0]-21𝒪[6,4]) + c₆*((9/5)𝒪[6,-6]+(24/5)𝒪[6,-5]+𝒪[6,-2]+(8/5)𝒪[6,-1]+(8/5)𝒪[6,1]+(24/5)𝒪[6,5])
+            c₂*(7𝒪[4,-3]+2𝒪[4,-2]-𝒪[4,-1]-𝒪[4,1]-7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
+            c₄*(11𝒪[6,-6]+8𝒪[6,-3]-𝒪[6,-2]+8𝒪[6,-1]+8𝒪[6,1]-8𝒪[6,3]) + c₅*(-𝒪[6,0]+21𝒪[6,4]) + c₆*(9𝒪[6,-6]+24𝒪[6,-5]+5𝒪[6,-2]+8𝒪[6,-1]+8𝒪[6,1]+24𝒪[6,5])
         
         Bond(1, 2, [0, 0, 0])
         Distance 0.35355339059327, coordination 6
@@ -320,11 +320,7 @@ end
             c₁*𝒪[2,0] +
             c₂*𝒪[4,-3] + c₃*𝒪[4,0] +
             c₄*𝒪[6,-3] + c₅*𝒪[6,0] + c₆*𝒪[6,6]
-        
-        Modified reference frame! Transform using `rotate_operator(op, R)` where
-        R = [1/√2      0  1/√2
-             1/√6 -√2/√3 -1/√6
-             1/√3   1/√3 -1/√3]
+        Modified reference frame! Transform using `rotate_operator(op, R)`.
         """
 
     capt = IOCapture.capture() do
@@ -337,6 +333,51 @@ end
                 0     0 -1
              1/√2  1/√2  0]
         """
+
+    # Test for https://github.com/SunnySuite/Sunny.jl/issues/260
+
+    a = 6.22
+    distortion = 0.15
+    latvecs = lattice_vectors(a, a, a, 90+distortion, 90+distortion, 90+distortion)
+    positions = Sunny.fcc_crystal().positions
+    crystal = Crystal(latvecs, positions; types = ["A", "B", "B", "B"])
+
+    R = [0.70803177573023 -0.70618057503467                 0
+         0.40878233631266  0.40985392929053 -0.81542428107328
+         0.57583678770556  0.57734630170186  0.57886375066688]
+    capt = IOCapture.capture() do
+        print_site(crystal, 1; R)
+        print_site(crystal, 2; R)
+    end
+    @test capt.output == """
+        Atom 1
+        Type 'A', position [0, 0, 0], multiplicity 1
+        Allowed g-tensor: [A-0.9921699533B               0             0
+                                         0 A-0.9921699533B             0
+                                         0               0 A+2.00000689B]
+        Allowed anisotropy in Stevens operators:
+            c₁*𝒪[2,0] +
+            c₂*𝒪[4,-3] + c₃*𝒪[4,0] +
+            c₄*𝒪[6,-3] + c₅*𝒪[6,0] + c₆*𝒪[6,6]
+        Modified reference frame! Transform using `rotate_operator(op, R)`.
+        Atom 2
+        Type 'B', position [1/2, 1/2, 0], multiplicity 3
+        Allowed g-tensor: [A-0.9973854271B                                                                   0                                                                   0
+                                         0                0.3350832418A+0.335961638B+0.6649167582C-1.33332874D 0.4720195577A+0.4732569225B-0.4720195577C-0.4658456409D-1.41236599E
+                                         0 0.4720195577A+0.4732569225B-0.4720195577C-0.4658456409D+1.41236599E               0.6649167582A+0.6666597888B+0.3350832418C+1.33332874D]
+        Allowed anisotropy in Stevens operators:
+            c₁*𝒪[2,-1] + c₂*𝒪[2,0] + c₃*𝒪[2,2] +
+            c₄*𝒪[4,-3] + c₅*𝒪[4,-1] + c₆*𝒪[4,0] + c₇*𝒪[4,2] + c₈*𝒪[4,4] +
+            c₉*𝒪[6,-5] + c₁₀*𝒪[6,-3] + c₁₁*𝒪[6,-1] + c₁₂*𝒪[6,0] + c₁₃*𝒪[6,2] + c₁₄*𝒪[6,4] + c₁₅*𝒪[6,6]
+        Modified reference frame! Transform using `rotate_operator(op, R)`.
+        """
+
+    # These operators should be symmetry allowed
+    s = 4
+    sys = System(crystal, [1 => Moment(; s, g=2), 2 => Moment(; s, g=2)], :dipole)
+    O = stevens_matrices(s)
+    set_onsite_coupling!(sys, O[6,-1]+0.997385420O[6,1], 2)
+    set_onsite_coupling!(sys, rotate_operator(O[6,2], R), 2)
 end
 
 

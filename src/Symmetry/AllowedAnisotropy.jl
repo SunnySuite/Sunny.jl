@@ -61,38 +61,23 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     D = unitary_irrep_for_rotation(R; N=2k+1)
     C = D * C
 
-    # Find an orthonormal basis for the columns of A, discarding linearly
-    # dependent columns.
-    C = colspace(C; atol=1e-12)
+    # Transform columns c of C to columns b of B such that 𝒜 = cᵀ T = bᵀ 𝒪.
+    # Effectively, this reexpresses the symmetry-allowed operators 𝒜 in the
+    # basis of Stevens operators 𝒪.
+    B = mapslices(C; dims=1) do c
+        transform_spherical_to_stevens_coefficients(k, c)
+    end
 
-    # It is tempting to sparsify here to make the ouput look nicer. Don't do
-    # this because (empirically) it is observed to significantly degrade
-    # accuracy in stevens_basis_for_symmetry_allowed_anisotropies().
+    # If 𝒜 is symmetry-allowed, then its Hermitian and anti-Hermitian parts are
+    # independently symmetry-allowed. These are associated with the real and
+    # imaginary parts of B. Use the real and imaginary parts of B to construct
+    # an over-complete set of symmetry-allowed operators that are guaranteed to
+    # be Hermitian. Create a widened real matrix from these two parts, and
+    # eliminate linearly-dependent vectors from the column space.
+    B = colspace(hcat(real(B), imag(B)); atol=1e-12)
 
-    # C = sparsify_columns(C; atol=1e-12)
-
-    return C
-end
-
-function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3)
-    # Each column of C represents a coefficient vector c that can be contracted
-    # with spherical tensors T to realize an allowed anisotropy, Λ = cᵀ T.
-    C = basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
-
-    # Transform each column c to coefficients b that satisfy bᵀ 𝒪 = cᵀ T
-    B = [transform_spherical_to_stevens_coefficients(k, c) for c in eachcol(C)]
-
-    # Concatenate columns into single matrix
-    B = reduce(hcat, B; init=zeros(ComplexF64, 2k+1,0))
-    
     # Find linear combination of columns that sparsifies B
-    B = sparsify_columns(B; atol=1e-12)
-
-    # All coefficients must now be real
-    @assert norm(imag(B)) < 1e-12
-    B = real(B)
-
-    return B
+    return sparsify_columns(B; atol=1e-12)
 end
 
 
