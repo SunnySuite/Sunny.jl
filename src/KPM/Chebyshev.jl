@@ -58,8 +58,10 @@ function cheb_eval(x, bounds, coefs)
 end
 
 """
-    Transform Chebyshev expansion moments μ_m to densities ρ_n for discrete
-    points x_n = cos[(π/N)(n+1/2)], where n = 0 … N-1.
+    cheb_moments_to_density(μs, N; γ=1)
+
+Transform Chebyshev expansion moments μ_m to densities ρ_n for discrete points
+x_n = cos[(π/N)(n+1/2)], where n = 0 … N-1. ⟦UNTESTED⟧.
 """
 function cheb_moments_to_density(μs, N; γ=1)
     M = length(μs)
