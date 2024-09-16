@@ -56,3 +56,31 @@ function cheb_eval(x, bounds, coefs)
     end
     return ret
 end
+
+"""
+    Transform Chebyshev expansion moments μ_m to densities ρ_n for discrete
+    points x_n = cos[(π/N)(n+1/2)], where n = 0 … N-1.
+"""
+function cheb_moments_to_density(μs, N; γ=1)
+    M = length(μs)
+    @assert N >= M
+    xs = zeros(N)
+    ρs = zeros(N)
+    copy!(ρs, μs)
+    apply_jackson_kernel!(ρs)
+    plan = FFTW.plan_r2r!(ρs, FFTW.REDFT01)
+    mul!(ρs, plan, ρs)
+
+    for i in 1:N
+        n = i-1
+        x = cos((π/N) * (n+1/2))
+        push!(xs, x)
+        w = 1 / sqrt(1 - x^2)
+        ρs[i] *= w / π
+    end
+
+    xs .*= γ
+    ρs ./= γ
+
+    return (xs, ρs)
+end

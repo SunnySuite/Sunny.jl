@@ -13,11 +13,9 @@
     v = randn(N)
     ev1 = eigvals(Sunny.lanczos_ref(A*S*A, S, v; niters=10))
 
-    function mulA!(w, v)
-        w .= A * S * A * v
-    end
+    mulA!(w, v) = (w .= A * S * A * v)
     mulS!(w, v) = mul!(w, S, v)
-    ev2 = eigvals(Sunny.lanczos3(mulA!, mulS!, copy(v); niters=10))
+    ev2 = eigvals(Sunny.lanczos(mulA!, mulS!, copy(v); niters=10))
 
     @test ev1 ≈ ev2
 

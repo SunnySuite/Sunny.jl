@@ -5,7 +5,7 @@ import Statistics
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
 import ElasticArrays: ElasticArray, resize!
-import SpecialFunctions: erfc
+import SpecialFunctions: erf, erfc
 import FFTW
 import DynamicPolynomials as DP
 import Printf: Printf, @printf, @sprintf
