@@ -1,29 +1,27 @@
 """
-    SpinWaveTheoryKPM(sys::System; measure, resolution, regularization=1e-8)
-
-**Experimental**
+    SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol=1e-2, ωcut=Inf)
 
 An alternative to [`SpinWaveTheory`](@ref) that uses the kernel polynomial
 method (KPM) to perform [`intensities`](@ref) calculations. In traditional spin
 wave theory calculations, one would explicitly diagonalize the dynamical matrix,
-with a cost that scales like ``𝒪(V^3)`` in the volume ``V`` of the magnetic
+with a cost that scales like ``𝒪(N^3)`` in the volume ``N`` of the magnetic
 cell. KPM instead approximates intensities using polynomial expansion of the
-dynamical matrix. The computational cost of KPM scales like ``𝒪(V P)`` in the
-polynomial order `P`, and is favorable to direct diagonalization for
-sufficiently large magnetic cells.
+dynamical matrix. The computational cost of KPM scales like ``𝒪(N P)``, where
+`P` is the polynomial order for Chebyshev approximation. KPM therefore becomes
+favorable to direct diagonalization for sufficiently large magnetic cells.
 
-The polynomial order `P` scales like the spectral bandwidth of the dynamical
-matrix divided by the target energy `resolution`. If the specified resolution is
-too small (relative to the line broadening kernel), the calculated intensities
-will exhibit artificial oscillations in energy.
+The required polynomial order `P` increases linearly with the required energy
+resolution, and logarithmicall in the error tolerance `tol`. A finite ωcut will
+selects an energy cutoff scale for resolving small-energy excitations, and may
+increase `P`.
 """
 struct SpinWaveTheoryKPM
     swt :: SpinWaveTheory
-    resolution :: Float64
-    screening_factor :: Float64
+    tol :: Float64
+    ωcut :: Float64
 
-    function SpinWaveTheoryKPM(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, resolution, screening_factor=1.0)
-        return new(SpinWaveTheory(sys; measure, regularization), resolution, screening_factor)
+    function SpinWaveTheoryKPM(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, tol=1e-2, ωcut=Inf)
+        return new(SpinWaveTheory(sys; measure, regularization), tol, ωcut)
     end
 end
 
@@ -63,9 +61,12 @@ end
 function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0)
     qpts = convert(AbstractQPoints, qpts)
 
-    (; swt, resolution, screening_factor) = swt_kpm
+    (; swt, tol, ωcut) = swt_kpm
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
+
+    isnothing(kernel.fwhm) && error("Cannot determine the kernel fwhm")
+    # ωcut = min(ωcut, kernel.fwhm/2)
 
     @assert eltype(data) == eltype(measure)
     @assert size(data) == (length(energies), length(qpts.qs))
@@ -129,9 +130,18 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
 
         lo, hi = eigbounds(swt, q_reshaped, n_iters; extend=0.25)
         γ = max(abs(lo), abs(hi))
-        P = max(round(Int, π*γ/2resolution), 2)
+        factor = max(-10log10(tol), 1) 
+        # P = round(Int, factor*γ / min(2kernel.fwhm, ωcut))
+        P = round(Int, factor*γ / 2kernel.fwhm)
         resize!(moments, Ncorr, P)
-        σ = resolution * screening_factor
+
+        println("P $P")
+        #=
+        println("γ ", γ, " P ", P, " factor ", factor)
+        ω = 0.3
+        func(x) = regularization_function(x / σ) * kernel(x, ω) * thermal_prefactor(x; kT)
+        println("coefs ", cheb_coefs(P, 2P, func, (-γ, γ)))
+        =#
 
         # Perform Chebyshev recursion
 
@@ -153,7 +163,7 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
         plan = FFTW.plan_r2r!(buf, FFTW.REDFT10)
 
         for (iω, ω) in enumerate(energies)
-            f(x) = regularization_function(x / σ) * kernel(x, ω) * thermal_prefactor(x; kT)
+            f(x) = regularization_function(x / ωcut) * kernel(x, ω) * thermal_prefactor(x; kT)
 
             coefs = cheb_coefs!(P, f, (-γ, γ); buf, plan)
             for i in 1:Ncorr

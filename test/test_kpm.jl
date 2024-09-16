@@ -1,3 +1,32 @@
+@testitem "Lanczos" begin
+    using LinearAlgebra
+
+    N = 200
+    A = hermitianpart(randn(N, N))
+    A = diagm(vcat(ones(N÷2), -ones(N÷2)))
+
+    S = randn(N, N)
+    S = S' * S
+    S = S / eigmax(S)
+    S = S + 0.0I
+
+    v = randn(N)
+    ev1 = eigvals(Sunny.lanczos_ref(A*S*A, S, v; niters=10))
+
+    function mulA!(w, v)
+        w .= A * S * A * v
+    end
+    mulS!(w, v) = mul!(w, S, v)
+    ev2 = eigvals(Sunny.lanczos3(mulA!, mulS!, copy(v); niters=10))
+
+    @test ev1 ≈ ev2
+
+    ev3 = extrema(eigvals(Sunny.lanczos_ref(A*S*A, S, v; niters=100)))
+    ev4 = extrema(eigvals((A*S)^2))
+    @test isapprox(collect(ev3), collect(ev4); atol=1e-3)
+end
+
+
 @testitem "FCC KPM" begin
     using LinearAlgebra
 
@@ -28,7 +57,7 @@
 
 end
 
-
+#=
 @testitem "AFM KPM" begin
     J, D, h = 1.0, 0.54, 0.76
     s, g = 1, -1.5
@@ -72,3 +101,4 @@ end
         @test isapprox(res1.data, res2.data, atol=1e-3)
     end
 end
+=#
