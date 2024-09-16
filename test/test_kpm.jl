@@ -49,13 +49,12 @@ end
         q = [0.8, 0.6, 0.1]
         res = intensities_bands(swt, [q])
         energies, _ = excitations(swt, q)
-        Sunny.eigbounds(swt, q, 20; extend=0.0)
-        @test all(extrema(energies) .≈ Sunny.eigbounds(swt, q, 30; extend=0.0))
+        @test all(extrema(energies) .≈ Sunny.eigbounds(swt, q, 30))
     end
 
 end
 
-#=
+
 @testitem "AFM KPM" begin
     J, D, h = 1.0, 0.54, 0.76
     s, g = 1, -1.5
@@ -79,24 +78,24 @@ end
 
         swt = SpinWaveTheory(sys; measure=nothing)
         energies, T = excitations(swt, q)
-        extrema(energies)
         q_reshaped = Sunny.to_reshaped_rlu(sys, q)
-        bounds = Sunny.eigbounds(swt, q_reshaped, 50; extend=0.0)
+        bounds = Sunny.eigbounds(swt, q_reshaped, 50)
         @test all(extrema(energies) .≈ bounds)
 
         formfactors = [1 => FormFactor("Fe2")]
         measure = ssf_perp(sys; formfactors)
-        σ = 0.05
         swt = SpinWaveTheory(sys; measure)
-        swt_kpm = SpinWaveTheoryKPM(sys; measure, resolution=0.005, screening_factor=10)
+        swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=1e-6)
 
+        kernel = lorentzian(fwhm=0.1)
         energies = range(0, 6, 100)
         kT = 0.2
-        kernel = lorentzian(fwhm=2σ)
         res1 = intensities(swt, [q]; energies, kernel, kT)
         res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
 
-        @test isapprox(res1.data, res2.data, atol=1e-3)
+        # TODO: Accuracy is very poor with Jackson kernel enabled (decreases
+        # inversely with polynomial order). But it's difficult to handle "Gibbs
+        # ringing" at Goldstone modes with Jackson kernel is disabled.
+        @test isapprox(res1.data, res2.data, rtol=1e-2)
     end
 end
-=#
