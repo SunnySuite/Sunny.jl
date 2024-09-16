@@ -31,14 +31,16 @@ struct SpinWaveTheoryKPM
 end
 
 
-# Smooth approximation to a Heaviside step function. The original (and
-# published) idea was to construct an effective convolution kernel that is
-# smooth everywhere, avoiding the need for a Jackson kernel. In practice, it is
-# difficult to adaptively determine the polynomial order M in a way that avoids
-# visible Gibbs ringing, especially near Goldstone modes. The current version of
-# this code instead leaves the Jackson kernel on at all times. This makes KPM
-# easier to use but sacrifices some accuracy.
-#=
+# Smooth approximation to a Heaviside step function. The original idea was to
+# construct an convolution kernel that is smooth everywhere, avoiding the need
+# for a Jackson kernel. Although this would work, it also has the effect of
+# masking intensities at small energy. TODO: Ideally, one would instead
+# dynamically extend the polynomial order M if it is detected that there is
+# large intensity near zero energy. An alternative (currently implemented) is to
+# leave the Jackson kernel on at all times and use a sharp step function for
+# this regularization. The Jackson kernel makes KPM easier to use, and mitigates
+# intensity masking, but sacrifices significant accuracy. (Error decreases
+# linearly with polynomial order rather than exponentially.)
 function regularization_function(y)
     if y < 0
         return 0.0
@@ -48,7 +50,6 @@ function regularization_function(y)
         return 1.0
     end
 end
-=#
 
 function mul_Ĩ!(y, x)
     L = size(y, 2) ÷ 2
@@ -70,7 +71,7 @@ function set_moments!(moments, measure, u, α)
 end
 
 
-function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
+function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false, with_jackson=true)
     qpts = convert(AbstractQPoints, qpts)
 
     (; swt, tol) = swt_kpm
@@ -169,11 +170,10 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
         plan = FFTW.plan_r2r!(buf, FFTW.REDFT10)
 
         for (iω, ω) in enumerate(energies)
-            # Previously included factor `regularization_function(x / ωcut)`.
-            f(x) = kernel(x, ω) * thermal_prefactor(x; kT)
-
+            ωcut = with_jackson ? 0.0 : kernel.fwhm
+            f(x) = regularization_function(x / ωcut) * kernel(x, ω) * thermal_prefactor(x; kT)
             coefs = cheb_coefs!(M, f, (-γ, γ); buf, plan)
-            apply_jackson_kernel!(coefs)
+            with_jackson && apply_jackson_kernel!(coefs)
             for i in 1:Ncorr
                 corrbuf[i] = dot(coefs, view(moments, i, :)) / Ncells
             end
@@ -184,8 +184,8 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
     return Intensities(cryst, qpts, collect(energies), data)
 end
 
-function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
+function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false, with_jackson=true)
     qpts = convert(AbstractQPoints, qpts)
     data = zeros(eltype(swt_kpm.swt.measure), length(energies), length(qpts.qs))
-    return intensities!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
+    return intensities!(data, swt_kpm, qpts; energies, kernel, kT, verbose, with_jackson)
 end

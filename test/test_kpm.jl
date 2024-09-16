@@ -91,11 +91,11 @@ end
         energies = range(0, 6, 100)
         kT = 0.2
         res1 = intensities(swt, [q]; energies, kernel, kT)
-        res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
+        res2 = intensities(swt_kpm, [q]; energies, kernel, kT, with_jackson=false)
 
         # TODO: Accuracy is very poor with Jackson kernel enabled (decreases
-        # inversely with polynomial order). But it's difficult to handle "Gibbs
-        # ringing" at Goldstone modes with Jackson kernel is disabled.
-        @test isapprox(res1.data, res2.data, rtol=1e-2)
+        # inversely with polynomial order). But it's difficult to disable the
+        # Jackson kernel while avoiding "Gibbs ringing" at Goldstone modes.
+        @test isapprox(res1.data, res2.data, rtol=1e-5)
     end
 end
