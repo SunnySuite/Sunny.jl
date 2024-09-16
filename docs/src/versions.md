@@ -5,6 +5,8 @@
 
 * Fix error in `print_symmetry_table` for slightly-distorted crystal cells ([PR
   #317](https://github.com/SunnySuite/Sunny.jl/pull/317)).
+* Stabilize [`SpinWaveTheoryKPM`](@ref). It now automatically selects the
+  polynomial order according to an error tolerance.
 
 ## v0.7.2
 (Sep 11, 2024)
