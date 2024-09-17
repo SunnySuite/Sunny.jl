@@ -227,7 +227,7 @@ end
 
 """
     intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, kT=0)
-    intensities!(data, swt::SampledCorrelations, qpts; energies, kernel=nothing, kT=0)
+    intensities!(data, sc::SampledCorrelations, qpts; energies, kernel=nothing, kT=0)
 
 Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
@@ -242,37 +242,36 @@ end
 
 """
     intensities(swt::SpinWaveTheory, qpts; energies, kernel, kT=0)
-    intensities(swt::SampledCorrelations, qpts; energies, kernel=nothing, kT)
+    intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
 
-Calculates pair correlation intensities for a set of ``𝐪``-points in reciprocal
-space.
+Calculates dynamical pair correlation intensities for a set of ``𝐪``-points in
+reciprocal space.
 
-Traditional spin wave theory calculations are performed with an instance of
-[`SpinWaveTheory`](@ref). One can alternatively use
-[`SpinWaveTheorySpiral`](@ref) to study generalized spiral orders with a single,
-incommensurate-``𝐤`` ordering wavevector. Another alternative is
-[`SpinWaveTheoryKPM`](@ref), which may be faster than `SpinWaveTheory` for
-calculations on large magnetic cells (e.g., to study systems with disorder). In
-spin wave theory, a nonzero temperature `kT` will scale intensities by the
-quantum thermal occupation factor ``|1 + n_B(ω)|`` where ``n_B(ω) = 1 / (exp(βω)
-- 1)`` is the Bose function.
+Linear spin wave theory calculations are performed with an instance of
+[`SpinWaveTheory`](@ref). The alternative [`SpinWaveTheorySpiral`](@ref) allows
+to study generalized spiral orders with a single, incommensurate-``𝐤`` ordering
+wavevector. Another alternative [`SpinWaveTheoryKPM`](@ref) is favorable for
+calculations on large magnetic cells, and allows to study systems with disorder.
+An optional nonzero temperature `kT` will scale intensities by the quantum
+thermal occupation factor ``|1 + n_B(ω)|`` where ``n_B(ω) = 1/(exp(βω)-1)`` is
+the Bose function.
 
 Intensities can also be calculated for `SampledCorrelations` associated with
 classical spin dynamics. In this case, thermal broadening will already be
-present, and the line-broadening `kernel` becomes an optional argument.
-Conversely, the parameter `kT` becomes required. If positive, it will introduce
-an intensity correction factor ``|βω [1 + n_B(ω)]|`` that undoes the occupation
-factor for the classical Boltzmann distribution, and applies the quantum thermal
-occupation factor. The special choice `kT = nothing` will suppress the
-classical-to-quantum correction factor, and yield statistics consistent with the
-classical Boltzmann distribution.
+present, and the line-broadening `kernel` becomes optional. Conversely, the
+parameter `kT` becomes required. If positive, it will introduce an intensity
+correction factor ``|βω [1 + n_B(ω)]|`` that undoes the occupation factor for
+the classical Boltzmann distribution and applies the quantum thermal occupation
+factor. The special choice `kT = nothing` will suppress the classical-to-quantum
+correction factor, and yield statistics consistent with the classical Boltzmann
+distribution.
 """
 function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
     return broaden(intensities_bands(swt, qpts; kT); energies, kernel)
 end
 
 """
-    intensities_static(sc::SpinWaveTheory, qpts; bounds=(-Inf, Inf), kT=0)
+    intensities_static(swt::SpinWaveTheory, qpts; bounds=(-Inf, Inf), kT=0)
     intensities_static(sc::SampledCorrelations, qpts; bounds=(-Inf, Inf), kT)
     intensities_static(sc::SampledCorrelationsStatic, qpts)
 
@@ -281,16 +280,19 @@ Like [`intensities`](@ref), but integrates the dynamical correlations
 integration `bounds` are ``(-∞, ∞)``, yielding the instantaneous (equal-time)
 correlations.
 
-In [`SpinWaveTheory`](@ref) the integral will be realized as a sum over discrete
-bands. A [`SampledCorrelations`](@ref) object will have a finite grid of
-available `energies`, which will constrain the domain of integration. A
-[`SampledCorrelationsStatic`](@ref) object stores no dynamical data; here, the
-return value represents instantaneous correlations for the _classical_ Boltzmann
-distribution.
+In [`SpinWaveTheory`](@ref), the integral will be realized as a sum over
+discrete bands. Alternative calculation methods are
+[`SpinWaveTheorySpiral`](@ref) and [`SpinWaveTheoryKPM`](@ref).
 
-The parameter `kT` can be used to account for the quantum thermal occupation of
-excitations at finite temperature. For details, see the documentation in
+Classical dynamics data in [`SampledCorrelations`](@ref) can also be used to
+calculate static intensities. In this case, the domain of integration will be a
+finite grid of available `energies`. Here, the parameter `kT` will be used to
+account for the quantum thermal occupation of excitations, as documented in
 [`intensities`](@ref).
+
+Static intensities calculated from [`SampledCorrelationsStatic`](@ref) are
+dynamics-independent. Instead, instantaneous correlations sampled from the
+classical Boltzmann distribution will be reported.
 """
 function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kT=0)
     res = intensities_bands(swt, qpts; kT)  # TODO: with_negative=true
