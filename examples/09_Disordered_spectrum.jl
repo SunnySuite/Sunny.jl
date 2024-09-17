@@ -30,7 +30,7 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles], ndims=2)
 qs = [[0, 0, 0], [1/3, 1/3, 0], [1/2, 0, 0], [0, 0, 0]]
 labels = ["Γ", "K", "M", "Γ"]
 path = q_space_path(cryst, qs, 150; labels)
-kernel = gaussian(fwhm=0.4);
+kernel = lorentzian(fwhm=0.4);
 
 # Perform a traditional spin wave calculation. The spectrum shows sharp modes
 # associated with coherent excitations about the K-point ordering wavevector,
@@ -67,13 +67,13 @@ plot_spins(sys_inhom; color=[s[3] for s in sys_inhom.dipoles], ndims=2)
 # [`SpinWaveTheory`](@ref). Using KPM, the cost of an [`intensities`](@ref)
 # calculation becomes linear in system size and scales inversely with the width
 # of the line broadening `kernel`. Error is controllable through the
-# dimensionless `tol` parameter. Reasonable choices are 0.1 (faster) or 0.01
-# (more accurate).
+# dimensionless `tol` parameter. A relatively small value is needed to resolve
+# the large intensities near the Goldstone mode.
 #
 # Observe that disorder in the nearest-neighbor exchange serves to broaden the
 # discrete excitation bands into a continuum.
 
-swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.1)
+swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.01)
 res = intensities(swt, path; energies, kernel)
 plot_intensities(res)
 

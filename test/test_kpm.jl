@@ -85,17 +85,16 @@ end
         formfactors = [1 => FormFactor("Fe2")]
         measure = ssf_perp(sys; formfactors)
         swt = SpinWaveTheory(sys; measure)
-        swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=1e-6)
+        swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=1e-8)
 
         kernel = lorentzian(fwhm=0.1)
         energies = range(0, 6, 100)
-        kT = 0.2
+        kT = 0.0
         res1 = intensities(swt, [q]; energies, kernel, kT)
-        res2 = intensities(swt_kpm, [q]; energies, kernel, kT, with_jackson=false)
+        res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
 
-        # TODO: Accuracy is very poor with Jackson kernel enabled (decreases
-        # inversely with polynomial order). But it's difficult to disable the
-        # Jackson kernel while avoiding "Gibbs ringing" at Goldstone modes.
+        # Note that KPM accuracy is currently limited by Gibbs ringing
+        # introduced in the thermal occupancy (Heaviside step) function.
         @test isapprox(res1.data, res2.data, rtol=1e-5)
     end
 end
