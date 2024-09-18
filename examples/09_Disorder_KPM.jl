@@ -1,14 +1,14 @@
-# # 9. Disordered spectrum with KPM
+# # 9. Disordered system with KPM
 #
 # This example uses the kernel polynomial method (KPM) to efficiently calculate
 # the neutron scattering spectrum of a disordered triangular antiferromagnet.
-# Our simple model is inspired by YbMgGaO4, as studied in [Paddison et al,
-# Nature Phys., **13**, 117–122 (2017)](https://doi.org/10.1038/nphys3971) and
-# [Zhu et al, Phys. Rev. Lett. **119**, 157201
-# (2017)](https://doi.org/10.1103/PhysRevLett.119.157201). The presence of
-# non-magnetic disorder of the the Mg/Ga occupancy can be modeled as a
-# stochastic distribution of exchange constants and ``g``-factors. Including
-# this randomness introduces broadening of the spin wave spectrum.
+# The model is inspired by YbMgGaO4, as studied in [Paddison et al, Nature
+# Phys., **13**, 117–122 (2017)](https://doi.org/10.1038/nphys3971) and [Zhu et
+# al, Phys. Rev. Lett. **119**, 157201
+# (2017)](https://doi.org/10.1103/PhysRevLett.119.157201). Disordered occupancy
+# of non-magnetic Mg/Ga sites can be modeled as a stochastic distribution of
+# exchange constants and ``g``-factors. Including this disorder introduces
+# broadening of the spin wave spectrum.
 
 using Sunny, GLMakie
 
@@ -30,7 +30,7 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles], ndims=2)
 qs = [[0, 0, 0], [1/3, 1/3, 0], [1/2, 0, 0], [0, 0, 0]]
 labels = ["Γ", "K", "M", "Γ"]
 path = q_space_path(cryst, qs, 150; labels)
-kernel = lorentzian(fwhm=0.4);
+kernel = gaussian(fwhm=0.4);
 
 # Perform a traditional spin wave calculation. The spectrum shows sharp modes
 # associated with coherent excitations about the K-point ordering wavevector,
@@ -73,7 +73,7 @@ plot_spins(sys_inhom; color=[s[3] for s in sys_inhom.dipoles], ndims=2)
 # Observe that disorder in the nearest-neighbor exchange serves to broaden the
 # discrete excitation bands into a continuum.
 
-swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.01)
+swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.0001)
 res = intensities(swt, path; energies, kernel)
 plot_intensities(res)
 
