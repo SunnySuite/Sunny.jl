@@ -30,7 +30,7 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles], ndims=2)
 qs = [[0, 0, 0], [1/3, 1/3, 0], [1/2, 0, 0], [0, 0, 0]]
 labels = ["Γ", "K", "M", "Γ"]
 path = q_space_path(cryst, qs, 150; labels)
-kernel = gaussian(fwhm=0.4);
+kernel = lorentzian(fwhm=0.4);
 
 # Perform a traditional spin wave calculation. The spectrum shows sharp modes
 # associated with coherent excitations about the K-point ordering wavevector,

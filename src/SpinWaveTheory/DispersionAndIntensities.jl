@@ -271,7 +271,7 @@ function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::Abstra
 end
 
 """
-    intensities_static(swt::SpinWaveTheory, qpts; bounds=(-Inf, Inf), kT=0)
+    intensities_static(swt::SpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0)
     intensities_static(sc::SampledCorrelations, qpts; bounds=(-Inf, Inf), kT)
     intensities_static(sc::SampledCorrelationsStatic, qpts)
 
@@ -294,12 +294,20 @@ Static intensities calculated from [`SampledCorrelationsStatic`](@ref) are
 dynamics-independent. Instead, instantaneous correlations sampled from the
 classical Boltzmann distribution will be reported.
 """
-function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kT=0)
+function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0)
     res = intensities_bands(swt, qpts; kT)  # TODO: with_negative=true
     data_reduced = zeros(eltype(res.data), size(res.data)[2:end])
     for ib in axes(res.data, 1), iq in CartesianIndices(data_reduced)
-        if bounds[1] <= res.disp[ib, iq] < bounds[2]
-            data_reduced[iq] += res.data[ib, iq]
+        ϵ = res.disp[ib, iq]
+        if isnothing(kernel) || bounds == (-Inf, Inf)
+            if bounds[1] <= ϵ < bounds[2]
+                data_reduced[iq] += res.data[ib, iq]
+            end
+        else
+            isnothing(kernel.integral) && error("Kernel must provide integral")
+            ihi = kernel.integral(bounds[2] - ϵ)
+            ilo = kernel.integral(bounds[1] - ϵ)
+            data_reduced[iq] += res.data[ib, iq] * (ihi - ilo)
         end
     end
     StaticIntensities(res.crystal, res.qpts, data_reduced)
