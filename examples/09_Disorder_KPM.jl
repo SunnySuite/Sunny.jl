@@ -66,21 +66,25 @@ plot_spins(sys_inhom; color=[s[3] for s in sys_inhom.dipoles], ndims=2)
 # [`SpinWaveTheoryKPM`](@ref) in place of the traditional
 # [`SpinWaveTheory`](@ref). Using KPM, the cost of an [`intensities`](@ref)
 # calculation becomes linear in system size and scales inversely with the width
-# of the line broadening `kernel`. Error is controllable through the
-# dimensionless `tol` parameter. A relatively small value is needed to resolve
-# the large intensities near the Goldstone mode.
+# of the line broadening `kernel`. Error tolerance is controlled through the
+# dimensionless `tol` parameter. A relatively small value, `tol = 0.01`, helps
+# to resolve the large intensities near the Goldstone mode. Had we selected
+# instead `tol = 0.1`, the calculation would be twice faster but significant
+# numerical artifacts would become apparent.
 #
 # Observe that disorder in the nearest-neighbor exchange serves to broaden the
 # discrete excitation bands into a continuum.
 
-swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.0001)
+swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.01)
 res = intensities(swt, path; energies, kernel)
 plot_intensities(res)
 
 # Now apply a magnetic field of magnitude 7.5 (energy units) along the global
-# ``ẑ`` axis. This is sufficiently strong to fully polarize the spins. The new
-# spin wave spectrum shows a sharp mode at the zone center that broadens into a
-# continuum at the zone boundary.
+# ``ẑ`` axis. This field fully polarizes the spins. Because gap opens, a larger
+# tolerance of `tol = 0.1` can be used to accelerate the KPM calculation without
+# sacrificing much accuracy. The resulting spin wave spectrum shows a sharp mode
+# at the Γ-point (zone center) that broadens into a continuum along the K and M
+# points (zone boundary).
 
 set_field!(sys_inhom, [0, 0, 7.5])
 randomize_spins!(sys_inhom)
