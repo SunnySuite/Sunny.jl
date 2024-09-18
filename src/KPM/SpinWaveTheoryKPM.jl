@@ -124,7 +124,7 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
         lo, hi = eigbounds(swt, q_reshaped, lanczos_iters)
         γ = 1.1 * max(abs(lo), hi)
         accuracy_factor = max(-3*log10(tol), 1)
-        M = round(Int, accuracy_factor * 2γ / kernel.fwhm)
+        M = round(Int, accuracy_factor * max(2γ / kernel.fwhm, 3))
         resize!(moments, Ncorr, M)
 
         if verbose

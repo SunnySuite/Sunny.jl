@@ -68,12 +68,12 @@ plot_spins(sys_inhom; color=[s[3] for s in sys_inhom.dipoles], ndims=2)
 # calculation becomes linear in system size and scales inversely with the width
 # of the line broadening `kernel`. Error tolerance is controlled through the
 # dimensionless `tol` parameter. A relatively small value, `tol = 0.01`, helps
-# to resolve the large intensities near the Goldstone mode. Had we selected
-# instead `tol = 0.1`, the calculation would be twice faster but significant
-# numerical artifacts would become apparent.
+# to resolve the large intensities near the Goldstone mode. The alternative
+# choice `tol = 0.1` would be twice faster, but would introduce significant
+# numerical artifacts.
 #
-# Observe that disorder in the nearest-neighbor exchange serves to broaden the
-# discrete excitation bands into a continuum.
+# Observe from the KPM calculation that disorder in the nearest-neighbor
+# exchange serves to broaden the discrete excitation bands into a continuum.
 
 swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.01)
 res = intensities(swt, path; energies, kernel)
