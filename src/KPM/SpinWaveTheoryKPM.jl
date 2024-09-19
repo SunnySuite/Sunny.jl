@@ -162,7 +162,7 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
             # sqrt(accuracy) to reduce lingering ringing artifacts. See "AFM
             # KPM" for a test case where the smoothing degrades accuracy, and
             # "Disordered system with KPM" for an illustration of how smoothing
-            # affects intensities near the Goldstone mode.
+            # affects intensities at small ω.
             σ = sqrt(accuracy_factor) * (γ / M)
             thermal_prefactor_zero(x) = (tanh(x / σ) + 1) / 2
             f(x) = kernel(x, ω) * thermal_prefactor_zero(x)

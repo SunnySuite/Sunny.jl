@@ -68,7 +68,7 @@ plot_spins(sys_inhom; color=[s[3] for s in sys_inhom.dipoles], ndims=2)
 # calculation becomes linear in system size and scales inversely with the width
 # of the line broadening `kernel`. Error tolerance is controlled through the
 # dimensionless `tol` parameter. A relatively small value, `tol = 0.01`, helps
-# to resolve the large intensities near the Goldstone mode. The alternative
+# to resolve the large intensities near the ordering wavevector. The alternative
 # choice `tol = 0.1` would be twice faster, but would introduce significant
 # numerical artifacts.
 #
