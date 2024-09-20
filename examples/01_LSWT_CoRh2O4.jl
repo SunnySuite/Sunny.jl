@@ -23,11 +23,11 @@ using Sunny, GLMakie
 # GLMakie from the [built-in package
 # manager](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia#the-built-in-julia-package-manager).
 
-# ### Units
+# ### Units system
 
-# The [`Units`](@ref Sunny.Units) object selects reference energy and length
-# scales, and uses these to provide physical constants. For example, `units.K`
-# returns one kelvin as 0.086 meV, where the Boltzmann constant is implicit.
+# The [`Units`](@ref Units) object selects reference energy and length scales,
+# and uses these to provide physical constants. For example, `units.K` returns
+# one kelvin as 0.086 meV, where the Boltzmann constant is implicit.
 
 units = Units(:meV, :angstrom);
 
