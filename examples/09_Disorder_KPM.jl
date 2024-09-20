@@ -23,7 +23,7 @@ set_exchange!(sys, +1.0, Bond(1, 1, [1,0,0]))
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; color=[s[3] for s in sys.dipoles], ndims=2)
+plot_spins(sys; color=[S[3] for S in sys.dipoles], ndims=2)
 
 # Select a ``𝐪``-space path for the spin wave calculations.
 
@@ -58,7 +58,7 @@ for (site1, site2, offset) in symmetry_equivalent_bonds(sys_inhom, Bond(1,1,[1,0
 end
 
 minimize_energy!(sys_inhom, maxiters=5_000)
-plot_spins(sys_inhom; color=[s[3] for s in sys_inhom.dipoles], ndims=2)
+plot_spins(sys_inhom; color=[S[3] for S in sys_inhom.dipoles], ndims=2)
 
 # Traditional spin wave theory calculations become impractical for large system
 # sizes. Significant acceleration is possible with the [kernel polynomial
