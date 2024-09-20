@@ -11,9 +11,9 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
     if sys.mode == :SUN
         return Hermitian(matrep)
     elseif sys.mode == :dipole
-        S = spin_label(sys, to_atom(site))
+        s = spin_label(sys, to_atom(site))
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
-        return StevensExpansion(rcs_factors(S) .* c)
+        return StevensExpansion(rcs_factors(s) .* c)
     elseif sys.mode == :dipole_large_s
         error("System with mode `:dipole_large_s` requires a symbolic operator.")
     end
@@ -24,8 +24,8 @@ function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
         error("Symbolic operator only valid for system with mode `:dipole_large_s`.")
     end
 
-    S = sys.κs[site]
-    c = operator_to_stevens_coefficients(p, S)
+    s = sys.κs[site]
+    c = operator_to_stevens_coefficients(p, s)
 
     # No renormalization here because symbolic polynomials `p` are associated
     # with the large-s limit.
@@ -35,14 +35,14 @@ end
 
 # k-dependent renormalization of Stevens operators O[k,q] as derived in
 # https://arxiv.org/abs/2304.03874.
-function rcs_factors(S)
+function rcs_factors(s)
     λ = [1,                                                                  # k=0
          1,                                                                  # k=1
-         1 - (1/2)/S,                                                        # k=2
-         1 - (3/2)/S + (1/2)/S^2,                                            # k=3
-         1 - 3/S + (11/4)/S^2 - (3/4)/S^3,                                   # k=4
-         1 - 5/S + (35/4)/S^2 - (25/4)/S^3 + (3/2)/S^4,                      # k=5
-         1 - (15/2)/S + (85/4)/S^2 - (225/8)/S^3 + (137/8)/S^4 - (15/4)/S^5] # k=6
+         1 - (1/2)/s,                                                        # k=2
+         1 - (3/2)/s + (1/2)/s^2,                                            # k=3
+         1 - 3/s + (11/4)/s^2 - (3/4)/s^3,                                   # k=4
+         1 - 5/s + (35/4)/s^2 - (25/4)/s^3 + (3/2)/s^4,                      # k=5
+         1 - (15/2)/s + (85/4)/s^2 - (225/8)/s^3 + (137/8)/s^4 - (15/4)/s^5] # k=6
     return OffsetArray(λ, 0:6)
 end
 
@@ -188,12 +188,12 @@ end
 
 
 # Evaluate a given linear combination of Stevens operators in the large-s limit,
-# where each spin operator is replaced by its dipole expectation value 𝐬. In this
-# limit, each Stevens operator O[ℓ,m](𝐬) becomes a homogeneous polynomial in the
-# spin components sᵅ, and is equal to the spherical Harmonic Yₗᵐ(𝐬) up to an
+# where each spin operator is replaced by its dipole expectation value 𝐒. In this
+# limit, each Stevens operator O[ℓ,m](𝐒) becomes a homogeneous polynomial in the
+# spin components Sᵅ, and is equal to the spherical Harmonic Yₗᵐ(𝐒) up to an
 # overall (l- and m-dependent) scaling factor. Also return the gradient of the
 # scalar output.
-function energy_and_gradient_for_classical_anisotropy(s::Vec3, stvexp::StevensExpansion)
+function energy_and_gradient_for_classical_anisotropy(S::Vec3, stvexp::StevensExpansion)
     (; kmax, c0, c2, c4, c6) = stvexp
 
     E      = only(c0)
@@ -204,9 +204,9 @@ function energy_and_gradient_for_classical_anisotropy(s::Vec3, stvexp::StevensEx
 
     # Quadratic contributions
 
-    X = s⋅s
-    Jp¹ = s[1] + im*s[2]
-    Jz¹ = s[3]
+    X = S⋅S
+    Jp¹ = S[1] + im*S[2]
+    Jz¹ = S[3]
     Jp² = Jp¹*Jp¹
     Jz² = Jz¹*Jz¹
 

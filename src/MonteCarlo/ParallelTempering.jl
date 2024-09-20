@@ -28,7 +28,7 @@ function ParallelTempering(system::System{N}, sampler::SMP, kT_sched::Vector{Flo
     if samplers[1] isa LocalSampler
         for rank in 1:n_replicas
             samplers[rank].ΔE = energy(systems[rank])
-            samplers[rank].Δs = sum(systems[rank].dipoles)
+            samplers[rank].ΔS = sum(systems[rank].dipoles)
             samplers[rank].nsweeps = 1.0
         end
     end
@@ -63,7 +63,7 @@ function replica_exchange!(PT::ParallelTempering, exch_start::Int64)
 
             if PT.samplers[1] isa LocalSampler
                 PT.samplers[id₁].ΔE, PT.samplers[id₂].ΔE = PT.samplers[id₂].ΔE, PT.samplers[id₁].ΔE
-                PT.samplers[id₁].Δs, PT.samplers[id₂].Δs = PT.samplers[id₂].Δs, PT.samplers[id₁].Δs
+                PT.samplers[id₁].ΔS, PT.samplers[id₂].ΔS = PT.samplers[id₂].ΔS, PT.samplers[id₁].ΔS
             end
 
             PT.n_accept[id₁] += 1

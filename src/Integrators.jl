@@ -18,10 +18,10 @@ prevents energy drift through exact conservation of the symplectic 2-form.
 If the [`System`](@ref) has `mode = :dipole`, then the dynamics is the
 stochastic Landau-Lifshitz equation,
 ```math
-    d𝐬/dt = -𝐬 × (ξ - 𝐁 + λ 𝐬 × 𝐁),
+    d𝐒/dt = -𝐒 × (ξ - 𝐁 + λ 𝐒 × 𝐁),
 ```
-where ``𝐁 = -dE/d𝐬`` is the effective field felt by the expected spin dipole
-``𝐬``. The components of ``ξ`` are Gaussian white noise, with magnitude ``√(2
+where ``𝐁 = -dE/d𝐒`` is the effective field felt by the expected spin dipole
+``𝐒``. The components of ``ξ`` are Gaussian white noise, with magnitude ``√(2
 k_B T λ)`` set by a fluctuation-dissipation theorem. The parameter `damping`
 sets the phenomenological coupling ``λ`` to the thermal bath. 
 
@@ -38,11 +38,11 @@ parameter `damping` here sets ``λ̃``, which is analogous to ``λ`` above.
 
 When applied to SU(2) coherent states, the generalized spin dynamics reduces
 exactly to the stochastic Landau-Lifshitz equation. The mapping is as follows.
-Normalized coherent states ``𝐙`` map to dipole expectation values ``𝐬 = 𝐙^{†}
-Ŝ 𝐙``, where spin operators ``Ŝ`` are a spin-``|𝐬|`` representation of
+Normalized coherent states ``𝐙`` map to dipole expectation values ``𝐒 = 𝐙^{†}
+Ŝ 𝐙``, where spin operators ``Ŝ`` are a spin-``|𝐒|`` representation of
 SU(2). The local effective Hamiltonian ``ℋ = -𝐁 ⋅ Ŝ`` generates rotation of
 the dipole in analogy to the vector cross product ``S × 𝐁``. The coupling to
-the thermal bath maps as ``λ̃ = |𝐬| λ``. Note, therefore, that the scaling of
+the thermal bath maps as ``λ̃ = |𝐒| λ``. Note, therefore, that the scaling of
 the `damping` parameter varies subtly between `:dipole` and `:SUN` modes.
 
 References:
@@ -137,7 +137,7 @@ end
 Suggests a timestep for the numerical integration of spin dynamics according to
 a given error tolerance `tol`. The `integrator` should be [`Langevin`](@ref) or
 [`ImplicitMidpoint`](@ref). The suggested ``dt`` will be inversely proportional
-to the magnitude of the effective field ``|dE/d𝐬|`` arising from the current
+to the magnitude of the effective field ``|dE/d𝐒|`` arising from the current
 spin configuration in `sys`. The recommended timestep ``dt`` scales like `√tol`,
 which assumes second-order accuracy of the integrator.
 
@@ -258,14 +258,14 @@ end
 ################################################################################
 
 
-@inline function rhs_dipole!(Δs, s, ξ, ∇E, integrator)
+@inline function rhs_dipole!(ΔS, S, ξ, ∇E, integrator)
     (; dt, damping) = integrator
     λ = damping
 
     if iszero(λ)
-        @. Δs = - s × (dt*∇E)
+        @. ΔS = - S × (dt*∇E)
     else
-        @. Δs = - s × (ξ + dt*∇E - dt*λ*(s × ∇E))
+        @. ΔS = - S × (ξ + dt*∇E - dt*λ*(S × ∇E))
     end
 end
 
@@ -308,20 +308,20 @@ function step! end
 function step!(sys::System{0}, integrator::Langevin)
     check_timestep_available(integrator)
 
-    (s′, Δs₁, Δs₂, ξ, ∇E) = get_dipole_buffers(sys, 5)
-    s = sys.dipoles
+    (S′, ΔS₁, ΔS₂, ξ, ∇E) = get_dipole_buffers(sys, 5)
+    S = sys.dipoles
 
     fill_noise!(sys.rng, ξ, integrator)
 
     # Euler prediction step
-    set_energy_grad_dipoles!(∇E, s, sys)
-    rhs_dipole!(Δs₁, s, ξ, ∇E, integrator)
-    @. s′ = normalize_dipole(s + Δs₁, sys.κs)
+    set_energy_grad_dipoles!(∇E, S, sys)
+    rhs_dipole!(ΔS₁, S, ξ, ∇E, integrator)
+    @. S′ = normalize_dipole(S + ΔS₁, sys.κs)
 
     # Correction step
-    set_energy_grad_dipoles!(∇E, s′, sys)
-    rhs_dipole!(Δs₂, s′, ξ, ∇E, integrator)
-    @. s = normalize_dipole(s + (Δs₁+Δs₂)/2, sys.κs)
+    set_energy_grad_dipoles!(∇E, S′, sys)
+    rhs_dipole!(ΔS₂, S′, ξ, ∇E, integrator)
+    @. S = normalize_dipole(S + (ΔS₁+ΔS₂)/2, sys.κs)
 
     return
 end
@@ -366,42 +366,42 @@ function fast_isapprox(x, y; atol)
 end
 
 # The spherical midpoint method, Phys. Rev. E 89, 061301(R) (2014)
-# Integrates ds/dt = s × ∂E/∂s one timestep s → s′ via implicit equations
-#   s̄ = (s′ + s) / 2
-#   ŝ = s̄ / |s̄|
-#   (s′ - s)/dt = 2(s̄ - s)/dt = - ŝ × B,
-# where B = -∂E/∂ŝ.
+# Integrates dS/dt = S × ∂E/∂S one timestep S → S′ via implicit equations
+#   S̄ = (S′ + S) / 2
+#   Ŝ = S̄ / |S̄|
+#   (S′ - S)/dt = 2(S̄ - S)/dt = - Ŝ × B,
+# where B = -∂E/∂Ŝ.
 function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
     check_timestep_available(integrator)
 
-    s = sys.dipoles
-    atol = integrator.atol * √length(s)
+    S = sys.dipoles
+    atol = integrator.atol * √length(S)
 
-    (Δs, ŝ, s′, s″, ξ, ∇E) = get_dipole_buffers(sys, 6)
+    (ΔS, Ŝ, S′, S″, ξ, ∇E) = get_dipole_buffers(sys, 6)
 
     fill_noise!(sys.rng, ξ, integrator)
     
-    @. s′ = s
-    @. s″ = s
+    @. S′ = S
+    @. S″ = S
 
     for _ in 1:max_iters
         # Current guess for midpoint ŝ
-        @. ŝ = normalize_dipole((s + s′)/2, sys.κs)
+        @. Ŝ = normalize_dipole((S + S′)/2, sys.κs)
 
-        set_energy_grad_dipoles!(∇E, ŝ, sys)
-        rhs_dipole!(Δs, ŝ, ξ, ∇E, integrator)
+        set_energy_grad_dipoles!(∇E, Ŝ, sys)
+        rhs_dipole!(ΔS, Ŝ, ξ, ∇E, integrator)
 
-        @. s″ = s + Δs
+        @. S″ = S + ΔS
 
         # If converged, then we can return
-        if fast_isapprox(s′, s″; atol)
+        if fast_isapprox(S′, S″; atol)
             # Normalization here should not be necessary in principle, but it
             # could be useful in practice for finite `atol`.
-            @. s = normalize_dipole(s″, sys.κs)
+            @. S = normalize_dipole(S″, sys.κs)
             return
         end
 
-        s′, s″ = s″, s′
+        S′, S″ = S″, S′
     end
 
     error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")

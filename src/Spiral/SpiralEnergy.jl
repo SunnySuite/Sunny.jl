@@ -154,8 +154,8 @@ dreg(x) = 2x * reg(x)^2
 function spiral_f(sys::System{0}, axis, params, λ)
     k = unpack_spiral_params!(sys, axis, params)
     E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys; k, axis)
-    for s in sys.dipoles
-        u = normalize(s)
+    for S in sys.dipoles
+        u = normalize(S)
         E += λ * reg(u⋅axis)
     end
     return E
@@ -167,14 +167,14 @@ function spiral_g!(G, sys::System{0}, axis, params, λ)
     G = reinterpret(Vec3, G)
 
     L = length(sys.dipoles)
-    dEds = view(G, 1:L)
-    _E, dEdk = spiral_energy_and_gradient_aux!(dEds, sys; k, axis)
+    dEdS = view(G, 1:L)
+    _E, dEdk = spiral_energy_and_gradient_aux!(dEdS, sys; k, axis)
 
     for i in 1:L
-        s = sys.dipoles[i]
-        u = normalize(s)
-        # dE/du' = dE/ds' * ds/du, where s = |s|*u.
-        dEdu = dEds[i] * norm(s) + λ * dreg(u⋅axis) * axis
+        S = sys.dipoles[i]
+        u = normalize(S)
+        # dE/du' = dE/dS' * dS/du, where S = |s|*u.
+        dEdu = dEdS[i] * norm(S) + λ * dreg(u⋅axis) * axis
         # dE/dv' = dE/du' * du/dv
         G[i] = vjp_stereographic_projection(dEdu, v[i], axis)
     end
@@ -200,7 +200,7 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
 
     sys.mode in (:dipole, :dipole_large_s) || error("SU(N) mode not supported")
     sys.dims == (1, 1, 1) || error("System must have only a single cell")
-    norm([s × axis for s in sys.dipoles]) > 1e-12 || error("Spins cannot be exactly aligned with polarization axis")
+    norm([S × axis for S in sys.dipoles]) > 1e-12 || error("Spins cannot be exactly aligned with polarization axis")
 
     # Note: if k were fixed, we could check θ = 2πkᵅ for each component α, which
     # is a weaker constraint.

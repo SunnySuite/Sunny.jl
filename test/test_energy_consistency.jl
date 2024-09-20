@@ -69,7 +69,7 @@
             ΔE = Sunny.local_energy_change(sys, site, spin)
 
             E0 = energy(sys)
-            sys.dipoles[site]   = spin.s
+            sys.dipoles[site]   = spin.S
             sys.coherents[site] = spin.Z
             E1 = energy(sys)
             ΔE_ref = E1 - E0

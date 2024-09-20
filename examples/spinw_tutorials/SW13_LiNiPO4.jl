@@ -28,7 +28,6 @@ view_crystal(cryst)
 # "Interaction Renormalization") of anisotropy strengths, as needed for
 # consistency with the original fits.
 
-S = 3/2
 sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole_large_s)
 Jbc =  1.036
 Jb  =  0.6701

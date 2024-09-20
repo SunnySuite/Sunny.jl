@@ -36,8 +36,8 @@ function add_quadratic_interactions!(sys, mode)
 
         #=
         # This is a bit slower, but must also work
-        S = spin_label(sys, 1)
-        O = stevens_matrices(S)
+        s = spin_label(sys, 1)
+        O = stevens_matrices(s)
         Q = [O[2,q] for q in 2:-1:-2]
         Qi, Qj = to_product_space(Q, Q)
         biquad = [1.2  0   0  0    0

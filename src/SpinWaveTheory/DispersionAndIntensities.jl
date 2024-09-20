@@ -209,7 +209,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
                     # local frame, z is longitudinal, and we are computing
                     # the transverse part only, so the last entry is zero)
                     displacement_local_frame = SA[t[i, 2] + t[i, 1], im * (t[i, 2] - t[i, 1]), 0.0]
-                    Avec[μ] += Avec_pref[μ, i] * (data.sqrtS[i]/sqrt(2)) * (O' * displacement_local_frame)[1]
+                    Avec[μ] += Avec_pref[μ, i] * (data.sqrtS[i]/√2) * (O' * displacement_local_frame)[1]
                 end
             end
 

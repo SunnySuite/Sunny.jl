@@ -75,8 +75,8 @@ end
 
 function optim_set_gradient!(G, sys::System{0}, αs, ns)
     (αs, G) = reinterpret.(reshape, Vec3, (αs, G))
-    set_energy_grad_dipoles!(G, sys.dipoles, sys)            # G = dE/ds
-    @. G *= norm(sys.dipoles)                                # G = dE/ds * ds/du = dE/du
+    set_energy_grad_dipoles!(G, sys.dipoles, sys)            # G = dE/dS
+    @. G *= norm(sys.dipoles)                                # G = dE/dS * ds/du = dE/du
     @. G = adjoint(vjp_stereographic_projection(G, αs, ns))  # G = dE/du du/dα = dE/dα
 end
 function optim_set_gradient!(G, sys::System{N}, αs, ns) where N

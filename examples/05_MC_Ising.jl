@@ -13,7 +13,7 @@ crystal = Crystal(latvecs, [[0, 0, 0]])
 # Create a [`System`](@ref) of spin dipoles. Following the Ising convention, we
 # will restrict the dipoles to ``±1`` along the global ``\hat{z}``-axis. Select
 # ``g=-1`` so that the Zeeman coupling between external field ``𝐁`` and spin
-# dipole ``𝐬`` is ``-𝐁⋅𝐬``. The system size is 128×128.
+# dipole ``𝐒`` is ``-𝐁⋅𝐒``. The system size is 128×128.
 
 L = 128
 sys = System(crystal, [1 => Moment(s=1, g=-1)], :dipole; dims=(L, L, 1), seed=0)
@@ -40,7 +40,7 @@ Tc = 2/log(1+√2)
 # consists of, on average, one trial update per spin in the system. Each
 # proposed update is accepted or rejected according to the Metropolis acceptance
 # probability. As its name suggests, the [`propose_flip`](@ref) function will
-# only propose pure spin flips, ``𝐬 \rightarrow -𝐬``.
+# only propose pure spin flips, ``𝐒 \rightarrow -𝐒``.
 
 nsweeps = 4000
 sampler = LocalSampler(kT=Tc, propose=propose_flip)

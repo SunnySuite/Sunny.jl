@@ -17,7 +17,7 @@ const propose_uniform = randspin
     propose_flip
 
 Function to propose pure spin flip updates in the context of a
-[`LocalSampler`](@ref). Dipoles are flipped as ``𝐬 → -𝐬``. SU(_N_) coherent
+[`LocalSampler`](@ref). Dipoles are flipped as ``𝐒 → -𝐒``. SU(_N_) coherent
 states are flipped using the time-reversal operator.
 """
 propose_flip(sys::System{N}, site) where N = flip(getspin(sys, site))
@@ -27,8 +27,8 @@ propose_flip(sys::System{N}, site) where N = flip(getspin(sys, site))
 
 Generate a proposal function that adds a Gaussian perturbation to the existing
 spin state. In `:dipole` mode, the procedure is to first introduce a random
-three-vector perturbation ``𝐬′ = 𝐬 + |𝐬| ξ`` and then return the properly
-normalized spin ``|𝐬| (𝐬′/|𝐬′|)``. Each component of the random vector ``ξ``
+three-vector perturbation ``𝐒′ = 𝐒 + |𝐒| ξ`` and then return the properly
+normalized spin ``|𝐒| (𝐒′/|𝐒′|)``. Each component of the random vector ``ξ``
 is Gaussian distributed with a standard deviation of `magnitude`; the latter is
 dimensionless and typically smaller than one. 
 
@@ -45,14 +45,14 @@ function propose_delta(magnitude)
     function ret(sys::System{N}, site) where N
         κ = sys.κs[site]
         if N == 0
-            s = sys.dipoles[site] + magnitude * κ * randn(sys.rng, Vec3)
-            s = normalize_dipole(s, κ)
-            return SpinState(s, CVec{0}())        
+            S = sys.dipoles[site] + magnitude * κ * randn(sys.rng, Vec3)
+            S = normalize_dipole(S, κ)
+            return SpinState(S, CVec{0}())        
         else
             Z = sys.coherents[site] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
             Z = normalize_ket(Z, κ)
-            s = expected_spin(Z)
-            return SpinState(s, Z)
+            S = expected_spin(Z)
+            return SpinState(S, Z)
         end
     end
     return ret
@@ -115,7 +115,7 @@ The trial spin updates are sampled using the `propose` function. Options include
 [`propose_uniform`](@ref), [`propose_flip`](@ref), and [`propose_delta`](@ref).
 Multiple proposals can be mixed with the macro [`@mix_proposals`](@ref).
 
-The returned object stores fields `ΔE` and `Δs`, which represent the cumulative
+The returned object stores fields `ΔE` and `ΔS`, which represent the cumulative
 change to the net energy and dipole, respectively.
 
 !!! warning "Efficiency considerations
@@ -131,7 +131,7 @@ mutable struct LocalSampler{F}
     nsweeps :: Float64   # Number of MCMC sweeps per `step!`
     propose :: F         # Function: (System, Site) -> SpinState
     ΔE      :: Float64   # Cumulative energy change
-    Δs      :: Vec3      # Cumulative net dipole change
+    ΔS      :: Vec3      # Cumulative net dipole change
 
     function LocalSampler(; kT, nsweeps=1.0, propose=propose_uniform)
         new{typeof(propose)}(kT, nsweeps, propose, 0.0, zero(Vec3))
@@ -158,7 +158,7 @@ function step!(sys::System{N}, sampler::LocalSampler) where N
         
         if accept
             sampler.ΔE += ΔE
-            sampler.Δs += state.s - sys.dipoles[site]
+            sampler.ΔS += state.S - sys.dipoles[site]
             setspin!(sys, state, site)
         end
     end
