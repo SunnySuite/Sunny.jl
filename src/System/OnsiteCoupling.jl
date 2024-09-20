@@ -3,7 +3,7 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
     size(matrep) == (N, N) || error("Invalid matrix size.")
     matrep ≈ matrep' || error("Operator is not Hermitian")
 
-    if N == 2 && norm(matrep) > 1e-12 && matrep ≈ matrep[1, 1] * I
+    if N == 2 && isapprox(matrep, matrep[1, 1] * I; atol=1e-8)
         suggest = sys.mode == :dipole ? " (use :dipole_large_s to reproduce legacy calculations)" : ""
         @warn "Onsite coupling is always trivial for quantum spin s=1/2" * suggest
     end
