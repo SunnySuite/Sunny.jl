@@ -112,7 +112,7 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
                 end
             end
         else
-            @assert sys.mode in (:dipole, :dipole_large_s)
+            @assert sys.mode in (:dipole, :dipole_uncorrected)
             (; sqrtS, observables_localized) = swt.data::SWTDataDipole
             for i in 1:Na
                 for μ in 1:Nobs
