@@ -4,7 +4,7 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
     matrep ≈ matrep' || error("Operator is not Hermitian")
 
     if N == 2 && isapprox(matrep, matrep[1, 1] * I; atol=1e-8)
-        suggest = sys.mode == :dipole ? " (use :dipole_large_s to reproduce legacy calculations)" : ""
+        suggest = sys.mode == :dipole ? " (use :dipole_uncorrected for legacy calculations)" : ""
         @warn "Onsite coupling is always trivial for quantum spin s=1/2" * suggest
     end
 
@@ -14,14 +14,14 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
         s = spin_label(sys, to_atom(site))
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
         return StevensExpansion(rcs_factors(s) .* c)
-    elseif sys.mode == :dipole_large_s
-        error("System with mode `:dipole_large_s` requires a symbolic operator.")
+    elseif sys.mode == :dipole_uncorrected
+        error("System with mode `:dipole_uncorrected` requires a symbolic operator.")
     end
 end
 
 function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
-    if sys.mode != :dipole_large_s
-        error("Symbolic operator only valid for system with mode `:dipole_large_s`.")
+    if sys.mode != :dipole_uncorrected
+        error("Symbolic operator only valid for system with mode `:dipole_uncorrected`.")
     end
 
     s = sys.κs[site]
@@ -47,7 +47,7 @@ function rcs_factors(s)
 end
 
 function empty_anisotropy(mode, N)
-    if mode == :dipole || mode == :dipole_large_s
+    if mode in (:dipole, :dipole_uncorrected)
         c = map(k -> zeros(2k+1), OffsetArray(0:6, 0:6))
         return StevensExpansion(c)
     elseif mode == :SUN

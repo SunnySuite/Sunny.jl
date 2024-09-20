@@ -20,8 +20,8 @@ Mode `:dipole` projects the SU(_N_) dynamics onto the restricted space of pure
 dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
 dynamics, but single-ion anisotropy and biquadratic exchange interactions will
 be renormalized to improve accuracy. To disable this renormalization, use the
-mode `:dipole_large_s` which applies the ``s → ∞`` classical limit. For details,
-see the documentation page: [Interaction Renormalization](@ref).
+mode `:dipole_uncorrected`, which corresponds to the formal ``s → ∞`` limit. For
+details, see the documentation page: [Interaction Renormalization](@ref).
 
 An integer `seed` for the random number generator can optionally be specified to
 enable reproducible calculations.
@@ -33,13 +33,13 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     if !isnothing(units)
         @warn "units argument to System is deprecated and will be ignored!"
     end
-    if mode == :dipole_large_S
-        @warn "Deprecation warning! Use :dipole_large_s instead of :dipole_large_S"
-        mode = :dipole_large_s
+    if mode in (:dipole_large_S, :dipole_large_s)
+        @warn "Deprecation warning! Use :dipole_uncorrected instead of $mode"
+        mode = :dipole_uncorrected
     end
 
-    if !in(mode, (:SUN, :dipole, :dipole_large_s))
-        error("Mode must be `:SUN`, `:dipole`, or `:dipole_large_s`.")
+    if !in(mode, (:SUN, :dipole, :dipole_uncorrected))
+        error("Mode must be `:SUN`, `:dipole`, or `:dipole_uncorrected`.")
     end
 
     # The lattice vectors of `crystal` must be conventional (`crystal` cannot be
@@ -61,7 +61,7 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
         allequal(Ns) || error("Currently all spins S must be equal in SU(N) mode.")
         N = first(Ns)
         κs = fill(1.0, na)
-    elseif mode in (:dipole, :dipole_large_s)
+    elseif mode in (:dipole, :dipole_uncorrected)
         N = 0 # marker for :dipole mode
         κs = copy(Ss)
     end
@@ -91,7 +91,7 @@ function mode_to_str(sys::System{N}) where N
         return "[SU($N)]"
     elseif sys.mode == :dipole
         return "[Dipole mode]"
-    elseif sys.mode == :dipole_large_s
+    elseif sys.mode == :dipole_uncorrected
         return "[Dipole mode, large-s]"
     else
         error()
@@ -210,7 +210,7 @@ If atom `i` carries a single spin-``s`` moment, then returns the half-integer
 label ``s``. Otherwise, throws an error.
 """
 function spin_label(sys::System, i::Int)
-    if sys.mode == :dipole_large_s
+    if sys.mode == :dipole_uncorrected
         return Inf
     else
         @assert sys.mode in (:dipole, :SUN)

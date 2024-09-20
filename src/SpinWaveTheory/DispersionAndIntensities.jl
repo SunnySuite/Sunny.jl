@@ -199,7 +199,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
                     end
                 end
             else
-                @assert sys.mode in (:dipole, :dipole_large_s)
+                @assert sys.mode in (:dipole, :dipole_uncorrected)
                 data = swt.data::SWTDataDipole
                 t = reshape(view(T, :, band), Na, 2)
                 for i in 1:Na, μ in 1:Nobs

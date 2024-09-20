@@ -7,6 +7,8 @@
   #317](https://github.com/SunnySuite/Sunny.jl/pull/317)).
 * Stabilize [`SpinWaveTheoryKPM`](@ref). It now automatically selects the
   polynomial order according to an error tolerance.
+* Rename mode `:dipole_large_S` to `:dipole_uncorrected` to emphasize that
+  corrections are missing.
 
 ## v0.7.2
 (Sep 11, 2024)
@@ -49,7 +51,7 @@ This **major release** introduces breaking interface changes.
   [`domain_average`](@ref), which wrap [`intensities`](@ref).
 * [`System`](@ref) now expects supercell dimensions as a `dims` keyword
   argument. [`Moment`](@ref) replaces `SpinInfo`. Lower-case `s` now labels
-  quantum spin. For example, use `:dipole_large_s` instead of `:dipole_large_S`.
+  quantum spin.
 * In [`view_crystal`](@ref) and [`plot_spins`](@ref) use `ndims` instead of
   `dims` for the number of spatial dimensions.
 * Binning features have been removed. Some functionality may be added back in a

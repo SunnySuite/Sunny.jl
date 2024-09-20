@@ -98,7 +98,7 @@ end
     
     for k in (2, 4, 6)
         c = randn(2k+1)
-        E1, E2 = map([:dipole, :dipole_large_s]) do mode
+        E1, E2 = map([:dipole, :dipole_uncorrected]) do mode
             sys = System(cryst, [1 => Moment(; s, g=2)], mode)
             O = stevens_matrices(spin_label(sys, 1))
             set_onsite_coupling!(sys, sum(c[k-q+1]*O[k, q] for q in -k:k), 1)
@@ -113,7 +113,7 @@ end
     cryst = Sunny.square_crystal()
 
     s = 3/2
-    sys1 = System(cryst, [1 => Moment(; s, g=2)], :dipole_large_s, seed=0)
+    sys1 = System(cryst, [1 => Moment(; s, g=2)], :dipole_uncorrected, seed=0)
     sys2 = System(cryst, [1 => Moment(; s, g=2)], :dipole, seed=0)
 
     # Reference scalar biquadratic without renormalization
@@ -167,7 +167,7 @@ end
     @test E_dipole ≈ E_SUN_1 ≈ E_SUN_2
 
     # Biquadratic energy in large-s limit is classical formula
-    sys = System(cryst, [1 => Moment(s=s1, g=-1), 2 => Moment(s=s2, g=-1)], :dipole_large_s)
+    sys = System(cryst, [1 => Moment(s=s1, g=-1), 2 => Moment(s=s2, g=-1)], :dipole_uncorrected)
     set_dipole!(sys, v1, (1, 1, 1, 1))
     set_dipole!(sys, v2, (1, 1, 1, 2))
     set_exchange!(sys, 0.0, bond; biquad)

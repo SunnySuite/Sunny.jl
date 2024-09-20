@@ -31,7 +31,7 @@ set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))
 # interaction strength as ``D → (1 - 1/2s) D``. We must "undo" Sunny's
 # classical-to-quantum rescaling factor to reproduce the SpinW calculation.
 # Alternatively, renormalization can be disabled by selecting the system mode
-# `:dipole_large_s` instead of `:dipole`.
+# `:dipole_uncorrected` instead of `:dipole`.
 
 undo_classical_to_quantum_rescaling = 1 / (1 - 1/2s)
 D = 0.2 * undo_classical_to_quantum_rescaling

@@ -80,12 +80,11 @@ same form, but now applied to the expected dipole. Classical Stevens functions
 are constructed as homogeneous polynomials of order $k$, because lower-order
 terms would vanish in the limit $s \to \infty$.
 
-In a real magnetic compound, however, the spin magnitude $s$ is not necessarily
-large. To obtain a better approximation, one should avoid the formal limit $s
-\to \infty$. Our approach is to start with the full dynamics of SU(_N_) coherent
-states, and then constrain it to the space of pure dipole states
-$|\boldsymbol{\Omega}\rangle$. The latter are defined as any states where the
-expected dipole 3-vector,
+For real compounds with finite quantum spin-$s$, one can obtain a better
+approximation by avoiding the formal $s \to \infty$ limit. Corrections can be
+derived by starting from the full dynamics of SU(_N_) coherent states and then
+constraining to the space of pure dipole states $|\boldsymbol{\Omega}\rangle$.
+The latter are defined as any states where the expected dipole 3-vector,
 ```math
 \boldsymbol{\Omega} ≡ \langle \boldsymbol{\Omega}| \hat{\mathbf{S}} | \boldsymbol{\Omega}\rangle,
 ```
@@ -128,8 +127,8 @@ interpreted as a correction to the traditional large-$s$ classical limit.
 
 Renormalization also applies to the coupling between different sites. In Sunny,
 couplings will often be expressed as a polynomial of spin operators using
-[`set_pair_coupling!`](@ref), but any such coupling can be decomposed as sum of
-tensor products of Stevens operators. Without loss of generality, consider a
+[`set_pair_coupling!`](@ref), but any such coupling can be decomposed as a sum
+of tensor products of Stevens operators. Without loss of generality, consider a
 single coupling between two Stevens operators
 $\hat{\mathcal{H}}_\mathrm{coupling} = \hat{\mathcal{O}}_{k,q} \otimes
 \hat{\mathcal{O}}_{k',q'}$ along a bond connecting sites $i$ and $j$. Upon
@@ -139,16 +138,18 @@ $E_\mathrm{coupling} = c_k c_k' \mathcal{O}_{k,q}(\boldsymbol{\Omega}_i)
 \mathcal{O}_{k',q'}(\boldsymbol{\Omega}_j)$, which now involves a product of
 renormalized Stevens functions. 
 
-## Use `:dipole_large_s` mode to disable renormalization
+## Use `:dipole_uncorrected` mode to disable renormalization
 
 Although we generally recommend the above renormalization procedure, there are
-circumstances where it is not desirable. Examples include reproducing a
-model-system study, or describing a micromagnetic system for which the
-$s\to\infty$ limit is a good approximation. To simulate dipoles without
-interaction strength renormalization, construct a [`System`](@ref) using the
-mode `:dipole_large_s` instead of `:dipole`. Symbolic operators in the large-$s$
-limit can be constructed by passing `Inf` to either [`spin_matrices`](@ref) or
-[`stevens_matrices`](@ref).
+cases where it is not desirable. Examples include reproducing a legacy study, or
+modeling a micromagnetic system for which the $s\to\infty$ limit is a good
+approximation. To simulate dipoles without interaction strength renormalization,
+construct a [`System`](@ref) using the mode `:dipole_uncorrected` instead of
+`:dipole`. The fundamental difference between the two modes is the type of
+operator expected by [`set_onsite_coupling!`](@ref). The mode
+`:dipole_uncorrected` expects infinite-dimensional operators in the $s → ∞$
+limit. These can be obtained by passing `Inf` to either [`spin_matrices`](@ref)
+or [`stevens_matrices`](@ref).
 
 ## Definition of Stevens operators
 

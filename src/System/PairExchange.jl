@@ -195,7 +195,7 @@ end
 
 
 function check_allowable_dipole_coupling(tensordec, mode)
-    if !isempty(tensordec.data) && mode in (:dipole, :dipole_large_s)
+    if !isempty(tensordec.data) && mode in (:dipole, :dipole_uncorrected)
         error("""
         Invalid pair coupling. In dipole mode, the most general allowed form is
             (Si, Sj) -> Si'*J*Sj + [(Si'*K1*Si)*(Sj'*K2*Sj) + ...]
@@ -290,8 +290,8 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_pa
 
     op ≈ op' || error("Operator is not Hermitian")
 
-    if sys.mode == :dipole_large_s
-        error("Symbolic operators required for mode `:dipole_large_s`.")
+    if sys.mode == :dipole_uncorrected
+        error("Symbolic operators required for mode `:dipole_uncorrected`.")
     end
 
     Ni = Int(2spin_label(sys, bond.i)+1)
@@ -303,8 +303,8 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_pa
 end
 
 function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=true) where N
-    if sys.mode == :dipole_large_s
-        error("General couplings not yet supported for mode `:dipole_large_s`.")
+    if sys.mode == :dipole_uncorrected
+        error("General couplings not supported for mode `:dipole_uncorrected`.")
     end
 
     si = spin_label(sys, bond.i)
@@ -319,7 +319,7 @@ end
 # are the five Stevens quadrupoles, and g is the `scalar_biquad_metric`. The
 # parameter `biquad` is accepted as the coefficient to (Sᵢ⋅Sⱼ)², but is returned
 # as the coefficient to Qᵢ⋅g Qⱼ. This is achieved via a shift of the bilinear
-# and scalar parts. In the special case of :dipole_large_s, the limiting
+# and scalar parts. In the special case of :dipole_uncorrected, the limiting
 # behavior is Sᵢ²Sⱼ² → sᵢ²sⱼ² (just the spin labels squared), and 𝒪(s²) → 0
 # (homogeneous in quartic order of spin).
 function adapt_for_biquad(scalar, bilin, biquad, sys, site1, site2)
@@ -333,7 +333,7 @@ function adapt_for_biquad(scalar, bilin, biquad, sys, site1, site2)
             bilin -= (bilin isa Number) ? biquad/2 : (biquad/2)*I
             scalar += biquad * s1*(s1+1) * s2*(s2+1) / 3
         else
-            @assert sys.mode == :dipole_large_s
+            @assert sys.mode == :dipole_uncorrected
             s1 = sys.κs[to_cartesian(site1)]
             s2 = sys.κs[to_cartesian(site2)]
             scalar += biquad * s1^2 * s2^2 / 3
@@ -491,8 +491,8 @@ two sites. The documentation for [`set_pair_coupling!`](@ref) provides examples
 constructing `op`.
 """
 function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, site2::Site; offset=nothing) where N
-    if sys.mode == :dipole_large_s
-        error("Symbolic operators required for mode `:dipole_large_s`.")
+    if sys.mode == :dipole_uncorrected
+        error("Symbolic operators required for mode `:dipole_uncorrected`.")
     end
 
     N1 = Int(2spin_label(sys, to_atom(site1))+1)
@@ -504,8 +504,8 @@ function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, 
 end
 
 function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2::Site; offset=nothing) where N
-    if sys.mode == :dipole_large_s
-        error("General couplings not yet supported for mode `:dipole_large_s`.")
+    if sys.mode == :dipole_uncorrected
+        error("General couplings not yet supported for mode `:dipole_uncorrected`.")
     end
 
     s1 = spin_label(sys, to_atom(site1))

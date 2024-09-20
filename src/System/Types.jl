@@ -85,7 +85,7 @@ end
 
 mutable struct System{N}
     const origin           :: Union{Nothing, System{N}} # System for the original chemical cell
-    const mode             :: Symbol                    # :SUN, :dipole, or :dipole_large_s
+    const mode             :: Symbol                    # :SUN, :dipole, or :dipole_uncorrected
 
     const crystal          :: Crystal
     const dims             :: NTuple{3, Int}            # Dimensions of lattice in unit cells

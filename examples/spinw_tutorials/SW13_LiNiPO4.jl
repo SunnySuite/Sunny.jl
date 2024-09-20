@@ -24,11 +24,11 @@ view_crystal(cryst)
 # Create a system with exchange parameters taken from [T. Jensen, et al., PRB
 # **79**, 092413 (2009)](https://doi.org/10.1103/PhysRevB.79.092413). The
 # corrected anisotropy values are taken from the thesis of T. Jensen. The mode
-# `:dipole_large_s` avoids a [classical-to-quantum rescaling factor](@ref
+# `:dipole_uncorrected` avoids a [classical-to-quantum rescaling factor](@ref
 # "Interaction Renormalization") of anisotropy strengths, as needed for
 # consistency with the original fits.
 
-sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole_large_s)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole_uncorrected)
 Jbc =  1.036
 Jb  =  0.6701
 Jc  = -0.0469
