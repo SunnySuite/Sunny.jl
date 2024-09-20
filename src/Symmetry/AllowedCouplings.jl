@@ -158,6 +158,21 @@ function is_coupling_valid(cryst::Crystal, b::Bond, J)
 end
 
 
+# TODO: Try for various crystals and add unit tests.
+function symmetrize_coupling(cryst::Crystal, J, b::Bond)
+    J = Mat3(J)
+    acc = zero(Mat3)
+    cnt = 0
+    b = BondPos(cryst, b)
+    for (symop, parity) in unique(symmetries_between_bonds(cryst, b, b))
+        R = cryst.latvecs * symop.R * inv(cryst.latvecs)
+        acc += transform_coupling_by_symmetry(J, R*det(R), parity)
+        cnt += 1
+    end
+    return acc / cnt
+end
+
+
 # Orthonormal basis of 3x3 symmetric matrices
 const sym_basis = begin
     b = [diagm([1, 0, 0]),
