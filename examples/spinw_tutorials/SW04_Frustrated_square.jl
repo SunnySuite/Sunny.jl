@@ -34,6 +34,6 @@ plot_spins(sys)
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
-path = q_space_path(cryst, qs, 400);
+path = q_space_path(cryst, qs, 400)
 res = intensities_bands(swt, path)
 plot_intensities(res; units)

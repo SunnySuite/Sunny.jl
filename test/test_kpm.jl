@@ -1,3 +1,30 @@
+@testitem "Lanczos" begin
+    using LinearAlgebra
+
+    N = 200
+    A = hermitianpart(randn(N, N))
+    A = diagm(vcat(ones(N÷2), -ones(N÷2)))
+
+    S = randn(N, N)
+    S = S' * S
+    S = S / eigmax(S)
+    S = S + 0.0I
+
+    v = randn(N)
+    ev1 = eigvals(Sunny.lanczos_ref(A*S*A, S, v; niters=10))
+
+    mulA!(w, v) = (w .= A * S * A * v)
+    mulS!(w, v) = mul!(w, S, v)
+    ev2 = eigvals(Sunny.lanczos(mulA!, mulS!, copy(v); niters=10))
+
+    @test ev1 ≈ ev2
+
+    ev3 = extrema(eigvals(Sunny.lanczos_ref(A*S*A, S, v; niters=100)))
+    ev4 = extrema(eigvals((A*S)^2))
+    @test isapprox(collect(ev3), collect(ev4); atol=1e-3)
+end
+
+
 @testitem "FCC KPM" begin
     using LinearAlgebra
 
@@ -22,8 +49,7 @@
         q = [0.8, 0.6, 0.1]
         res = intensities_bands(swt, [q])
         energies, _ = excitations(swt, q)
-        Sunny.eigbounds(swt, q, 20; extend=0.0)
-        @test all(extrema(energies) .≈ Sunny.eigbounds(swt, q, 30; extend=0.0))
+        @test all(extrema(energies) .≈ Sunny.eigbounds(swt, q, 30))
     end
 
 end
@@ -52,23 +78,23 @@ end
 
         swt = SpinWaveTheory(sys; measure=nothing)
         energies, T = excitations(swt, q)
-        extrema(energies)
         q_reshaped = Sunny.to_reshaped_rlu(sys, q)
-        bounds = Sunny.eigbounds(swt, q_reshaped, 50; extend=0.0)
+        bounds = Sunny.eigbounds(swt, q_reshaped, 50)
         @test all(extrema(energies) .≈ bounds)
 
         formfactors = [1 => FormFactor("Fe2")]
         measure = ssf_perp(sys; formfactors)
-        σ = 0.05
         swt = SpinWaveTheory(sys; measure)
-        swt_kpm = SpinWaveTheoryKPM(sys; measure, resolution=0.005, screening_factor=10)
+        swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=1e-8)
 
+        kernel = lorentzian(fwhm=0.1)
         energies = range(0, 6, 100)
-        kT = 0.2
-        kernel = lorentzian(fwhm=2σ)
+        kT = 0.0
         res1 = intensities(swt, [q]; energies, kernel, kT)
         res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
 
-        @test isapprox(res1.data, res2.data, atol=1e-3)
+        # Note that KPM accuracy is currently limited by Gibbs ringing
+        # introduced in the thermal occupancy (Heaviside step) function.
+        @test isapprox(res1.data, res2.data, rtol=1e-5)
     end
 end

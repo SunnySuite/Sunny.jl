@@ -1,9 +1,28 @@
 abstract type AbstractBroadening end
 
-struct Broadening{F <: Function} <: AbstractBroadening
+struct Broadening{F <: Function, G <: Union{Nothing, Function}} <: AbstractBroadening
     # ϵ is the intrinsic excitation energy, ω is the nominal energy transfer in
     # measured intensities I(q, ω).
-    kernel :: F  # (ω - ϵ) -> intensity
+    kernel :: F   # Function mapping x = (ω - ϵ) to an intensity scaling factor
+    integral :: G # Definite integral of kernel from 0 to x
+    fwhm :: Float64
+    name :: String
+
+    function Broadening(kernel; integral=nothing, fwhm=NaN, name="Custom")
+        if !isnan(fwhm)
+            kernel(fwhm/2) ≈ kernel(-fwhm/2) ≈ kernel(0)/2 || error("Invalid full width at half maximum")
+        end
+        if !isnothing(integral)
+            if !isnan(fwhm)
+                ϵ = 1e-6 * fwhm
+                (integral(ϵ) - integral(-ϵ)) / 2ϵ ≈ kernel(0) || error("Invalid integral function at 0")
+                (integral(fwhm+ϵ) - integral(fwhm-ϵ)) / 2ϵ ≈ kernel(fwhm) || error("Invalid integral function at $fwhm")
+            end
+            integral(0) ≈ 0 || error("Definite integral must start from 0")
+            integral(Inf) ≈ -integral(-Inf) ≈ 1/2 || error("Full integral must be 1")
+        end
+        return new{typeof(kernel), typeof(integral)}(kernel, integral, fwhm, name)
+    end
 end
 
 struct NonstationaryBroadening{F <: Function} <: AbstractBroadening
@@ -18,8 +37,12 @@ function (b::NonstationaryBroadening)(ϵ, ω)
     b.kernel(ϵ, ω)
 end
 
-function Base.show(io::IO, ::Broadening)
-    print(io, "Broadening")
+function Base.show(io::IO, kernel::Broadening)
+    (; name, fwhm) = kernel
+    print(io, "$name kernel")
+    if !isnan(fwhm)
+        print(io, ", fwhm=", number_to_simple_string(fwhm; digits=3))
+    end
 end
 
 function Base.show(io::IO, ::NonstationaryBroadening)
@@ -29,12 +52,14 @@ end
 """
     lorentzian(; fwhm)
 
-Returns the function `(Γ/2) / (π*(x^2+(Γ/2)^2))` where `fwhm = Γ` is the full
+Returns the function `(Γ/2) / (π*(x^2+(Γ/2)^2))` where `Γ = fwhm ` is the full
 width at half maximum.
 """
 function lorentzian(; fwhm)
     Γ = fwhm
-    return Broadening(x -> (Γ/2) / (π*(x^2+(Γ/2)^2)))
+    kernel(x) = (Γ/2) / (π*(x^2+(Γ/2)^2))
+    integral(x) = atan(2x/Γ)/π
+    return Broadening(kernel; integral, fwhm, name="Lorentzian")
 end
 
 """
@@ -47,24 +72,12 @@ function gaussian(; fwhm=nothing, σ=nothing)
     if sum(.!isnothing.((fwhm, σ))) != 1
         error("Either fwhm or σ must be specified.")
     end
-    σ = Float64(@something σ (fwhm/2√(2log(2))))
-    return Broadening(x -> exp(-x^2/2σ^2) / √(2π*σ^2))
+    fwhm = @something fwhm 2√(2log(2))*σ
+    σ = fwhm/2√(2log(2))
+    kernel(x) = exp(-x^2/2σ^2) / √(2π*σ^2)
+    integral(x) = erf(x/√2σ)/2
+    return Broadening(kernel; integral, fwhm, name="Gaussian")
 end
-
-#=
-function integrated_gaussian(; fwhm=nothing, σ=nothing)
-    if sum(.!isnothing.((fwhm, σ))) != 1
-        error("Exactly one of `fwhm` and `σ` must be specified.")
-    end
-    σ = Float64(@something σ (fwhm/2√(2log(2))))
-    return x -> erf(x/√2σ)/2
-end
-
-function integrated_lorentzian(; fwhm)
-    Γ = fwhm
-    return x -> atan(2x/Γ)/π
-end
-=#
 
 
 function broaden!(data::AbstractArray{Ret}, bands::BandIntensities{Ret}; energies, kernel) where Ret

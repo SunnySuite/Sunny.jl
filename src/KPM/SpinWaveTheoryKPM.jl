@@ -1,41 +1,39 @@
 """
-    SpinWaveTheoryKPM(sys::System; measure, resolution, regularization=1e-8)
+    SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol)
 
-**Experimental**
+A variant of [`SpinWaveTheory`](@ref) that uses the kernel polynomial method
+(KPM) to perform [`intensities`](@ref) calculations [1]. Instead of explicitly
+diagonalizing the dynamical matrix, KPM approximates intensities using
+polynomial expansion truncated at order ``M``. The reduces the computational
+cost from ``𝒪(N^3)`` to ``𝒪(N M)``, which is favorable for large system sizes
+``N``.
 
-An alternative to [`SpinWaveTheory`](@ref) that uses the kernel polynomial
-method (KPM) to perform [`intensities`](@ref) calculations. In traditional spin
-wave theory calculations, one would explicitly diagonalize the dynamical matrix,
-with a cost that scales like ``𝒪(V^3)`` in the volume ``V`` of the magnetic
-cell. KPM instead approximates intensities using polynomial expansion of the
-dynamical matrix. The computational cost of KPM scales like ``𝒪(V P)`` in the
-polynomial order `P`, and is favorable to direct diagonalization for
-sufficiently large magnetic cells.
+The polynomial order ``M`` will be determined from the line broadening kernel
+and the specified error tolerance `tol`. Specifically, for each wavevector,
+``M`` scales like the spectral bandwidth of excitations, divided by the energy
+resolution of the broadening kernel, times the negative logarithm of `tol`.
 
-The polynomial order `P` scales like the spectral bandwidth of the dynamical
-matrix divided by the target energy `resolution`. If the specified resolution is
-too small (relative to the line broadening kernel), the calculated intensities
-will exhibit artificial oscillations in energy.
+The error tolerance `tol` should be tuned empirically for each calculation.
+Reasonable starting points are `1e-1` (more speed) or `1e-2` (more accuracy).
+
+!!! warning "Missing intensity at small quasi-particle energy"
+
+    The KPM calculation may mask intensities at small energies ``ω``. In
+    particular, such artifacts may arise near the Goldstone modes of an
+    ordered state with continuous symmetry.
+
+References:
+
+ 1. H. Lane et al., Kernel Polynomial Method for Linear Spin Wave Theory (2023)
+    [[arXiv:2312.08349v3](https://arxiv.org/abs/2312.08349)].
 """
 struct SpinWaveTheoryKPM
     swt :: SpinWaveTheory
-    resolution :: Float64
-    screening_factor :: Float64
+    tol :: Float64
+    lanczos_iters :: Int
 
-    function SpinWaveTheoryKPM(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, resolution, screening_factor=1.0)
-        return new(SpinWaveTheory(sys; measure, regularization), resolution, screening_factor)
-    end
-end
-
-
-# Smoothly approximate a Heaviside step function
-function regularization_function(y)
-    if y < 0
-        return 0.0
-    elseif 0 ≤ y ≤ 1
-        return (4 - 3y) * y^3
-    else
-        return 1.0
+    function SpinWaveTheoryKPM(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, tol, lanczos_iters=15)
+        return new(SpinWaveTheory(sys; measure, regularization), tol, lanczos_iters)
     end
 end
 
@@ -60,12 +58,15 @@ function set_moments!(moments, measure, u, α)
 end
 
 
-function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0)
+function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
+    iszero(kT) || error("KPM does not yet support finite kT")
     qpts = convert(AbstractQPoints, qpts)
 
-    (; swt, resolution, screening_factor) = swt_kpm
+    (; swt, tol, lanczos_iters) = swt_kpm
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
+
+    isnothing(kernel.fwhm) && error("Cannot determine the kernel fwhm")
 
     @assert eltype(data) == eltype(measure)
     @assert size(data) == (length(energies), length(qpts.qs))
@@ -74,7 +75,6 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
     Ncells = Na / natoms(cryst)
     Nf = nflavors(swt)
     L = Nf*Na
-    n_iters = 50
     Avec_pref = zeros(ComplexF64, Na) # initialize array of some prefactors
 
     Nobs = size(measure.observables, 1)
@@ -127,11 +127,15 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
         # Bound eigenvalue magnitudes and determine order of polynomial
         # expansion
 
-        lo, hi = eigbounds(swt, q_reshaped, n_iters; extend=0.25)
-        γ = max(abs(lo), abs(hi))
-        P = max(round(Int, π*γ/2resolution), 2)
-        resize!(moments, Ncorr, P)
-        σ = resolution * screening_factor
+        lo, hi = eigbounds(swt, q_reshaped, lanczos_iters)
+        γ = 1.1 * max(abs(lo), hi)
+        accuracy_factor = max(-3*log10(tol), 1)
+        M = round(Int, accuracy_factor * max(2γ / kernel.fwhm, 3))
+        resize!(moments, Ncorr, M)
+
+        if verbose
+            println("Bounds=", (lo, hi), " M=", M)
+        end
 
         # Perform Chebyshev recursion
 
@@ -140,7 +144,7 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
         mul_A!(swt, α1, α0, q_repeated, γ)
         set_moments!(view(moments, :, 1), measure, u, α0)
         set_moments!(view(moments, :, 2), measure, u, α1)
-        for m in 3:P
+        for m in 3:M
             mul_A!(swt, α2, α1, q_repeated, γ)
             @. α2 = 2*α2 - α0
             set_moments!(view(moments, :, m), measure, u, α2)
@@ -149,13 +153,27 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
 
         # Transform Chebyshev moments to intensities for each ω
 
-        buf = zeros(2P)
+        buf = zeros(2M)
         plan = FFTW.plan_r2r!(buf, FFTW.REDFT10)
 
         for (iω, ω) in enumerate(energies)
-            f(x) = regularization_function(x / σ) * kernel(x, ω) * thermal_prefactor(x; kT)
-
-            coefs = cheb_coefs!(P, f, (-γ, γ); buf, plan)
+            # Ideally we would use thermal_prefactor instead of
+            # thermal_prefactor_zero to allow for finite temperature effects.
+            # Unfortunately, the Bose function's 1/x singularity introduces
+            # divergence of the Chebyshev expansion integrals, and is tricky to
+            # regularize. At kT=0, the occupation is a Heaviside step function.
+            # To mitigate ringing artifacts associated with truncated Chebyshev
+            # approximation, introduce smoothing on the energy scale σ. This is
+            # the polynomial resolution scale times a prefactor that grows like
+            # sqrt(accuracy) to reduce lingering ringing artifacts. See "AFM
+            # KPM" for a test case where the smoothing degrades accuracy, and
+            # "Disordered system with KPM" for an illustration of how smoothing
+            # affects intensities at small ω.
+            σ = sqrt(accuracy_factor) * (γ / M)
+            thermal_prefactor_zero(x) = (tanh(x / σ) + 1) / 2
+            f(x) = kernel(x, ω) * thermal_prefactor_zero(x)
+            coefs = cheb_coefs!(M, f, (-γ, γ); buf, plan)
+            # apply_jackson_kernel!(coefs)
             for i in 1:Ncorr
                 corrbuf[i] = dot(coefs, view(moments, i, :)) / Ncells
             end
@@ -166,8 +184,8 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
     return Intensities(cryst, qpts, collect(energies), data)
 end
 
-function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0)
+function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
     qpts = convert(AbstractQPoints, qpts)
     data = zeros(eltype(swt_kpm.swt.measure), length(energies), length(qpts.qs))
-    return intensities!(data, swt_kpm, qpts; energies, kernel, kT)
+    return intensities!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
 end
