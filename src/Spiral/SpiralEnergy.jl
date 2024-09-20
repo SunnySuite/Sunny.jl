@@ -17,7 +17,7 @@ special case ``𝐤 = 0`` yields result is identical to [`energy`](@ref).
 See also [`minimize_spiral_energy!`](@ref) and [`repeat_periodically_as_spiral`](@ref).
 """
 function spiral_energy(sys::System{0}; k, axis)
-    sys.mode in (:dipole, :dipole_large_s) || error("SU(N) mode not supported")
+    sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")
     sys.dims == (1, 1, 1) || error("System must have only a single cell")
 
     check_rotational_symmetry(sys; axis, θ=0.01)
@@ -198,7 +198,7 @@ approximately commensurate with the returned propagation wavevector ``𝐤``.
 function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
     axis = normalize(axis)
 
-    sys.mode in (:dipole, :dipole_large_s) || error("SU(N) mode not supported")
+    sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")
     sys.dims == (1, 1, 1) || error("System must have only a single cell")
     norm([S × axis for S in sys.dipoles]) > 1e-12 || error("Spins cannot be exactly aligned with polarization axis")
 

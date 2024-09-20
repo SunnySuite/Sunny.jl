@@ -97,7 +97,7 @@ end
     magnetization_lswt_correction(swt::SpinWaveTheory; opts...)
 
 Calculates the reduction in the classical dipole magnitude for all atoms in the
-magnetic cell. In the case of `:dipole` and `:dipole_large_s` mode, the
+magnetic cell. In the case of `:dipole` and `:dipole_uncorrected` mode, the
 classical dipole magnitude is constrained to spin-`s`. While in `:SUN` mode, the
 classical dipole magnitude can be smaller than `s` due to anisotropic
 interactions.
@@ -113,7 +113,7 @@ function magnetization_lswt_correction(swt::SpinWaveTheory; opts...)
     if sys.mode == :SUN
         δS = magnetization_lswt_correction_sun(swt; opts...)
     else
-        @assert sys.mode in (:dipole, :dipole_large_s)
+        @assert sys.mode in (:dipole, :dipole_uncorrected)
         δS = magnetization_lswt_correction_dipole(swt; opts...)
     end
     return δS
