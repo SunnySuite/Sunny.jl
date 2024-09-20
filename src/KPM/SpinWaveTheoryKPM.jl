@@ -102,10 +102,10 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
         end
 
         if sys.mode == :SUN
-            data_sun = swt.data::SWTDataSUN
+            (; observables_localized) = swt.data::SWTDataSUN
             N = sys.Ns[1]
             for i in 1:Na, μ in 1:Nobs
-                @views O = data_sun.observables_localized[μ, i]
+                O = observables_localized[μ, i]
                 for f in 1:Nf
                     u[μ, f + (i-1)*Nf]     = Avec_pref[i] * O[f, N]
                     u[μ, f + (i-1)*Nf + L] = Avec_pref[i] * O[N, f]
@@ -113,13 +113,12 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
             end
         else
             @assert sys.mode in (:dipole, :dipole_large_s)
-            data_dip = swt.data::SWTDataDipole
+            (; sqrtS, observables_localized) = swt.data::SWTDataDipole
             for i in 1:Na
-                sqrt_halfS = data_dip.sqrtS[i]/sqrt(2)
                 for μ in 1:Nobs
-                    O = data_dip.observables_localized[μ, i]
-                    u[μ, i]   = Avec_pref[i] * sqrt_halfS * (O[1] + im*O[2])
-                    u[μ, i+L] = Avec_pref[i] * sqrt_halfS * (O[1] - im*O[2])
+                    O = observables_localized[μ, i]
+                    u[μ, i]   = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] + im*O[2])
+                    u[μ, i+L] = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] - im*O[2])
                 end
             end
         end

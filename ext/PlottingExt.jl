@@ -680,7 +680,7 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
     view_crystal_aux(cryst, nothing; refbonds, orthographic, ghost_radius, ndims, compass, size)
 end
 
-function Sunny.view_crystal(sys::System; refbonds=8, orthographic=false, ghost_radius=nothing, ndims=3, compass=true, size=(768, 512), dims=nothing)
+function Sunny.view_crystal(sys::System; refbonds=10, orthographic=false, ghost_radius=nothing, ndims=3, compass=true, size=(768, 512), dims=nothing)
     isnothing(dims) || error("Use notation `ndims=$dims` instead of `dims=$dims`")
     Sunny.is_homogeneous(sys) || error("Cannot plot interactions for inhomogeneous system.")
     view_crystal_aux(orig_crystal(sys), sys;

@@ -62,14 +62,14 @@ end
 
     # Spherical tensors satisfying `norm(T) = √tr T† T = 1` (currently unused).
     function spherical_tensors_normalized(k; N)
-        S = (N-1)/2
+        s = (N-1)/2
         ret = Matrix{Float64}[]
         for q in k:-1:-k
             T = zeros(Float64, N, N)
             for i = 1:N, i′ = 1:N
-                m  = S - i + 1
-                m′ = S - i′+ 1
-                T[i, i′] = clebschgordan(S, m′, k, q, S, m) * sqrt((2k+1)/N)
+                m  = s - i + 1
+                m′ = s - i′+ 1
+                T[i, i′] = clebschgordan(s, m′, k, q, s, m) * sqrt((2k+1)/N)
             end
             push!(ret, T)
         end

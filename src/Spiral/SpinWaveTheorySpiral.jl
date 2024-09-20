@@ -63,22 +63,22 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
             Jij = (J * Rn + Rn * J) ./ 2
             phase = exp(2π * im * dot(q_reshaped + (branch-2)*k, n))
 
-            Sj = sqrtS[j]^2
-            Sij = sqrtS[i] * sqrtS[j]
+            sj = sqrtS[j]^2
+            sij = sqrtS[i] * sqrtS[j]
 
             ui = Ri[:,1] + im*Ri[:,2]
             uj = Rj[:,1] + im*Rj[:,2]
             vi = Ri[:,3]
             vj = Rj[:,3]
 
-            H[i,j]     += (Sij/2) * (transpose(ui)) * Jij * conj(uj) * phase
-            H[i+L,j+L] += (Sij/2) * conj((transpose(ui)) * Jij * conj(uj)) * phase
+            H[i,j]     += (sij/2) * (transpose(ui)) * Jij * conj(uj) * phase
+            H[i+L,j+L] += (sij/2) * conj((transpose(ui)) * Jij * conj(uj)) * phase
 
-            H[i,j+L]   += (Sij/2) * (transpose(ui) * Jij * uj) * phase
-            H[j+L,i]   += (Sij/2) * conj(transpose(ui) * Jij * uj * phase)
+            H[i,j+L]   += (sij/2) * (transpose(ui) * Jij * uj) * phase
+            H[j+L,i]   += (sij/2) * conj(transpose(ui) * Jij * uj * phase)
 
-            H[i,i]     -= Sj * transpose(vi) * Jij * vj
-            H[i+L,i+L] -= Sj * transpose(vi) * Jij * vj
+            H[i,i]     -= sj * transpose(vi) * Jij * vj
+            H[i+L,i+L] -= sj * transpose(vi) * Jij * vj
 
             iszero(c.biquad) || error("Biquadratic interactions not supported")
         end
@@ -96,12 +96,12 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
 
     # Add onsite couplings
     for i in 1:L
-        S = sqrtS[i]^2
+        s = sqrtS[i]^2
         (; c2, c4, c6) = stevens_coefs[i]
-        H[i, i]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H[i+L, i+L] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H[i, i+L]   += +im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
-        H[i+L, i]   += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        H[i, i]     += -3s*c2[3] - 40*s^3*c4[5] - 168*s^5*c6[7]
+        H[i+L, i+L] += -3s*c2[3] - 40*s^3*c4[5] - 168*s^5*c6[7]
+        H[i, i+L]   += +im*(s*c2[5] + 6s^3*c4[7] + 16s^5*c6[9]) + (s*c2[1] + 6s^3*c4[3] + 16s^5*c6[5])
+        H[i+L, i]   += -im*(s*c2[5] + 6s^3*c4[7] + 16s^5*c6[9]) + (s*c2[1] + 6s^3*c4[3] + 16s^5*c6[5])
     end
 
     isnothing(sys.ewald) || error("Ewald interactions not yet supported")

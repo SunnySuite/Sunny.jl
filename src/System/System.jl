@@ -354,9 +354,9 @@ end
 
 Given a [`Bond`](@ref) for the original (unreshaped) crystal, return all
 symmetry equivalent bonds in the [`System`](@ref). Each returned bond is
-represented as a pair of [`Site`](@ref)s, which may be used as input to
-[`set_exchange_at!`](@ref) or [`set_pair_coupling_at!`](@ref). Reverse bonds are
-not included in the iterator (no double counting).
+represented as a pair of [`Site`](@ref)s and an `offset`, which may be used as
+input to [`set_exchange_at!`](@ref) or [`set_pair_coupling_at!`](@ref). Reverse
+bonds are not included in the iterator (no double counting).
 
 # Example
 ```julia
@@ -428,7 +428,7 @@ end
 
 
 struct SpinState{N}
-    s::Vec3
+    S::Vec3
     Z::CVec{N}
 end
 
@@ -444,31 +444,31 @@ end
 
 @inline function coherent_state(sys::System{N}, site, Z) where N
     Z = normalize_ket(CVec{N}(Z), sys.κs[site])
-    s = expected_spin(Z)
-    return SpinState(s, Z)
+    S = expected_spin(Z)
+    return SpinState(S, Z)
 end
 
 @inline function dipolar_state(sys::System{0}, site, dir)
-    s = normalize_dipole(Vec3(dir), sys.κs[site])
+    S = normalize_dipole(Vec3(dir), sys.κs[site])
     Z = CVec{0}()
-    return SpinState(s, Z)
+    return SpinState(S, Z)
 end
 @inline function dipolar_state(sys::System{N}, site, dir) where N
     return coherent_state(sys, site, ket_from_dipole(Vec3(dir), Val(N)))
 end
 
 @inline function flip(spin::SpinState{N}) where N
-    return SpinState(-spin.s, flip_ket(spin.Z))
+    return SpinState(-spin.S, flip_ket(spin.Z))
 end
 
 @inline function randspin(sys::System{0}, site)
-    s = normalize_dipole(randn(sys.rng, Vec3), sys.κs[site])
-    return SpinState(s, CVec{0}())
+    S = normalize_dipole(randn(sys.rng, Vec3), sys.κs[site])
+    return SpinState(S, CVec{0}())
 end
 @inline function randspin(sys::System{N}, site) where N
     Z = normalize_ket(randn(sys.rng, CVec{N}), sys.κs[site])
-    s = expected_spin(Z)
-    return SpinState(s, Z)
+    S = expected_spin(Z)
+    return SpinState(S, Z)
 end
 
 @inline function getspin(sys::System{N}, site) where N
@@ -476,14 +476,14 @@ end
 end
 
 @inline function setspin!(sys::System{N}, spin::SpinState{N}, site) where N
-    sys.dipoles[site] = spin.s
+    sys.dipoles[site] = spin.S
     sys.coherents[site] = spin.Z
     return
 end
 
 function is_valid_normalization(sys::System{0})
-    all(zip(sys.dipoles, sys.κs)) do (s, κ)
-        norm2(s) ≈ κ^2
+    all(zip(sys.dipoles, sys.κs)) do (S, κ)
+        norm2(S) ≈ κ^2
     end
 end
 function is_valid_normalization(sys::System{N}) where N

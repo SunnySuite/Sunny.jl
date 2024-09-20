@@ -24,7 +24,7 @@ positions = [[0, 0, 0]]
 cryst = Crystal(lat_vecs, positions)
 
 # Create a spin [`System`](@ref) containing ``L×L`` cells. Following previous
-# worse, select ``g=-1`` so that the Zeeman coupling has the form ``-𝐁⋅𝐬``.
+# worse, select ``g=-1`` so that the Zeeman coupling has the form ``-𝐁⋅𝐒``.
 
 L = 40
 sys = System(cryst, [1 => Moment(s=1, g=-1)], :SUN; dims=(L, L, 1))

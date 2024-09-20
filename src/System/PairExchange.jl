@@ -238,15 +238,15 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
     if any(x -> x.bond == bond, ints[bond.i].pair)
         warn_coupling_override("Overriding coupling for $bond.")
     end
-    
+
     # General interactions require SU(N) mode
     check_allowable_dipole_coupling(tensordec, sys.mode)
 
-    # Renormalize biquadratic interactions (from rcs_factors with k=2)
+    # Renormalize biquadratic interactions
     if sys.mode == :dipole
-        s1 = spin_label(sys, bond.i)
-        s2 = spin_label(sys, bond.j)
-        biquad *= (1 - 1/2s1) * (1 - 1/2s2)
+        si = spin_label(sys, bond.i)
+        sj = spin_label(sys, bond.j)
+        biquad *= rcs_factors(si)[2] *  rcs_factors(sj)[2]
     end
 
     # Propagate all couplings by symmetry
@@ -294,9 +294,9 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_pa
         error("Symbolic operators required for mode `:dipole_large_s`.")
     end
 
-    N1 = Int(2spin_label(sys, bond.i)+1)
-    N2 = Int(2spin_label(sys, bond.j)+1)
-    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts)
+    Ni = Int(2spin_label(sys, bond.i)+1)
+    Nj = Int(2spin_label(sys, bond.j)+1)
+    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, Ni, Nj; extract_parts)
 
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond)
     return
@@ -307,9 +307,9 @@ function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=tr
         error("General couplings not yet supported for mode `:dipole_large_s`.")
     end
 
-    S1 = spin_label(sys, bond.i)
-    S2 = spin_label(sys, bond.j)
-    Si, Sj = to_product_space(spin_matrices.([S1, S2])...)
+    si = spin_label(sys, bond.i)
+    sj = spin_label(sys, bond.j)
+    Si, Sj = to_product_space(spin_matrices.([si, sj])...)
     set_pair_coupling!(sys, fn(Si, Sj), bond; extract_parts)
     return
 end
@@ -436,9 +436,9 @@ function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Fl
 
     # Renormalize biquadratic interactions
     if sys.mode == :dipole
-        S1 = spin_label(sys, to_atom(site1))
-        S2 = spin_label(sys, to_atom(site2))
-        biquad *= (1 - 1/2S1) * (1 - 1/2S2)
+        s1 = spin_label(sys, to_atom(site1))
+        s2 = spin_label(sys, to_atom(site2))
+        biquad *= rcs_factors(s1)[2] *  rcs_factors(s2)[2]
     end
 
     site1 = to_cartesian(site1)
@@ -458,9 +458,9 @@ will be overwritten. The system must support inhomogeneous interactions via
 [`to_inhomogeneous`](@ref).
 
 Use [`symmetry_equivalent_bonds`](@ref) to find `(site1, site2, offset)` values
-that are symmetry equivalent to a given [`Bond`](@ref) in the original system.
-For systems that are relatively small, the `offset` vector (in multiples of unit
-cells) will resolve ambiguities in the periodic wrapping.
+that would be symmetry equivalent to a given [`Bond`](@ref) in a homogeneous
+system. For smaller systems, the `offset` vector (in multiples of unit cells)
+will resolve ambiguities in the periodic wrapping.
 
 See also [`set_exchange!`](@ref) for more details on specifying `J` and
 `biquad`. For more general couplings, use [`set_pair_coupling_at!`](@ref)
@@ -473,7 +473,7 @@ function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad::N
 end
 
 """
-    set_pair_coupling_at!(sys::System, op, bond)
+    set_pair_coupling_at!(sys::System, op, site1::Site, site2::Site; offset=nothing)
 
 Sets an arbitrary coupling along the single bond connecting two [`Site`](@ref)s,
 ignoring crystal symmetry. Any previous coupling on this bond will be
@@ -481,9 +481,9 @@ overwritten. The system must support inhomogeneous interactions via
 [`to_inhomogeneous`](@ref).
 
 Use [`symmetry_equivalent_bonds`](@ref) to find `(site1, site2, offset)` values
-that are symmetry equivalent to a given [`Bond`](@ref) in the original system.
-For systems that are relatively small, the `offset` vector (in multiples of unit
-cells) will resolve ambiguities in the periodic wrapping.
+that would be symmetry equivalent to a given [`Bond`](@ref) in a homogeneous
+system. For smaller systems, the `offset` vector (in multiples of unit cells)
+will resolve ambiguities in the periodic wrapping.
 
 The operator `op` may be provided as an anonymous function that accepts two spin
 dipole operators, or as a matrix that acts in the tensor product space of the
@@ -508,10 +508,10 @@ function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2:
         error("General couplings not yet supported for mode `:dipole_large_s`.")
     end
 
-    S1 = spin_label(sys, to_atom(site1))
-    S2 = spin_label(sys, to_atom(site2))
-    Si, Sj = to_product_space(spin_matrices.([S1, S2])...)
-    set_pair_coupling_at!(sys, fn(Si, Sj), site1, site2; offset)
+    s1 = spin_label(sys, to_atom(site1))
+    s2 = spin_label(sys, to_atom(site2))
+    S1, S2 = to_product_space(spin_matrices.([s1, s2])...)
+    set_pair_coupling_at!(sys, fn(S1, S2), site1, site2; offset)
     return
 end
 
