@@ -18,9 +18,9 @@ Reasonable starting points are `1e-1` (more speed) or `1e-2` (more accuracy).
 
 !!! warning "Missing intensity at small quasi-particle energy"
 
-    The KPM calculation may mask intensities at small energies ``ω``. In
-    particular, such artifacts may arise near the Goldstone modes of an
-    ordered state with continuous symmetry.
+  The KPM-calculated intensities are unreliable at small energies ``ω``. In
+  particular, KPM may mask intensities that arise near the Goldstone modes of an
+  ordered state with continuous symmetry.
 
 References:
 

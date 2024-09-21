@@ -90,10 +90,9 @@ scs = [SampledCorrelations(sys; dt=0.1, energies, measure) for _ in 1:npar]
 
 !!! warning "Dealing with memory constraints"
 
-    If you have many threads available and are working with a large system, you
-    may not have enough memory to store all these systems and correlations. In
-    that case, simply reduce `npar` to a small enough value that you can make the
-    necessary allocations.
+  If many threads are available and the system sizes are large, there may not be
+  enough computer memory available to store the dynamical correlation data. In
+  this case, consider reducing the number of parallel threads, `npar`.
 
 When the `Threads.@threads` macro is applied before a `for` loop, the
 iterations of the loop will execute in parallel using the available threads.
