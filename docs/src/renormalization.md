@@ -42,8 +42,9 @@ O = stevens_matrices(3/2)
 @assert S[1]^2 + S[2]^2 ≈ -O[2, 0]/3 + (5/2)*I
 ```
 
-See below for an explicit definition of Stevens operators as polynomials of the
-spin operators.
+The Stevens operators ``\mathcal{O}_{k, q}`` are [defined below](@ref
+"Definition of Stevens operators") as ``k``th order polynomials of the spin
+operators.
 
 ## Renormalization procedure for `:dipole` mode
 
@@ -51,13 +52,14 @@ Sunny will typically operate in one of two modes: `:SUN` or `:dipole`. The
 former faithfully represents quantum spin as an SU(_N_) coherent-state which,
 for our purposes, is an $N$-component complex vector. In contrast, `:dipole`
 mode constrains the coherent-state to the space of pure dipoles. Here, Sunny
-will automatically renormalize the magnitude of each Stevens operator to achieve
-maximal consistency with `:SUN` mode. This procedure was derived in [D. Dahlbom
-et al., [arXiv:2304.03874]](https://arxiv.org/abs/2304.03874).
+will automatically renormalize the magnitude of each Stevens expectation value
+to achieve maximal consistency with `:SUN` mode. This procedure was derived in
+[D. Dahlbom et al., [arXiv:2304.03874]](https://arxiv.org/abs/2304.03874).
 
 By way of illustration, consider a quantum operator
 $\hat{\mathcal{H}}_{\mathrm{local}}$ giving a single-ion anisotropy for one
-site. In Stevens operators,
+site. It can be expanded in [Stevens operators](@ref "Definition of Stevens
+operators"),
 ```math
 \hat{\mathcal H}_{\mathrm{local}} = \sum_{k, q} A_{k,q} \hat{\mathcal{O}}_{k,q},
 ```

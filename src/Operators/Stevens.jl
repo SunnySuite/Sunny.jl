@@ -225,16 +225,16 @@ end
 """
     stevens_matrices(s)
 
-Returns a generator of Stevens operators in the spin-`s` representation. The
-return value `O` can be indexed as `O[k,q]`, where ``0 ≤ k ≤ 6`` labels an irrep
-of SO(3) and ``-k ≤ q ≤ k``. This will produce an ``N×N`` matrix where ``N = 2s
-+ 1``. Linear combinations of Stevens operators can be used as a "physical
-basis" for decomposing local observables. To see this decomposition, use
+Returns the Stevens operators in the spin-`s` representation. The return value
+`O` can be indexed as `O[k,q]`, where ``0 ≤ k ≤ 6`` labels an irrep of SO(3) and
+``-k ≤ q ≤ k``. This will produce an ``N×N`` matrix where ``N = 2s + 1``. Linear
+combinations of Stevens operators can be used as a "physical basis" for
+decomposing local observables. To see this decomposition, use
 [`print_stevens_expansion`](@ref).
 
 If `s == Inf`, then symbolic operators will be returned. In this infinite
-dimensional limit, the Stevens operators become homogeneous polynomials of
-commuting spin operators.
+dimensional representation, the Stevens operators become homogeneous polynomials
+of commuting spin operators.
 
 # Example
 ```julia
