@@ -1192,6 +1192,58 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; c
     return ax
 end
 
+function Sunny.plot_intensities!(panel, res::Sunny.BinnedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, title="", axisopts=NamedTuple(),divide_counts = true)
+
+    axisopts = (; title, axisopts...)
+    unit_energy, elabel = get_unit_energy(units, into)
+
+    data = if divide_counts
+      res.data ./ res.counts
+    else
+      res.data
+    end
+
+    data_nonan = copy(data)
+    good_dats = data_nonan[isfinite.(data_nonan)]
+    data_nonan[.!isfinite.(data_nonan)] .= sum(good_dats) / length(good_dats)
+
+    colorrange_suggest = colorrange_from_data(; data=reshape(data_nonan, 1, size(data)...), saturation, sensitivity=0, allpositive)
+    colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
+    colorrange = @something colorrange colorrange_suggest
+
+    # Low-dimension cases
+    n_dims_resolved = count(res.params.numbins .!= 1)
+
+    ax = if n_dims_resolved == 0
+      # No resolved data: Just display the one value!
+      ax = Makie.Axis(panel[1,1];axisopts...)
+      Makie.text!(ax,0,0;text = "$(Sunny.number_to_simple_string(data[1];digits = 4))")
+      ax
+    elseif n_dims_resolved == 1
+      # Only resolved on one axis!
+      x_axis = findfirst(res.params.numbins .!= 1)
+      ax = Makie.Axis(panel[1,1];xlabel = x_axis == 4 ? elabel : Sunny.covector_name(res.params.covectors[x_axis,:]),ylabel = "Integrated Intensity",axisopts...)
+      bcs = Sunny.axes_bincenters(res.params)
+      bcs[4] /= unit_energy
+      Makie.barplot!(ax,bcs[x_axis],data[:];colormap, colorrange)
+      ax
+    elseif n_dims_resolved == 2
+      x_axis = findfirst(res.params.numbins .!= 1)
+      y_axis = x_axis + findfirst(res.params.numbins[x_axis+1:end] .!= 1)
+      ax = Makie.Axis(panel[1,1];
+                      xlabel = Sunny.covector_name(res.params.covectors[x_axis,:]),
+                      ylabel = y_axis == 4 ? elabel : Sunny.covector_name(res.params.covectors[y_axis,:]),axisopts...)
+      bcs = Sunny.axes_bincenters(res.params)
+      bcs[4] /= unit_energy
+      hm = Makie.heatmap!(ax,bcs[x_axis],bcs[y_axis],reshape(data,size(data,x_axis),size(data,y_axis));colormap, colorrange)
+      Makie.Colorbar(panel[1, 2], hm)
+      ax
+    elseif n_dims_resolved > 2
+      error("Higher-dimensional binned data visualization not yet implemented!")
+    end
+    ax
+end
+
 #=
   * `axisopts`: An additional collection of named arguments that will be passed
     to the `Makie.Axis` constructor. This allows to override the axis `xlabel`,
