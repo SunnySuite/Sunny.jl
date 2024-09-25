@@ -1010,8 +1010,8 @@ function get_unit_energy(units, into)
 end
 
 function colorrange_from_data(; data, saturation, sensitivity, allpositive)
-    cmax = Statistics.quantile(vec(maximum(data; dims=1)), saturation)
-    cmin = Statistics.quantile(vec(minimum(data; dims=1)), 1 - saturation)
+    cmax = Statistics.quantile(filter(!isnan, vec(maximum(data; dims=1))), saturation)
+    cmin = Statistics.quantile(filter(!isnan, vec(minimum(data; dims=1))), 1 - saturation)
 
     # The returned pair (lo, hi) should be strictly ordered, lo < hi, for use in
     # Makie.Colorbar
@@ -1192,6 +1192,53 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; c
     return ax
 end
 
+# Axes will currently be labeled as a linear combination of crystal lattice
+# vectors. See https://github.com/SunnySuite/Sunny.jl/pull/310 for details.
+function Sunny.plot_intensities!(panel, res::Sunny.BinnedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, title="", axisopts=NamedTuple(), divide_counts=true)
+    axisopts = (; title, axisopts...)
+    unit_energy, elabel = get_unit_energy(units, into)
+
+    data = divide_counts ? (res.data ./ res.counts) : res.data
+
+    colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
+    colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
+    colorrange = @something colorrange colorrange_suggest
+
+    # Low-dimension cases
+    n_dims_resolved = count(res.params.numbins .!= 1)
+
+    if n_dims_resolved == 0
+        # No resolved data: Just display the one value!
+        ax = Makie.Axis(panel[1,1]; axisopts...)
+        text = Sunny.number_to_simple_string(data[1]; digits=4)
+        Makie.text!(ax, 0, 0; text)
+        return ax
+    elseif n_dims_resolved == 1
+        # Only resolved on one axis!
+        x_axis = findfirst(res.params.numbins .!= 1)
+        xlabel = (x_axis == 4) ? elabel : Sunny.covector_name(res.params.covectors[x_axis, :])
+        ax = Makie.Axis(panel[1,1]; xlabel, ylabel="Integrated Intensity", axisopts...)
+        bcs = Sunny.axes_bincenters(res.params)
+        bcs[4] /= unit_energy
+        Makie.barplot!(ax, bcs[x_axis], data[:]; colormap, colorrange)
+        return ax
+    elseif n_dims_resolved == 2
+        x_axis = findfirst(res.params.numbins .!= 1)
+        y_axis = x_axis + findfirst(res.params.numbins[x_axis+1:end] .!= 1)
+        xlabel = Sunny.covector_name(res.params.covectors[x_axis, :])
+        ylabel = (y_axis == 4) ? elabel : Sunny.covector_name(res.params.covectors[y_axis, :])
+        ax = Makie.Axis(panel[1,1]; xlabel, ylabel, axisopts...)
+        bcs = Sunny.axes_bincenters(res.params)
+        bcs[4] /= unit_energy
+        data = reshape(data, size(data, x_axis), size(data, y_axis))
+        hm = Makie.heatmap!(ax, bcs[x_axis], bcs[y_axis], data; colormap, colorrange)
+        Makie.Colorbar(panel[1, 2], hm)
+        return ax
+    elseif n_dims_resolved > 2
+        error("Higher-dimensional binned data visualization not yet implemented!")
+    end
+end
+
 #=
   * `axisopts`: An additional collection of named arguments that will be passed
     to the `Makie.Axis` constructor. This allows to override the axis `xlabel`,
@@ -1238,6 +1285,63 @@ function Sunny.plot_intensities(res::Sunny.AbstractIntensities; opts...)
     fig = Makie.Figure()
     Sunny.plot_intensities!(fig[1,1], res; opts...)
     return fig
+end
+
+
+function Sunny.viz_qqq_path(params::Sunny.BinningParameters; kwargs...)
+    f = Makie.Figure()
+    ax = Makie.LScene(f[1,1]; show_axis=false)
+    Makie.cam3d!(ax.scene; projectiontype=Makie.Orthographic)
+    viz_qqq_path!(ax, params; kwargs...)
+  
+    aabb_lo, aabb_hi = Sunny.binning_parameters_aabb(params)
+    lo = min.(0, floor.(Int64, aabb_lo))
+    hi = max.(0, ceil.(Int64, aabb_hi))
+    Makie.scatter!(ax, map(x -> Makie.Point3f(lo .+ x.I .- 1), CartesianIndices(ntuple(i -> 1 + hi[i] - lo[i], 3)))[:], color=:black)
+    global_axes = [(Makie.Point3f(-1,0,0), Makie.Point3f(1,0,0)),
+                   (Makie.Point3f(0,-1,0), Makie.Point3f(0,1,0)),
+                   (Makie.Point3f(0,0,-1), Makie.Point3f(0,0,1))]
+    Makie.linesegments!(ax, global_axes, color=:black)
+    Makie.text!(1.1, 0, 0; text="𝐛₁ [R.L.U.]")
+    Makie.text!(0, 1.1, 0; text="𝐛₂ [R.L.U.]")
+    Makie.text!(0, 0, 1.1; text="𝐛₃ [R.L.U.]")
+    display(f)
+    ax
+end
+
+function viz_qqq_path!(ax, params::Sunny.BinningParameters; line_alpha=0.3, color=nothing, colorrange=nothing, bin_colors=[:red,:blue,:green], bin_line_width=0.5)
+    @assert iszero(params.covectors[1:3, 4]) && iszero(params.covectors[4, 1:3])
+    bes = Sunny.axes_binedges(params)
+    M = inv(params.covectors[1:3, 1:3])
+    for dir in 1:3
+        ix = [2, 3, 1][dir]
+        iy = [3, 1, 2][dir]
+        iz = dir
+
+        # The grid of q points making up the lowest side of the histogram
+        # along the iz direction
+        grid = Vector{Float64}[]
+        grid_sparse = Vector{Float64}[]
+        for i in 1:length(bes[ix]), j in 1:length(bes[iy])
+            is_i_edge = (i == 1 || i == length(bes[ix]))
+            is_j_edge = (j == 1 || j == length(bes[iy]))
+            grid_point = [bes[ix][i], bes[iy][j], bes[iz][1]][invperm([ix, iy, iz])]
+            if is_i_edge && is_j_edge # Corner case; render special for outline
+                push!(grid_sparse, grid_point)
+                continue
+            end
+            push!(grid,grid_point)
+        end
+        offset = [0, 0, bes[iz][end] - bes[iz][1]][invperm([ix, iy, iz])]
+
+        if !isempty(grid)
+            segs = map(x -> (Makie.Point3f(M * x), Makie.Point3f(M * (x .+ offset))), grid[:])
+            Makie.linesegments!(ax, segs, color=bin_colors[dir], linewidth=bin_line_width, alpha=line_alpha)
+        end
+
+        segs = map(x -> (Makie.Point3f(M * x), Makie.Point3f(M * (x .+ offset))), grid_sparse[:])
+        Makie.linesegments!(ax, segs; color=isnothing(color) ? :black : color, linewidth=2.5, colorrange)
+    end
 end
 
 end
