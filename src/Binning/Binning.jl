@@ -5,7 +5,7 @@
 
 Describes a 4D parallelepided histogram in a format compatible with experimental
 Inelasitic Neutron Scattering data. See
-[`generate_mantid_script_from_binning_parameters`](@ref) to convert
+`generate_mantid_script_from_binning_parameters` to convert
 [`BinningParameters`](@ref) to a format understandable by the [Mantid
 software](https://www.mantidproject.org/), or [`load_nxs`](@ref) to load
 [`BinningParameters`](@ref) from a Mantid `.nxs` file.

@@ -1,3 +1,4 @@
+#=
 """
     generate_mantid_script_from_binning_parameters(params::BinningParameters)
 
@@ -19,6 +20,8 @@ function generate_mantid_script_from_binning_parameters(params)
     #         return "$(params.binsstart[k]),$(params.binend[k])"
     #     end
     # end
+
+    # FIXME: These covectorsK need to be inverted before they are valid QDimensions
     return """MakeSlice(InputWorkspace="merged_mde_INPUT",
         QDimension0="$(covectorsK[1,1]),$(covectorsK[1,2]),$(covectorsK[1,3])",
         QDimension1="$(covectorsK[2,1]),$(covectorsK[2,2]),$(covectorsK[2,3])",
@@ -33,6 +36,7 @@ function generate_mantid_script_from_binning_parameters(params)
         OutputWorkspace="Histogram_OUTPUT")
         """
 end
+=#
 
 """
     params, signal = load_nxs(filename; field="signal")

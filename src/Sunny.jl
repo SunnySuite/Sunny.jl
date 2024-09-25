@@ -129,7 +129,7 @@ export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSample
 
 include("Binning/Binning.jl")
 include("Binning/ExperimentData.jl")
-export BinningParameters, load_nxs, generate_mantid_script_from_binning_parameters
+export BinningParameters, load_nxs
 
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, meV_per_K,
