@@ -35,15 +35,6 @@ end
     sys = System(cryst, [1 => Moment(s=1/2, g=2)], :dipole; dims=(5,5,1))
     randomize_spins!(sys)
 
-    # This should be added to Sunny (oops)
-    function Sunny.unit_resolution_binning_parameters(isc::SampledCorrelationsStatic; kwargs...)
-        params = Sunny.unit_resolution_binning_parameters(isc.parent; kwargs...)
-        # Integrate over all energies
-        params.binstart[4] = -Inf
-        params.binwidth[4] = Inf
-        params
-    end
-
     static_corrs = SampledCorrelationsStatic(sys; measure=ssf_trace(sys))
     add_sample!(static_corrs,sys)
 

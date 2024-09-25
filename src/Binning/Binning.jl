@@ -189,10 +189,11 @@ end
 """
     unit_resolution_binning_parameters(sc::SampledCorrelations)
 
-Create [`BinningParameters`](@ref) which place one histogram bin centered at each possible `(q,ω)` scattering vector of the crystal.
-This is the finest possible binning without creating bins with zero scattering vectors in them.
+Create [`BinningParameters`](@ref) which place one histogram bin centered at
+each possible `(q,ω)` scattering vector of the crystal. This is the finest
+possible binning without creating bins with zero scattering vectors in them.
 """
-function unit_resolution_binning_parameters(sc; negative_energies=true)
+function unit_resolution_binning_parameters(sc::SampledCorrelations; negative_energies=true)
     ωvals = available_energies_including_zero(sc; negative_energies)
 
     good_qs = available_wave_vectors(sc)
@@ -218,6 +219,14 @@ function unit_resolution_binning_parameters(sc; negative_energies=true)
             params.binend[i] = min_val[i]
         end
     end
+    params
+end
+
+function Sunny.unit_resolution_binning_parameters(isc::SampledCorrelationsStatic; kwargs...)
+    params = Sunny.unit_resolution_binning_parameters(isc.parent; kwargs...)
+    # Integrate over all energies
+    params.binstart[4] = -Inf
+    params.binwidth[4] = Inf
     params
 end
 
