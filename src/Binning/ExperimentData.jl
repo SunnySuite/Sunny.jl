@@ -155,10 +155,9 @@ function Base.permutedims(params::BinningParameters, perm)
     out
 end
 
-# Parse the "[0.5H,0.3H,0.1H]" type of Mantid string describing
-# a histogram axis
+# Parse "[0.5H,0.3H,0.1H]" into the Julia vector [0.5, 0.3, 0.1]. These strings
+# typically arises as the Mantid histogram axis label.
 function parse_long_name(long_name)
-    # You're welcome
     found = match(r"\[(|0|(?:-?[0-9]?(?:\.[0-9]+)?))[HKL]?,(|0|(?:-?[0-9]?(?:\.[0-9]+)?))[HKL]?,(|0|(?:-?[0-9]?(?:\.[0-9]+)?))[HKL]?\]", long_name)
     if isnothing(found)
         return nothing

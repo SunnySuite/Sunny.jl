@@ -1,3 +1,10 @@
+
+@testitem "Parse nxs" begin
+    @test Sunny.parse_long_name("[0.5H,0.3K,0.1H]") == [0.5, 0.3, 0.1]
+    # TODO: Add stripped down .nxs files of various flavors
+end
+
+
 @testitem "Binning" begin
     using LinearAlgebra
 
