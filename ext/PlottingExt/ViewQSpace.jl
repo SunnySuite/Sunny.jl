@@ -97,9 +97,15 @@ function Sunny.view_qspace(cryst::Crystal, orthographic=false, compass=true, siz
                 glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
 
     sgnum = 227
-    Rs = [[1,0,0], [0,1,0], [0,0,1]] # conventional direct basis
-    kp = Brillouin.irrfbz_path(sgnum, Rs)
-    Makie.plot!(ax, Brillouin.wignerseitz(kp.basis))
+    bz = Brillouin.irrfbz_path(sgnum, eachcol(cryst.latvecs))
+
+    segments = Makie.Point3f0[]
+    for face in Brillouin.cartesianize!(Brillouin.wignerseitz(Brillouin.basis(bz)))
+        append!(segments, face)
+        push!(segments, face[1]) # cycle to first point
+        push!(segments, Makie.Point3f0(NaN)) # separator between faces
+    end
+    Makie.lines!(ax, segments, inspectable=false)
 
     # Following `view_crystal` settings
     Makie.DataInspector(ax; indicator_color=:gray, fontsize, font="Deja Vu Sans Mono", depth=(1e4 - 1))
