@@ -424,7 +424,10 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
     sgts = filter(sgts) do sgt
         is_spacegroup_type_consistent(sgt, latvecs)
     end
-    @assert !isempty(sgts)
+
+    if isempty(sgts)
+        error("Incompatible $cell cell shape")
+    end
 
     if length(sgts) == 1
         isnothing(setting) || @warn "Ignoring `setting` option"

@@ -81,6 +81,8 @@
     @test cell_type(cryst) == Sunny.monoclinic
     @test Sunny.natoms(cryst) == 4
     @test all(lattice_params(cryst) .≈ mono_lat_params)
+    @test_throws """Disambiguate with a full HM symbol: ["A 1 1 2", "B 1 1 2", "I 1 1 2"]""" Crystal(latvecs, positions, 5)
+    @test_throws "Incompatible monoclinic cell shape" Crystal(latvecs, positions, "A 1 2 1")
 
     ### Arbitrary trigonal
 
@@ -106,9 +108,9 @@
 
     ### Orthorhombic test, found by Ovi Garlea
 
-    latvecs = lattice_vectors(13.261, 7.718, 6.278, 90.0, 90.0, 90.0);
-    types = ["Yb1","Yb2"];
-    positions = [[0,0,0], [0.266,0.25,0.02]]; # Locations of atoms as multiples of lattice vectors
+    latvecs = lattice_vectors(13.261, 7.718, 6.278, 90.0, 90.0, 90.0)
+    types = ["Yb1", "Yb2"]
+    positions = [[0,0,0], [0.266,0.25,0.02]] # Locations of atoms as multiples of lattice vectors
     @test_throws """Disambiguate with a short symbol: ["Pnma", "Pmnb", "Pbnm", "Pcmn", "Pmcn", "Pnam"]""" Crystal(latvecs, positions, 62; types, symprec=1e-4)
     cryst = Crystal(latvecs, positions, "Pnma"; types, symprec=1e-4)
     @test count(==(1), cryst.classes) == 4
