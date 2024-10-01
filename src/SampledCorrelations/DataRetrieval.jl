@@ -106,7 +106,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     NPos = Val{length(sc.crystal.positions)}()
 
     # Intensities calculation
-    intensities_rounded!(intensities, sc.data, sc.crystal, sc.positions, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NPos)
+    intensities_aux!(intensities, sc.data, sc.crystal, sc.positions, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NPos)
 
     # Convert to a q-space density in original (not reshaped) RLU.
     intensities .*= det(sc.crystal.recipvecs) / det(crystal.recipvecs)
@@ -136,20 +136,20 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     end
 end
 
-function intensities_rounded!(intensities, data, crystal, positions, combiner, ff_atoms, q_idx_info, ωidcs, ::Val{NCorr}, ::Val{NPos}) where {NCorr, NPos}
+function intensities_aux!(intensities, data, crystal, positions, combiner, ff_atoms, q_idx_info, ωidcs, ::Val{NCorr}, ::Val{NPos}) where {NCorr, NPos}
     (; qabs, idcs, counts) = q_idx_info 
     (; recipvecs) = crystal 
     qidx = 1
     for (qabs, idx, count) in zip(qabs, idcs, counts)
-        prefactors = prefactors_for_phase_averaging(qabs, recipvecs, @view(positions[idx,:]), ff_atoms, Val(NCorr), Val(NPos))
+        prefactors = prefactors_for_phase_averaging(qabs, recipvecs, view(positions, idx, :), ff_atoms, Val{NCorr}(), Val{NPos}())
 
         # Perform phase-averaging over all omega
         for (n, iω) in enumerate(ωidcs)
-            elems = zero(MVector{NCorr,ComplexF64})
+            elems = zero(SVector{NCorr, ComplexF64})
             for j in 1:NPos, i in 1:NPos
-                elems .+= (prefactors[i] * conj(prefactors[j])) .* view(data, :, i, j, idx, iω)
+                elems += (prefactors[i] * conj(prefactors[j])) * SVector{NCorr}(view(data, :, i, j, idx, iω))
             end
-            val = combiner(qabs, SVector{NCorr, ComplexF64}(elems))
+            val = combiner(qabs, elems)
             intensities[n, qidx] = val
         end
 
