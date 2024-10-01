@@ -2,9 +2,9 @@ module Sunny
 
 using LinearAlgebra
 import Statistics
-import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
-import OffsetArrays: OffsetArray, OffsetMatrix, Origin
-import ElasticArrays: ElasticArray, resize!
+import StaticArrays: SVector, SMatrix, SArray, SA
+import OffsetArrays: OffsetArray
+import ElasticArrays: ElasticArray
 import SpecialFunctions: erf, erfc
 import FFTW
 import DynamicPolynomials as DP

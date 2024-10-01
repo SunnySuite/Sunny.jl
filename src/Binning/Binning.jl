@@ -1,3 +1,4 @@
+import StaticArrays: MVector, MMatrix # TODO: remove
 
 """
     BinningParameters(binstart, binend, binwidth; covectors=I(4))
