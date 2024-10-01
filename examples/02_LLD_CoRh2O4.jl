@@ -40,7 +40,7 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 # We will be using a [`Langevin`](@ref) spin dynamics to thermalize the system.
 # This dynamics is a variant of the Landau-Lifshitz equation that incorporates
 # noise and dissipation terms, which are linked by a fluctuation-dissipation
-# theorem. The temperature 6 K ≈ 1.38 meV is slightly above ordering for this
+# theorem. The temperature 16 K ≈ 1.38 meV is slightly above ordering for this
 # model. The dimensionless `damping` magnitude sets a timescale for coupling to
 # the implicit thermal bath; 0.2 is usually a good choice.
 
@@ -70,9 +70,9 @@ end
 suggest_timestep(sys, langevin; tol=1e-2)
 langevin.dt = 0.042;
 
-# Plot energy versus time using the [Makie `lines`
-# function](https://docs.makie.org/stable/reference/plots/lines). The plateau
-# suggests that the system has reached thermal equilibrium.
+# Plot energy versus time using the Makie
+# [`lines`](https://docs.makie.org/stable/reference/plots/lines) function. The
+# plateau suggests that the system has reached thermal equilibrium.
 
 lines(energies, color=:blue, figure=(size=(600,300),), axis=(xlabel="Timesteps", ylabel="Energy (meV)"))
 
@@ -88,8 +88,10 @@ plot_spins(sys; color=[S'*S0 for S in sys.dipoles])
 # ### Static structure factor
 
 # Use [`SampledCorrelationsStatic`](@ref) to estimate spatial correlations for
-# configurations in classical thermal equilibrium. Each call to
-# [`add_sample!`](@ref) will accumulate data for the current spin snapshot.
+# configurations in classical thermal equilibrium. Measure [`ssf_perp`](@ref),
+# which is appropriate for unpolarized neutron scattering. Include the
+# [`FormFactor`](@ref) for Co2⁺. Each call to [`add_sample!`](@ref) will
+# accumulate data for the current spin snapshot.
 
 formfactors = [1 => FormFactor("Co2")]
 measure = ssf_perp(sys; formfactors)
@@ -112,11 +114,10 @@ end
 
 grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 
-# Calculate and plot the instantaneous structure factor on the slice by
-# integrating over all energy values ω. We employ the appropriate
-# [`FormFactor`](@ref) for Co2⁺. Selecting `saturation = 1.0` sets the color
-# saturation point to the maximum intensity value. This is reasonable because we
-# are above the ordering temperature, and do not have sharp Bragg peaks.
+# Calculate and plot the instantaneous structure factor on the slice. Selecting
+# `saturation = 1.0` sets the color saturation point to the maximum intensity
+# value. This is reasonable because we are above the ordering temperature, and
+# do not have sharp Bragg peaks.
 
 res = intensities_static(sc, grid)
 plot_intensities(res; saturation=1.0, title="Static Intensities at T = 16 K")
@@ -132,7 +133,7 @@ plot_intensities(res; saturation=1.0, title="Static Intensities at T = 16 K")
 
 dt = 2*langevin.dt
 energies = range(0, 6, 50)
-sc = SampledCorrelations(sys; dt, energies, measure=ssf_perp(sys))
+sc = SampledCorrelations(sys; dt, energies, measure)
 
 # Like before, use Langevin dynamics to sample spin configurations from thermal
 # equilibrium. Now, however, each call to [`add_sample!`](@ref) will run a
