@@ -53,3 +53,56 @@ function viz_qqq_path!(ax, params::Sunny.BinningParameters; line_alpha=0.3, colo
         Makie.linesegments!(ax, segs; color=isnothing(color) ? :black : color, linewidth=2.5, colorrange)
     end
 end
+
+
+function Sunny.view_qspace(cryst::Crystal, orthographic=false, compass=true, size=(768, 512))
+    fig = Makie.Figure(; size)
+
+    # Main scene
+    ax = Makie.LScene(fig[1, 1], show_axis=false)
+
+    # Show Cartesian axes, with link to main camera
+    if compass
+        axcompass = add_cartesian_compass(fig, ax)
+    end
+
+    # Set of widgets
+    widget_list = Makie.GridLayout(; tellheight=false, valign=:top)
+    fig[1, 2] = widget_list
+    widget_cnt = 0
+    fontsize = 16
+
+    # Controls for camera perspective
+    menu = Makie.Menu(fig; options=["Perspective", "Orthographic"], default=(orthographic ? "Orthographic" : "Perspective"), fontsize)
+    button = Makie.Button(fig; label="Reset", fontsize)
+    Makie.onany(button.clicks, menu.selection; update=true) do _, mselect
+        b1, b2, _ = eachcol(cryst.recipvecs)
+        lookat = zero(Makie.Point3f0)
+        camshiftdir = normalize(b1 + b2)
+        upvector = normalize(b1 × b2)
+        camdist = 1.5 * maximum(norm.(eachcol(cryst.recipvecs)))
+        orthographic = (mselect == "Orthographic")
+        orient_camera!(ax; lookat, camshiftdir, upvector, camdist, orthographic)
+        compass && register_compass_callbacks(axcompass, ax)
+    end
+    widget_list[widget_cnt+=1, 1] = Makie.hgrid!(menu, button)
+
+    # Show reciprocal vectors
+    bs = collect(Makie.Point3f0.(eachcol(cryst.recipvecs)))
+    b_segments = [(zero(Makie.Point3f0), b) for b in bs]
+    Makie.linesegments!(ax, b_segments; color=:teal, linewidth=1.5, inspectable=false)
+
+    text = [Makie.rich("b", Makie.subscript(repr(i))) for i in 1:3]
+    Makie.text!(ax, bs; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
+                glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
+
+    sgnum = 227
+    Rs = [[1,0,0], [0,1,0], [0,0,1]] # conventional direct basis
+    kp = Brillouin.irrfbz_path(sgnum, Rs)
+    Makie.plot!(ax, Brillouin.wignerseitz(kp.basis))
+
+    # Following `view_crystal` settings
+    Makie.DataInspector(ax; indicator_color=:gray, fontsize, font="Deja Vu Sans Mono", depth=(1e4 - 1))
+
+    return fig
+end

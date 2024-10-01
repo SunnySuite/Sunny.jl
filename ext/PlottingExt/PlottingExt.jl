@@ -5,6 +5,7 @@ import Sunny: Mat3, Vec3, orig_crystal, natoms
 using LinearAlgebra
 import Statistics
 import Makie
+import Brillouin
 
 include("PlottingUtils.jl")
 include("ViewCrystal.jl")

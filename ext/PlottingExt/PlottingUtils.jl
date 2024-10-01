@@ -132,24 +132,7 @@ function cell_diameter(latvecs, ndims)
     end
 end
 
-
-function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, ndims)
-    a1, a2, a3 = eachcol(latvecs)
-
-    if ndims == 3
-        lookat = (a1 + a2 + a3)/2
-        camshiftdir = normalize(a1 + a2)
-        upvector = normalize(a1 × a2)
-    elseif ndims == 2
-        lookat = (a1 + a2) / 2
-        camshiftdir = -normalize(a1 × a2)
-        upvector = normalize((a1 × a2) × a1)
-    else
-        error("Unsupported dimension: $ndims")
-    end
-
-    # The extra shift ℓ0 is approximately the nearest-neighbor distance
-    camdist = max(cell_diameter(latvecs, ndims)/2 + 0.8ℓ0, ghost_radius)
+function orient_camera!(ax; lookat, camshiftdir, upvector, camdist, orthographic)
     if orthographic
         eyeposition = lookat - camdist * camshiftdir
         projectiontype = Makie.Orthographic
@@ -169,6 +152,26 @@ function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, ndims)
 
     Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, reset, center, fixed_axis,
                  zoom_shift_lookat, clipping_mode=:view_relative, near=0.01, far=100)
+end
+
+function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, ndims)
+    a1, a2, a3 = eachcol(latvecs)
+    if ndims == 3
+        lookat = (a1 + a2 + a3)/2
+        camshiftdir = normalize(a1 + a2)
+        upvector = normalize(a1 × a2)
+    elseif ndims == 2
+        lookat = (a1 + a2) / 2
+        camshiftdir = -normalize(a1 × a2)
+        upvector = normalize((a1 × a2) × a1)
+    else
+        error("Unsupported dimension: $ndims")
+    end
+
+    # The extra shift ℓ0 is approximately the nearest-neighbor distance
+    camdist = max(cell_diameter(latvecs, ndims)/2 + 0.8ℓ0, ghost_radius)
+
+    orient_camera!(ax; lookat, camshiftdir, upvector, camdist, orthographic)
 end
 
 function register_compass_callbacks(axcompass, lscene)
