@@ -48,9 +48,9 @@ a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 
 # Construct the [`Crystal`](@ref) cell from the spacegroup number 227 and one
-# representative atom of each occupied Wyckoff. In the standard setting of
-# spacegroup 227, position `[0, 0, 0]` belongs to Wyckoff 8a, which is the
-# diamond cubic crystal.
+# representative atom of each occupied Wyckoff. Two choices of origin are
+# possible. In setting 1, position `[0, 0, 0]` belongs to Wyckoff 8a, which is
+# the diamond cubic crystal.
 
 positions = [[0, 0, 0]]
 cryst = Crystal(latvecs, positions, 227; types=["Co"], setting="1")

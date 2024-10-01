@@ -21,21 +21,15 @@
     ref_bonds = reference_bonds(cryst, 2.)
     dist2 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
-    # Using Hall number
-    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
-    positions = [Sunny.Vec3(1, 1, 1) / 4]
-    cryst = Sunny.crystal_from_hall_number(latvecs, positions, types, 525)
-    ref_bonds = reference_bonds(cryst, 2.)
-    dist3 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
-
     # Using international symbol
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
     positions = [[1, 1, 1] / 4]
     # cryst = Crystal(latvecs, positions, "F d -3 m") # Ambiguous!
     cryst = Crystal(latvecs, positions, "F d -3 m"; setting="1")
     ref_bonds = reference_bonds(cryst, 2.)
-    dist4 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
+    dist3 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
-    @test dist1 ≈ dist2 ≈ dist3 ≈ dist4
+    @test dist1 ≈ dist2 ≈ dist3 
 
     ### FCC lattice, primitive vs. standard unit cell
 
@@ -115,24 +109,8 @@
     latvecs = lattice_vectors(13.261, 7.718, 6.278, 90.0, 90.0, 90.0);
     types = ["Yb1","Yb2"];
     positions = [[0,0,0], [0.266,0.25,0.02]]; # Locations of atoms as multiples of lattice vectors
-    capt = IOCapture.capture() do
-        Crystal(latvecs, positions, 62; types, symprec=1e-4)
-    end
-    @test capt.output == """
-        The spacegroup '62' allows for multiple settings!
-        Returning a list of the possible crystals:
-            1. "P n m a", setting="", with  8 atoms
-            2. "P m n b", setting="ba-c", with 12 atoms
-            3. "P b n m", setting="cab", with 12 atoms
-            4. "P c m n", setting="-cba", with  8 atoms
-            5. "P m c n", setting="bca", with 12 atoms
-            6. "P n a m", setting="a-cb", with 12 atoms
-        
-        Note: To disambiguate, you may pass a named parameter, setting="...".
-        
-        """
-    @test length(capt.value) == 6
-    cryst = Crystal(latvecs, positions, 62; types, symprec=1e-4, setting="-cba")
+    @test_throws """Disambiguate with a short symbol: ["Pnma", "Pmnb", "Pbnm", "Pcmn", "Pmcn", "Pnam"]""" Crystal(latvecs, positions, 62; types, symprec=1e-4)
+    cryst = Crystal(latvecs, positions, "Pnma"; types, symprec=1e-4)
     @test count(==(1), cryst.classes) == 4
     @test count(==(2), cryst.classes) == 4
 end

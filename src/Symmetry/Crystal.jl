@@ -28,17 +28,13 @@ symmetry information is automatically inferred. The optional parameter `types`
 is a list of strings, one for each atom, and can be used to break
 symmetry-equivalence between atoms.
 
-    Crystal(latvecs, positions, spacegroup_number; types=nothing, setting=nothing, symprec=1e-5)
+    Crystal(latvecs, positions, spacegroup; types=nothing, setting=nothing, symprec=1e-5)
 
-Builds a crystal by applying symmetry operators for a given international
-spacegroup number. For certain spacegroups, there are multiple possible unit
-cell settings; in this case, a warning message will be printed, and a list of
-crystals will be returned, one for every possible setting. Alternatively, the
-optional `setting` string will disambiguate between unit cell conventions.
-
-Currently, crystals built using only the spacegroup number will be missing some
-symmetry information. It is generally preferred to build a crystal from a `.cif`
-file or from the full specification of the unit cell.
+Builds a crystal by applying symmetry operators for a given `spacegroup` as an
+international number, short symbol, or Hermann–Mauguin (HM) symbol. Ambiguities
+can be resolved with a `setting` string. It is generally preferred to select a
+conventional ITA setting, and a warning will be reported if the setting is
+nonconventional.
 
 
 # Examples
@@ -97,16 +93,21 @@ end
 
 # Builds a crystal by applying the symmetry operators for a given spacegroup
 # (number or symbol).
-function Crystal(latvecs, positions, symbol::Union{Int, String}; types::Union{Nothing, Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+function Crystal(latvecs, positions, symbol::Union{Int, String}; types::Union{Nothing, Vector{String}}=nothing,
+                 setting::Union{Nothing, String}=nothing, symprec=1e-5)
     print_crystal_warnings(latvecs, positions)
     latvecs = convert(Mat3, latvecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
         types = fill("", length(positions))
     end
-
-    crystal_from_symbol(latvecs, positions, types, string(symbol); setting, symprec)
+    sgt = unique_spacegroup_type(symbol, latvecs; setting)
+    rotations, translations = Spglib.get_symmetry_from_database(sgt.hall_number)
+    symops = SymOp.(rotations, translations)
+    spacegroup = spacegroup_name(Int(sgt.hall_number))
+    return crystal_from_symops(latvecs, positions, types, symops, spacegroup; symprec)
 end
+
 
 function print_crystal_warnings(latvecs, positions)
     det(latvecs) < 0 && @warn "Lattice vectors are not right-handed."
@@ -317,106 +318,138 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
 end
 
 
-# Build Crystal using the space group denoted by a unique Hall number. The complete
-# list is given at http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
-function crystal_from_hall_number(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, hall_number::Int; symprec=1e-5)
-    cell = cell_type(latvecs)
-    hall_cell = cell_type(hall_number)
-    allowed_cells = all_compatible_cells(hall_cell)
-    @assert cell in allowed_cells "Hall number $hall_number requires a $hall_cell cell, but found $cell."
 
-    if hall_cell == Sunny.monoclinic
-        is_compatible = is_compatible_monoclinic_cell(latvecs, hall_number)
-        @assert is_compatible "Lattice vectors define a monoclinic cell that is incompatible with Hall number $hall_number."
+const all_spacegroup_types = Spglib.get_spacegroup_type.(1:530)
+
+
+# Documentation from `Crystalline.spacegroup` states the following.
+#
+# The default choices for the conventional basis vectors follow the conventions
+# of the Bilbao Crystallographic Server (or, equivalently, the International
+# Tables of Crystallography), which are:
+#
+# * Unique axis b (cell choice 1) for monoclinic space groups.
+# * Obverse triple hexagonal unit cell for rhombohedral space groups.
+# * Origin choice 2: inversion centers are placed at (0,0,0). (relevant for
+#   certain centrosymmetric space groups with two possible choices; e.g., in the
+#   orthorhombic, tetragonal or cubic crystal systems).
+#
+# The associated citation is: Aroyo et al., Z. Kristallogr. Cryst. Mater. 221,
+# 15 (2006).
+
+function is_spacegroup_type_conventional(sgt; check_origin=false)
+    sgnum = sgt.number
+    hm_symbol = sgt.international_full
+    sgts_with_same_number = filter(sgt -> sgt.number == sgnum, all_spacegroup_types)
+    possible_hm_symbols = [sgt.international_full for sgt in sgts_with_same_number]
+
+    # The 530 "Hall numbers" (linked from Spglib documentation) are ordered such
+    # that the HM symbols (cell types) appearing first are the conventional
+    # ones. For trigonal groups, these are the hexagonal cells. For monoclinic
+    # groups, these are the ones with unique axis b.
+    if hm_symbol != first(possible_hm_symbols)
+        return false
     end
 
-    rotations, translations = Spglib.get_symmetry_from_database(hall_number)
-    symops = SymOp.(rotations, translations)
-    spacegroup = spacegroup_name(hall_number)
-
-    return crystal_from_symops(latvecs, positions, types, symops, spacegroup; symprec)
+    if check_origin
+        # If there are two origin choices, then the conventional one is 2.
+        sgts_with_same_hm_symbol = filter(sgt -> sgt.international_full == hm_symbol, sgts_with_same_number)
+        @assert length(sgts_with_same_hm_symbol) in (1, 2)
+        return sgt == last(sgts_with_same_hm_symbol)
+    else
+        return true
+    end
 end
 
-function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symbol::String; setting=nothing, symprec=1e-5)
-    sgts = Spglib.SpacegroupType[]
-    crysts = Crystal[]
+function is_spacegroup_type_consistent(sgt, latvecs)
+    cell = cell_type(latvecs)
+    hall_cell = cell_type(Int(sgt.hall_number))
 
-    n_hall_numbers = 530
-    for hall_number in 1:n_hall_numbers
-        sgt = Spglib.get_spacegroup_type(hall_number)
+    if hall_cell == Sunny.monoclinic
+        # Special handling of monoclinic space groups. There are three possible
+        # conventions for the unit cell, depending on which of α, β, or γ is
+        # special.
+        _, _, _, α, β, γ = lattice_params(latvecs)
+        x = first(replace(sgt.choice, "-" => ""))
+        if x == 'a'
+            return β≈90 && γ≈90
+        elseif x == 'b'
+            return α≈90 && γ≈90
+        elseif x == 'c'
+            return α≈90 && β≈90
+        end
+    else
+        return cell in all_compatible_cells(hall_cell)
+    end
+end
 
-        if (replace(symbol, " "=>"") == sgt.international_short || 
-            symbol in [string(sgt.number), sgt.hall_symbol, sgt.international, sgt.international_full])
+function all_spacegroup_types_for_symbol(sgnum::Int)
+    return filter(all_spacegroup_types) do sgt
+        sgt.number == sgnum
+    end
+end
 
-            # Some Hall numbers may be incompatible with unit cell of provided
-            # lattice vectors; skip them.
-            is_compatible = true
+function all_spacegroup_types_for_symbol(symbol::String)
+    symbol = replace(String(symbol), " "=>"")
+    return filter(all_spacegroup_types) do sgt
+        symbol in (sgt.international_short, replace(sgt.international_full, " "=>""))
+    end
+end
 
-            cell = cell_type(latvecs)
-            hall_cell = cell_type(hall_number)
-            allowed_cells = all_compatible_cells(hall_cell)
+function unique_spacegroup_type(symbol, latvecs; setting=nothing)
+    sgts = all_spacegroup_types_for_symbol(symbol)
 
-            # Special handling of trigonal space groups
-            if Sunny.is_trigonal_symmetry(hall_number)
-                # Trigonal symmetry must have either hexagonal or rhombohedral
-                # cell, according to the Hall number.
-                is_latvecs_valid = cell in [Sunny.rhombohedral, Sunny.hexagonal]
-                if !is_latvecs_valid
-                    error("Symbol $symbol requires a rhombohedral or hexagonal cell, but found $cell.")
-                end
-                is_compatible = cell in allowed_cells
-            else
-                # For all other symmetry types, there is a unique cell for each Hall number
-                if !(cell in allowed_cells)
-                    error("Symbol $symbol requires a $hall_cell cell, but found $cell.")
-                end
+    if isempty(sgts)
+        error("Unknown spacegroup $symbol")
+    end
+
+    # Validate lattice vectors to give a good error message
+    cell = cell_type(latvecs)
+    for sgt in sgts
+        if Sunny.is_trigonal_symmetry(Int(sgt.hall_number))
+            # Trigonal spacegroup admits either hexagonal or rhombohedral cell
+            if !(cell in [Sunny.rhombohedral, Sunny.hexagonal])
+                error("Symbol $symbol requires a rhombohedral or hexagonal cell, but found $cell.")
             end
-
-            if hall_cell == Sunny.monoclinic
-                is_compatible = is_compatible_monoclinic_cell(latvecs, hall_number)
-            end
-
-            if is_compatible
-                cryst = crystal_from_hall_number(latvecs, positions, types, hall_number; symprec)
-                push!(sgts, sgt)
-                push!(crysts, cryst)
+        else
+            # For all other spacegroup types, there is a unique cell type
+            hall_cell = cell_type(Int(sgt.hall_number))
+            if !(cell in all_compatible_cells(hall_cell))
+                error("Symbol $symbol requires a $hall_cell cell, but found $cell.")
             end
         end
     end
 
-    if isempty(crysts)
-        error("Cannot find spacegroup '$symbol' in database.")
-    elseif !isnothing(setting)
-        setting = string(setting)
-        choices = [sgt.choice for sgt in sgts]
-        i = findfirst(==(setting), choices)
-        if !isnothing(i)
-            return crysts[i]
-        else
-            if choices == [""]
-                error("Spacegroup '$symbol' does not accept a setting.")
+    # Filter sgts for consistency with latvecs
+    sgts = filter(sgts) do sgt
+        is_spacegroup_type_consistent(sgt, latvecs)
+    end
+    @assert !isempty(sgts)
+
+    if length(sgts) == 1
+        isnothing(setting) || @warn "Ignoring `setting` option"
+        return only(sgts)
+    elseif length(sgts) > 1
+        short_symbols = [sgt.international_short for sgt in sgts]
+        full_symbols = [sgt.international_full for sgt in sgts]
+        settings = [sgt.choice for sgt in sgts]
+
+        if isnothing(setting)
+            if allunique(short_symbols)
+                error("Disambiguate with a short symbol: $short_symbols")
+            elseif allunique(full_symbols)
+                error("Disambiguate with a full HM symbol: $full_symbols")
             else
-                error("Spacegroup '$symbol' requires setting to be one of $choices.")
+                error("Disambiguate with a `setting` option: $settings")
+            end
+        else
+            sgts = filter(sgt -> sgt.choice == setting, sgts)
+            if isempty(sgts)
+                error("Invalid setting; select one of $settings")
+            else
+                return only(sgts)
             end
         end
-    elseif length(crysts) == 1
-        return only(crysts)
-    else
-        # TODO: Make this @warn
-        println("The spacegroup '$symbol' allows for multiple settings!")
-        println("Returning a list of the possible crystals:")
-        for (i, (sgt, c)) in enumerate(zip(sgts, crysts))
-            hm_symbol = sgt.international
-            choice = sgt.choice
-            n_atoms = length(c.positions)
-            i_str = @sprintf "%2d" i
-            natoms_str = @sprintf "%2d" n_atoms
-            println("   $i_str. \"$hm_symbol\", setting=\"$choice\", with $natoms_str atoms")
-        end
-        println()
-        println("Note: To disambiguate, you may pass a named parameter, setting=\"...\".")
-        println()
-        return crysts
     end
 end
 
@@ -433,7 +466,7 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     all_positions = Vec3[]
     all_types = String[]
     classes = Int[]
-    
+
     for i = eachindex(positions)
         for s = symops
             x = wrap_to_unit_cell(transform(s, positions[i]); symprec)
@@ -786,7 +819,7 @@ end
 
 function pyrochlore_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-    return Crystal(latvecs, [[5/8, 1/8, 1/8]], 227, setting="1")
+    return Crystal(latvecs, [[5/8, 1/8, 1/8]], 227; setting="1")
 end
 
 function hyperkagome_crystal(; a=1.0)
