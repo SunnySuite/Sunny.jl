@@ -422,8 +422,6 @@ function Sunny.view_crystal(sys::System; refbonds=10, orthographic=false, ghost_
 end
 
 function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndims, compass, size)
-    warn_wglmakie()
-
     interactions = isnothing(sys) ? nothing : Sunny.interactions_homog(something(sys.origin, sys))
 
     # Dict that maps atom class to color

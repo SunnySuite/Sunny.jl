@@ -6,23 +6,20 @@ using LinearAlgebra
 import Statistics
 import Makie
 
-let warned = false
-    global warn_wglmakie() = begin
-        if !warned && string(Makie.current_backend()) == "WGLMakie"
-            @info """
-            Using the WGLMakie graphics backend. If you encounter graphics problems,
-            try restarting the Julia session and load GLMakie instead of WGLMakie.
-            Issue tracker: https://github.com/SunnySuite/Sunny.jl/issues/211.
-            """
-        end
-        warned = true
-    end
-end
-
 include("PlottingUtils.jl")
 include("ViewCrystal.jl")
 include("PlotSpins.jl")
 include("PlotIntensities.jl")
 include("ViewQSpace.jl")
+
+function __init__()
+    if Sunny.is_pkg_loaded(:WGLMakie)
+        @info """
+        WGLMakie (the web backend) is experimental. If you encounter graphics
+        problems, try loading GLMakie instead of WGLMakie from a fresh session.
+        Issue tracker: https://github.com/SunnySuite/Sunny.jl/issues/211.
+        """
+    end
+end
 
 end
