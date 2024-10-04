@@ -69,15 +69,14 @@ function EntangledSystem(sys::System{N}, units) where {N}
     for atom in axes(sys.coherents, 4)
         @assert allequal(@view sys.gs[:,:,:,atom]) "`EntangledSystem` require g-factors be uniform across unit cells" 
     end
-    @assert allequal(@view sys.extfield[:,:,:,:]) "`EntangledSystems` requires a uniform applied field." 
 
     # Generate pair of contracted and uncontracted systems
     (; sys_entangled, contraction_info) = entangle_system(sys, units)
     sys_origin = clone_system(sys)
 
-    # Generate observable field. This observable field has as many entres as the
-    # uncontracted system but contains operators in the local product spaces of
-    # the contracted system. `source_idcs` provides the unit index (of the
+    # Generate observable field. This observable field has as many entries as
+    # the uncontracted system but contains operators in the local product spaces
+    # of the contracted system. `source_idcs` provides the unit index (of the
     # contracted system) in terms of the atom index (of the uncontracted
     # system).
     dipole_operators_origin = all_dipole_observables(sys_origin; apply_g=false) 
@@ -87,7 +86,6 @@ function EntangledSystem(sys::System{N}, units) where {N}
 
     # Coordinate sys_entangled and sys_origin
     set_expected_dipoles_of_entangled_system!(esys)
-    set_field!(esys, sys.extfield[1,1,1,1]) # Note external field checked to be uniform
 
     return esys
 end
@@ -141,12 +139,13 @@ function set_field!(esys::EntangledSystem, B)
         unit = source_idcs[1, 1, 1, atom]
         S = dipole_operators[:, 1, 1, 1, atom]
         ΔB = sys_origin.gs[1, 1, 1, atom]' * (B - B_old) 
-        sys.interactions_union[unit].onsite -= Hermitian(ΔB' * S)
+        sys.interactions_union[unit].onsite += Hermitian(ΔB' * S)
     end
 end
 
+# TODO: Actually, we could give a well-defined meaning to this procedure. Implement this.
 function set_field_at!(::EntangledSystem, _, _)
-    error("`EntangledSystem`s do not support inhomogenous external fields. Use `set_field!(sys, B).")
+    error("`EntangledSystem`s do not support inhomogenous external fields. Use `set_field!(sys, B) to set a uniform field.")
 end
 
 

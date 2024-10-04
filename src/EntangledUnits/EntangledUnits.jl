@@ -244,6 +244,10 @@ function entangle_system(sys::System{M}, units) where M
     # Construct contracted crystal
     contracted_crystal, contraction_info = contract_crystal(sys.crystal, units)
 
+    # Make sure we have a uniform external field
+    @assert allequal(@view sys.extfield[:,:,:,:]) "`EntangledSystems` requires a uniform applied field." 
+    B = sys.extfield[1,1,1,1]
+
     # Determine Ns for local Hilbert spaces (all must be equal). (TODO: Determine if alternative behavior preferable in mixed case.)
     Ns_unit = Ns_in_units(sys, contraction_info)
     Ns_contracted = map(Ns -> prod(Ns), Ns_unit)
@@ -267,9 +271,14 @@ function entangle_system(sys::System{M}, units) where M
         # Pair interactions that become within-unit interactions
         original_interactions = sys.interactions_union[relevant_sites] 
         for (site, interaction) in zip(relevant_sites, original_interactions)
+            # Onsite anisotropy portion
             onsite_original = interaction.onsite
             unit_index = contraction_info.forward[site][2]
             unit_operator += local_op_to_product_space(onsite_original, unit_index, Ns)
+
+            # Zeeman portion
+            S = [local_op_to_product_space(S, unit_index, Ns) for S in spin_matrices((Ns[unit_index]-1)/2)]
+            unit_operator += Hermitian((sys.gs[1, 1, 1, site] * B)' * S)
         end
 
         # Sort all PairCouplings in couplings that will be within a unit and couplings that will be between units
