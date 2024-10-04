@@ -97,7 +97,7 @@ end
 # Aliasing 
 ################################################################################
 function Base.show(io::IO, esys::EntangledSystem)
-    print(io, "EntangledSystem($(mode_to_str(esys.sys)), $(lattice_to_str(esys.sys_origin)), $(energy_to_str(esys.sys)))")
+    print(io, "EntangledSystem($(mode_to_str(esys.sys)), $(supercell_to_str(esys.sys_origin.dims, esys.sys_origin.crystal)), $(energy_to_str(esys.sys)))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", esys::EntangledSystem)
