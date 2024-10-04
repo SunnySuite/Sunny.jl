@@ -51,7 +51,7 @@ end
     # Test external field works as expected
     set_field!(esys, [0, 0, 1])
     onsite_operator = esys.sys.interactions_union[1].onsite
-    field_offset = -2*(Sl[3] + Su[3]) # 2 for g-factor
+    field_offset = 2*(Sl[3] + Su[3]) # 2 for g-factor
     @test onsite_operator ≈ onsite_ref + field_offset 
 
     # Test inter-bond exchange
