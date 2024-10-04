@@ -26,6 +26,10 @@ struct CrystalContractionInfo
     inverse :: Vector{Vector{InverseData}}  # List ordered according to contracted crystal sites. Each element is itself a list containing original crystal site indices and corresponding offset information 
 end
 
+function Base.copy(cci::CrystalContractionInfo)
+    return CrystalContractionInfo(copy(cci.forward), copy(cci.inverse))
+end
+
 
 ################################################################################
 # System 
@@ -115,6 +119,16 @@ eachunit(esys::EntangledSystem) = eachsite(esys.sys)
 
 energy(esys::EntangledSystem) = energy(esys.sys)
 energy_per_site(esys::EntangledSystem) = energy(esys.sys) / length(eachsite(esys.sys_origin))
+
+function clone_system(esys::EntangledSystem)
+    sys = clone_system(esys.sys)
+    sys_origin = clone_system(esys.sys_origin)
+    contraction_info = copy(esys.contraction_info)
+    dipole_operators = copy(esys.dipole_operators)
+    source_idcs = copy(esys.source_idcs)
+
+    return EntangledSystem(sys, sys_origin, contraction_info, dipole_operators, source_idcs)
+end
 
 function set_field!(esys::EntangledSystem, B)
     (; sys, sys_origin, dipole_operators, source_idcs) = esys 
