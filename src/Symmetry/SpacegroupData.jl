@@ -45,7 +45,7 @@ end
 # sourced from PyXTal,
 # https://github.com/MaterSim/PyXtal/blob/1ba044cace1815d450e476a1fcb2fe8cb5798923/pyxtal/database/HM_Full.csv
 
-const transform_to_standard_setting = [
+const transform_to_standard_setting_repr = [
     "a,b,c", "a,b,c", "a,b,c", "c,a,b", "b,c,a", "a,b,c", "c,a,b", "b,c,a",
     "a,b,c", "c,-b,a", "c,b,-a-c", "c,a,b", "a,c,-b", "-a-c,c,b", "b,c,a",
     "-b,a,c", "b,-a-c,c", "a,b,c", "c,a,b", "b,c,a", "a,b,c", "-a-c,b,a",
@@ -127,15 +127,17 @@ const transform_to_standard_setting = [
     "a,b,c", "a,b,c", "a,b,c"
 ]
 
-# Returns the affine transformation that maps a position (direct lattice units)
-# in the setting of hall_number to a position in the standard setting (different
-# direct lattice units).
-function transform_to_standard_setting_op(hall_number)
-    # A crystal position can be viewed as a contraction of lattice vectors and
-    # coefficients, [a, b, c]' * [x, y, z]. Transformation of lattice vectors,
-    # [a′, b′, c′] = R [a, b, c] can alternatively be viewed as transformation
-    # of positions, [x′, y′, z′] = R' [x, y, z]
-    P = parse_op(replace(transform_to_standard_setting[hall_number],
+# Returns the affine transformation (P, p) that maps a position (direct lattice
+# units) in the setting of hall_number to a position in the standard setting
+# (different direct lattice units): xₛ = P x + p.
+function transform_to_standard_setting(hall_number)
+    op = parse_op(replace(transform_to_standard_setting_repr[hall_number],
                  "a"=>"x", "b"=>"y", "c"=>"z"))
-    return SymOp(P.R', P.T)
+    # A crystal position in global coordinates can be viewed as a contraction of
+    # lattice vectors and coefficients, [a, b, c]ᵀ [x, y, z]. Transformation of
+    # lattice vectors, [aₛ, bₛ, cₛ] = R [a, b, c] can alternatively be viewed as
+    # transformation of positions, [xₛ, yₛ, zₛ] = Rᵀ [x, y, z].
+    P = op.R'
+    p = op.T
+    return SymOp(P, p)
 end
