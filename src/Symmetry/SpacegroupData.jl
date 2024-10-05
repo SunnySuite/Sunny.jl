@@ -1,7 +1,21 @@
 # Maps each Hall number to an Spglib SpacegroupType
 const all_spacegroup_types = Spglib.get_spacegroup_type.(1:530)
 
-# Each spacegroup 1..230 is associated with one "conventional" setting (choice
+function all_spacegroup_types_for_symbol(sgnum::Int)
+    return filter(all_spacegroup_types) do sgt
+        sgt.number == sgnum
+    end
+end
+
+function all_spacegroup_types_for_symbol(symbol::String)
+    symbol = replace(symbol, " "=>"")
+    return filter(all_spacegroup_types) do sgt
+        symbols = (sgt.international_short, sgt.international_full, sgt.hall_symbol)
+        symbol in replace.(symbols, " " => "")
+    end
+end
+
+# Each spacegroup 1..230 is associated with one "ITA standard" setting (choice
 # of axes and origin). Following Volume A of International Tables for
 # Crystallography, this setting satisfies:
 #
@@ -14,7 +28,6 @@ const all_spacegroup_types = Spglib.get_spacegroup_type.(1:530)
 # The table below provides the conventional Hall number 1..530 for each
 # spacegroup number between 1..230. The data is sourced from PyXTal,
 # https://github.com/MaterSim/PyXtal/blob/1ba044cace1815d450e476a1fcb2fe8cb5798923/doc/Settings.rst#space-group
-
 const standard_setting = [
     1,   2,   3,   6,   9,   18,  21,  30,  39,  57,  60,  63,  72,  81,  90,
     108, 109, 112, 115, 116, 119, 122, 123, 124, 125, 128, 134, 137, 143, 149,
@@ -33,6 +46,17 @@ const standard_setting = [
     507, 508, 509, 510, 511, 512, 513, 514, 515, 516, 517, 519, 520, 522, 523,
     524, 526, 528, 529, 530
 ]
+
+# The Spglib convention for standard setting differs slightly from the ITA one
+# above. For each spacegroup number, Spglib selects the first available setting
+# in the order of Hall numbers. This corresponds to origin choice 1 rather than
+# origin choice 2 for certain centrosymmetric groups with two choices. For
+# example, Hall number 525 (instead of 526) will be chosen for the space group
+# 227.
+const standard_setting_for_spglib = map(1:230) do sgnum
+    first(all_spacegroup_types_for_symbol(sgnum)).hall_number
+end
+
 
 # Map a Hall number to the standard setting as a Hall number
 function standard_setting_for_hall_number(hall_number)
@@ -140,4 +164,48 @@ function transform_to_standard_setting(hall_number)
     P = op.R'
     p = op.T
     return SymOp(P, p)
+end
+
+# Given a spacegroup number and a table of symops, try to infer the std_mapping
+# that transforms to the ITA standard setting.
+function std_mapping_from_symops(sgnum, symops)
+    sgts = filter(all_spacegroup_types_for_symbol(sgnum)) do sgt
+        Rs, Ts = Spglib.get_symmetry_from_database(sgt.hall_number)
+        SymOp.(Rs, Ts) ≈ symops
+    end
+
+    if isempty(sgts)
+        # Cannot be matched to any of the Hall number settings
+        return nothing
+    else
+        return transform_to_standard_setting(only(sgts).hall_number)
+    end
+end
+
+
+# Returns the mapping from an arbitrary Spglib-inferred setting to the ITA
+# standard one.
+# 
+# This function, in retrospect, has undesirable behaviors. For example, if you
+# initialize diamond-cubic positions (spacegroup 227) under the ITA standard
+# setting (choice=2), ask Spglib to infer the setting, then call this function,
+# it will return an origin_shift of [0.5, 0, 0] rather than the natural choice,
+# [0, 0, 0]. This unusual shift can be rationalized as a swap of Wyckoff 8a and
+# Wyckoff 8b, which is very confusing to the user.
+#
+# To simplify things, Sunny will therefore use the Spglib-standard setting when
+# Spglib infers the spacegroup. However, for user-provided spacegroups, Sunny
+# will instead adopt the ITA-standard setting for compatibility with
+# Crystalline.jl, Brillouin.jl, etc.
+function std_mapping_from_spglib_dataset(d::Spglib.Dataset)
+    # Map from an arbitrary setting (inferred by Spglib) to the Spglib standard
+    # setting
+    spglib_from_any = SymOp(d.transformation_matrix, d.origin_shift)
+
+    # Map from the Spglib standard setting to the ITA one
+    hall_spglib = standard_setting_for_spglib[d.spacegroup_number]
+    std_from_spglib = transform_to_standard_setting(hall_spglib)
+
+    # Return the composed mapping
+    return std_from_spglib * spglib_from_any
 end

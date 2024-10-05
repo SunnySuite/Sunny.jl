@@ -31,9 +31,9 @@ symmetry-equivalence between atoms.
     Crystal(latvecs, positions, spacegroup; setting=nothing, types=nothing, symprec=1e-5)
 
 Builds a crystal by applying symmetry operators for a given `spacegroup` as an
-international number, short symbol, or Hermann–Mauguin (HM) symbol. Any
-ambiguity will be reported as an error, and can be resolved with an optional
-`setting` string.
+international number or symbol, e.g., Hermann–Mauguin or Hall. Any ambiguity
+will be reported as an error, and can be resolved with an optional `setting`
+string.
 
 
 # Examples
@@ -73,6 +73,7 @@ struct Crystal
     sitesyms       :: Union{Nothing, Vector{SiteSymmetry}} # Optional site symmetries
     symops         :: Vector{SymOp}                        # Symmetry operations
     spacegroup     :: String                               # Description of space group
+    std_mapping    :: Union{Nothing, SymOp}                # Operator P that maps to standard setting, xₛ = P x
     symprec        :: Float64                              # Tolerance to imperfections in symmetry
 end
 
@@ -290,11 +291,16 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     symops = SymOp.(d.rotations, d.translations)
     spacegroup = spacegroup_name(Int(d.hall_number))
 
-    # renumber class indices so that they go from 1:max_class
+    # Accept mapping to the Spglib-standard instead of ITA setting. These may
+    # differ by origin choice (1 vs 2). See `std_mapping_from_spglib_dataset`
+    # for an attempt to always map to the ITA setting.
+    std_mapping = SymOp(d.transformation_matrix, d.origin_shift)
+
+    # Renumber class indices so that they go from 1:max_class.
     classes = [findfirst(==(c), unique(classes)) for c in classes]
     @assert unique(classes) == 1:maximum(classes)
 
-    # multiplicities for the equivalence classes
+    # Multiplicities for the equivalence classes
     multiplicities = map(classes) do c
         # atoms that belong to class c
         atoms = findall(==(c), classes)
@@ -308,16 +314,10 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
 
     sitesyms = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
 
-    ret = Crystal(nothing, latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sitesyms, symops, spacegroup, symprec)
+    ret = Crystal(nothing, latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sitesyms, symops, spacegroup, std_mapping, symprec)
     validate(ret)
     return ret
 end
-
-
-function is_spacegroup_type_standard(sgt)
-    return standard_setting[sgt.number] == sgt.hall_number
-end
-
 
 
 function is_spacegroup_type_consistent(sgt, latvecs)
@@ -342,18 +342,6 @@ function is_spacegroup_type_consistent(sgt, latvecs)
     end
 end
 
-function all_spacegroup_types_for_symbol(sgnum::Int)
-    return filter(all_spacegroup_types) do sgt
-        sgt.number == sgnum
-    end
-end
-
-function all_spacegroup_types_for_symbol(symbol::String)
-    symbol = replace(String(symbol), " "=>"")
-    return filter(all_spacegroup_types) do sgt
-        symbol in (sgt.international_short, replace(sgt.international_full, " "=>""))
-    end
-end
 
 function unique_spacegroup_type(symbol, latvecs; setting=nothing)
     sgts = all_spacegroup_types_for_symbol(symbol)
@@ -416,11 +404,13 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
 end
 
 # Builds a crystal from an explicit set of symmetry operations and a minimal set of positions
-function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec)
+function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp},
+                             spacegroup::String, std_mapping::Union{Nothing, SymOp}; symprec)
     all_positions = Vec3[]
     all_types = String[]
     classes = Int[]
 
+    # Fill atom positions by applying all symops
     for i = eachindex(positions)
         for s = symops
             x = wrap_to_unit_cell(transform(s, positions[i]); symprec)
@@ -442,44 +432,52 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     # Atoms are sorted by contiguous equivalence classes: 1, 2, ..., n
     @assert unique(classes) == 1:maximum(classes)
 
-    # Unfortunately, don't currently have a table with site symmetry information
-    # (cf. https://github.com/SunnySuite/Sunny.jl/issues/44). As a workaround,
-    # ask Spglib to infer symmetry information for the full cell, and if the
-    # inferred symops match the provided ones, we can get the Wyckoff
-    # information this way. TODO: If we could standardize the cell, then we
-    # could also look up `wyckoffs` and `sitegroup` from Crystalline.jl.
-    inferred = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
-
-    # Compare the inferred symops to the provided ones
-    is_subgroup = issubset(symops, inferred.symops; atol=symprec)
-    is_supergroup = issubset(inferred.symops, symops; atol=symprec)
-
-    if !is_subgroup
-        @warn """User provided symmetry operation could not be inferred by Spglib,
-                 which likely indicates a non-conventional unit cell."""
-    end
-
-    # If the inferred symops match the provided ones, then we use the inferred
-    # Crystal. Otherwise we must construct a new Crystal without primitive
-    # lattice and site symmetry information.
-    ret = if is_subgroup && is_supergroup
-        inferred
-    else
+    recipvecs = 2π*Mat3(inv(latvecs)')
+    if isnothing(std_mapping)
         prim_latvecs = latvecs
-        recipvecs = 2π*Mat3(inv(latvecs)')
-        Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
+        sitesyms = nothing
+    else
+        # TODO: Look up `wyckoffs` and `sitegroup` from Crystalline.jl. Cf.
+        # https://github.com/SunnySuite/Sunny.jl/issues/44.
+        prim_latvecs = latvecs
+        sitesyms = nothing
     end
+
+    ret = Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, sitesyms, symops, spacegroup, std_mapping, symprec)
     sort_sites!(ret)
     validate(ret)
+
+    # If we don't have information about how this Crystal maps to a standard
+    # spacegroup setting, then attempt to infer it from Spglib.
+    if true || isnothing(std_mapping)
+        inferred = crystal_from_inferred_symmetry(latvecs, ret.positions, ret.types; symprec, check_cell=false)
+
+        # The inferred symmetry operations should typically be a superset of the
+        # provided ones. A counter-example may appear when loading a Crystal
+        # from symmetry operations in an .mcif file. In general, Spglib can fail
+        # to find all symops when the cell is enlarged.
+        if !issubset(symops, inferred.symops; atol=symprec)
+            @warn """User provided symmetry operations are inconsistent with Spglib,
+                     which suggests a non-conventional unit cell."""
+        end
+
+        # If the inferred symops match the provided ones, then we can use the
+        # inferred Crystal.
+        if isapprox(symops, inferred.symops; atol=symprec)
+            return inferred
+        end
+    end
+
     return ret
 end
 
 
 function crystal_from_hall_number(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, hall_number::Int; symprec)
-    rotations, translations = Spglib.get_symmetry_from_database(hall_number)
-    symops = SymOp.(rotations, translations)
+    Rs, Ts = Spglib.get_symmetry_from_database(hall_number)
+    symops = SymOp.(Rs, Ts)
     spacegroup = spacegroup_name(Int(hall_number))
-    return crystal_from_symops(latvecs, positions, types, symops, spacegroup; symprec)
+    std_mapping = transform_to_standard_setting(hall_number)
+    return crystal_from_symops(latvecs, positions, types, symops, spacegroup, std_mapping; symprec)
 end
 
 
@@ -592,7 +590,7 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     new_symops = SymOp[]
 
     return Crystal(root, new_latvecs, root.prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
-                   new_sitesyms, new_symops, root.spacegroup, new_symprec)
+                   new_sitesyms, new_symops, root.spacegroup, root.std_mapping, new_symprec)
 end
 
 
@@ -637,7 +635,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     end
 
     ret = Crystal(root, cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
-                  new_classes, new_sitesyms, cryst.symops, cryst.spacegroup, cryst.symprec)
+                  new_classes, new_sitesyms, cryst.symops, cryst.spacegroup, cryst.std_mapping, cryst.symprec)
     return ret
 end
 

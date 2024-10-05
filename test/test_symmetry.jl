@@ -17,7 +17,7 @@
     latvecs = Sunny.Mat3(latvecs)
     positions = [Sunny.Vec3(1, 1, 1) / 8]
     types = [""]
-    cryst = Sunny.crystal_from_symops(latvecs, positions, types, cryst.symops, cryst.spacegroup; cryst.symprec)
+    cryst = Sunny.crystal_from_symops(latvecs, positions, types, cryst.symops, cryst.spacegroup, cryst.std_mapping; cryst.symprec)
     ref_bonds = reference_bonds(cryst, 2.)
     dist2 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 

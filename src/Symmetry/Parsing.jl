@@ -105,8 +105,8 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         wyckoffs = String.(geo_table[:, "_atom_site_wyckoff_symbol"])
     end
 
-    # Try to infer symprec from coordinate strings
-    # TODO: Use uncertainty information if available from .cif
+    # Try to infer symprec from coordinate strings. TODO: Use uncertainty
+    # information if available from .cif
     if isnothing(symprec)
         elems = vcat(xs, ys, zs)
         # guess fractional errors by assuming each elem is a fraction with simple denominator (2, 3, or 4)
@@ -205,14 +205,13 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
 
     ret = if !isnothing(symops)
         # Use explicitly provided symmetries
-        crystal_from_symops(latvecs, positions, classes, symops, spacegroup; symprec)
+        std_mapping = isnothing(groupnum) ? nothing : std_mapping_from_symops(groupnum, symops)
+        crystal_from_symops(latvecs, positions, classes, symops, spacegroup, std_mapping; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
         Crystal(latvecs, positions, hall_symbol; types=classes, symprec)
-    elseif !isnothing(groupnum)
-        # Use symmetries for international group number
-        Crystal(latvecs, positions, groupnum; types=classes, symprec)
     else
+        @warn "Inferring spacegroup from atom positions and classes"
         # Infer the symmetries automatically, while allowing `classes` to
         # distinguish symmetry-inequivalent sites.
         Crystal(latvecs, positions; types=classes, symprec)
