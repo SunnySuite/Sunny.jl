@@ -166,9 +166,9 @@ function transform_to_standard_setting(hall_number)
     return SymOp(P, p)
 end
 
-# Given a spacegroup number and a table of symops, try to infer the std_mapping
+# Given a spacegroup number and a table of symops, try to infer the affine map
 # that transforms to the ITA standard setting.
-function std_mapping_from_symops(sgnum, symops)
+function sg_setting_from_symops(sgnum, symops)
     sgts = filter(all_spacegroup_types_for_symbol(sgnum)) do sgt
         Rs, Ts = Spglib.get_symmetry_from_database(sgt.hall_number)
         SymOp.(Rs, Ts) ≈ symops
@@ -183,8 +183,8 @@ function std_mapping_from_symops(sgnum, symops)
 end
 
 
-# Returns the mapping from an arbitrary Spglib-inferred setting to the ITA
-# standard one.
+# Returns the affine map from an arbitrary Spglib-inferred dataset to the ITA
+# standard setting.
 # 
 # This function, in retrospect, has undesirable behaviors. For example, if you
 # initialize diamond-cubic positions (spacegroup 227) under the ITA standard
@@ -197,7 +197,7 @@ end
 # Spglib infers the spacegroup. However, for user-provided spacegroups, Sunny
 # will instead adopt the ITA-standard setting for compatibility with
 # Crystalline.jl, Brillouin.jl, etc.
-function std_mapping_from_spglib_dataset(d::Spglib.Dataset)
+function sg_setting_from_spglib_dataset(d::Spglib.Dataset)
     # Map from an arbitrary setting (inferred by Spglib) to the Spglib standard
     # setting
     spglib_from_any = SymOp(d.transformation_matrix, d.origin_shift)

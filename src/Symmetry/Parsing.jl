@@ -185,7 +185,7 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         hm_symbol = cif[hm_header][1]
     end
 
-    spacegroup = if !isnothing(hm_symbol)
+    sg_label = if !isnothing(hm_symbol)
         if !isnothing(groupnum)
             "'$hm_symbol' ($groupnum)"
         else
@@ -205,8 +205,8 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
 
     ret = if !isnothing(symops)
         # Use explicitly provided symmetries
-        std_mapping = isnothing(groupnum) ? nothing : std_mapping_from_symops(groupnum, symops)
-        crystal_from_symops(latvecs, positions, classes, symops, spacegroup, std_mapping; symprec)
+        sg_setting = isnothing(groupnum) ? nothing : sg_setting_from_symops(groupnum, symops)
+        crystal_from_symops(latvecs, positions, classes, symops, sg_label, sg_setting; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
         Crystal(latvecs, positions, hall_symbol; types=classes, symprec)
