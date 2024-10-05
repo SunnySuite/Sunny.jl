@@ -28,13 +28,12 @@ symmetry information is automatically inferred. The optional parameter `types`
 is a list of strings, one for each atom, and can be used to break
 symmetry-equivalence between atoms.
 
-    Crystal(latvecs, positions, spacegroup; types=nothing, setting=nothing, symprec=1e-5)
+    Crystal(latvecs, positions, spacegroup; setting=nothing, types=nothing, symprec=1e-5)
 
 Builds a crystal by applying symmetry operators for a given `spacegroup` as an
-international number, short symbol, or Hermann–Mauguin (HM) symbol. Ambiguities
-can be resolved with a `setting` string. It is generally preferred to select a
-conventional ITA setting, and a warning will be reported if the setting is
-nonconventional.
+international number, short symbol, or Hermann–Mauguin (HM) symbol. Any
+ambiguity will be reported as an error, and can be resolved with an optional
+`setting` string.
 
 
 # Examples
@@ -102,10 +101,7 @@ function Crystal(latvecs, positions, symbol::Union{Int, String}; types::Union{No
         types = fill("", length(positions))
     end
     sgt = unique_spacegroup_type(symbol, latvecs; setting)
-    rotations, translations = Spglib.get_symmetry_from_database(sgt.hall_number)
-    symops = SymOp.(rotations, translations)
-    spacegroup = spacegroup_name(Int(sgt.hall_number))
-    return crystal_from_symops(latvecs, positions, types, symops, spacegroup; symprec)
+    return crystal_from_hall_number(latvecs, positions, types, Int(sgt.hall_number); symprec)
 end
 
 
@@ -235,10 +231,10 @@ function standardize(cryst::Crystal; idealize=true)
     lattice = Mat3(lattice)
 
     if !idealize
-        # These lattice vectors may only be accurate to about 6 digits. However,
-        # spglib produces much higher accuracy with the `idealize=true` option.
-        # Rotate the higher precision lattice vectors so that they give the best
-        # match to the ones for the non-idealized cell.
+        # Empirically, these lattice vectors from spglib are accurate to about 6
+        # digits. However, spglib produces much higher accuracy with the
+        # `idealize=true` option. Rotate the higher precision lattice vectors so
+        # that they give the best match to the ones for the non-idealized cell.
         std_lattice = Mat3(Spglib.standardize_cell(cell, symprec; no_idealize=false).lattice)
         R = closest_unitary(lattice / std_lattice)
         isapprox(R*std_lattice, lattice; rtol=1e-5) || error("Failed to standardize the cell")
@@ -259,7 +255,7 @@ function standardize(cryst::Crystal; idealize=true)
     return ret
 end
 
-function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5, check_cell=true)
+function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec, check_cell=true)
     # Print a warning if non-conventional lattice vectors are detected.
     try cell_type(latvecs) catch e @warn e.msg end
 
@@ -318,48 +314,11 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
 end
 
 
-
-const all_spacegroup_types = Spglib.get_spacegroup_type.(1:530)
-
-
-# Documentation from `Crystalline.spacegroup` states the following.
-#
-# The default choices for the conventional basis vectors follow the conventions
-# of the Bilbao Crystallographic Server (or, equivalently, the International
-# Tables of Crystallography), which are:
-#
-# * Unique axis b (cell choice 1) for monoclinic space groups.
-# * Obverse triple hexagonal unit cell for rhombohedral space groups.
-# * Origin choice 2: inversion centers are placed at (0,0,0). (relevant for
-#   certain centrosymmetric space groups with two possible choices; e.g., in the
-#   orthorhombic, tetragonal or cubic crystal systems).
-#
-# The associated citation is: Aroyo et al., Z. Kristallogr. Cryst. Mater. 221,
-# 15 (2006).
-
-function is_spacegroup_type_conventional(sgt; check_origin=false)
-    sgnum = sgt.number
-    hm_symbol = sgt.international_full
-    sgts_with_same_number = filter(sgt -> sgt.number == sgnum, all_spacegroup_types)
-    possible_hm_symbols = [sgt.international_full for sgt in sgts_with_same_number]
-
-    # The 530 "Hall numbers" (linked from Spglib documentation) are ordered such
-    # that the HM symbols (cell types) appearing first are the conventional
-    # ones. For trigonal groups, these are the hexagonal cells. For monoclinic
-    # groups, these are the ones with unique axis b.
-    if hm_symbol != first(possible_hm_symbols)
-        return false
-    end
-
-    if check_origin
-        # If there are two origin choices, then the conventional one is 2.
-        sgts_with_same_hm_symbol = filter(sgt -> sgt.international_full == hm_symbol, sgts_with_same_number)
-        @assert length(sgts_with_same_hm_symbol) in (1, 2)
-        return sgt == last(sgts_with_same_hm_symbol)
-    else
-        return true
-    end
+function is_spacegroup_type_standard(sgt)
+    return standard_setting[sgt.number] == sgt.hall_number
 end
+
+
 
 function is_spacegroup_type_consistent(sgt, latvecs)
     cell = cell_type(latvecs)
@@ -426,7 +385,7 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
     end
 
     if isempty(sgts)
-        error("Incompatible $cell cell shape")
+        error("Incompatible $cell cell shape for $symbol")
     end
 
     if length(sgts) == 1
@@ -448,7 +407,7 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
         else
             sgts = filter(sgt -> sgt.choice == setting, sgts)
             if isempty(sgts)
-                error("Invalid setting; select one of $settings")
+                error("Possible `setting` values: $settings")
             else
                 return only(sgts)
             end
@@ -456,16 +415,8 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
     end
 end
 
-function symops_subset(symops1, symops2; symprec)
-    return all(symops1) do s
-        any(symops2) do s′
-            isapprox(s, s′; atol=symprec)
-        end
-    end
-end
-
 # Builds a crystal from an explicit set of symmetry operations and a minimal set of positions
-function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
+function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec)
     all_positions = Vec3[]
     all_types = String[]
     classes = Int[]
@@ -495,13 +446,13 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     # (cf. https://github.com/SunnySuite/Sunny.jl/issues/44). As a workaround,
     # ask Spglib to infer symmetry information for the full cell, and if the
     # inferred symops match the provided ones, we can get the Wyckoff
-    # information this way. TODO: Copy full spglib Wyckoff table into Sunny:
-    # https://github.com/spglib/spglib/blob/develop/src/sitesym_database.c.
+    # information this way. TODO: If we could standardize the cell, then we
+    # could also look up `wyckoffs` and `sitegroup` from Crystalline.jl.
     inferred = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
 
     # Compare the inferred symops to the provided ones
-    is_subgroup = symops_subset(symops, inferred.symops; symprec)
-    is_supergroup = symops_subset(inferred.symops, symops; symprec)
+    is_subgroup = issubset(symops, inferred.symops; atol=symprec)
+    is_supergroup = issubset(inferred.symops, symops; atol=symprec)
 
     if !is_subgroup
         @warn """User provided symmetry operation could not be inferred by Spglib,
@@ -521,6 +472,14 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     sort_sites!(ret)
     validate(ret)
     return ret
+end
+
+
+function crystal_from_hall_number(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, hall_number::Int; symprec)
+    rotations, translations = Spglib.get_symmetry_from_database(hall_number)
+    symops = SymOp.(rotations, translations)
+    spacegroup = spacegroup_name(Int(hall_number))
+    return crystal_from_symops(latvecs, positions, types, symops, spacegroup; symprec)
 end
 
 

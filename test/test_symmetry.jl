@@ -29,7 +29,7 @@
     ref_bonds = reference_bonds(cryst, 2.)
     dist3 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
-    @test dist1 ≈ dist2 ≈ dist3 
+    @test dist1 ≈ dist2 ≈ dist3
 
     ### FCC lattice, primitive vs. standard unit cell
 
@@ -58,7 +58,7 @@
     cryst = Crystal(latvecs, positions)
     @test cell_type(cryst) == Sunny.hexagonal
     @test Sunny.natoms(cryst) == 1
-    @test Sunny.cell_volume(cryst) ≈ c * √3 / 2 
+    @test Sunny.cell_volume(cryst) ≈ c * √3 / 2
     @test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
     ### Kagome lattice
@@ -68,7 +68,7 @@
     cryst = Crystal(latvecs, positions)
     @test cell_type(cryst) == Sunny.hexagonal
     @test Sunny.natoms(cryst) == 3
-    @test Sunny.cell_volume(cryst) ≈ c * √3 / 2 
+    @test Sunny.cell_volume(cryst) ≈ c * √3 / 2
     @test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
     ### Arbitrary monoclinic
@@ -118,19 +118,38 @@
 end
 
 
-@testitem "Standardize" begin
+@testitem "Spacegroup settings" begin
+    import Spglib
+
+    for hall1 in 1:530
+        hall2 = Sunny.standard_setting_for_hall_number(hall1)
+        P = Sunny.transform_to_standard_setting_op(hall1)
+
+        g1 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall1)...)
+        g2 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall2)...)
+
+        g2_transf = map(g2) do s
+            inv(P) * s * P
+        end
+
+        @assert g2_transf ≈ g1
+    end
+end
+
+
+@testitem "Standardize Crystal" begin
     using LinearAlgebra
-    
+
     function test_standardize(cryst)
         cryst2 = standardize(cryst; idealize=false)
         @test cryst2.latvecs * cryst2.positions[1] ≈ cryst.latvecs * cryst.positions[1]
         cryst3 = standardize(cryst)
-        @test norm(cryst3.positions[1]) < 1e-12    
+        @test norm(cryst3.positions[1]) < 1e-12
     end
-    
+
     cryst = Crystal([1 0 1; 1 1 0; 0 1 1], [[0.1, 0.2, 0.3]])
     test_standardize(cryst)
-    
+
     msg = "Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`."
     @test_warn msg cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
     test_standardize(cryst)
@@ -139,7 +158,7 @@ end
 
 @testitem "Allowed anisotropy" begin
     using LinearAlgebra
-    
+
     # Test some inferred anisotropy matrices
     let
         # This test should also work for S = Inf, but there is a false negative
@@ -167,13 +186,13 @@ end
 
         warnstr = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`"
         cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])
-    
+
         # print_site(cryst, i)
         Λ = randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,2]+(16/5)*O[6,4]+(11/5)*O[6,6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
     end
 
-    # Test validity of symmetry inferred anisotropies 
+    # Test validity of symmetry inferred anisotropies
     let
         latvecs = [1 0 0; 0 1 0; 0 0 10]'
         # All atoms are a distance of 0.1 from the origin, and are arranged at
@@ -236,7 +255,7 @@ end
             c₁*(𝒪[2,-2]+2𝒪[2,-1]+2𝒪[2,1]) +
             c₂*(7𝒪[4,-3]+2𝒪[4,-2]-𝒪[4,-1]-𝒪[4,1]-7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
             c₄*(11𝒪[6,-6]+8𝒪[6,-3]-𝒪[6,-2]+8𝒪[6,-1]+8𝒪[6,1]-8𝒪[6,3]) + c₅*(-𝒪[6,0]+21𝒪[6,4]) + c₆*(9𝒪[6,-6]+24𝒪[6,-5]+5𝒪[6,-2]+8𝒪[6,-1]+8𝒪[6,1]+24𝒪[6,5])
-        
+
         Bond(1, 2, [0, 0, 0])
         Distance 0.35355339059327, coordination 6
         Connects [0, 0, 0] to [1/4, 1/4, 0]
@@ -244,7 +263,7 @@ end
                                   C A -D
                                   D D  B]
         Allowed DM vector: [-D D 0]
-        
+
         Bond(3, 5, [0, 0, 0])
         Distance 0.61237243569579, coordination 12
         Connects [1/2, 1/2, 0] to [1/4, 0, 1/4]
@@ -252,21 +271,21 @@ end
                                   C+E    B -C+E
                                   D+F -C-E    A]
         Allowed DM vector: [E F -E]
-        
+
         Bond(1, 3, [-1, 0, 0])
         Distance 0.70710678118655, coordination 6
         Connects [0, 0, 0] to [-1/2, 1/2, 0]
         Allowed exchange matrix: [A D C
                                   D A C
                                   C C B]
-        
+
         Bond(1, 3, [0, 0, 0])
         Distance 0.70710678118655, coordination 6
         Connects [0, 0, 0] to [1/2, 1/2, 0]
         Allowed exchange matrix: [A D C
                                   D A C
                                   C C B]
-        
+
         Bond(1, 2, [-1, 0, 0])
         Distance 0.79056941504209, coordination 12
         Connects [0, 0, 0] to [-3/4, 1/4, 0]
@@ -285,7 +304,7 @@ end
              1/√6 -√2/√3 -1/√6
              1/√3   1/√3 -1/√3]
         """
-    
+
     R = [1/√2 0 1/√2; 1/√6 -√2/√3 -1/√6; 1/√3 1/√3 -1/√3]
     capt = IOCapture.capture() do
         print_site(cryst, 2; R)
@@ -364,8 +383,8 @@ end
 @testitem "Renormalization" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
     warnstr = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`"
-    cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])    
-    
+    cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])
+
     # Dipole system with renormalized anisotropy
     sys0 = System(cryst, [1 => Moment(s=3, g=2)], :dipole)
     randomize_spins!(sys0)
@@ -377,7 +396,7 @@ end
         randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,0]+(105/16)O[6,2]+(231/16)O[6,6])
     set_onsite_coupling!(sys0, Λ, i)
     E0 = energy(sys0)
-    
+
     # Corresponding SU(N) system
     sys = System(cryst, [1 => Moment(s=3, g=2)], :SUN)
     for site in eachsite(sys)
@@ -385,6 +404,6 @@ end
     end
     set_onsite_coupling!(sys, Λ, i)
     E = energy(sys)
-    
-    @test E ≈ E0    
+
+    @test E ≈ E0
 end
