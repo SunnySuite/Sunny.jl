@@ -124,15 +124,9 @@ end
     for hall1 in 1:530
         hall2 = Sunny.standard_setting_for_hall_number(hall1)
         P = Sunny.transform_to_standard_setting(hall1)
-
         g1 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall1)...)
         g2 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall2)...)
-
-        g2_transf = map(g2) do s
-            inv(P) * s * P
-        end
-
-        @assert g2_transf ≈ g1
+        @assert [inv(P) * s * P for s in g2] ≈ g1
     end
 end
 
