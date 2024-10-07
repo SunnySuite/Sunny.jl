@@ -105,15 +105,14 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 # ### Reshaping the magnetic cell
 
 # The most compact magnetic cell for this Néel order is a primitive unit cell.
-# Reduce the magnetic cell size using [`reshape_supercell`](@ref), where columns
-# of the `shape` matrix are primitive lattice vectors as multiples of the
-# conventional cubic lattice vectors ``(𝐚_1, 𝐚_2, 𝐚_3)``. One could
-# alternatively use `shape = cryst.latvecs \ cryst.prim_latvecs`. Verify that
+# Columns of the `shape` matrix below are the primitive lattice vectors as
+# multiples of the conventional cubic lattice vectors.
+
+shape = cryst.latvecs \ cryst.prim_latvecs
+
+# Reduce the magnetic cell size using [`reshape_supercell`](@ref). Verify that
 # the energy per site is unchanged after the reshaping the supercell.
 
-shape = [0 1 1;
-         1 0 1;
-         1 1 0] / 2
 sys_prim = reshape_supercell(sys, shape)
 @assert energy_per_site(sys_prim) ≈ -2J*(3/2)^2
 

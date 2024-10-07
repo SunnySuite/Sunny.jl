@@ -19,9 +19,8 @@ view_crystal(cryst)
 # Create a system and reshape to the primitive cell, which contains four atoms.
 # Add antiferromagnetic nearest neighbor exchange interactions.
 
-primitive_cell = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
 sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole; seed=0)
-sys = reshape_supercell(sys, primitive_cell)
+sys = reshape_supercell(sys, cryst.latvecs \ cryst.prim_latvecs)
 J1 = 0.304 # (K)
 set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
 
