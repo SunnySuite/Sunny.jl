@@ -17,7 +17,7 @@
     latvecs = Sunny.Mat3(latvecs)
     positions = [Sunny.Vec3(1, 1, 1) / 8]
     types = [""]
-    cryst = Sunny.crystal_from_symops(latvecs, positions, types, cryst.symops, cryst.sg_label, cryst.sg_setting; cryst.symprec)
+    cryst = Sunny.crystal_from_symops(latvecs, positions, types, cryst.symops, cryst.sg_label, cryst.sg_number, nothing; cryst.symprec)
     ref_bonds = reference_bonds(cryst, 2.)
     dist2 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
@@ -119,15 +119,63 @@ end
 
 
 @testitem "Spacegroup settings" begin
+    using LinearAlgebra
     import Spglib
 
+    # Check conversions between settings for different Hall numbers
     for hall1 in 1:530
         hall2 = Sunny.standard_setting_for_hall_number(hall1)
         P = Sunny.transform_to_standard_setting(hall1)
         g1 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall1)...)
         g2 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall2)...)
-        @assert [inv(P) * s * P for s in g2] ≈ g1
+        @test [inv(P) * s * P for s in g2] ≈ g1
     end
+
+    ### Check settings for trigonal spacegroup
+
+    # Trigonal spacegroup in standard hexagonal setting
+    latvecs = lattice_vectors(1, 1, 1.2, 90, 90, 120)
+    cryst = Crystal(latvecs, [[0, 0, 0]], 160)
+    @test cryst.sitesyms[1].symbol == "3m1" # FIXME: "3m"
+
+    # Same spacegroup in rhombohedral setting, which is the primitive cell
+    cryst2 = Crystal(cryst.prim_latvecs, [[0, 0, 0]], 160)
+    @test cryst2.prim_latvecs ≈ cryst2.latvecs
+
+    # Check equivalence of positions
+    @test cryst.latvecs * cryst.positions[1] ≈ [0, 0, 0]
+    @test cryst.latvecs * cryst.positions[2] ≈ cryst2.latvecs[:, 1]
+    @test cryst.latvecs * cryst.positions[3] ≈ cryst2.latvecs[:, 1] + cryst2.latvecs[:, 2]
+
+    # Inference of Wyckoff symbols
+    lat_vecs = lattice_vectors(1, 1, 1.2, 90, 90, 120)
+    cryst = Crystal(lat_vecs, [[0.2, 0.2, 1/2]], 164)
+    @test cryst.sitesyms[1].multiplicity == 6
+    @test cryst.sitesyms[1].wyckoff == 'h'
+    @test cryst.sitesyms[1].symbol == "2" # FIXME: ".2."
+
+    ### Check settings for monoclinic spacegroup
+
+    # Standard setting for monoclinic spacegroup 5
+    latvecs = lattice_vectors(1, 1.1, 1.2, 90, 100, 90)
+    cryst = Crystal(latvecs, [[0, 0.2, 1/2]], "C 1 2 1")
+    @test cryst.sg_label == "'C 2 = C 1 2 1' (5)"
+    @test cryst.sitesyms[1].wyckoff == 'b'
+
+    # Alternative setting
+    latvecs2 = reduce(hcat, eachcol(latvecs)[[3, 1, 2]])
+    cryst2 = Crystal(latvecs2, [[1/2, 0, 0.2]], "A 1 1 2")
+    @test cryst2.sg_label == "'C 2 = A 1 1 2' (5)"
+    @test cryst.sitesyms[1].wyckoff == 'b'
+
+    # Verify `cryst` is already in standard setting
+    @test cryst.sg_setting.R ≈ I
+
+    # Equivalence of standardized lattice vectors
+    @test cryst.latvecs ≈ cryst2.latvecs * inv(cryst2.sg_setting.R)
+
+    # Primitive lattice vectors are alway standardized
+    @test cryst.prim_latvecs ≈ cryst2.prim_latvecs
 end
 
 
@@ -294,12 +342,12 @@ end
         print_suggested_frame(cryst, 2)
     end
     @test capt.output == """
-        R = [1/√2      0  1/√2
-             1/√6 -√2/√3 -1/√6
-             1/√3   1/√3 -1/√3]
+        R = [ 1/√2 -1/√2      0
+             -1/√6 -1/√6 -√2/√3
+              1/√3  1/√3  -1/√3]
         """
 
-    R = [1/√2 0 1/√2; 1/√6 -√2/√3 -1/√6; 1/√3 1/√3 -1/√3]
+    R =  [1/√2 -1/√2 0; -1/√6 -1/√6 -√2/√3; 1/√3  1/√3  -1/√3]
     capt = IOCapture.capture() do
         print_site(cryst, 2; R)
     end

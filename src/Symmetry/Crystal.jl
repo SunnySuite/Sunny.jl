@@ -1,10 +1,3 @@
-struct SiteSymmetry
-    symbol       :: String
-    multiplicity :: Int
-    wyckoff      :: Char
-end
-
-
 """
 An object describing a crystallographic unit cell and its space group symmetry.
 Constructors are as follows:
@@ -73,7 +66,8 @@ struct Crystal
     sitesyms       :: Union{Nothing, Vector{SiteSymmetry}} # Optional site symmetries
     symops         :: Vector{SymOp}                        # Symmetry operations
     sg_label       :: String                               # Description of space group
-    sg_setting     :: Union{Nothing, SymOp}                # Operator P that maps to standard setting, xₛ = P x
+    sg_number      :: Union{Nothing, Int}                  # International spacegroup number (1..230)
+    sg_setting     :: Union{Nothing, SymOp}                # Operator P that maps to standard setting, xₛ = P x (ITA or Spglib)
     symprec        :: Float64                              # Tolerance to imperfections in symmetry
 end
 
@@ -290,6 +284,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     # classes = d.equivalent_atoms
     symops = SymOp.(d.rotations, d.translations)
     sg_label = spacegroup_label(Int(d.hall_number))
+    sg_number = d.spacegroup_number
 
     # Accept mapping to the Spglib-standard instead of ITA setting. These may
     # differ by origin choice (1 vs 2). See `sg_setting_from_spglib_dataset`
@@ -314,7 +309,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
 
     sitesyms = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
 
-    ret = Crystal(nothing, latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sitesyms, symops, sg_label, sg_setting, symprec)
+    ret = Crystal(nothing, latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sitesyms, symops, sg_label, sg_number, sg_setting, symprec)
     validate(ret)
     return ret
 end
@@ -377,7 +372,7 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
     end
 
     if length(sgts) == 1
-        isnothing(setting) || @warn "Ignoring `setting` option"
+        isnothing(setting) || error("Unused `setting` option")
         return only(sgts)
     elseif length(sgts) > 1
         short_symbols = [sgt.international_short for sgt in sgts]
@@ -405,7 +400,7 @@ end
 
 # Builds a crystal from an explicit set of symmetry operations and a minimal set of positions
 function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp},
-                             sg_label::String, sg_setting::Union{Nothing, SymOp}; symprec)
+                             sg_label::String, sg_number::Union{Nothing, Int}, sg_setting::Union{Nothing, SymOp}; symprec)
     all_positions = Vec3[]
     all_types = String[]
     classes = Int[]
@@ -433,37 +428,48 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     @assert unique(classes) == 1:maximum(classes)
 
     recipvecs = 2π*Mat3(inv(latvecs)')
-    if isnothing(sg_setting)
+    if isnothing(sg_number) || isnothing(sg_setting)
         prim_latvecs = latvecs
         sitesyms = nothing
     else
-        # TODO: Look up `wyckoffs` and `sitegroup` from Crystalline.jl. Cf.
-        # https://github.com/SunnySuite/Sunny.jl/issues/44.
-        prim_latvecs = latvecs
-        sitesyms = nothing
+        # Primitive lattice vectors in units of standard lattice vectors
+        prim_shape = standard_primitive_basis[standard_centerings[sg_number]]
+        # Lattice vectors of standard setting
+        std_latvecs = latvecs * inv(sg_setting.R)
+        # Primitive lattice vectors
+        prim_latvecs = std_latvecs * prim_shape
+
+        class_to_sitesym = map(unique(classes)) do c
+            i = findfirst(==(c), classes)
+            r_std = transform(sg_setting, all_positions[i])
+            sym = SiteSymmetry(sg_number, r_std; symprec)
+            @assert sym.multiplicity ≈ length(filter(==(c), classes)) / det(sg_setting.R)
+            c => sym
+        end
+        sitesyms = getindex.(Ref(Dict(class_to_sitesym)), classes)
     end
 
-    ret = Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, sitesyms, symops, sg_label, sg_setting, symprec)
+    ret = Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, sitesyms, symops, sg_label, sg_number, sg_setting, symprec)
     sort_sites!(ret)
     validate(ret)
 
     # If we don't have information about how this Crystal maps to a standard
     # spacegroup setting, then attempt to infer it from Spglib.
-    if true || isnothing(sg_setting)
+    if isnothing(sitesyms)
         inferred = crystal_from_inferred_symmetry(latvecs, ret.positions, ret.types; symprec, check_cell=false)
 
-        # The inferred symmetry operations should typically be a superset of the
-        # provided ones. A counter-example may appear when loading a Crystal
-        # from symmetry operations in an .mcif file. In general, Spglib can fail
-        # to find all symops when the cell is enlarged.
-        if !issubset(symops, inferred.symops; atol=symprec)
-            @warn """User provided symmetry operations are inconsistent with Spglib,
-                     which suggests a non-conventional unit cell."""
-        end
-
-        # If the inferred symops match the provided ones, then we can use the
-        # inferred Crystal.
-        if isapprox(symops, inferred.symops; atol=symprec)
+        if !isapprox(symops, inferred.symops; atol=symprec)
+            # This warning gets triggered when loading the magnetic cell of an
+            # .mcif as a chemical cell.
+            @warn """Could not infer spacegroup setting. This can happen if the crystal
+                     is incomplete or if the unit cell is non-conventional. Some symmetry
+                     data will be missing."""
+        else
+            # If the inferred symops match the provided ones, then we can use
+            # the inferred Crystal.
+            if sg_number in standard_setting_differs_in_spglib
+                @warn "Using spacegroup origin choice 1 following Spglib conventions"
+            end
             return inferred
         end
     end
@@ -476,8 +482,9 @@ function crystal_from_hall_number(latvecs::Mat3, positions::Vector{Vec3}, types:
     Rs, Ts = Spglib.get_symmetry_from_database(hall_number)
     symops = SymOp.(Rs, Ts)
     sg_label = spacegroup_label(Int(hall_number))
+    sg_number = Int(all_spacegroup_types[hall_number].number)
     sg_setting = transform_to_standard_setting(hall_number)
-    return crystal_from_symops(latvecs, positions, types, symops, sg_label, sg_setting; symprec)
+    return crystal_from_symops(latvecs, positions, types, symops, sg_label, sg_number, sg_setting; symprec)
 end
 
 
@@ -590,7 +597,7 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     new_symops = SymOp[]
 
     return Crystal(root, new_latvecs, root.prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
-                   new_sitesyms, new_symops, root.sg_label, root.sg_setting, new_symprec)
+                   new_sitesyms, new_symops, root.sg_label, root.sg_number, root.sg_setting, new_symprec)
 end
 
 
@@ -635,7 +642,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     end
 
     ret = Crystal(root, cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
-                  new_classes, new_sitesyms, cryst.symops, cryst.sg_label, cryst.sg_setting, cryst.symprec)
+                  new_classes, new_sitesyms, cryst.symops, cryst.sg_label, cryst.sg_number, cryst.sg_setting, cryst.symprec)
     return ret
 end
 
@@ -667,10 +674,8 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
             push!(descr, "Type '$(cryst.types[i])'")
         end
         if !isnothing(cryst.sitesyms)
-            symbol = cryst.sitesyms[i].symbol
-            multiplicity = cryst.sitesyms[i].multiplicity
-            wyckoff = cryst.sitesyms[i].wyckoff
-            push!(descr, "Wyckoff $multiplicity$wyckoff (point group '$symbol')")
+            (; symbol, multiplicity, wyckoff) = cryst.sitesyms[i]
+            push!(descr, "Wyckoff $multiplicity$wyckoff (site sym. '$symbol')")
         end
         if isempty(descr)
             push!(descr, "Class $c")

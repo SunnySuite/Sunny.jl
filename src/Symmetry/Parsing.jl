@@ -166,10 +166,10 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         end
     end
 
-    groupnum = nothing
+    sg_number = nothing
     for group_header in ("_space_group_it_number", "_symmetry_int_tables_number")
         if group_header in keys(cif)
-            groupnum = parse(Int, cif[group_header][1])
+            sg_number = parse(Int, cif[group_header][1])
         end
     end
 
@@ -186,14 +186,14 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
     end
 
     sg_label = if !isnothing(hm_symbol)
-        if !isnothing(groupnum)
-            "'$hm_symbol' ($groupnum)"
+        if !isnothing(sg_number)
+            "'$hm_symbol' ($sg_number)"
         else
             "'$hm_symbol'"
         end
     else
-        if !isnothing(groupnum)
-            "($groupnum)"
+        if !isnothing(sg_number)
+            "($sg_number)"
         else
             ""
         end
@@ -205,8 +205,8 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
 
     ret = if !isnothing(symops)
         # Use explicitly provided symmetries
-        sg_setting = isnothing(groupnum) ? nothing : sg_setting_from_symops(groupnum, symops)
-        crystal_from_symops(latvecs, positions, classes, symops, sg_label, sg_setting; symprec)
+        sg_setting = isnothing(sg_number) ? nothing : sg_setting_from_symops(sg_number, symops)
+        crystal_from_symops(latvecs, positions, classes, symops, sg_label, sg_number, sg_setting; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
         Crystal(latvecs, positions, hall_symbol; types=classes, symprec)

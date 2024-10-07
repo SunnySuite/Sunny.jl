@@ -59,7 +59,7 @@ function Base.isapprox(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; ato
     return issubset(g1, g2; atol) && issubset(g2, g1; atol)
 end
 
-function transform(s::SymOp, r::Vec3)
+function transform(s::SymOp, r::AbstractVector{<: Number})
     return s.R*r + s.T
 end
 

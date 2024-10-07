@@ -17,6 +17,7 @@ import HCubature: hcubature
 # Specific to Symmetry/
 import CrystalInfoFramework as CIF
 import Spglib
+import Crystalline # for site symmetry lookup
 import RowEchelon: rref!
 
 include("MathBasics.jl")
@@ -32,6 +33,7 @@ include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
 include("Symmetry/MSymOp.jl")
 include("Symmetry/SpacegroupData.jl")
+include("Symmetry/SiteSymmetry.jl")
 include("Symmetry/Crystal.jl")
 include("Symmetry/Bond.jl")
 include("Symmetry/SymmetryAnalysis.jl")

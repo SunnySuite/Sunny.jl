@@ -57,6 +57,12 @@ const standard_setting_for_spglib = map(1:230) do sgnum
     first(all_spacegroup_types_for_symbol(sgnum)).hall_number
 end
 
+# Spacegroup numbers [48, 50, 59, ..., 227, 228] where the Spglib standard
+# setting differs from the ITA one.
+const standard_setting_differs_in_spglib = filter(1:230) do sgnum
+    standard_setting[sgnum] != standard_setting_for_spglib[sgnum]
+end
+
 
 # Map a Hall number to the standard setting as a Hall number
 function standard_setting_for_hall_number(hall_number)
@@ -69,6 +75,7 @@ end
 # sourced from PyXTal,
 # https://github.com/MaterSim/PyXtal/blob/1ba044cace1815d450e476a1fcb2fe8cb5798923/pyxtal/database/HM_Full.csv
 
+# FIXME : mapping_to_standard_setting_repr
 const transform_to_standard_setting_repr = [
     "a,b,c", "a,b,c", "a,b,c", "c,a,b", "b,c,a", "a,b,c", "c,a,b", "b,c,a",
     "a,b,c", "c,-b,a", "c,b,-a-c", "c,a,b", "a,c,-b", "-a-c,c,b", "b,c,a",
@@ -166,6 +173,8 @@ function transform_to_standard_setting(hall_number)
     return SymOp(P, p)
 end
 
+# FIXME: NAME mapping_to_standard_setting_from_symops
+
 # Given a spacegroup number and a table of symops, try to infer the affine map
 # that transforms to the ITA standard setting.
 function sg_setting_from_symops(sgnum, symops)
@@ -182,6 +191,7 @@ function sg_setting_from_symops(sgnum, symops)
     end
 end
 
+# FIXME: NAME mapping_to_standard_setting_from_spglib_dataset
 
 # Returns the affine map from an arbitrary Spglib-inferred dataset to the ITA
 # standard setting.
@@ -209,3 +219,34 @@ function sg_setting_from_spglib_dataset(d::Spglib.Dataset)
     # Return the composed mapping
     return std_from_spglib * spglib_from_any
 end
+
+# Centering type for each spacegroup 1..230 following ITA standard setting
+const standard_centerings = [
+    'P', 'P', 'P', 'P', 'C', 'P', 'P', 'C', 'C', 'P', 'P', 'C', 'P', 'P', 'C',
+    'P', 'P', 'P', 'P', 'C', 'C', 'F', 'I', 'I', 'P', 'P', 'P', 'P', 'P', 'P',
+    'P', 'P', 'P', 'P', 'C', 'C', 'C', 'A', 'A', 'A', 'A', 'F', 'F', 'I', 'I',
+    'I', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
+    'P', 'P', 'C', 'C', 'C', 'C', 'C', 'C', 'F', 'F', 'I', 'I', 'I', 'I', 'P',
+    'P', 'P', 'P', 'I', 'I', 'P', 'I', 'P', 'P', 'P', 'P', 'I', 'I', 'P', 'P',
+    'P', 'P', 'P', 'P', 'P', 'P', 'I', 'I', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
+    'P', 'I', 'I', 'I', 'I', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'I', 'I',
+    'I', 'I', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
+    'P', 'P', 'P', 'I', 'I', 'I', 'I', 'P', 'P', 'P', 'R', 'P', 'R', 'P', 'P',
+    'P', 'P', 'P', 'P', 'R', 'P', 'P', 'P', 'P', 'R', 'R', 'P', 'P', 'P', 'P',
+    'R', 'R', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
+    'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
+    'F', 'I', 'P', 'I', 'P', 'P', 'F', 'F', 'I', 'P', 'I', 'P', 'P', 'F', 'F',
+    'I', 'P', 'P', 'I', 'P', 'F', 'I', 'P', 'F', 'I', 'P', 'P', 'P', 'P', 'F',
+    'F', 'F', 'F', 'I', 'I'
+]
+
+# Primitive basis in multiples of the lattice vectors for the ITA standard
+# setting.
+const standard_primitive_basis = Dict(
+    'P' => SA[1 0 0; 0 1 0; 0 0 1],
+    'C' => SA[1/2 1/2 0; -1/2 1/2 0; 0 0 1],
+    'F' => SA[0 1/2 1/2; 1/2 0 1/2; 1/2 1/2 0],
+    'I' => SA[-1/2 1/2 1/2; 1/2 -1/2 1/2; 1/2 1/2 -1/2],
+    'A' => SA[1 0 0; 0 1/2 -1/2; 0 1/2 1/2],
+    'R' => SA[2/3 -1/3 -1/3; 1/3 1/3 -2/3; 1/3 1/3 1/3],
+)
