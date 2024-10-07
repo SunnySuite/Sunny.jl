@@ -287,8 +287,9 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     sg_number = d.spacegroup_number
 
     # Accept mapping to the Spglib-standard instead of ITA setting. These may
-    # differ by origin choice (1 vs 2). See `sg_setting_from_spglib_dataset`
-    # for an attempt to always map to the ITA setting.
+    # differ by origin choice (1 vs 2). TODO: Try using
+    # `mapping_to_standard_setting_from_spglib_dataset` to convert to the ITA
+    # setting?
     sg_setting = SymOp(d.transformation_matrix, d.origin_shift)
 
     # Renumber class indices so that they go from 1:max_class.
@@ -483,7 +484,7 @@ function crystal_from_hall_number(latvecs::Mat3, positions::Vector{Vec3}, types:
     symops = SymOp.(Rs, Ts)
     sg_label = spacegroup_label(Int(hall_number))
     sg_number = Int(all_spacegroup_types[hall_number].number)
-    sg_setting = transform_to_standard_setting(hall_number)
+    sg_setting = mapping_to_standard_setting(hall_number)
     return crystal_from_symops(latvecs, positions, types, symops, sg_label, sg_number, sg_setting; symprec)
 end
 

@@ -205,7 +205,7 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
 
     ret = if !isnothing(symops)
         # Use explicitly provided symmetries
-        sg_setting = isnothing(sg_number) ? nothing : sg_setting_from_symops(sg_number, symops)
+        sg_setting = isnothing(sg_number) ? nothing : mapping_to_standard_setting_from_symops(sg_number, symops)
         crystal_from_symops(latvecs, positions, classes, symops, sg_label, sg_number, sg_setting; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol

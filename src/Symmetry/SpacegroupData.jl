@@ -75,8 +75,7 @@ end
 # sourced from PyXTal,
 # https://github.com/MaterSim/PyXtal/blob/1ba044cace1815d450e476a1fcb2fe8cb5798923/pyxtal/database/HM_Full.csv
 
-# FIXME : mapping_to_standard_setting_repr
-const transform_to_standard_setting_repr = [
+const mapping_to_standard_setting_repr = [
     "a,b,c", "a,b,c", "a,b,c", "c,a,b", "b,c,a", "a,b,c", "c,a,b", "b,c,a",
     "a,b,c", "c,-b,a", "c,b,-a-c", "c,a,b", "a,c,-b", "-a-c,c,b", "b,c,a",
     "-b,a,c", "b,-a-c,c", "a,b,c", "c,a,b", "b,c,a", "a,b,c", "-a-c,b,a",
@@ -161,8 +160,8 @@ const transform_to_standard_setting_repr = [
 # Returns the affine transformation (P, p) that maps a position (direct lattice
 # units) in the setting of hall_number to a position in the standard setting
 # (different direct lattice units): xₛ = P x + p.
-function transform_to_standard_setting(hall_number)
-    op = parse_op(replace(transform_to_standard_setting_repr[hall_number],
+function mapping_to_standard_setting(hall_number)
+    op = parse_op(replace(mapping_to_standard_setting_repr[hall_number],
                  "a"=>"x", "b"=>"y", "c"=>"z"))
     # A crystal position in global coordinates can be viewed as a contraction of
     # lattice vectors and coefficients, [a, b, c]ᵀ [x, y, z]. Transformation of
@@ -173,11 +172,9 @@ function transform_to_standard_setting(hall_number)
     return SymOp(P, p)
 end
 
-# FIXME: NAME mapping_to_standard_setting_from_symops
-
 # Given a spacegroup number and a table of symops, try to infer the affine map
 # that transforms to the ITA standard setting.
-function sg_setting_from_symops(sgnum, symops)
+function mapping_to_standard_setting_from_symops(sgnum, symops)
     sgts = filter(all_spacegroup_types_for_symbol(sgnum)) do sgt
         Rs, Ts = Spglib.get_symmetry_from_database(sgt.hall_number)
         SymOp.(Rs, Ts) ≈ symops
@@ -187,11 +184,9 @@ function sg_setting_from_symops(sgnum, symops)
         # Cannot be matched to any of the Hall number settings
         return nothing
     else
-        return transform_to_standard_setting(only(sgts).hall_number)
+        return mapping_to_standard_setting(only(sgts).hall_number)
     end
 end
-
-# FIXME: NAME mapping_to_standard_setting_from_spglib_dataset
 
 # Returns the affine map from an arbitrary Spglib-inferred dataset to the ITA
 # standard setting.
@@ -207,14 +202,14 @@ end
 # Spglib infers the spacegroup. However, for user-provided spacegroups, Sunny
 # will instead adopt the ITA-standard setting for compatibility with
 # Crystalline.jl, Brillouin.jl, etc.
-function sg_setting_from_spglib_dataset(d::Spglib.Dataset)
+function mapping_to_standard_setting_from_spglib_dataset(d::Spglib.Dataset)
     # Map from an arbitrary setting (inferred by Spglib) to the Spglib standard
     # setting
     spglib_from_any = SymOp(d.transformation_matrix, d.origin_shift)
 
     # Map from the Spglib standard setting to the ITA one
     hall_spglib = standard_setting_for_spglib[d.spacegroup_number]
-    std_from_spglib = transform_to_standard_setting(hall_spglib)
+    std_from_spglib = mapping_to_standard_setting(hall_spglib)
 
     # Return the composed mapping
     return std_from_spglib * spglib_from_any

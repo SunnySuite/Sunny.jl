@@ -125,7 +125,7 @@ end
     # Check conversions between settings for different Hall numbers
     for hall1 in 1:530
         hall2 = Sunny.standard_setting_for_hall_number(hall1)
-        P = Sunny.transform_to_standard_setting(hall1)
+        P = Sunny.mapping_to_standard_setting(hall1)
         g1 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall1)...)
         g2 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall2)...)
         @test [inv(P) * s * P for s in g2] ≈ g1
