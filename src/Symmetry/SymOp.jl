@@ -29,7 +29,7 @@ function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
             push!(terms, number_to_math_string(Ti; atol, digits))
         end
         terms_str = if isempty(terms)
-            push!(terms, "0")
+            "0"
         else
             replace(join(terms, "+"), "+-" => "-")
         end

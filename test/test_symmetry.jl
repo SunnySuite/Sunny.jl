@@ -136,7 +136,7 @@ end
     # Trigonal spacegroup in standard hexagonal setting
     latvecs = lattice_vectors(1, 1, 1.2, 90, 90, 120)
     cryst = Crystal(latvecs, [[0, 0, 0]], 160)
-    @test cryst.sitesyms[1].symbol == "3m1" # FIXME: "3m"
+    @test cryst.sitesyms[1].symbol == "3m"
 
     # Same spacegroup in rhombohedral setting, which is the primitive cell
     cryst2 = Crystal(cryst.prim_latvecs, [[0, 0, 0]], 160)
@@ -152,7 +152,7 @@ end
     cryst = Crystal(lat_vecs, [[0.2, 0.2, 1/2]], 164)
     @test cryst.sitesyms[1].multiplicity == 6
     @test cryst.sitesyms[1].wyckoff == 'h'
-    @test cryst.sitesyms[1].symbol == "2" # FIXME: ".2."
+    @test cryst.sitesyms[1].symbol == ".2."
 
     ### Check settings for monoclinic spacegroup
 

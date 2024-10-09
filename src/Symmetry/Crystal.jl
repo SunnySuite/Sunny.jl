@@ -451,11 +451,11 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
         prim_latvecs = std_latvecs * prim_shape
 
         class_to_sitesym = map(unique(classes)) do c
-            i = findfirst(==(c), classes)
-            r_std = transform(sg_setting, all_positions[i])
-            sym = SiteSymmetry(sg_number, r_std; symprec)
-            @assert sym.multiplicity ≈ length(filter(==(c), classes)) / det(sg_setting.R)
-            c => sym
+            rs = all_positions[findall(==(c), classes)]
+            rs_std = [transform(sg_setting, r) for r in rs]
+            sitesym = search_site_symmetry(sg_number, rs_std; symprec)
+            @assert sitesym.multiplicity ≈ length(rs) / det(sg_setting.R)
+            c => sitesym
         end
         sitesyms = getindex.(Ref(Dict(class_to_sitesym)), classes)
     end
