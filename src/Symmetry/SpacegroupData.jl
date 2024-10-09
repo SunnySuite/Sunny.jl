@@ -215,33 +215,20 @@ function mapping_to_standard_setting_from_spglib_dataset(d::Spglib.Dataset)
     return std_from_spglib * spglib_from_any
 end
 
-# Centering type for each spacegroup 1..230 following ITA standard setting
-const standard_centerings = [
-    'P', 'P', 'P', 'P', 'C', 'P', 'P', 'C', 'C', 'P', 'P', 'C', 'P', 'P', 'C',
-    'P', 'P', 'P', 'P', 'C', 'C', 'F', 'I', 'I', 'P', 'P', 'P', 'P', 'P', 'P',
-    'P', 'P', 'P', 'P', 'C', 'C', 'C', 'A', 'A', 'A', 'A', 'F', 'F', 'I', 'I',
-    'I', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
-    'P', 'P', 'C', 'C', 'C', 'C', 'C', 'C', 'F', 'F', 'I', 'I', 'I', 'I', 'P',
-    'P', 'P', 'P', 'I', 'I', 'P', 'I', 'P', 'P', 'P', 'P', 'I', 'I', 'P', 'P',
-    'P', 'P', 'P', 'P', 'P', 'P', 'I', 'I', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
-    'P', 'I', 'I', 'I', 'I', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'I', 'I',
-    'I', 'I', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
-    'P', 'P', 'P', 'I', 'I', 'I', 'I', 'P', 'P', 'P', 'R', 'P', 'R', 'P', 'P',
-    'P', 'P', 'P', 'P', 'R', 'P', 'P', 'P', 'P', 'R', 'R', 'P', 'P', 'P', 'P',
-    'R', 'R', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
-    'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P',
-    'F', 'I', 'P', 'I', 'P', 'P', 'F', 'F', 'I', 'P', 'I', 'P', 'P', 'F', 'F',
-    'I', 'P', 'P', 'I', 'P', 'F', 'I', 'P', 'F', 'I', 'P', 'P', 'P', 'P', 'F',
-    'F', 'F', 'F', 'I', 'I'
-]
+# Centering type for each spacegroup 1..230 following ITA standard setting.
+# Possible values: 'P' (simple), 'C', 'A' (Base), 'I' (Body), 'F' (Face), 'R'
+# (Rhombohedral).
+const standard_centerings = map(standard_setting) do hall_number
+    first(all_spacegroup_types[hall_number].international_short)
+end
 
 # Primitive basis in multiples of the lattice vectors for the ITA standard
 # setting.
 const standard_primitive_basis = Dict(
     'P' => SA[1 0 0; 0 1 0; 0 0 1],
     'C' => SA[1/2 1/2 0; -1/2 1/2 0; 0 0 1],
-    'F' => SA[0 1/2 1/2; 1/2 0 1/2; 1/2 1/2 0],
-    'I' => SA[-1/2 1/2 1/2; 1/2 -1/2 1/2; 1/2 1/2 -1/2],
     'A' => SA[1 0 0; 0 1/2 -1/2; 0 1/2 1/2],
+    'I' => SA[-1/2 1/2 1/2; 1/2 -1/2 1/2; 1/2 1/2 -1/2],
+    'F' => SA[0 1/2 1/2; 1/2 0 1/2; 1/2 1/2 0],
     'R' => SA[2/3 -1/3 -1/3; 1/3 1/3 -2/3; 1/3 1/3 1/3],
 )

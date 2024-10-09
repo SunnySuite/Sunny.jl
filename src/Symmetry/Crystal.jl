@@ -126,9 +126,10 @@ Volume of the crystal unit cell.
 cell_volume(cryst::Crystal) = abs(det(cryst.latvecs))
 
 
+# Human-readable spacegroup + setting.
 function spacegroup_label(hall_number::Int)
-    # String representation of space group
     sgt = Spglib.get_spacegroup_type(hall_number)
+    # Note that sgt.international is more verbose than sgt.international_full
     return "'$(sgt.international)' ($(sgt.number))"
 end
 
@@ -287,16 +288,17 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     sg_number = d.spacegroup_number
 
     # Accept mapping to the Spglib-standard instead of ITA setting. These may
-    # differ by origin choice (1 vs 2). TODO: Try using
-    # `mapping_to_standard_setting_from_spglib_dataset` to convert to the ITA
-    # setting?
+    # differ by origin choice (1 vs 2). See also comment above
+    # `mapping_to_standard_setting_from_spglib_dataset` which describes why
+    # converting to ITA setting is difficult.
     sg_setting = SymOp(d.transformation_matrix, d.origin_shift)
 
     # Renumber class indices so that they go from 1:max_class.
     classes = [findfirst(==(c), unique(classes)) for c in classes]
     @assert unique(classes) == 1:maximum(classes)
 
-    # Multiplicities for the equivalence classes
+    # Multiplicities for the equivalence classes. FIXME: Use lookup table
+    # instead!
     multiplicities = map(classes) do c
         # atoms that belong to class c
         atoms = findall(==(c), classes)
@@ -339,6 +341,8 @@ function is_spacegroup_type_consistent(sgt, latvecs)
 end
 
 
+# Get the single SpacegroupType associated with symbol that is valid for
+# latvecs. Throw an error if the setting is ambiguous.
 function unique_spacegroup_type(symbol, latvecs; setting=nothing)
     sgts = all_spacegroup_types_for_symbol(symbol)
 
@@ -382,10 +386,15 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
 
         if isnothing(setting)
             if allunique(short_symbols)
+                # Short symbols preferred when unambiguous. For example,
+                # spacegroup 230 is better written "Pccm" than "P 2/c 2/c 2/m".
                 error("Disambiguate with a short symbol: $short_symbols")
             elseif allunique(full_symbols)
+                # Sometimes full symbol is needed. Spacegroup 5 is abbreviated
+                # "C2", but requires "C 1 2 1", "A 1 2 1", ... to disambiguate.
                 error("Disambiguate with a full HM symbol: $full_symbols")
             else
+                # For example, choice "1" or "2" for spacegroup 227.
                 error("Disambiguate with a `setting` option: $settings")
             end
         else
@@ -399,7 +408,8 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
     end
 end
 
-# Builds a crystal from an explicit set of symmetry operations and a minimal set of positions
+# Builds a crystal from an explicit set of symmetry operations and a minimal set
+# of positions
 function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp},
                              sg_label::String, sg_number::Union{Nothing, Int}, sg_setting::Union{Nothing, SymOp}; symprec)
     all_positions = Vec3[]
@@ -428,8 +438,8 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     # Atoms are sorted by contiguous equivalence classes: 1, 2, ..., n
     @assert unique(classes) == 1:maximum(classes)
 
-    recipvecs = 2π*Mat3(inv(latvecs)')
     if isnothing(sg_number) || isnothing(sg_setting)
+        # This data is unavailable
         prim_latvecs = latvecs
         sitesyms = nothing
     else
@@ -450,30 +460,10 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
         sitesyms = getindex.(Ref(Dict(class_to_sitesym)), classes)
     end
 
+    recipvecs = 2π*Mat3(inv(latvecs)')
     ret = Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, sitesyms, symops, sg_label, sg_number, sg_setting, symprec)
     sort_sites!(ret)
     validate(ret)
-
-    # If we don't have information about how this Crystal maps to a standard
-    # spacegroup setting, then attempt to infer it from Spglib.
-    if isnothing(sitesyms)
-        inferred = crystal_from_inferred_symmetry(latvecs, ret.positions, ret.types; symprec, check_cell=false)
-
-        if !isapprox(symops, inferred.symops; atol=symprec)
-            # This warning gets triggered when loading the magnetic cell of an
-            # .mcif as a chemical cell.
-            @warn """Could not infer spacegroup setting. This can happen if the crystal
-                     is incomplete or if the unit cell is non-conventional. Some symmetry
-                     data will be missing."""
-        else
-            # If the inferred symops match the provided ones, then we can use
-            # the inferred Crystal.
-            if sg_number in standard_setting_differs_in_spglib
-                @warn "Using spacegroup origin choice 1 following Spglib conventions"
-            end
-            return inferred
-        end
-    end
 
     return ret
 end
