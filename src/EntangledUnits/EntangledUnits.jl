@@ -244,6 +244,10 @@ function entangle_system(sys::System{M}, units) where M
     # Construct contracted crystal
     contracted_crystal, contraction_info = contract_crystal(sys.crystal, units)
 
+    # Make sure we have a uniform external field
+    @assert allequal(@view sys.extfield[:,:,:,:]) "`EntangledSystems` requires a uniform applied field." 
+    B = sys.extfield[1,1,1,1]
+
     # Determine Ns for local Hilbert spaces (all must be equal). (TODO: Determine if alternative behavior preferable in mixed case.)
     Ns_unit = Ns_in_units(sys, contraction_info)
     Ns_contracted = map(Ns -> prod(Ns), Ns_unit)
@@ -253,6 +257,13 @@ function entangle_system(sys::System{M}, units) where M
     dims = size(sys.dipoles)[1:3]
     spin_infos = [i => Moment(s=(N-1)/2, g=1.0) for (i, N) in enumerate(Ns_contracted)]  # TODO: Decisions about g-factor 
     sys_entangled = System(contracted_crystal, spin_infos, :SUN; dims)
+
+    # Transfer rng from origin system to entangled system
+    sys_entangled.rng.s0 = sys.rng.s0
+    sys_entangled.rng.s1 = sys.rng.s1
+    sys_entangled.rng.s2 = sys.rng.s2
+    sys_entangled.rng.s3 = sys.rng.s3
+    sys_entangled.rng.s4 = sys.rng.s4
 
     # TODO: Extend to inhomogenous systems
     # For each contracted site, scan original interactions and reconstruct as necessary.
@@ -267,9 +278,14 @@ function entangle_system(sys::System{M}, units) where M
         # Pair interactions that become within-unit interactions
         original_interactions = sys.interactions_union[relevant_sites] 
         for (site, interaction) in zip(relevant_sites, original_interactions)
+            # Onsite anisotropy portion
             onsite_original = interaction.onsite
             unit_index = contraction_info.forward[site][2]
             unit_operator += local_op_to_product_space(onsite_original, unit_index, Ns)
+
+            # Zeeman portion
+            S = [local_op_to_product_space(S, unit_index, Ns) for S in spin_matrices((Ns[unit_index]-1)/2)]
+            unit_operator += Hermitian((sys.gs[1, 1, 1, site] * B)' * S)
         end
 
         # Sort all PairCouplings in couplings that will be within a unit and couplings that will be between units

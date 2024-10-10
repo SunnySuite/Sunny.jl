@@ -87,3 +87,17 @@ function repeat_periodically(esys, counts)
 
     return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
 end
+
+function resize_supercell(esys::EntangledSystem, dims::NTuple{3,Int})
+    (; sys, sys_origin, contraction_info) = esys
+
+    # Resize both entangled and original system periodically
+    sys_new = reshape_supercell(sys, diagm(Vec3(dims)))
+    sys_origin_new = reshape_supercell(sys_origin, diagm(Vec3(dims)))
+
+    # Construct dipole operator field for reshaped EntangledSystem
+    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
+    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
+
+    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
+end
