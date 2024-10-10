@@ -97,16 +97,6 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         labels = types
     end
 
-    multiplicities = nothing
-    if "_atom_site_symmetry_multiplicity" in names(geo_table)
-        multiplicities = parse.(Int, geo_table[:, "_atom_site_symmetry_multiplicity"])
-    end
-
-    wyckoffs = nothing
-    if "_atom_site_wyckoff_symbol" in names(geo_table)
-        wyckoffs = String.(geo_table[:, "_atom_site_wyckoff_symbol"])
-    end
-
     # Try to infer symprec from coordinate strings. TODO: Use uncertainty
     # information if available from .cif
     if isnothing(symprec)

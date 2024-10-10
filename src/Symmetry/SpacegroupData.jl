@@ -189,19 +189,11 @@ function mapping_to_standard_setting_from_symops(sgnum, symops)
 end
 
 # Returns the affine map from an arbitrary Spglib-inferred dataset to the ITA
-# standard setting.
-# 
-# This function, in retrospect, has undesirable behaviors. For example, if you
-# initialize diamond-cubic positions (spacegroup 227) under the ITA standard
-# setting (choice=2), ask Spglib to infer the setting, then call this function,
-# it will return an origin_shift of [0.5, 0, 0] rather than the natural choice,
-# [0, 0, 0]. This unusual shift can be rationalized as a swap of Wyckoff 8a and
-# Wyckoff 8b, which is very confusing to the user.
-#
-# To simplify things, Sunny will therefore use the Spglib-standard setting when
-# Spglib infers the spacegroup. However, for user-provided spacegroups, Sunny
-# will instead adopt the ITA-standard setting for compatibility with
-# Crystalline.jl, Brillouin.jl, etc.
+# standard setting. Beware that this function may lead to some strange
+# behaviors. For example, suppose one initializes diamond-cubic positions
+# (spacegroup 227) under the ITA standard setting (choice=2). When Spglib infers
+# the setting (assuming choice=1), this function will lead to an origin shift of
+# [0.5, 0, 0]; this, in turn, will effectively swap the Wyckoffs 8a and 8b.
 function mapping_to_standard_setting_from_spglib_dataset(d::Spglib.Dataset)
     # Map from an arbitrary setting (inferred by Spglib) to the Spglib standard
     # setting
