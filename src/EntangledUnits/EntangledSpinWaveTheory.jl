@@ -255,6 +255,26 @@ function excitations!(T, tmp, swt::EntangledSpinWaveTheory, q)
     end
 end
 
+# No changes
+function excitations(swt::EntangledSpinWaveTheory, q)
+    L = nbands(swt)
+    T = zeros(ComplexF64, 2L, 2L)
+    H = zeros(ComplexF64, 2L, 2L)
+    energies = excitations!(T, copy(H), swt, q)
+    return (energies, T)
+end
+
+# No changes
+function dispersion(swt::EntangledSpinWaveTheory, qpts)
+    L = nbands(swt)
+    qpts = convert(AbstractQPoints, qpts)
+    disp = zeros(L, length(qpts.qs))
+    for (iq, q) in enumerate(qpts.qs)
+        view(disp, :, iq) .= view(excitations(swt, q)[1], 1:L)
+    end
+    return reshape(disp, L, size(qpts.qs)...)
+end
+
 # Only change is no Ewald
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheory, q_reshaped::Vec3)
     (; sys) = swt

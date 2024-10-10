@@ -80,7 +80,7 @@ function EntangledSystem(sys::System{N}, units) where {N}
     # contracted system) in terms of the atom index (of the uncontracted
     # system).
     dipole_operators_origin = all_dipole_observables(sys_origin; apply_g=false) 
-    (; observables, source_idcs)  = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
+    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
 
     esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables, source_idcs)
 

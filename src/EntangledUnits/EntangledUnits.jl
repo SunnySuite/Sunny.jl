@@ -258,6 +258,13 @@ function entangle_system(sys::System{M}, units) where M
     spin_infos = [i => Moment(s=(N-1)/2, g=1.0) for (i, N) in enumerate(Ns_contracted)]  # TODO: Decisions about g-factor 
     sys_entangled = System(contracted_crystal, spin_infos, :SUN; dims)
 
+    # Transfer rng from origin system to entangled system
+    sys_entangled.rng.s0 = sys.rng.s0
+    sys_entangled.rng.s1 = sys.rng.s1
+    sys_entangled.rng.s2 = sys.rng.s2
+    sys_entangled.rng.s3 = sys.rng.s3
+    sys_entangled.rng.s4 = sys.rng.s4
+
     # TODO: Extend to inhomogenous systems
     # For each contracted site, scan original interactions and reconstruct as necessary.
     new_pair_data = Tuple{Bond, Matrix{ComplexF64}}[]
