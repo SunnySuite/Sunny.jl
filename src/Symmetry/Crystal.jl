@@ -56,19 +56,19 @@ cryst = Crystal(latvecs, positions, 227; setting="1")
 See also [`lattice_vectors`](@ref).
 """
 struct Crystal
-    root           :: Union{Nothing, Crystal}              # Root crystal (invariant under `subcrystal` and reshaping)
-    latvecs        :: Mat3                                 # Lattice vectors as columns
-    prim_latvecs   :: Mat3                                 # Primitive lattice vectors
-    recipvecs      :: Mat3                                 # Reciprocal lattice vectors (conventional)
-    positions      :: Vector{Vec3}                         # Positions in fractional coords
-    types          :: Vector{String}                       # Types
-    classes        :: Vector{Int}                          # Class indices
-    sitesyms       :: Union{Nothing, Vector{SiteSymmetry}} # Optional site symmetries
-    symops         :: Vector{SymOp}                        # Symmetry operations
-    sg_label       :: String                               # Description of space group
-    sg_number      :: Union{Nothing, Int}                  # International spacegroup number (1..230)
-    sg_setting     :: Union{Nothing, SymOp}                # Operator P that maps to standard setting, xₛ = P x (ITA or Spglib)
-    symprec        :: Float64                              # Tolerance to imperfections in symmetry
+    root         :: Union{Nothing, Crystal}         # Root crystal (invariant under `subcrystal` and reshaping)
+    latvecs      :: Mat3                            # Lattice vectors as columns
+    prim_latvecs :: Mat3                            # Primitive lattice vectors
+    recipvecs    :: Mat3                            # Reciprocal lattice vectors (conventional)
+    positions    :: Vector{Vec3}                    # Positions in fractional coords
+    types        :: Vector{String}                  # Types
+    classes      :: Vector{Int}                     # Class indices
+    wyckoffs     :: Union{Nothing, Vector{Wyckoff}} # Wyckoff data
+    symops       :: Vector{SymOp}                   # Symmetry operations
+    sg_label     :: String                          # Description of space group
+    sg_number    :: Union{Nothing, Int}             # International spacegroup number (1..230)
+    sg_setting   :: Union{Nothing, SymOp}           # Operator P that maps to standard setting, xₛ = P x (ITA or Spglib)
+    symprec      :: Float64                         # Tolerance to imperfections in symmetry
 end
 
 # Constructs a crystal from the complete list of atom positions `positions`,
@@ -140,8 +140,8 @@ function permute_sites!(cryst::Crystal, p)
     cryst.positions .= cryst.positions[p]
     cryst.classes .= cryst.classes[p]
     cryst.types .= cryst.types[p]
-    if !isnothing(cryst.sitesyms)
-        cryst.sitesyms .= cryst.sitesyms[p]
+    if !isnothing(cryst.wyckoffs)
+        cryst.wyckoffs .= cryst.wyckoffs[p]
     end
 end
 
@@ -309,10 +309,9 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
         # sum over all equivalent atoms in the primitive cell
         sum(counts)
     end
+    wyckoffs = Wyckoff.(multiplicities, d.wyckoffs, d.site_symmetry_symbols)
 
-    sitesyms = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
-
-    ret = Crystal(nothing, latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sitesyms, symops, sg_label, sg_number, sg_setting, symprec)
+    ret = Crystal(nothing, latvecs, d.primitive_lattice, recipvecs, positions, types, classes, wyckoffs, symops, sg_label, sg_number, sg_setting, symprec)
     validate(ret)
     return ret
 end
@@ -441,7 +440,7 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     if isnothing(sg_number) || isnothing(sg_setting)
         # This data is unavailable
         prim_latvecs = latvecs
-        sitesyms = nothing
+        wyckoffs = nothing
     else
         # Primitive lattice vectors in units of standard lattice vectors
         prim_shape = standard_primitive_basis[standard_centerings[sg_number]]
@@ -450,18 +449,18 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
         # Primitive lattice vectors
         prim_latvecs = std_latvecs * prim_shape
 
-        class_to_sitesym = map(unique(classes)) do c
+        class_to_wyckoff = map(unique(classes)) do c
             rs = all_positions[findall(==(c), classes)]
             rs_std = [transform(sg_setting, r) for r in rs]
-            sitesym = search_site_symmetry(sg_number, rs_std; symprec)
-            @assert sitesym.multiplicity ≈ length(rs) / det(sg_setting.R)
-            c => sitesym
+            wyckoff = find_wyckoff_for_orbit(sg_number, rs_std; symprec)
+            @assert wyckoff.multiplicity ≈ length(rs) / det(sg_setting.R)
+            c => wyckoff
         end
-        sitesyms = getindex.(Ref(Dict(class_to_sitesym)), classes)
+        wyckoffs = getindex.(Ref(Dict(class_to_wyckoff)), classes)
     end
 
     recipvecs = 2π*Mat3(inv(latvecs)')
-    ret = Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, sitesyms, symops, sg_label, sg_number, sg_setting, symprec)
+    ret = Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, wyckoffs, symops, sg_label, sg_number, sg_setting, symprec)
     sort_sites!(ret)
     validate(ret)
 
@@ -557,7 +556,7 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     new_positions = Vec3[]
     new_types     = String[]
     new_classes   = Int[]
-    new_sitesyms  = isnothing(cryst.sitesyms) ? nothing : SiteSymmetry[]
+    new_wyckoffs  = isnothing(cryst.wyckoffs) ? nothing : Wyckoff[]
 
     for i in 1:natoms(cryst)
         for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]
@@ -572,7 +571,7 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
                 push!(new_positions, y)
                 push!(new_types, cryst.types[i])
                 push!(new_classes, cryst.classes[i])
-                !isnothing(cryst.sitesyms) && push!(new_sitesyms, cryst.sitesyms[i])
+                !isnothing(cryst.wyckoffs) && push!(new_wyckoffs, cryst.wyckoffs[i])
             end
         end
     end
@@ -588,7 +587,7 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     new_symops = SymOp[]
 
     return Crystal(root, new_latvecs, root.prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
-                   new_sitesyms, new_symops, root.sg_label, root.sg_number, root.sg_setting, new_symprec)
+                   new_wyckoffs, new_symops, root.sg_label, root.sg_number, root.sg_setting, new_symprec)
 end
 
 
@@ -626,14 +625,14 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     new_positions = cryst.positions[atoms]
     new_types = cryst.types[atoms]
     new_classes = cryst.classes[atoms]
-    new_sitesyms = isnothing(cryst.sitesyms) ? nothing : cryst.sitesyms[atoms]
+    new_wyckoffs = isnothing(cryst.wyckoffs) ? nothing : cryst.wyckoffs[atoms]
 
     if atoms != 1:maximum(atoms)
         @info "Atoms have been renumbered in subcrystal."
     end
 
     ret = Crystal(root, cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
-                  new_classes, new_sitesyms, cryst.symops, cryst.sg_label, cryst.sg_number, cryst.sg_setting, cryst.symprec)
+                  new_classes, new_wyckoffs, cryst.symops, cryst.sg_label, cryst.sg_number, cryst.sg_setting, cryst.symprec)
     return ret
 end
 
@@ -664,9 +663,9 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
         if cryst.types[i] != ""
             push!(descr, "Type '$(cryst.types[i])'")
         end
-        if !isnothing(cryst.sitesyms)
-            (; symbol, multiplicity, wyckoff) = cryst.sitesyms[i]
-            push!(descr, "Wyckoff $multiplicity$wyckoff (site sym. '$symbol')")
+        if !isnothing(cryst.wyckoffs)
+            (; multiplicity, letter, sitesym) = cryst.wyckoffs[i]
+            push!(descr, "Wyckoff $multiplicity$letter (site sym. '$sitesym')")
         end
         if isempty(descr)
             push!(descr, "Class $c")
@@ -786,7 +785,7 @@ function hyperkagome_crystal(; a=1.0)
     x = 0.141
     p = [1/8, x, x+1/4]
     cryst = Crystal(latvecs, [p], 213)
-    @assert !isnothing(cryst.sitesyms)
+    @assert !isnothing(cryst.wyckoffs)
     return cryst
 end
 

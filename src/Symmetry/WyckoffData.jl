@@ -1,21 +1,21 @@
-struct SiteSymmetry
-    symbol       :: String
+struct Wyckoff
     multiplicity :: Int
-    wyckoff      :: Char
+    letter       :: Char
+    sitesym      :: String
 end
 
-function search_site_symmetry(sg_number, rs; symprec)
+function find_wyckoff_for_orbit(sg_number, rs; symprec)
     for w in reverse(wyckoff_table[sg_number])
-        (mult, letter, symbol, pos) = w
+        (mult, letter, sitesym, pos) = w
         wp = parse_wyckoff_position(pos)
-        if any(r -> belongs_to_wyckoff(r, wp; symprec), rs)
-            return SiteSymmetry(symbol, mult, letter)
+        if any(r -> position_belongs_to_wyckoff(r, wp; symprec), rs)
+            return Wyckoff(mult, letter, sitesym)
         end
     end
     @assert false
 end
 
-# Parses F θ + c for θ = ["x", "y", "z"]. Returns (c, F).
+# Parses "(F θ + c)" for θ = [x, y, z]. Returns (c, F).
 function parse_wyckoff_position(str)
     s = SymOp(str[begin+1:end-1])
     return (; c=s.T, F=s.R)
@@ -25,7 +25,7 @@ end
 # F θ + c = r be satisfied modulo 1 for some θ = [x, y, z]? Let F⁺ denote the
 # pseudo-inverse of F and b = r - c. Multiply both sides by F F⁺, and use the
 # property F F⁺ F = F, to find the constraint F F⁺ b = b mod 1.
-function belongs_to_wyckoff(r, wp; symprec=1e-8)
+function position_belongs_to_wyckoff(r, wp; symprec=1e-8)
     (; c, F) = wp
     b = c - r
     return all_integer(F * pinv(F) * b - b; symprec)

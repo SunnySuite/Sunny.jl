@@ -41,7 +41,7 @@
     positions = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]]
     cryst′ = Crystal(latvecs, positions)
 
-    @test cryst.sitesyms[1] == cryst′.sitesyms[1]
+    @test cryst.wyckoffs[1] == cryst′.wyckoffs[1]
 
     # Calculate interaction table
     ref_bonds = reference_bonds(cryst, 2.)
@@ -136,7 +136,7 @@ end
     # Trigonal spacegroup in standard hexagonal setting
     latvecs = lattice_vectors(1, 1, 1.2, 90, 90, 120)
     cryst = Crystal(latvecs, [[0, 0, 0]], 160)
-    @test cryst.sitesyms[1].symbol == "3m"
+    @test cryst.wyckoffs[1].sitesym == "3m"
 
     # Same spacegroup in rhombohedral setting, which is the primitive cell
     cryst2 = Crystal(cryst.prim_latvecs, [[0, 0, 0]], 160)
@@ -150,9 +150,9 @@ end
     # Inference of Wyckoff symbols
     lat_vecs = lattice_vectors(1, 1, 1.2, 90, 90, 120)
     cryst = Crystal(lat_vecs, [[0.2, 0.2, 1/2]], 164)
-    @test cryst.sitesyms[1].multiplicity == 6
-    @test cryst.sitesyms[1].wyckoff == 'h'
-    @test cryst.sitesyms[1].symbol == ".2."
+    @test cryst.wyckoffs[1].multiplicity == 6
+    @test cryst.wyckoffs[1].letter == 'h'
+    @test cryst.wyckoffs[1].sitesym == ".2."
 
     ### Check settings for monoclinic spacegroup
 
@@ -160,13 +160,13 @@ end
     latvecs = lattice_vectors(1, 1.1, 1.2, 90, 100, 90)
     cryst = Crystal(latvecs, [[0, 0.2, 1/2]], "C 1 2 1")
     @test cryst.sg_label == "'C 2 = C 1 2 1' (5)"
-    @test cryst.sitesyms[1].wyckoff == 'b'
+    @test cryst.wyckoffs[1].letter == 'b'
 
     # Alternative setting
     latvecs2 = reduce(hcat, eachcol(latvecs)[[3, 1, 2]])
     cryst2 = Crystal(latvecs2, [[1/2, 0, 0.2]], "A 1 1 2")
     @test cryst2.sg_label == "'C 2 = A 1 1 2' (5)"
-    @test cryst.sitesyms[1].wyckoff == 'b'
+    @test cryst.wyckoffs[1].letter == 'b'
 
     # Verify `cryst` is already in standard setting
     @test cryst.sg_setting.R ≈ I
