@@ -3,9 +3,6 @@ Base.@deprecate spin_matrices(; N::Int) let
     spin_matrices((N-1)/2)
 end
 
-Base.@deprecate_binding large_S_spin_operators spin_matrices(Inf)
-Base.@deprecate_binding large_S_stevens_operators stevens_matrices(Inf)
-
 Base.@deprecate spin_operators(sys::System, i::Int) let
     @warn "`spin_operators` is deprecated! Use `spin_matrices(spin_label(sys, i))` instead."
     spin_matrices(spin_label(sys, i))
@@ -64,10 +61,6 @@ Base.@deprecate rotation_in_rlu(cryst::Crystal, axis, angle) let
     return rotation_in_rlu(cryst, (axis, angle))
 end
 
-# Consider `units.K` where `units = Units(:meV, :angstrom)`.
-Base.@deprecate_binding meV_per_K Units(:meV, :angstrom).K
-
-
 function Base.getproperty(x::Type{Units}, name::Symbol)
     if name in (:theory, :meV)
         @warn "Units.$name is deprecated! See `Units` docs for new interface."
@@ -109,8 +102,6 @@ Base.@deprecate SpinInfo(i; S, g) let
     @warn "SpinInfo(i; S, g) is deprecated! Use `i => Moment(; s, g)` instead."
     i => Moment(; s=S, g)
 end
-
-Base.@deprecate_binding delta_function_kernel nothing
 
 
 # REMEMBER TO ALSO DELETE:
