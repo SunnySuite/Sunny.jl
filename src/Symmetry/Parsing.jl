@@ -66,7 +66,7 @@ end
 
 # Reads the crystal from a `.cif` file located at the path `filename`.
 function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=false)
-    cif = CIF.Cif(Path(filename))
+    cif = CIF.Cif(filename)
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
 

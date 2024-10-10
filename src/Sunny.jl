@@ -15,7 +15,6 @@ import JLD2
 import HCubature: hcubature
 
 # Specific to Symmetry/
-import FilePathsBase: Path
 import CrystalInfoFramework as CIF
 import Spglib
 import RowEchelon: rref!

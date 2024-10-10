@@ -5,7 +5,7 @@ Load the magnetic supercell according to an mCIF file. System `sys` must already
 be resized to the correct supercell dimensions.
 """
 function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
-    cif = CIF.Cif(Path(filename))
+    cif = CIF.Cif(filename)
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
 
