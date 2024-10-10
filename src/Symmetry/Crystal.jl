@@ -387,14 +387,16 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
             if allunique(short_symbols)
                 # Short symbols preferred when unambiguous. For example,
                 # spacegroup 230 is better written "Pccm" than "P 2/c 2/c 2/m".
-                error("Disambiguate with a short symbol: $short_symbols")
+                error("Disambiguate by replacing `$symbol` with one of $short_symbols")
             elseif allunique(full_symbols)
                 # Sometimes full symbol is needed. Spacegroup 5 is abbreviated
                 # "C2", but requires "C 1 2 1", "A 1 2 1", ... to disambiguate.
-                error("Disambiguate with a full HM symbol: $full_symbols")
+                error("Disambiguate by replacing `$symbol` with one of $full_symbols")
             else
-                # For example, choice "1" or "2" for spacegroup 227.
-                error("Disambiguate with a `setting` option: $settings")
+                # Origin choice "1" or "2" is sufficient to disambiguate
+                @assert settings == ["1", "2"]
+                @assert all(sgt -> in(sgt.number, standard_setting_differs_in_spglib), sgts)
+                error("Choose origin with additional argument setting=\"1\" or setting=\"2\"")
             end
         else
             sgts = filter(sgt -> sgt.choice == setting, sgts)
@@ -774,7 +776,7 @@ end
 
 function pyrochlore_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-    return Crystal(latvecs, [[5/8, 1/8, 1/8]], 227; setting="1")
+    return Crystal(latvecs, [[0, 0, 0]], 227; setting="2")
 end
 
 function hyperkagome_crystal(; a=1.0)

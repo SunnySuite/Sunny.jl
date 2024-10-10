@@ -12,8 +12,8 @@ using Sunny, GLMakie
 
 units = Units(:K, :angstrom)
 latvecs = lattice_vectors(10.19, 10.19, 10.19, 90, 90, 90)
-positions = [[1/8, 1/8, 1/8]]
-cryst = Crystal(latvecs, positions, 227, setting="1")
+positions = [[0, 0, 0]]
+cryst = Crystal(latvecs, positions, 227, setting="2")
 view_crystal(cryst)
 
 # Create a system and reshape to the primitive cell, which contains four atoms.
