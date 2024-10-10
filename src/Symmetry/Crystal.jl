@@ -21,12 +21,12 @@ symmetry information is automatically inferred. The optional parameter `types`
 is a list of strings, one for each atom, and can be used to break
 symmetry-equivalence between atoms.
 
-    Crystal(latvecs, positions, spacegroup; setting=nothing, types=nothing, symprec=1e-5)
+    Crystal(latvecs, positions, spacegroup; choice=nothing, types=nothing, symprec=1e-5)
 
 Builds a crystal by applying symmetry operators for a given `spacegroup` as an
 international number or symbol, e.g., Hermann–Mauguin or Hall. Any ambiguity
-will be reported as an error, and can be resolved with an optional `setting`
-string.
+will be reported as an error. Certain spacegroups require a `choice` of origin
+(1 or 2).
 
 
 # Examples
@@ -47,10 +47,10 @@ types = ["Na", "Cl"]
 cryst = Crystal(latvecs, positions; types)
 
 # Build a diamond cubic crystal from its spacegroup number 227 and a single
-# atom position. This spacegroup has two possible settings ("1" or "2"), which
-# determine an overall unit cell translation.
-positions = [[1/4, 1/4, 1/4]]
-cryst = Crystal(latvecs, positions, 227; setting="1")
+# atom position. This spacegroup allows a choice of origin (1 or 2), which
+# determines an overall unit cell translation.
+positions = [[1/8, 1/8, 1/8]]
+cryst = Crystal(latvecs, positions, 227; choice=2)
 ```
 
 See also [`lattice_vectors`](@ref).
@@ -88,7 +88,19 @@ end
 # Builds a crystal by applying the symmetry operators for a given spacegroup
 # (number or symbol).
 function Crystal(latvecs, positions, symbol::Union{Int, String}; types::Union{Nothing, Vector{String}}=nothing,
-                 setting::Union{Nothing, String}=nothing, symprec=1e-5)
+                 setting=nothing, choice::Union{Nothing, Int}=nothing, symprec=1e-5)
+    if !isnothing(setting)
+        if setting in ("1", "2")
+            @warn "`setting` argument is deprecated! Use `choice=$setting` instead."
+        else
+            @warn "`setting` argument is deprecated! Use a full spacegroup name instead."
+        end
+    end
+    if !isnothing(choice)
+        choice in (1, 2) || error("Origin choice must be 1 or 2.")
+        setting = repr(choice)
+    end
+    
     print_crystal_warnings(latvecs, positions)
     latvecs = convert(Mat3, latvecs)
     positions = [convert(Vec3, p) for p in positions]
@@ -396,7 +408,7 @@ function unique_spacegroup_type(symbol, latvecs; setting=nothing)
                 # Origin choice "1" or "2" is sufficient to disambiguate
                 @assert settings == ["1", "2"]
                 @assert all(sgt -> in(sgt.number, standard_setting_differs_in_spglib), sgts)
-                error("Choose origin with additional argument setting=\"1\" or setting=\"2\"")
+                error("Disambiguate origin with additional argument: choice=1 or choice=2")
             end
         else
             sgts = filter(sgt -> sgt.choice == setting, sgts)
@@ -776,7 +788,7 @@ end
 
 function pyrochlore_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-    return Crystal(latvecs, [[0, 0, 0]], 227; setting="2")
+    return Crystal(latvecs, [[0, 0, 0]], 227; choice=2)
 end
 
 function hyperkagome_crystal(; a=1.0)

@@ -13,13 +13,13 @@
 
 using Sunny, GLMakie
 
-# Build the distorted kagome crystal, with spacegroup 12.
+# Build the distorted kagome crystal, with spacegroup 12 ("C 1 2/m 1" setting).
 
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(10.2, 5.94, 7.81, 90, 117.7, 90)
 positions = [[0, 0, 0], [1/4, 1/4, 0]]
 types = ["Cu1", "Cu2"]
-cryst = Crystal(latvecs, positions, 12; types, setting="b1")
+cryst = Crystal(latvecs, positions, "C 1 2/m 1"; types)
 view_crystal(cryst)
 
 # Define the interactions.

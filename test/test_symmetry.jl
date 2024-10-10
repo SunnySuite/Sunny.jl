@@ -52,7 +52,7 @@ end
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
     positions = [[1, 1, 1] / 4]
     # cryst = Crystal(latvecs, positions, "F d -3 m") # Ambiguous!
-    cryst = Crystal(latvecs, positions, "F d -3 m"; setting="1")
+    cryst = Crystal(latvecs, positions, "F d -3 m"; choice=1)
     ref_bonds = reference_bonds(cryst, 2.)
     dist3 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
@@ -104,7 +104,8 @@ end
     latvecs = lattice_vectors(mono_lat_params...)
     positions = [[0,0,0]]
     # cryst = Crystal(latvecs, positions, "C 2/c")
-    cryst = Crystal(latvecs, positions, "C 2/c", setting="c1")
+    msg = "`setting` argument is deprecated! Use a full spacegroup name instead."
+    cryst = @test_logs (:warn, msg) Crystal(latvecs, positions, "C 2/c", setting="c1")
     @test cell_type(cryst) == Sunny.monoclinic
     @test Sunny.natoms(cryst) == 4
     @test all(lattice_params(cryst) .≈ mono_lat_params)
@@ -307,7 +308,7 @@ end
     import IOCapture
 
     # Pyrochlore
-    cryst = Crystal(Sunny.Mat3(I), [[0, 0, 0]], 227, setting="2")
+    cryst = Crystal(Sunny.Mat3(I), [[0, 0, 0]], 227, choice=2)
     @test cryst.positions ≈ [
         [0, 0, 0], [1/4, 1/4, 0], [1/2, 1/2, 0], [3/4, 3/4, 0], [1/4, 0, 1/4], [0, 1/4, 1/4], [3/4, 1/2, 1/4], [1/2, 3/4, 1/4], [1/2, 0, 1/2], [3/4, 1/4, 1/2], [0, 1/2, 1/2], [1/4, 3/4, 1/2], [3/4, 0, 3/4], [1/2, 1/4, 3/4], [1/4, 1/2, 3/4], [0, 3/4, 3/4],
     ]

@@ -8,12 +8,12 @@
 
 using Sunny, GLMakie
 
-# Create a pyrochlore crystal from spacegroup 227.
+# Create a pyrochlore crystal from spacegroup 227, origin choice 2.
 
 units = Units(:K, :angstrom)
 latvecs = lattice_vectors(10.19, 10.19, 10.19, 90, 90, 90)
 positions = [[0, 0, 0]]
-cryst = Crystal(latvecs, positions, 227, setting="2")
+cryst = Crystal(latvecs, positions, 227; choice=2)
 view_crystal(cryst)
 
 # Create a system and reshape to the primitive cell, which contains four atoms.

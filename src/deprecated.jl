@@ -114,3 +114,4 @@ end
 # * Missing μ0_μB² in enable_dipole_dipole! and
 #   modify_exchange_with_truncated_dipole_dipole!
 # * energy_ϵ argument in SpinWaveTheory
+# * setting argument in Crystal
