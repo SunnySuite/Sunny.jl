@@ -4,6 +4,24 @@ struct Wyckoff
     sitesym      :: String
 end
 
+function crystallographic_orbit(symops, r; symprec)
+    orbit = Vec3[]
+    for s in symops
+        r′ = transform(s, r)
+        if !any(is_periodic_copy.(orbit, Ref(r′); symprec))
+            push!(orbit, wrap_to_unit_cell(r′; symprec))
+        end
+    end
+    return orbit
+end
+
+function find_wyckoff_for_position(sg_number, r; symprec)
+    Rs, Ts = Spglib.get_symmetry_from_database(standard_setting[sg_number])
+    symops = SymOp.(Rs, Ts)
+    rs = crystallographic_orbit(symops, r; symprec)
+    return find_wyckoff_for_orbit(sg_number, rs; symprec)
+end
+
 function find_wyckoff_for_orbit(sg_number, rs; symprec)
     for w in reverse(wyckoff_table[sg_number])
         (mult, letter, sitesym, pos) = w

@@ -178,7 +178,7 @@ end
     # Inference of Wyckoff symbols
     lat_vecs = lattice_vectors(1, 1, 1.2, 90, 90, 120)
     cryst = Crystal(lat_vecs, [[0.2, 0.2, 1/2]], 164)
-    @test Sunny.get_wyckoff(cryst, 1) == Wyckoff(6, 'h', ".2.")
+    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(6, 'h', ".2.")
 
     ### Check settings for monoclinic spacegroup
 
@@ -186,13 +186,13 @@ end
     latvecs = lattice_vectors(1, 1.1, 1.2, 90, 100, 90)
     cryst = Crystal(latvecs, [[0, 0.2, 1/2]], "C 1 2 1")
     @test cryst.sg_label == "'C 2 = C 1 2 1' (5)"
-    @test Sunny.get_wyckoff(cryst, 1).letter == 'Z'
+    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
 
     # Alternative setting
     latvecs2 = reduce(hcat, eachcol(latvecs)[[3, 1, 2]])
     cryst2 = Crystal(latvecs2, [[1/2, 0, 0.2]], "A 1 1 2")
     @test cryst2.sg_label == "'C 2 = A 1 1 2' (5)"
-    @test Sunny.get_wyckoff(cryst, 1).letter == 'Z'
+    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
 
     # Verify `cryst` is already in standard setting
     @test cryst.sg_setting.R ≈ I
@@ -390,8 +390,9 @@ end
         Modified reference frame! Transform using `rotate_operator(op, R)`.
         """
 
+    cryst = Sunny.hyperkagome_crystal()
+    @assert Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(12, 'd', "..2")
     capt = IOCapture.capture() do
-        cryst = Sunny.hyperkagome_crystal()
         print_suggested_frame(cryst, 2)
     end
     @test capt.output == """

@@ -412,7 +412,8 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     all_types = String[]
     classes = Int[]
 
-    # Fill atom positions by applying all symops
+    # Fill atom positions by applying all symops. See crystallographic_orbit
+    # for similar logic.
     for i = eachindex(positions)
         for s = symops
             x = wrap_to_unit_cell(transform(s, positions[i]); symprec)
@@ -455,11 +456,11 @@ end
 
 function get_wyckoff(cryst::Crystal, i::Int)
     (; classes, positions, sg_number, sg_setting, symprec) = cryst
-    c = classes[i]
-    rs = positions[findall(==(c), classes)]
-    rs_std = [transform(sg_setting, r) for r in rs]
-    wyckoff = find_wyckoff_for_orbit(sg_number, rs_std; symprec)
-    @assert wyckoff.multiplicity ≈ length(rs) / det(sg_setting.R)
+    isnothing(sg_number) || isnothing(sg_setting) && return nothing
+    r = transform(sg_setting, positions[i])
+    wyckoff = find_wyckoff_for_position(sg_number, r; symprec)
+    cell_multiplicity = count(==(classes[i]), classes)
+    @assert wyckoff.multiplicity ≈ cell_multiplicity / abs(det(sg_setting.R))
     return wyckoff
 end
 
@@ -777,7 +778,6 @@ function hyperkagome_crystal(; a=1.0)
     # https://materials.springer.com/isp/crystallographic/docs/sd_1723194
     x = 0.141
     cryst = Crystal(latvecs, [[1/8, x, x+1/4]], 213)
-    @assert get_wyckoff(cryst, 1).letter = 'Z'
     return cryst
 end
 
