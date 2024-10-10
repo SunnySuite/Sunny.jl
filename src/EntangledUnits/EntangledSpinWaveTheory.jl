@@ -275,6 +275,33 @@ function dispersion(swt::EntangledSpinWaveTheory, qpts)
     return reshape(disp, L, size(qpts.qs)...)
 end
 
+# No changes
+function energy_per_site_lswt_correction(swt::EntangledSpinWaveTheory; opts...)
+    any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")
+
+    (; sys) = swt
+    Natoms = natoms(sys.crystal)
+    L = nbands(swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    V = zeros(ComplexF64, 2L, 2L)
+
+    # The uniform correction to the classical energy (trace of the (1,1)-block
+    # of the spin-wave Hamiltonian)
+    dynamical_matrix!(H, swt, zero(Vec3))
+    δE₁ = -real(tr(view(H, 1:L, 1:L))) / Natoms
+
+    # Integrate zero-point energy over the first Brillouin zone 𝐪 ∈ [0, 1]³ for
+    # magnetic cell in reshaped RLU
+    δE₂ = hcubature((0,0,0), (1,1,1); opts...) do q_reshaped
+        dynamical_matrix!(H, swt, q_reshaped)
+        ωs = bogoliubov!(V, H)
+        return sum(view(ωs, 1:L)) / 2Natoms
+    end
+
+    # Error bars in δE₂[2] are discarded
+    return δE₁ + δE₂[1]
+end
+
 # Only change is no Ewald
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheory, q_reshaped::Vec3)
     (; sys) = swt
