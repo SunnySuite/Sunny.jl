@@ -73,11 +73,12 @@ end
     ω_ref(q, J, J′) = J*sqrt(1 + 2(J′/J) * cos(2π*q))
     ωs_analytical = ω_ref.([q[1] for q in qs], J, J′)
 
+    set_field!(esys, [0, 0, 0])
     for unit in Sunny.eachunit(esys)
         set_coherent!(esys, [0, 1/√2, -1/√2, 0], unit)
     end
     swt = SpinWaveTheory(esys; measure=Sunny.empty_measurespec(sys), regularization=0.0)
-    disp = dispersion(swt, qptss)
+    disp = dispersion(swt, qpts)
     ωs_numerical = disp[1,:]
 
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
