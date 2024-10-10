@@ -93,3 +93,7 @@ function Base.getproperty(u::Units, name::Symbol)
 
     error("Unknown unit :$name")
 end
+
+
+# Historically provided
+const meV_per_K = Units(:meV, :angstrom).K

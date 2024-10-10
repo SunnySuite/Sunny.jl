@@ -42,7 +42,7 @@ export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primit
     reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame
 
 include("Units.jl")
-export Units
+export Units, meV_per_K
 
 include("FormFactor.jl")
 export FormFactor
@@ -131,9 +131,9 @@ include("Binning/ExperimentData.jl")
 export BinningParameters, load_nxs
 
 include("deprecated.jl")
-export set_external_field!, set_external_field_at!, meV_per_K,
-    dynamic_correlations, instant_correlations, intensity_formula, reciprocal_space_path,
-    delta_function_kernel, set_spiral_order_on_sublattice!, set_spiral_order!
+export set_external_field!, set_external_field_at!, dynamic_correlations,
+    instant_correlations, intensity_formula, reciprocal_space_path,
+    set_spiral_order_on_sublattice!, set_spiral_order!
 
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
