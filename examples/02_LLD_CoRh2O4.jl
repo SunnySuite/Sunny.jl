@@ -18,7 +18,7 @@ using Sunny, GLMakie
 units = Units(:meV, :angstrom)
 a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+cryst = Crystal(latvecs, [[0, 0, 0]], 227; choice=1)
 
 sys = System(cryst, [1 => Moment(s=3/2, g=2)], :dipole)
 J = 0.63 # (meV)

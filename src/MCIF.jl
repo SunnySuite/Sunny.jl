@@ -28,7 +28,8 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
         suggestion = if all(isinteger.(rationalize.(primvecs \ supervecs2; tol)))
             suggested_shape = rationalize.(orig_cryst.latvecs \ supervecs2; tol)
             suggestion = if isdiag(suggested_shape)
-                sz = fractional_vec3_to_string(diag(suggested_shape))
+                diag_strs = number_to_math_string.(diag(suggested_shape))
+                sz = "("*join(diag_strs, ", ")*")"
                 error("Use `resize_supercell(sys, $sz)` to get compatible system")
             else
                 shp = fractional_mat3_to_string(suggested_shape)
