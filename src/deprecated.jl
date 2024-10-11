@@ -103,6 +103,12 @@ Base.@deprecate SpinInfo(i; S, g) let
     i => Moment(; s=S, g)
 end
 
+function Base.getproperty(value::Crystal, name::Symbol)
+    if name == :prim_latvecs
+        error("Use `primitive_cell(cryst)` instead of `cryst.latvecs \\ cryst.prim_latvecs`")
+    end
+    return getfield(value, name)
+end
 
 # REMEMBER TO ALSO DELETE:
 #

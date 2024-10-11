@@ -20,7 +20,7 @@ view_crystal(cryst)
 # Add antiferromagnetic nearest neighbor exchange interactions.
 
 sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole; seed=0)
-sys = reshape_supercell(sys, cryst.latvecs \ cryst.prim_latvecs)
+sys = reshape_supercell(sys, primitive_cell(cryst))
 J1 = 0.304 # (K)
 set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
 

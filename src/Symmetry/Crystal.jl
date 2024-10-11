@@ -65,7 +65,6 @@ See also [`lattice_vectors`](@ref).
 struct Crystal
     root         :: Union{Nothing, Crystal}         # Root crystal (invariant under `subcrystal` and reshaping)
     latvecs      :: Mat3                            # Lattice vectors as columns
-    prim_latvecs :: Mat3                            # Primitive lattice vectors
     recipvecs    :: Mat3                            # Reciprocal lattice vectors (conventional)
     positions    :: Vector{Vec3}                    # Positions in fractional coords
     types        :: Vector{String}                  # Types
@@ -305,7 +304,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     classes = [findfirst(==(c), unique(classes)) for c in classes]
     @assert unique(classes) == 1:maximum(classes)
 
-    ret = Crystal(nothing, latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sg, symprec)
+    ret = Crystal(nothing, latvecs, recipvecs, positions, types, classes, sg, symprec)
     validate(ret)
     for i in 1:natoms(ret)
         w = get_wyckoff(ret, i)
@@ -439,20 +438,8 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     # Atoms are sorted by contiguous equivalence classes: 1, 2, ..., n
     @assert unique(classes) == 1:maximum(classes)
 
-    # FIXME: Move to separate function
-    if isnothing(sg.number) || isnothing(sg.setting)
-        prim_latvecs = latvecs # Unknown
-    else
-        # Primitive lattice vectors in units of standard lattice vectors
-        prim_shape = standard_primitive_basis[standard_centerings[sg.number]]
-        # Lattice vectors of standard setting
-        std_latvecs = latvecs * inv(sg.setting.R)
-        # Primitive lattice vectors
-        prim_latvecs = std_latvecs * prim_shape
-    end
-
     recipvecs = 2π*Mat3(inv(latvecs)')
-    ret = Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, sg, symprec)
+    ret = Crystal(nothing, latvecs, recipvecs, all_positions, all_types, classes, sg, symprec)
     sort_sites!(ret)
     validate(ret)
 
@@ -481,39 +468,48 @@ end
 
 
 """
-    primitive_cell_shape(cryst::Crystal)
+    primitive_cell(cryst)
 
-Returns the shape of the primitive cell as a 3×3 matrix, in fractional
-coordinates of the conventional lattice vectors. May be useful for constructing
-inputs to [`reshape_supercell`](@ref).
+The shape of a primitive cell in multiples of the lattice vectors for `cryst`.
+Specifically, columns of `cryst.latvecs * primitive(cryst)` define the primitive
+lattice vectors in global Cartesian coordinates. Returns `nothing` if spacegroup
+setting information is missing.
 
-# Examples
-```julia
-# Valid if `cryst` has not been reshaped
-@assert cryst.prim_latvecs ≈ cryst.latvecs * primitive_cell_shape(cryst)
-```
+This function may be useful for constructing inputs to
+[`reshape_supercell`](@ref).
 """
-function primitive_cell_shape(cryst::Crystal)
-    root = @something cryst.root cryst
-    if isnothing(root.prim_latvecs)
-        error("Primitive lattice vectors not available.")
-    end
-    return root.latvecs \ root.prim_latvecs
+function primitive_cell(cryst::Crystal)
+    cryst = @something cryst.root cryst
+    (; number, setting) = cryst.sg
+    isnothing(setting) && return nothing
+
+    # Primitive lattice vectors in units of ITA standard lattice vectors
+    prim_shape = standard_primitive_basis[standard_centerings[number]]
+
+    # Lattice vectors of ITA standard setting:
+    #     std_latvecs = cryst.latvecs * inv(setting.R)
+    # Primitive lattice vectors:
+    #     prim_latvecs = std_latvecs * prim_shape
+    # Primitive shape units of cryst.latvecs
+    #     return inv(cryst.latvecs) * prim_latvecs
+
+    # Shortcut for above
+    return setting.R \ prim_shape
 end
 
 
 function check_shape_commensurate(cryst, shape)
-    root = @something cryst.root cryst
-    if !isnothing(root.prim_latvecs)
-        shape = root.prim_latvecs \ root.latvecs * shape
-    end
+    # Primitive lattice vectors in global Cartesian coordinates
+    prim_cell = primitive_cell(cryst)
 
-    # Each of these components must be integer
-    if !(round.(shape) ≈ shape)
-        if !isnothing(root.prim_latvecs)
-            error("Cell shape must be integer multiples of primitive lattice vectors. Calculated $shape.")
-        else
+    if isnothing(prim_cell)
+        if !all_integer(shape; cryst.symprec)
             error("Cell shape must be a 3×3 matrix of integers. Received $shape.")
+        end
+    else
+        shape_in_prim = prim_cell \ shape
+        if !all_integer(shape_in_prim; cryst.symprec)
+            error("Cell shape must be integer multiples of primitive lattice vectors. Calculated $shape_in_prim.")
         end
     end
 end
@@ -587,8 +583,7 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     # `root.sg.setting.R * new_shape`, but this isn't currently needed.
     new_sg = SpacegroupInfo(SymOp[], root.sg.label, root.sg.number, nothing)
 
-    return Crystal(root, new_latvecs, root.prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
-                   new_sg, new_symprec)
+    return Crystal(root, new_latvecs, new_recipvecs, new_positions, new_types, new_classes, new_sg, new_symprec)
 end
 
 
@@ -631,8 +626,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
         @info "Atoms have been renumbered in subcrystal."
     end
 
-    ret = Crystal(root, cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
-                  new_classes, cryst.sg, cryst.symprec)
+    ret = Crystal(root, cryst.latvecs, cryst.recipvecs, new_positions, new_types, new_classes, cryst.sg, cryst.symprec)
     return ret
 end
 

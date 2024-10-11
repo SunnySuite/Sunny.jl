@@ -167,8 +167,9 @@ end
     @test Sunny.get_wyckoff(cryst, 1).sitesym == "3m"
 
     # Same spacegroup in rhombohedral setting, which is the primitive cell
-    cryst2 = Crystal(cryst.prim_latvecs, [[0, 0, 0]], 160)
-    @test cryst2.prim_latvecs ≈ cryst2.latvecs
+    prim_latvecs = cryst.latvecs * primitive_cell(cryst)
+    cryst2 = Crystal(prim_latvecs, [[0, 0, 0]], 160)
+    @test primitive_cell(cryst2) ≈ I
 
     # Check equivalence of positions
     @test cryst.latvecs * cryst.positions[1] ≈ [0, 0, 0]
@@ -201,7 +202,9 @@ end
     @test cryst.latvecs ≈ cryst2.latvecs * inv(cryst2.sg.setting.R)
 
     # Primitive lattice vectors are alway standardized
-    @test cryst.prim_latvecs ≈ cryst2.prim_latvecs
+    prim_latvecs1 = cryst.latvecs * primitive_cell(cryst)
+    prim_latvecs2 = cryst2.latvecs * primitive_cell(cryst2)
+    @test prim_latvecs1 ≈ prim_latvecs2
 end
 
 
