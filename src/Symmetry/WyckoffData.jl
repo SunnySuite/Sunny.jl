@@ -15,15 +15,15 @@ function crystallographic_orbit(symops, r; symprec)
     return orbit
 end
 
-function find_wyckoff_for_position(sg_number, r; symprec)
-    Rs, Ts = Spglib.get_symmetry_from_database(standard_setting[sg_number])
+function find_wyckoff_for_position(sgnum, r; symprec)
+    Rs, Ts = Spglib.get_symmetry_from_database(standard_setting[sgnum])
     symops = SymOp.(Rs, Ts)
     rs = crystallographic_orbit(symops, r; symprec)
-    return find_wyckoff_for_orbit(sg_number, rs; symprec)
+    return find_wyckoff_for_orbit(sgnum, rs; symprec)
 end
 
-function find_wyckoff_for_orbit(sg_number, rs; symprec)
-    for w in reverse(wyckoff_table[sg_number])
+function find_wyckoff_for_orbit(sgnum, rs; symprec)
+    for w in reverse(wyckoff_table[sgnum])
         (mult, letter, sitesym, pos) = w
         wp = parse_wyckoff_position(pos)
         if any(r -> position_belongs_to_wyckoff(r, wp; symprec), rs)

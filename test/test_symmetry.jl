@@ -1,8 +1,8 @@
 @testitem "Wyckoff table" begin
     import Crystalline
 
-    for sg in 1:230
-        wyckoffs = Crystalline.wyckoffs(sg, 3)
+    for sgnum in 1:230
+        wyckoffs = Crystalline.wyckoffs(sgnum, 3)
         wyckoffs = sort(wyckoffs; by = wp -> (!isuppercase(wp.letter), -Int(wp.letter)))
         for (i, wp) in enumerate(wyckoffs)
             # From Crystalline
@@ -10,9 +10,9 @@
             (; cnst, free) = v
 
             # From Sunny table, sourced from Spglib
-            (mult2, letter2, symb, pos) = Sunny.wyckoff_table[sg][i]
+            (mult2, letter2, symb, pos) = Sunny.wyckoff_table[sgnum][i]
             (cnst2, free2) = Sunny.parse_wyckoff_position(pos)
-            if sg == 98 && i == 3
+            if sgnum == 98 && i == 3
                 free2 *= -1
             end
 
@@ -44,7 +44,7 @@ end
     latvecs = Sunny.Mat3(latvecs)
     positions = [Sunny.Vec3(1, 1, 1) / 8]
     types = [""]
-    cryst = Sunny.crystal_from_symops(latvecs, positions, types, cryst.symops, cryst.sg_label, cryst.sg_number, nothing; cryst.symprec)
+    cryst = Sunny.crystal_from_symops(latvecs, positions, types, cryst.sg; cryst.symprec)
     ref_bonds = reference_bonds(cryst, 2.)
     dist2 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
@@ -185,20 +185,20 @@ end
     # Standard setting for monoclinic spacegroup 5
     latvecs = lattice_vectors(1, 1.1, 1.2, 90, 100, 90)
     cryst = Crystal(latvecs, [[0, 0.2, 1/2]], "C 1 2 1")
-    @test cryst.sg_label == "'C 2 = C 1 2 1' (5)"
+    @test cryst.sg.label == "'C 2 = C 1 2 1' (5)"
     @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
 
     # Alternative setting
     latvecs2 = reduce(hcat, eachcol(latvecs)[[3, 1, 2]])
     cryst2 = Crystal(latvecs2, [[1/2, 0, 0.2]], "A 1 1 2")
-    @test cryst2.sg_label == "'C 2 = A 1 1 2' (5)"
+    @test cryst2.sg.label == "'C 2 = A 1 1 2' (5)"
     @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
 
     # Verify `cryst` is already in standard setting
-    @test cryst.sg_setting.R ≈ I
+    @test cryst.sg.setting.R ≈ I
 
     # Equivalence of standardized lattice vectors
-    @test cryst.latvecs ≈ cryst2.latvecs * inv(cryst2.sg_setting.R)
+    @test cryst.latvecs ≈ cryst2.latvecs * inv(cryst2.sg.setting.R)
 
     # Primitive lattice vectors are alway standardized
     @test cryst.prim_latvecs ≈ cryst2.prim_latvecs

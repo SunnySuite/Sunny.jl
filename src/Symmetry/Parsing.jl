@@ -188,7 +188,9 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
             # This magnetic supercell will be lacking spacegroup symmetries for
             # the chemical cell.
             sg_setting = nothing
-            supercell = crystal_from_symops(latvecs, positions, classes, symops, sg_label, sg_number, sg_setting; symprec)
+
+            sg = SpacegroupInfo(symops, sg_label, sg_number, sg_setting)
+            supercell = crystal_from_symops(latvecs, positions, classes, sg; symprec)
 
             if override_symmetry
                 # Don't idealize because later `set_dipoles_from_mcif!` will
@@ -207,7 +209,8 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         isnothing(sg_number) && error("Spacegroup number not specified")
         sg_setting = mapping_to_standard_setting_from_symops(sg_number, symops)
         isnothing(sg_setting) && error("Could not infer spacegroup setting; symmetry operations seem nonstandard")
-        ret = crystal_from_symops(latvecs, positions, classes, symops, sg_label, sg_number, sg_setting; symprec)
+        sg = SpacegroupInfo(symops, sg_label, sg_number, sg_setting)
+        ret = crystal_from_symops(latvecs, positions, classes, sg; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
         ret = Crystal(latvecs, positions, hall_symbol; types=classes, symprec)
