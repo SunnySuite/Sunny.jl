@@ -52,6 +52,31 @@
     @test energy_per_site(newsys) ≈ 2.55
 end
 
+
+@testitem "Validate reshaping" begin
+    using LinearAlgebra
+    
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    positions = [[0, 0, 0]/2, [1, 1, 1]/2]
+    cryst = Crystal(latvecs, positions)
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
+    
+    primcell = primitive_cell(cryst)
+    reshape_supercell(sys, Diagonal([2, 3, 4])) # Fine
+    reshape_supercell(sys, primcell) # Fine
+    reshape_supercell(sys, primcell * Diagonal([2, 3, 4])) # Fine
+    msg = "Elements of `primitive_cell(cryst) \\ shape` must be integer. Calculated [3.5 0.5 -0.5; 1.0 3.0 -1.0; 0.5 -0.5 2.5]."
+    @test_throws msg reshape_supercell(sys, Diagonal([2, 3, 4]) * primcell)
+    
+    positions = [[0, 0, 0]]
+    cryst = Crystal(latvecs, positions)
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
+    reshape_supercell(sys, Diagonal([2.0, 3, 4]))
+    msg = "Elements of `shape` must be integer. Received [2.5 0.0 0.0; 0.0 3.0 0.0; 0.0 0.0 4.0]."
+    @test_throws msg reshape_supercell(sys, Diagonal([2.5, 3, 4]))
+end
+
+
 @testitem "Equivalent reshaping" begin
     using LinearAlgebra
 

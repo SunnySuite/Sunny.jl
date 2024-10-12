@@ -499,17 +499,13 @@ end
 
 
 function check_shape_commensurate(cryst, shape)
-    # Primitive lattice vectors in global Cartesian coordinates
-    prim_cell = primitive_cell(cryst)
-
-    if isnothing(prim_cell)
-        if !all_integer(shape; cryst.symprec)
-            error("Cell shape must be a 3×3 matrix of integers. Received $shape.")
-        end
-    else
-        shape_in_prim = prim_cell \ shape
-        if !all_integer(shape_in_prim; cryst.symprec)
-            error("Cell shape must be integer multiples of primitive lattice vectors. Calculated $shape_in_prim.")
+    prim_cell = @something primitive_cell(cryst) Mat3(I)
+    shape_in_prim = prim_cell \ shape
+    if !all_integer(shape_in_prim; cryst.symprec)
+        if prim_cell ≈ I
+            error("Elements of `shape` must be integer. Received $shape.")
+        else
+            error("Elements of `primitive_cell(cryst) \\ shape` must be integer. Calculated $shape_in_prim.")
         end
     end
 end

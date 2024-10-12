@@ -18,8 +18,8 @@ function reshape_supercell(sys::System, shape)
 
     orig = orig_crystal(sys)
     check_shape_commensurate(orig, shape)
-
-    shape_in_prim = primitive_cell(orig) \ shape
+    prim_cell = @something primitive_cell(orig) Mat3(I)
+    shape_in_prim = prim_cell \ shape
     @assert all_integer(shape_in_prim; orig.symprec)
     shape_in_prim = round.(Int, shape_in_prim)
 
