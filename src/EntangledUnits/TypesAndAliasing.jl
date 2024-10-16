@@ -158,15 +158,16 @@ end
 function coherent_state_from_dipoles(esys::EntangledSystem, dipoles, unit)
     (; sys_origin, contraction_info) = esys
 
-    # Find the sites/atoms (or original system) that lie in the specified unit
+    # Find the atom indices (of original system) that lie in the specified unit
     # (of contracted system).
-    original_sites = [id.site for id in contraction_info.inverse[unit]]
+    atoms = [id.site for id in contraction_info.inverse[unit]]
 
-    # Make sure that the user gave the correct number of dipoles to fully
-    # specify the coherent state of the entangled unit.
-    @assert length(dipoles) == length(original_sites) "Invalid number of dipoles for specified unit."
+    # Test that the number of specified dipoles is equal to the number of atoms
+    # inside the entangled unit.
+    @assert length(dipoles) == length(atoms) "Invalid number of dipoles for specified unit."
 
-    # Retrieve the dimensions of the local Hilbert spaces of those sites.
+    # Retrieve the dimensions of the local Hilbert spaces corresponding to those
+    # atoms.
     Ns = Ns_in_units(sys_origin, contraction_info)[unit]
 
     # Generate a list of coherent states corresponding to given dipoles _in each
