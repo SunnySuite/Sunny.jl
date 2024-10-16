@@ -26,6 +26,10 @@ struct CrystalContractionInfo
     inverse :: Vector{Vector{InverseData}}  # List ordered according to contracted crystal sites. Each element is itself a list containing original crystal site indices and corresponding offset information 
 end
 
+function Base.copy(cci::CrystalContractionInfo)
+    return CrystalContractionInfo(copy(cci.forward), copy(cci.inverse))
+end
+
 
 ################################################################################
 # System 
@@ -65,25 +69,23 @@ function EntangledSystem(sys::System{N}, units) where {N}
     for atom in axes(sys.coherents, 4)
         @assert allequal(@view sys.gs[:,:,:,atom]) "`EntangledSystem` require g-factors be uniform across unit cells" 
     end
-    @assert allequal(@view sys.extfield[:,:,:,:]) "`EntangledSystems` requires a uniform applied field." 
 
     # Generate pair of contracted and uncontracted systems
     (; sys_entangled, contraction_info) = entangle_system(sys, units)
     sys_origin = clone_system(sys)
 
-    # Generate observable field. This observable field has as many entres as the
-    # uncontracted system but contains operators in the local product spaces of
-    # the contracted system. `source_idcs` provides the unit index (of the
+    # Generate observable field. This observable field has as many entries as
+    # the uncontracted system but contains operators in the local product spaces
+    # of the contracted system. `source_idcs` provides the unit index (of the
     # contracted system) in terms of the atom index (of the uncontracted
     # system).
     dipole_operators_origin = all_dipole_observables(sys_origin; apply_g=false) 
-    (; observables, source_idcs)  = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
+    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
 
     esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables, source_idcs)
 
     # Coordinate sys_entangled and sys_origin
     set_expected_dipoles_of_entangled_system!(esys)
-    set_field!(esys, sys.extfield[1,1,1,1]) # Note external field checked to be uniform
 
     return esys
 end
@@ -97,7 +99,7 @@ end
 # Aliasing 
 ################################################################################
 function Base.show(io::IO, esys::EntangledSystem)
-    print(io, "EntangledSystem($(mode_to_str(esys.sys)), $(lattice_to_str(esys.sys_origin)), $(energy_to_str(esys.sys)))")
+    print(io, "EntangledSystem($(mode_to_str(esys.sys)), $(supercell_to_str(esys.sys_origin.dims, esys.sys_origin.crystal)), $(energy_to_str(esys.sys)))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", esys::EntangledSystem)
@@ -116,6 +118,16 @@ eachunit(esys::EntangledSystem) = eachsite(esys.sys)
 energy(esys::EntangledSystem) = energy(esys.sys)
 energy_per_site(esys::EntangledSystem) = energy(esys.sys) / length(eachsite(esys.sys_origin))
 
+function clone_system(esys::EntangledSystem)
+    sys = clone_system(esys.sys)
+    sys_origin = clone_system(esys.sys_origin)
+    contraction_info = copy(esys.contraction_info)
+    dipole_operators = copy(esys.dipole_operators)
+    source_idcs = copy(esys.source_idcs)
+
+    return EntangledSystem(sys, sys_origin, contraction_info, dipole_operators, source_idcs)
+end
+
 function set_field!(esys::EntangledSystem, B)
     (; sys, sys_origin, dipole_operators, source_idcs) = esys 
     B_old = sys_origin.extfield[1,1,1,1] 
@@ -127,16 +139,54 @@ function set_field!(esys::EntangledSystem, B)
         unit = source_idcs[1, 1, 1, atom]
         S = dipole_operators[:, 1, 1, 1, atom]
         ΔB = sys_origin.gs[1, 1, 1, atom]' * (B - B_old) 
-        sys.interactions_union[unit].onsite -= Hermitian(ΔB' * S)
+        sys.interactions_union[unit].onsite += Hermitian(ΔB' * S)
     end
 end
 
+# TODO: Actually, we could give a well-defined meaning to this procedure. Implement this.
 function set_field_at!(::EntangledSystem, _, _)
-    error("`EntangledSystem`s do not support inhomogenous external fields. Use `set_field!(sys, B).")
+    error("`EntangledSystem`s do not support inhomogenous external fields. Use `set_field!(sys, B) to set a uniform field.")
 end
 
 
-set_dipole!(esys::EntangledSystem, dipole, site; kwargs...) = error("Setting dipoles of an EntangledSystem not well defined.") 
+function set_dipole!(::EntangledSystem, dipole, site)
+    error("`set_dipole!` operation for `EntangledSystem` not well defined. Consider using `set_coherent!` to set the state of each entangled unit.")
+end
+
+# Find the unique coherent state corresponding to a set of fully-polarized
+# dipoles on each site inside a specified entangled unit.
+function coherent_state_from_dipoles(esys::EntangledSystem, dipoles, unit)
+    (; sys_origin, contraction_info) = esys
+
+    # Find the atom indices (of original system) that lie in the specified unit
+    # (of contracted system).
+    atoms = [id.site for id in contraction_info.inverse[unit]]
+
+    # Test that the number of specified dipoles is equal to the number of atoms
+    # inside the entangled unit.
+    @assert length(dipoles) == length(atoms) "Invalid number of dipoles for specified unit."
+
+    # Retrieve the dimensions of the local Hilbert spaces corresponding to those
+    # atoms.
+    Ns = Ns_in_units(sys_origin, contraction_info)[unit]
+
+    # Generate a list of coherent states corresponding to given dipoles _in each
+    # local Hilbert space_.
+    coherents = []
+    for (dipole, N) in zip(dipoles, Ns)
+        # Get the spin matrices in the appropriate representation for the site.
+        S = spin_matrices((N-1)/2)
+
+        # Find a local coherent state representation of the dipole
+        coherent = eigvecs(S' * dipole)[:,N] # Retrieve highest-weight eigenvector
+        push!(coherents, coherent)
+    end
+
+    # Return the tensor product of each of these local coherent states to get
+    # the coherent state for the entangled unit.
+    return kron(coherents...)
+end
+
 
 # Sets the coherent state of a specified unit. The `site` refers to the
 # contracted lattice (i.e., to a "unit"). The function then updates all dipoles
