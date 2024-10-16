@@ -259,11 +259,7 @@ function entangle_system(sys::System{M}, units) where M
     sys_entangled = System(contracted_crystal, spin_infos, :SUN; dims)
 
     # Transfer rng from origin system to entangled system
-    sys_entangled.rng.s0 = sys.rng.s0
-    sys_entangled.rng.s1 = sys.rng.s1
-    sys_entangled.rng.s2 = sys.rng.s2
-    sys_entangled.rng.s3 = sys.rng.s3
-    sys_entangled.rng.s4 = sys.rng.s4
+    copy!(sys_entangled.rng, sys.rng)
 
     # TODO: Extend to inhomogenous systems
     # For each contracted site, scan original interactions and reconstruct as necessary.
