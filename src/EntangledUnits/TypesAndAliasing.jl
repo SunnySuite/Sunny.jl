@@ -158,20 +158,34 @@ end
 function coherent_state_from_dipoles(esys::EntangledSystem, dipoles, unit)
     (; sys_origin, contraction_info) = esys
 
+    # Find the sites/atoms (or original system) that lie in the specified unit
+    # (of contracted system).
     original_sites = [id.site for id in contraction_info.inverse[unit]]
+
+    # Make sure that the user gave the correct number of dipoles to fully
+    # specify the coherent state of the entangled unit.
+    @assert length(dipoles) == length(original_sites) "Invalid number of dipoles for specified unit."
+
+    # Retrieve the dimensions of the local Hilbert spaces of those sites.
     Ns = Ns_in_units(sys_origin, contraction_info)[unit]
 
-    @assert length(dipoles) == length(original_sites) == length(Ns) "Invalid number of dipoles for specified unit."
-
+    # Generate a list of coherent states corresponding to given dipoles _in each
+    # local Hilbert space_.
     coherents = []
     for (dipole, N) in zip(dipoles, Ns)
+        # Get the spin matrices in the appropriate representation for the site.
         S = spin_matrices((N-1)/2)
+
+        # Find a local coherent state representation of the dipole
         coherent = eigvecs(S' * dipole)[:,N] # Retrieve highest-weight eigenvector
         push!(coherents, coherent)
     end
 
+    # Return the tensor product of each of these local coherent states to get
+    # the coherent state for the entangled unit.
     return kron(coherents...)
 end
+
 
 # Sets the coherent state of a specified unit. The `site` refers to the
 # contracted lattice (i.e., to a "unit"). The function then updates all dipoles
