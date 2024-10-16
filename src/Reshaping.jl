@@ -18,14 +18,13 @@ function reshape_supercell(sys::System, shape)
 
     orig = orig_crystal(sys)
     check_shape_commensurate(orig, shape)
-
-    primvecs = @something orig.prim_latvecs orig.latvecs
-    prim_shape = primvecs \ orig.latvecs * shape
-    prim_shape′ = round.(Int, prim_shape)
-    @assert prim_shape′ ≈ prim_shape
+    prim_cell = @something primitive_cell(orig) Mat3(I)
+    shape_in_prim = prim_cell \ shape
+    @assert all_integer(shape_in_prim; orig.symprec)
+    shape_in_prim = round.(Int, shape_in_prim)
 
     # Unit cell for new system, in units of original unit cell.
-    new_dims = NTuple{3, Int}(gcd.(eachcol(prim_shape′)))
+    new_dims = NTuple{3, Int}(gcd.(eachcol(shape_in_prim)))
     new_shape = Mat3(shape * diagm(collect(inv.(new_dims))))
     new_cryst = reshape_crystal(orig_crystal(sys), new_shape)
 

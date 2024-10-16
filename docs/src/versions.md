@@ -9,6 +9,9 @@
   polynomial order according to an error tolerance.
 * Rename mode `:dipole_large_S` to `:dipole_uncorrected` to emphasize that
   corrections are missing.
+* [`Crystal`](@ref) constructor suggests disambiguation via the possible HM
+  symbols.
+* Rename `primitive_cell_shape` to [`primitive_cell`](@ref).
 
 ## v0.7.2
 (Sep 11, 2024)
