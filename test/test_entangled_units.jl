@@ -55,6 +55,13 @@ end
     field_offset = 2*(Sl[3] + Su[3]) # 2 for g-factor
     @test onsite_operator ≈ onsite_ref + field_offset 
 
+    # Test apparatus for setting coherent states from dipoles specification
+    dipoles = [[0, 1/2, 0], [0, -1/2, 0]] # Dipoles specifying a dimer state
+    cs = Sunny.coherent_state_from_dipoles(esys, dipoles, 1)
+    set_coherent!(esys, cs, CartesianIndex(1,1,1,1))
+    @test esys.sys_origin.dipoles[1,1,1,1][2] ≈ 1/2
+    @test esys.sys_origin.dipoles[1,1,1,2][2] ≈ -1/2
+
     # Test external field works in action
     set_field!(esys, [0, 0, 10])
     randomize_spins!(esys)

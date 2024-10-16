@@ -149,7 +149,29 @@ function set_field_at!(::EntangledSystem, _, _)
 end
 
 
-set_dipole!(esys::EntangledSystem, dipole, site; kwargs...) = error("Setting dipoles of an EntangledSystem not well defined.") 
+function set_dipole!(::EntangledSystem, dipole, site)
+    error("`set_dipole!` operation for `EntangledSystem` not well defined. Consider using `set_coherent!` to set the state of each entangled unit.")
+end
+
+# Find the unique coherent state corresponding to a set of fully-polarized
+# dipoles on each site inside a specified entangled unit.
+function coherent_state_from_dipoles(esys::EntangledSystem, dipoles, unit)
+    (; sys_origin, contraction_info) = esys
+
+    original_sites = [id.site for id in contraction_info.inverse[unit]]
+    Ns = Ns_in_units(sys_origin, contraction_info)[unit]
+
+    @assert length(dipoles) == length(original_sites) == length(Ns) "Invalid number of dipoles for specified unit."
+
+    coherents = []
+    for (dipole, N) in zip(dipoles, Ns)
+        S = spin_matrices((N-1)/2)
+        coherent = eigvecs(S' * dipole)[:,N] # Retrieve highest-weight eigenvector
+        push!(coherents, coherent)
+    end
+
+    return kron(coherents...)
+end
 
 # Sets the coherent state of a specified unit. The `site` refers to the
 # contracted lattice (i.e., to a "unit"). The function then updates all dipoles
