@@ -78,8 +78,8 @@ end
     set_field!(esys, [0, 0, 0])
     randomize_spins!(esys)
     minimize_energy!(esys; g_tol=1e-14)
-    norm(esys.sys_origin.dipoles[1]) < 1e-14
-    norm(esys.sys_origin.dipoles[2]) < 1e-14
+    @test norm(esys.sys_origin.dipoles[1]) < 1e-14
+    @test norm(esys.sys_origin.dipoles[2]) < 1e-14
 
     # Test inter-bond exchange
     pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys.sys)
