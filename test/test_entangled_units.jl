@@ -66,14 +66,14 @@ end
     set_field!(esys, [0, 0, 10])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    esys.sys_origin.dipoles[1][3] ≈ -1/2
-    esys.sys_origin.dipoles[2][3] ≈ -1/2
+    @test esys.sys_origin.dipoles[1][3] ≈ -1/2
+    @test esys.sys_origin.dipoles[2][3] ≈ -1/2
 
     set_field!(esys, [0, 0, -10])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    esys.sys_origin.dipoles[1][3] ≈ 1/2
-    esys.sys_origin.dipoles[2][3] ≈ 1/2
+    @test esys.sys_origin.dipoles[1][3] ≈ 1/2
+    @test esys.sys_origin.dipoles[2][3] ≈ 1/2
 
     set_field!(esys, [0, 0, 0])
     randomize_spins!(esys)
