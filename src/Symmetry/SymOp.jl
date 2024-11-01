@@ -29,7 +29,7 @@ function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
             push!(terms, number_to_math_string(Ti; atol, digits))
         end
         terms_str = if isempty(terms)
-            push!(terms, "0")
+            "0"
         else
             replace(join(terms, "+"), "+-" => "-")
         end
@@ -45,7 +45,21 @@ function Base.isapprox(s1::SymOp, s2::SymOp; atol=1e-8)
     return isapprox(s1.R, s2.R; atol) && isapprox(T1, T2; atol)
 end
 
-function transform(s::SymOp, r::Vec3)
+# Approximate group subset relation
+function Base.issubset(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; atol=1e-8)
+    return all(g1) do s
+        any(g2) do s′
+            isapprox(s, s′; atol)
+        end
+    end
+end
+
+# Approximate equality of groups
+function Base.isapprox(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; atol=1e-8)
+    return issubset(g1, g2; atol) && issubset(g2, g1; atol)
+end
+
+function transform(s::SymOp, r::AbstractVector{<: Number})
     return s.R*r + s.T
 end
 

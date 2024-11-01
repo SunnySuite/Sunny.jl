@@ -31,6 +31,8 @@ export spin_matrices, stevens_matrices, to_product_space, rotate_operator, print
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
 include("Symmetry/MSymOp.jl")
+include("Symmetry/SpacegroupData.jl")
+include("Symmetry/WyckoffData.jl")
 include("Symmetry/Crystal.jl")
 include("Symmetry/Bond.jl")
 include("Symmetry/SymmetryAnalysis.jl")
@@ -38,7 +40,7 @@ include("Symmetry/AllowedCouplings.jl")
 include("Symmetry/AllowedAnisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
-export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primitive_cell_shape, Bond,
+export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primitive_cell, Bond,
     reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame
 
 include("Units.jl")
@@ -174,7 +176,7 @@ PT.@setup_workload begin
     PT.@compile_workload begin
         # Crystal loading
         latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-        cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+        cryst = Crystal(latvecs, [[1,1,1]/8], 227)
         repr("text/plain", cryst)
         print_symmetry_table(cryst, 0.8; io=devnull)
     end

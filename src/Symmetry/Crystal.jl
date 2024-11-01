@@ -1,9 +1,3 @@
-struct SiteSymmetry
-    symbol       :: String
-    multiplicity :: Int
-    wyckoff      :: Char
-end
-
 
 """
 An object describing a crystallographic unit cell and its space group symmetry.
@@ -28,17 +22,16 @@ symmetry information is automatically inferred. The optional parameter `types`
 is a list of strings, one for each atom, and can be used to break
 symmetry-equivalence between atoms.
 
-    Crystal(latvecs, positions, spacegroup_number; types=nothing, setting=nothing, symprec=1e-5)
+    Crystal(latvecs, positions, spacegroup; types=nothing, choice=nothing, symprec=1e-5)
 
-Builds a crystal by applying symmetry operators for a given international
-spacegroup number. For certain spacegroups, there are multiple possible unit
-cell settings; in this case, a warning message will be printed, and a list of
-crystals will be returned, one for every possible setting. Alternatively, the
-optional `setting` string will disambiguate between unit cell conventions.
-
-Currently, crystals built using only the spacegroup number will be missing some
-symmetry information. It is generally preferred to build a crystal from a `.cif`
-file or from the full specification of the unit cell.
+Builds a crystal using the symmetries of a `spacegroup`. One representative atom
+must be specified for each occupied Wyckoff. The `spacegroup` may be specified
+as a number 1..230 or as a string, e.g., Hermann–Mauguin or Hall symbol. If only
+a spacegroup number is provided, the ITA standard setting will be employed [1],
+consistent with conventions from the Bilbao crystallographic server [2]. If a
+spacegroup symbol is provided that allows for multiple ITA settings, the
+possible disambiguations will be included in an error message, and may involve a
+`choice` string.
 
 
 # Examples
@@ -59,26 +52,33 @@ types = ["Na", "Cl"]
 cryst = Crystal(latvecs, positions; types)
 
 # Build a diamond cubic crystal from its spacegroup number 227 and a single
-# atom position. This spacegroup has two possible settings ("1" or "2"), which
-# determine an overall unit cell translation.
-positions = [[1/4, 1/4, 1/4]]
-cryst = Crystal(latvecs, positions, 227; setting="1")
+# atom position belonging to Wyckoff 8a.
+positions = [[1/8, 1/8, 1/8]]
+cryst = Crystal(latvecs, positions, 227)
+
+# Build an equivalent crystal using a different origin choice.
+positions = [[0, 0, 0]]
+cryst = Crystal(latvecs, positions, 227; choice="1")
 ```
 
 See also [`lattice_vectors`](@ref).
+
+## References:
+
+1. International Tables of Crystallography,
+   [Volume A](https://doi.org/10.1107/97809553602060000114).
+2. Wyckoff position listings are available from the
+   [Bilbao crystallographic server](https://www.cryst.ehu.es/cryst/get_wp.html).
 """
 struct Crystal
-    root           :: Union{Nothing, Crystal}              # Root crystal (invariant under `subcrystal` and reshaping)
-    latvecs        :: Mat3                                 # Lattice vectors as columns
-    prim_latvecs   :: Mat3                                 # Primitive lattice vectors
-    recipvecs      :: Mat3                                 # Reciprocal lattice vectors (conventional)
-    positions      :: Vector{Vec3}                         # Positions in fractional coords
-    types          :: Vector{String}                       # Types
-    classes        :: Vector{Int}                          # Class indices
-    sitesyms       :: Union{Nothing, Vector{SiteSymmetry}} # Optional site symmetries
-    symops         :: Vector{SymOp}                        # Symmetry operations
-    spacegroup     :: String                               # Description of space group
-    symprec        :: Float64                              # Tolerance to imperfections in symmetry
+    root      :: Union{Nothing, Crystal} # Root crystal (invariant under `subcrystal` and reshaping)
+    latvecs   :: Mat3                    # Lattice vectors as columns
+    recipvecs :: Mat3                    # Reciprocal lattice vectors (conventional)
+    positions :: Vector{Vec3}            # Positions in fractional coords
+    types     :: Vector{String}          # Types
+    classes   :: Vector{Int}             # Class indices
+    sg        :: Spacegroup              # Spacegroup symmetries and setting
+    symprec   :: Float64                 # Tolerance to imperfections in symmetry
 end
 
 # Constructs a crystal from the complete list of atom positions `positions`,
@@ -97,16 +97,30 @@ end
 
 # Builds a crystal by applying the symmetry operators for a given spacegroup
 # (number or symbol).
-function Crystal(latvecs, positions, symbol::Union{Int, String}; types::Union{Nothing, Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+function Crystal(latvecs, positions, symbol::Union{Int, String}; types::Union{Nothing, Vector{String}}=nothing,
+                 setting=nothing, choice::Union{Nothing, String}=nothing, symprec=1e-5)
+    if !isnothing(setting)
+        if symbol isa Integer
+            @warn """`setting` argument is deprecated! Omit to get the ITA standard setting. 
+                     Alternatively, use `choice` instead."""
+        else
+            @warn "`setting` argument is deprecated! Use `choice` instead."
+        end
+        choice = setting
+    end
+
     print_crystal_warnings(latvecs, positions)
-    latvecs = convert(Mat3, latvecs)
-    positions = [convert(Vec3, p) for p in positions]
+    latvecs = Mat3(latvecs)
+    positions = Vec3.(positions)
     if isnothing(types)
         types = fill("", length(positions))
     end
 
-    crystal_from_symbol(latvecs, positions, types, string(symbol); setting, symprec)
+    sgt = unique_spacegroup_type(symbol, latvecs; choice)
+    sg = Spacegroup(Int(sgt.hall_number))
+    return crystal_from_spacegroup(latvecs, positions, types, sg; symprec)
 end
+
 
 function print_crystal_warnings(latvecs, positions)
     det(latvecs) < 0 && @warn "Lattice vectors are not right-handed."
@@ -134,9 +148,10 @@ Volume of the crystal unit cell.
 cell_volume(cryst::Crystal) = abs(det(cryst.latvecs))
 
 
-function spacegroup_name(hall_number::Int)
-    # String representation of space group
+# Human-readable spacegroup.
+function spacegroup_label(hall_number::Int)
     sgt = Spglib.get_spacegroup_type(hall_number)
+    # Note that sgt.international is more verbose than sgt.international_full
     return "'$(sgt.international)' ($(sgt.number))"
 end
 
@@ -147,9 +162,6 @@ function permute_sites!(cryst::Crystal, p)
     cryst.positions .= cryst.positions[p]
     cryst.classes .= cryst.classes[p]
     cryst.types .= cryst.types[p]
-    if !isnothing(cryst.sitesyms)
-        cryst.sitesyms .= cryst.sitesyms[p]
-    end
 end
 
 # Sort the sites according to class and fractional coordinates. This is an
@@ -188,15 +200,15 @@ function permute_to_standardize_lattice_vectors(latvecs)
     # Conventionally, a1 should be aligned with x direction
     a1, a2, a3 = eachcol(latvecs)
     if iszero(a2[2]) && iszero(a2[3]) && norm(a2) ≈ norm(a1)
-        P = P * [0 1 0; 1 0 0; 0 0 1] # Permute (a1, a2)
+        P = P * SA[0 1 0; 1 0 0; 0 0 1] # Permute (a1, a2)
     elseif iszero(a3[2]) && iszero(a3[3]) && norm(a3) ≈ norm(a1)
-        P = P * [0 0 1; 0 1 0; 1 0 0] # Permute (a1, a3)
+        P = P * SA[0 0 1; 0 1 0; 1 0 0] # Permute (a1, a3)
     end
 
     # Conventionally, a2 should be in xy plane
     _, a2, a3 = eachcol(latvecs * P)
     if iszero(a3[3]) && norm(a3) ≈ norm(a2)
-        P = P * [1 0 0; 0 0 1; 0 1 0] # Permute (a2, a3)
+        P = P * SA[1 0 0; 0 0 1; 0 1 0] # Permute (a2, a3)
     end
 
     # Flip columns so that the diagonal elements are positive
@@ -207,7 +219,7 @@ function permute_to_standardize_lattice_vectors(latvecs)
     # vector. Pick a2 arbitrarily.
     @assert det(P) ≈ 1 || det(P) ≈ -1
     if det(P) ≈ -1
-        P = P * Diagonal([1,-1,1])
+        P = P * Diagonal(SA[1,-1,1])
     end
 
     @assert det(P) ≈ 1
@@ -234,10 +246,10 @@ function standardize(cryst::Crystal; idealize=true)
     lattice = Mat3(lattice)
 
     if !idealize
-        # These lattice vectors may only be accurate to about 6 digits. However,
-        # spglib produces much higher accuracy with the `idealize=true` option.
-        # Rotate the higher precision lattice vectors so that they give the best
-        # match to the ones for the non-idealized cell.
+        # Empirically, these lattice vectors from spglib are accurate to about 6
+        # digits. However, spglib produces much higher accuracy with the
+        # `idealize=true` option. Rotate the higher precision lattice vectors so
+        # that they give the best match to the ones for the non-idealized cell.
         std_lattice = Mat3(Spglib.standardize_cell(cell, symprec; no_idealize=false).lattice)
         R = closest_unitary(lattice / std_lattice)
         isapprox(R*std_lattice, lattice; rtol=1e-5) || error("Failed to standardize the cell")
@@ -255,10 +267,18 @@ function standardize(cryst::Crystal; idealize=true)
 
     ret = crystal_from_inferred_symmetry(lattice, positions, atoms; symprec)
     sort_sites!(ret)
+
+    # TODO: Make this case work by avoiding Spglib.standardize_cell and using
+    # sg.setting data instead. It might come up if one is using an ITA setting
+    # that is not standard.
+    if ret.sg.number != cryst.sg.number
+        error("Inferred spacegroup $(ret.sg.number) doesn't match $(cryst.sg.number); are any atoms missing from chemical cell?")
+    end
+
     return ret
 end
 
-function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5, check_cell=true)
+function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec, check_cell=true)
     # Print a warning if non-conventional lattice vectors are detected.
     try cell_type(latvecs) catch e @warn e.msg end
 
@@ -267,7 +287,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
             ri = positions[i]
             rj = positions[j]
             if all_integer(ri-rj; symprec)
-                error("Positions $ri and $rj are symmetry equivalent.")
+                error("Positions $ri and $rj are equivalent.")
             end
         end
     end
@@ -282,7 +302,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
         ratio = length(positions) / d.n_std_atoms
         if ratio > 1
             ratio_str = number_to_simple_string(ratio; digits=4)
-            types_str = allunique(types) ? "" : "\nAlternatively, select `types` argument to break site symmetry."
+            types_str = allunique(types) ? "" : " Alternatively, break site symmetry with `types=[...]`."
             @warn """The symmetry-inferred, conventional unit cell is $ratio_str times smaller. Obtain
                      it with `standardize`.$types_str"""
         end
@@ -291,237 +311,158 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     classes = d.crystallographic_orbits
     # classes = d.equivalent_atoms
     symops = SymOp.(d.rotations, d.translations)
-    spacegroup = spacegroup_name(Int(d.hall_number))
+    label = spacegroup_label(Int(d.hall_number))
+    number = d.spacegroup_number
+    setting = mapping_to_standard_setting_from_spglib_dataset(d)
+    sg = Spacegroup(symops, label, number, setting)
 
-    # renumber class indices so that they go from 1:max_class
+    # Renumber class indices so that they are ascending, from 1..max_class.
     classes = [findfirst(==(c), unique(classes)) for c in classes]
     @assert unique(classes) == 1:maximum(classes)
 
-    # multiplicities for the equivalence classes
-    multiplicities = map(classes) do c
-        # atoms that belong to class c
-        atoms = findall(==(c), classes)
-        # atoms in the primitive cell that belong to class c
-        prim_atoms = unique(d.mapping_to_primitive[atoms])
-        # number of atoms in the standard cell that correspond to each primitive index for class c
-        counts = [count(==(i), d.std_mapping_to_primitive) for i in prim_atoms]
-        # sum over all equivalent atoms in the primitive cell
-        sum(counts)
+    ret = Crystal(nothing, latvecs, recipvecs, positions, types, classes, sg, symprec)
+    validate(ret)
+    for i in 1:natoms(ret)
+        w = get_wyckoff(ret, i)
+        @assert w.letter == d.wyckoffs[i]
+        @assert w.sitesym == d.site_symmetry_symbols[i]
     end
 
-    sitesyms = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
-
-    ret = Crystal(nothing, latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sitesyms, symops, spacegroup, symprec)
-    validate(ret)
     return ret
 end
 
 
-# Build Crystal using the space group denoted by a unique Hall number. The complete
-# list is given at http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
-function crystal_from_hall_number(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, hall_number::Int; symprec=1e-5)
+function is_spacegroup_type_consistent(sgt, latvecs)
     cell = cell_type(latvecs)
-    hall_cell = cell_type(hall_number)
-    allowed_cells = all_compatible_cells(hall_cell)
-    @assert cell in allowed_cells "Hall number $hall_number requires a $hall_cell cell, but found $cell."
+    hall_cell = cell_type(Int(sgt.hall_number))
 
     if hall_cell == Sunny.monoclinic
-        is_compatible = is_compatible_monoclinic_cell(latvecs, hall_number)
-        @assert is_compatible "Lattice vectors define a monoclinic cell that is incompatible with Hall number $hall_number."
-    end
-
-    rotations, translations = Spglib.get_symmetry_from_database(hall_number)
-    symops = SymOp.(rotations, translations)
-    spacegroup = spacegroup_name(hall_number)
-
-    return crystal_from_symops(latvecs, positions, types, symops, spacegroup; symprec)
-end
-
-function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symbol::String; setting=nothing, symprec=1e-5)
-    sgts = Spglib.SpacegroupType[]
-    crysts = Crystal[]
-
-    n_hall_numbers = 530
-    for hall_number in 1:n_hall_numbers
-        sgt = Spglib.get_spacegroup_type(hall_number)
-
-        if (replace(symbol, " "=>"") == sgt.international_short || 
-            symbol in [string(sgt.number), sgt.hall_symbol, sgt.international, sgt.international_full])
-
-            # Some Hall numbers may be incompatible with unit cell of provided
-            # lattice vectors; skip them.
-            is_compatible = true
-
-            cell = cell_type(latvecs)
-            hall_cell = cell_type(hall_number)
-            allowed_cells = all_compatible_cells(hall_cell)
-
-            # Special handling of trigonal space groups
-            if Sunny.is_trigonal_symmetry(hall_number)
-                # Trigonal symmetry must have either hexagonal or rhombohedral
-                # cell, according to the Hall number.
-                is_latvecs_valid = cell in [Sunny.rhombohedral, Sunny.hexagonal]
-                if !is_latvecs_valid
-                    error("Symbol $symbol requires a rhombohedral or hexagonal cell, but found $cell.")
-                end
-                is_compatible = cell in allowed_cells
-            else
-                # For all other symmetry types, there is a unique cell for each Hall number
-                if !(cell in allowed_cells)
-                    error("Symbol $symbol requires a $hall_cell cell, but found $cell.")
-                end
-            end
-
-            if hall_cell == Sunny.monoclinic
-                is_compatible = is_compatible_monoclinic_cell(latvecs, hall_number)
-            end
-
-            if is_compatible
-                cryst = crystal_from_hall_number(latvecs, positions, types, hall_number; symprec)
-                push!(sgts, sgt)
-                push!(crysts, cryst)
-            end
+        # Special handling of monoclinic space groups. There are three possible
+        # conventions for the unit cell, depending on which of α, β, or γ is
+        # special.
+        _, _, _, α, β, γ = lattice_params(latvecs)
+        x = first(replace(sgt.choice, "-" => ""))
+        if x == 'a'
+            return β≈90 && γ≈90
+        elseif x == 'b'
+            return α≈90 && γ≈90
+        elseif x == 'c'
+            return α≈90 && β≈90
         end
-    end
-
-    if isempty(crysts)
-        error("Cannot find spacegroup '$symbol' in database.")
-    elseif !isnothing(setting)
-        setting = string(setting)
-        choices = [sgt.choice for sgt in sgts]
-        i = findfirst(==(setting), choices)
-        if !isnothing(i)
-            return crysts[i]
-        else
-            if choices == [""]
-                error("Spacegroup '$symbol' does not accept a setting.")
-            else
-                error("Spacegroup '$symbol' requires setting to be one of $choices.")
-            end
-        end
-    elseif length(crysts) == 1
-        return only(crysts)
     else
-        # TODO: Make this @warn
-        println("The spacegroup '$symbol' allows for multiple settings!")
-        println("Returning a list of the possible crystals:")
-        for (i, (sgt, c)) in enumerate(zip(sgts, crysts))
-            hm_symbol = sgt.international
-            choice = sgt.choice
-            n_atoms = length(c.positions)
-            i_str = @sprintf "%2d" i
-            natoms_str = @sprintf "%2d" n_atoms
-            println("   $i_str. \"$hm_symbol\", setting=\"$choice\", with $natoms_str atoms")
-        end
-        println()
-        println("Note: To disambiguate, you may pass a named parameter, setting=\"...\".")
-        println()
-        return crysts
+        return cell in all_compatible_cells(hall_cell)
     end
 end
 
-function symops_subset(symops1, symops2; symprec)
-    return all(symops1) do s
-        any(symops2) do s′
-            isapprox(s, s′; atol=symprec)
+
+function crystallographic_orbit(symops::Vector{SymOp}, position::Vec3; symprec)
+    orbit = Vec3[]
+    for s = symops
+        x = wrap_to_unit_cell(transform(s, position); symprec)
+        if !any(y -> all_integer(x-y; symprec), orbit)
+            push!(orbit, x)
         end
     end
+    return orbit
 end
 
-# Builds a crystal from an explicit set of symmetry operations and a minimal set of positions
-function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
-    all_positions = Vec3[]
-    all_types = String[]
-    classes = Int[]
-    
-    for i = eachindex(positions)
-        for s = symops
-            x = wrap_to_unit_cell(transform(s, positions[i]); symprec)
+function crystallographic_orbits_distinct(symops::Vector{SymOp}, positions::Vector{Vec3}; symprec, wyckoffs=nothing)
+    orbits = crystallographic_orbit.(Ref(symops), positions; symprec)
 
-            j = findfirst(y -> all_integer(x-y; symprec), all_positions)
-            if isnothing(j)
-                push!(all_positions, x)
-                push!(all_types, types[i])
-                push!(classes, i)
+    # Check orbits are distinct
+    for (i, ri) in enumerate(positions), j in i+1:length(orbits)
+        if any(rj -> all_integer(ri-rj; symprec), orbits[j])
+            if isnothing(wyckoffs)
+                error("Reference positions $(positions[i]) and $(positions[j]) are symmetry equivalent.")
             else
-                j_ref = classes[j]
-                if i != j_ref
-                    error("Reference positions $(positions[i]) and $(positions[j_ref]) are symmetry equivalent.")
-                end
+                @assert wyckoffs[i].letter == wyckoffs[j].letter
+                (; multiplicity, letter) = wyckoffs[i]
+                error("Reference positions $(positions[i]) and $(positions[j]) are symmetry equivalent in Wyckoff $multiplicity$letter.")
             end
         end
     end
 
-    # Atoms are sorted by contiguous equivalence classes: 1, 2, ..., n
-    @assert unique(classes) == 1:maximum(classes)
+    return orbits
+end
 
-    # Unfortunately, don't currently have a table with site symmetry information
-    # (cf. https://github.com/SunnySuite/Sunny.jl/issues/44). As a workaround,
-    # ask Spglib to infer symmetry information for the full cell, and if the
-    # inferred symops match the provided ones, we can get the Wyckoff
-    # information this way. TODO: Copy full spglib Wyckoff table into Sunny:
-    # https://github.com/spglib/spglib/blob/develop/src/sitesym_database.c.
-    inferred = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
+function repeat_multiple(vals, lens)
+    reduce(vcat, map(vals, lens) do val, len
+        fill(val, len)
+    end)
+end
 
-    # Compare the inferred symops to the provided ones
-    is_subgroup = symops_subset(symops, inferred.symops; symprec)
-    is_supergroup = symops_subset(inferred.symops, symops; symprec)
+# Builds a crystal from an explicit set of symmetry operations and a minimal set
+# of positions
+function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, sg::Spacegroup; symprec)
+    wyckoffs = find_wyckoff_for_position.(Ref(sg), positions; symprec)
+    orbits = crystallographic_orbits_distinct(sg.symops, positions; symprec, wyckoffs)
 
-    if !is_subgroup
-        @warn """User provided symmetry operation could not be inferred by Spglib,
-                 which likely indicates a non-conventional unit cell."""
+    # Check that inferred orbits match known multiplicities of the Wyckoffs
+    foreach(orbits, wyckoffs) do orbit, wyckoff
+        if wyckoff.multiplicity ≉ length(orbit) / abs(det(sg.setting.R))
+            error("Internal error filling Wyckoff positions! Please report this.")
+        end
     end
 
-    # If the inferred symops match the provided ones, then we use the inferred
-    # Crystal. Otherwise we must construct a new Crystal without primitive
-    # lattice and site symmetry information.
-    ret = if is_subgroup && is_supergroup
-        inferred
-    else
-        prim_latvecs = latvecs
-        recipvecs = 2π*Mat3(inv(latvecs)')
-        Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
-    end
+    all_positions = reduce(vcat, orbits)
+    all_types = repeat_multiple(types, length.(orbits))
+    all_classes = repeat_multiple(eachindex(orbits), length.(orbits))
+
+    recipvecs = 2π*Mat3(inv(latvecs)')
+    ret = Crystal(nothing, latvecs, recipvecs, all_positions, all_types, all_classes, sg, symprec)
     sort_sites!(ret)
     validate(ret)
+
     return ret
 end
 
+function get_wyckoff(cryst::Crystal, i::Int)
+    (; classes, positions, sg, symprec) = cryst
+    wyckoff = find_wyckoff_for_position(sg, positions[i]; symprec)
+    cell_multiplicity = count(==(classes[i]), classes)
+    @assert wyckoff.multiplicity ≈ cell_multiplicity / abs(det(sg.setting.R))
+    return wyckoff
+end
+
 
 """
-    primitive_cell_shape(cryst::Crystal)
+    primitive_cell(cryst)
 
-Returns the shape of the primitive cell as a 3×3 matrix, in fractional
-coordinates of the conventional lattice vectors. May be useful for constructing
-inputs to [`reshape_supercell`](@ref).
+The shape of a primitive cell in multiples of the lattice vectors for `cryst`.
+Specifically, columns of `cryst.latvecs * primitive(cryst)` define the primitive
+lattice vectors in global Cartesian coordinates. Returns `nothing` if spacegroup
+setting information is missing.
 
-# Examples
-```julia
-# Valid if `cryst` has not been reshaped
-@assert cryst.prim_latvecs ≈ cryst.latvecs * primitive_cell_shape(cryst)
-```
+This function may be useful for constructing inputs to
+[`reshape_supercell`](@ref).
 """
-function primitive_cell_shape(cryst::Crystal)
-    root = @something cryst.root cryst
-    if isnothing(root.prim_latvecs)
-        error("Primitive lattice vectors not available.")
-    end
-    return root.latvecs \ root.prim_latvecs
+function primitive_cell(cryst::Crystal)
+    cryst = @something cryst.root cryst
+    (; number, setting) = cryst.sg
+
+    # Primitive lattice vectors in units of ITA standard lattice vectors
+    prim_shape = standard_primitive_basis[standard_centerings[number]]
+
+    # Lattice vectors of ITA standard setting:
+    #     std_latvecs = cryst.latvecs * inv(setting.R)
+    # Primitive lattice vectors:
+    #     prim_latvecs = std_latvecs * prim_shape
+    # Primitive shape units of cryst.latvecs
+    #     return inv(cryst.latvecs) * prim_latvecs
+
+    # Shortcut for above
+    return setting.R \ prim_shape
 end
 
 
 function check_shape_commensurate(cryst, shape)
-    root = @something cryst.root cryst
-    if !isnothing(root.prim_latvecs)
-        shape = root.prim_latvecs \ root.latvecs * shape
-    end
-
-    # Each of these components must be integer
-    if !(round.(shape) ≈ shape)
-        if !isnothing(root.prim_latvecs)
-            error("Cell shape must be integer multiples of primitive lattice vectors. Calculated $shape.")
+    prim_cell = @something primitive_cell(cryst) Mat3(I)
+    shape_in_prim = prim_cell \ shape
+    if !all_integer(shape_in_prim; cryst.symprec)
+        if prim_cell ≈ I
+            error("Elements of `shape` must be integer. Received $shape.")
         else
-            error("Cell shape must be a 3×3 matrix of integers. Received $shape.")
+            error("Elements of `primitive_cell(cryst) \\ shape` must be integer. Calculated $shape_in_prim.")
         end
     end
 end
@@ -566,7 +507,6 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     new_positions = Vec3[]
     new_types     = String[]
     new_classes   = Int[]
-    new_sitesyms  = isnothing(cryst.sitesyms) ? nothing : SiteSymmetry[]
 
     for i in 1:natoms(cryst)
         for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]
@@ -581,7 +521,6 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
                 push!(new_positions, y)
                 push!(new_types, cryst.types[i])
                 push!(new_classes, cryst.classes[i])
-                !isnothing(cryst.sitesyms) && push!(new_sitesyms, cryst.sitesyms[i])
             end
         end
     end
@@ -592,12 +531,15 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     # Reciprocal lattice vectors of the new unit cell
     new_recipvecs = 2π * Mat3(inv(new_latvecs)')
 
-    # Create an empty list of symops as a marker that this information has been
-    # lost with the resizing procedure.
-    new_symops = SymOp[]
+    # Note that latvecs_std = latvecs * R⁻¹ = new_latvecs * new_R⁻¹ is an
+    # invariant quantity. Using new_latvecs = latvecs * new_shape, this implies
+    # that R⁻¹ = new_shape * new_R⁻¹, or new_R = R * new_shape.
+    sg_setting = SymOp(root.sg.setting.R * new_shape, root.sg.setting.T)
 
-    return Crystal(root, new_latvecs, root.prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
-                   new_sitesyms, new_symops, root.spacegroup, new_symprec)
+    # Empty symops list indicates that this information has been lost.
+    new_sg = Spacegroup(SymOp[], root.sg.label, root.sg.number, sg_setting)
+
+    return Crystal(root, new_latvecs, new_recipvecs, new_positions, new_types, new_classes, new_sg, new_symprec)
 end
 
 
@@ -635,14 +577,12 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     new_positions = cryst.positions[atoms]
     new_types = cryst.types[atoms]
     new_classes = cryst.classes[atoms]
-    new_sitesyms = isnothing(cryst.sitesyms) ? nothing : cryst.sitesyms[atoms]
 
     if atoms != 1:maximum(atoms)
         @info "Atoms have been renumbered in subcrystal."
     end
 
-    ret = Crystal(root, cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
-                  new_classes, new_sitesyms, cryst.symops, cryst.spacegroup, cryst.symprec)
+    ret = Crystal(root, cryst.latvecs, cryst.recipvecs, new_positions, new_types, new_classes, cryst.sg, cryst.symprec)
     return ret
 end
 
@@ -650,13 +590,13 @@ end
 subcrystal(cryst::Crystal) = cryst
 
 function Base.show(io::IO, cryst::Crystal)
-    spg = isempty(cryst.spacegroup) ? "" : "$(cryst.spacegroup), "
-    println(io, "Crystal($(spg)$(natoms(cryst)) atoms)")
+    spg = isempty(cryst.sg.label) ? "" : "$(cryst.sg.label), "
+    println(io, "Crystal($spg$(natoms(cryst)) atoms)")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
     printstyled(io, "Crystal\n"; bold=true, color=:underline)
-    println(io, "Spacegroup $(cryst.spacegroup)")
+    println(io, "Spacegroup $(cryst.sg.label)")
 
     if is_standard_form(cryst.latvecs)
         (a, b, c, α, β, γ) = lattice_params(cryst.latvecs)
@@ -673,12 +613,8 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
         if cryst.types[i] != ""
             push!(descr, "Type '$(cryst.types[i])'")
         end
-        if !isnothing(cryst.sitesyms)
-            symbol = cryst.sitesyms[i].symbol
-            multiplicity = cryst.sitesyms[i].multiplicity
-            wyckoff = cryst.sitesyms[i].wyckoff
-            push!(descr, "Wyckoff $multiplicity$wyckoff (point group '$symbol')")
-        end
+        (; multiplicity, letter, sitesym) = get_wyckoff(cryst, i)
+        push!(descr, "Wyckoff $multiplicity$letter (site sym. '$sitesym')")
         if isempty(descr)
             push!(descr, "Class $c")
         end
@@ -702,7 +638,7 @@ function validate(cryst::Crystal)
     end
 
     # Rotation matrices in global coordinates must be orthogonal
-    for s in cryst.symops
+    for s in cryst.sg.symops
         R = cryst.latvecs * s.R * inv(cryst.latvecs)
         # Due to possible imperfections in the lattice vectors, only require
         # that R is approximately orthogonal
@@ -786,7 +722,7 @@ end
 
 function pyrochlore_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-    return Crystal(latvecs, [[5/8, 1/8, 1/8]], 227, setting="1")
+    return Crystal(latvecs, [[0, 0, 0]], 227)
 end
 
 function hyperkagome_crystal(; a=1.0)
@@ -795,9 +731,7 @@ function hyperkagome_crystal(; a=1.0)
     # but any other shift would yield the same symmetries
     # https://materials.springer.com/isp/crystallographic/docs/sd_1723194
     x = 0.141
-    p = [1/8, x, x+1/4]
-    cryst = Crystal(latvecs, [p], 213)
-    @assert !isnothing(cryst.sitesyms)
+    cryst = Crystal(latvecs, [[1/8, x, x+1/4]], 213)
     return cryst
 end
 

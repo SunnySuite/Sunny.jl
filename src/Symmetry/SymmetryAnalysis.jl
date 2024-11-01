@@ -40,7 +40,7 @@ end
 function symmetries_for_pointgroup_of_atom(cryst::Crystal, i::Int)
     ret = SymOp[]
     r = cryst.positions[i]
-    for s in cryst.symops
+    for s in cryst.sg.symops
         r′ = transform(s, r)
         if is_periodic_copy(r, r′; cryst.symprec)
             push!(ret, s)
@@ -56,7 +56,7 @@ function symmetries_between_atoms(cryst::Crystal, i1::Int, i2::Int)
     ret = SymOp[]
     r1 = cryst.positions[i1]
     r2 = cryst.positions[i2]
-    for s in cryst.symops
+    for s in cryst.sg.symops
         if is_periodic_copy(r1, transform(s, r2); cryst.symprec)
             push!(ret, s)
         end
@@ -74,7 +74,7 @@ function all_symmetry_related_atoms(cryst::Crystal, i_ref::Int)
     # Calculate the result another way, as a consistency check.
     equiv_atoms = Int[]
     r_ref = cryst.positions[i_ref]
-    for s in cryst.symops
+    for s in cryst.sg.symops
         push!(equiv_atoms, position_to_atom(cryst, transform(s, r_ref)))
     end
     @assert sort(unique(equiv_atoms)) == ret
@@ -98,7 +98,7 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
     end
 
     ret = Tuple{SymOp, Bool}[]
-    for s in cryst.symops
+    for s in cryst.sg.symops
         b2′ = transform(s, b2)
         if is_periodic_copy(b1, b2′; cryst.symprec)
             push!(ret, (s, true))
@@ -211,7 +211,7 @@ function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
     # Replace each canonical bond by the "best" equivalent bond
     return map(ref_bonds) do rb
         # Find all symmetry equivalent bonds
-        equiv_bonds = [transform(cryst, s, rb) for s in cryst.symops]
+        equiv_bonds = [transform(cryst, s, rb) for s in cryst.sg.symops]
         # Include also reverse bonds
         equiv_bonds = vcat(equiv_bonds, reverse.(equiv_bonds))
         # Take the bond with lowest score

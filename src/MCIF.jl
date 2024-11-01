@@ -23,12 +23,14 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
         tol = 0.1 * sys.crystal.symprec # Tolerance might need tuning
         orig_cryst = orig_crystal(sys)
 
-        primvecs = @something orig_cryst.prim_latvecs orig_cryst.latvecs
+        primcell = @something primitive_cell(orig_cryst) Mat3(I)
+        primvecs = orig_cryst.latvecs * primcell
 
         suggestion = if all(isinteger.(rationalize.(primvecs \ supervecs2; tol)))
             suggested_shape = rationalize.(orig_cryst.latvecs \ supervecs2; tol)
             suggestion = if isdiag(suggested_shape)
-                sz = fractional_vec3_to_string(diag(suggested_shape))
+                diag_strs = number_to_math_string.(diag(suggested_shape))
+                sz = "("*join(diag_strs, ", ")*")"
                 error("Use `resize_supercell(sys, $sz)` to get compatible system")
             else
                 shp = fractional_mat3_to_string(suggested_shape)
