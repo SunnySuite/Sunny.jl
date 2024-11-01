@@ -355,7 +355,7 @@ function is_spacegroup_type_consistent(sgt, latvecs)
 end
 
 
-function crystallographic_orbit_for_symops(position::Vec3, symops::Vector{SymOp}; symprec)
+function crystallographic_orbit(position::Vec3, symops::Vector{SymOp}; symprec)
     orbit = Vec3[]
     for s = symops
         x = wrap_to_unit_cell(transform(s, position); symprec)
@@ -366,8 +366,8 @@ function crystallographic_orbit_for_symops(position::Vec3, symops::Vector{SymOp}
     return orbit
 end
 
-function crystallographic_orbits_for_symops(positions::Vector{Vec3}, symops::Vector{SymOp}; symprec, wyckoffs=nothing)
-    orbits = crystallographic_orbit_for_symops.(positions, Ref(symops); symprec)
+function crystallographic_orbits_distinct(positions::Vector{Vec3}, symops::Vector{SymOp}; symprec, wyckoffs=nothing)
+    orbits = crystallographic_orbit.(positions, Ref(symops); symprec)
 
     # Check orbits are distinct
     for (i, ri) in enumerate(positions), j in i+1:length(orbits)
@@ -395,7 +395,7 @@ end
 # of positions
 function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, sg::Spacegroup; symprec)
     wyckoffs = find_wyckoff_for_position.(Ref(sg), positions; symprec)
-    orbits = crystallographic_orbits_for_symops(positions, sg.symops; symprec, wyckoffs)
+    orbits = crystallographic_orbits_distinct(positions, sg.symops; symprec, wyckoffs)
 
     # Check that inferred orbits match known multiplicities of the Wyckoffs
     foreach(orbits, wyckoffs) do orbit, wyckoff
