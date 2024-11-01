@@ -33,7 +33,7 @@ function is_periodic_copy(w1::WyckoffExpr, w2::WyckoffExpr)
     return isapprox(w1.F, w2.F; atol) && all_integer(w2.c - w1.c; symprec=atol)
 end
 
-function crystallographic_orbit(w::WyckoffExpr, symops::Vector{SymOp})
+function crystallographic_orbit(symops::Vector{SymOp}, w::WyckoffExpr)
     orbit = WyckoffExpr[]
     for s in symops
         w2 = transform(s, w)
@@ -74,7 +74,7 @@ function find_wyckoff_for_position(sgnum::Int, r::Vec3; symprec)
     symops = SymOp.(Rs, Ts)
 
     for (multiplicity, letter, sitesym, pos) in reverse(wyckoff_table[sgnum])
-        for w in crystallographic_orbit(WyckoffExpr(pos), symops)
+        for w in crystallographic_orbit(symops, WyckoffExpr(pos))
             θ = position_to_wyckoff_params(r, w; symprec)
             if !isnothing(θ)
                 return Wyckoff(multiplicity, letter, sitesym)

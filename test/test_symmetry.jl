@@ -29,7 +29,7 @@
     for sgnum in 1:230
         sg = Sunny.Spacegroup(Sunny.standard_setting[sgnum])
         for (mult, letter, sitesym, pos) in Sunny.wyckoff_table[sgnum]
-            orbit = Sunny.crystallographic_orbit(Sunny.WyckoffExpr(pos), sg.symops)
+            orbit = Sunny.crystallographic_orbit(sg.symops, Sunny.WyckoffExpr(pos))
             @assert length(orbit) == mult
         end
     end

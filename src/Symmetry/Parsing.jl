@@ -186,7 +186,7 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
             symops = [SymOp(s.R, s.T) for s in symops]
 
             # Fill atom positions by symmetry and infer symmetry operations
-            orbits = crystallographic_orbits_distinct(positions, symops; symprec)
+            orbits = crystallographic_orbits_distinct(symops, positions; symprec)
             all_positions = reduce(vcat, orbits)
             all_types = repeat_multiple(classes, length.(orbits))
             supercell = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
