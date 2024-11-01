@@ -1,5 +1,4 @@
-# To build docs, execute `julia --project=@. make.jl`. The JuliaHub build
-# environment additionally uses `--compiled-modules=no`.
+# julia --project=@. --compiled-modules=existing make.jl
 
 isdraft = false # set `true` to disable cell evaluation
 

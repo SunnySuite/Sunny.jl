@@ -8,20 +8,19 @@
 
 using Sunny, GLMakie
 
-# Create a pyrochlore crystal from spacegroup 227.
+# Create a pyrochlore crystal from Wyckoff 16c for spacegroup 227.
 
 units = Units(:K, :angstrom)
 latvecs = lattice_vectors(10.19, 10.19, 10.19, 90, 90, 90)
-positions = [[1/8, 1/8, 1/8]]
-cryst = Crystal(latvecs, positions, 227, setting="1")
+positions = [[0, 0, 0]]
+cryst = Crystal(latvecs, positions, 227)
 view_crystal(cryst)
 
 # Create a system and reshape to the primitive cell, which contains four atoms.
 # Add antiferromagnetic nearest neighbor exchange interactions.
 
-primitive_cell = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
 sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole; seed=0)
-sys = reshape_supercell(sys, primitive_cell)
+sys = reshape_supercell(sys, primitive_cell(cryst))
 J1 = 0.304 # (K)
 set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
 

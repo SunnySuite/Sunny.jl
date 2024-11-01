@@ -103,6 +103,12 @@ Base.@deprecate SpinInfo(i; S, g) let
     i => Moment(; s=S, g)
 end
 
+function Base.getproperty(value::Crystal, name::Symbol)
+    if name == :prim_latvecs
+        error("Use `primitive_cell(cryst)` instead of `cryst.latvecs \\ cryst.prim_latvecs`")
+    end
+    return getfield(value, name)
+end
 
 # REMEMBER TO ALSO DELETE:
 #
@@ -114,3 +120,4 @@ end
 # * Missing μ0_μB² in enable_dipole_dipole! and
 #   modify_exchange_with_truncated_dipole_dipole!
 # * energy_ϵ argument in SpinWaveTheory
+# * setting argument in Crystal

@@ -45,7 +45,7 @@ the dipole in analogy to the vector cross product ``S × 𝐁``. The coupling to
 the thermal bath maps as ``λ̃ = |𝐒| λ``. Note, therefore, that the scaling of
 the `damping` parameter varies subtly between `:dipole` and `:SUN` modes.
 
-References:
+## References:
 
 1. [D. Dahlbom et al., Phys. Rev. B 106, 235154
    (2022)](https://arxiv.org/abs/2209.01265).
@@ -99,7 +99,7 @@ or its generalization to SU(_N_) coherent states [1]. One call to the
 This integration scheme is exactly symplectic and eliminates energy drift over
 arbitrarily long simulation trajectories.
 
-References:
+## References:
 
 1. [H. Zhang and C. D. Batista, Phys. Rev. B 104, 104409
    (2021)](https://arxiv.org/abs/2106.14125).

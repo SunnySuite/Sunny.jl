@@ -166,7 +166,7 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
 end
 
 function validate_crystal(cryst::Crystal)
-    if isempty(cryst.symops)
+    if isempty(cryst.sg.symops)
         error("""No symmetry information available for crystal. This likely indicates that
                  the crystal has been reshaped. Perform symmetry analysis on the original
                  crystal instead.""")
