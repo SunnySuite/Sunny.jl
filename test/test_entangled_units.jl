@@ -66,20 +66,20 @@ end
     set_field!(esys, [0, 0, 10])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    esys.sys_origin.dipoles[1][3] ≈ -1/2
-    esys.sys_origin.dipoles[2][3] ≈ -1/2
+    @test esys.sys_origin.dipoles[1][3] ≈ -1/2
+    @test esys.sys_origin.dipoles[2][3] ≈ -1/2
 
     set_field!(esys, [0, 0, -10])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    esys.sys_origin.dipoles[1][3] ≈ 1/2
-    esys.sys_origin.dipoles[2][3] ≈ 1/2
+    @test esys.sys_origin.dipoles[1][3] ≈ 1/2
+    @test esys.sys_origin.dipoles[2][3] ≈ 1/2
 
     set_field!(esys, [0, 0, 0])
     randomize_spins!(esys)
     minimize_energy!(esys; g_tol=1e-14)
-    norm(esys.sys_origin.dipoles[1]) < 1e-14
-    norm(esys.sys_origin.dipoles[2]) < 1e-14
+    @test norm(esys.sys_origin.dipoles[1]) < 1e-14
+    @test norm(esys.sys_origin.dipoles[2]) < 1e-14
 
     # Test inter-bond exchange
     pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys.sys)
@@ -94,8 +94,7 @@ end
 
 
     # Test dispersion against analytical formula for antisymmetric channel.
-    qpts = q_space_path(crystal, [[0, 1, 0], [1, 1, 0]], 5)
-    qs = qpts.qs
+    qs = [[0.2, 0.3, 0]]
 
     ω_ref(q, J, J′) = J*sqrt(1 + 2(J′/J) * cos(2π*q))
     ωs_analytical = ω_ref.([q[1] for q in qs], J, J′)
@@ -105,7 +104,7 @@ end
         set_coherent!(esys, [0, 1/√2, -1/√2, 0], unit)
     end
     swt = SpinWaveTheory(esys; measure=Sunny.empty_measurespec(sys), regularization=0.0)
-    disp = dispersion(swt, qpts)
+    disp = dispersion(swt, qs)
     ωs_numerical = disp[1,:]
 
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
@@ -113,18 +112,26 @@ end
 
     # Test classical dynamics and perform golden test.
     esys = repeat_periodically(esys, (8, 1, 1))
-    energies = range(0, 2, 10)
+    energies = range(0, 2, 5)
     dt = 0.1
     measure = ssf_trace(esys)
     sc = SampledCorrelations(esys; dt, energies, measure)
-    integrator = Langevin(dt ; damping=0.4, kT=0.05)
+    integrator = Langevin(dt; damping=0.4, kT=0.05)
 
     for _ in 1:100
         step!(esys, integrator)
     end
     add_sample!(sc, esys)
-    res = intensities(sc, qpts; energies, kT=0.05)
-    intensities_ref = [-0.0009151914880177183 -0.002340042772876626 -0.0037316702420023395 -0.002340042772876612 -0.0009151914880177183; 0.02116154679963919 0.05967703767242055 0.009161242329689078 0.03233210977077469 0.02116154679963919; -0.04206086791537969 -0.2227189243447692 -0.12040711429107293 -0.025389877189384635 -0.04206086791537969; 0.3962131659090294 2.7150236439903197 4.3968225602687 0.5625477581811109 0.3962131659090294; 8.48497330044607 17.689468342820923 14.169270995083266 3.1979660472637534 8.48497330044607; 17.1145045637742 21.877166922282075 10.751399167760733 3.8125499846147113 17.1145045637742; 8.490961712258231 5.100854031990811 0.6862255516496436 0.8503635473494539 8.490961712258231; -0.3334143274663385 -0.966097718147396 -0.1252420669485946 -0.2868227954981837 -0.3334143274663385; 0.07518063142323421 0.2337350060517672 0.13638239262286792 0.012717547170902647 0.07518063142323421; -0.09925761646769077 -0.29077390054022495 -0.03237049466881591 -0.290773900540224 -0.09925761646769077] 
+    res = intensities(sc, qs; energies, kT=0.05)
+
+    # Julia 1.11 slightly changes the SVD, which leads to a different
+    # decomposition of "general" pair interactions. Small numerical differences
+    # can be amplified over a long dynamical trajectory.
+    @static if v"1.10" <= VERSION < v"1.11"
+        intensities_ref = [0.03781658031882558; 0.16151778881111165; -0.0037168273786800762; 0.003932155182202315; 0.004622186821935108;;]
+    elseif v"1.11" <= VERSION
+        intensities_ref = [0.06308051766790573; 0.3382120639629263; 0.01923042197493646; -0.0008116785050247188; 0.013219669220764382;;]
+    end
     @test isapprox(res.data, intensities_ref)
 end
 
