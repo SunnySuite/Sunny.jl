@@ -37,8 +37,8 @@ set_exchange!(sys, J₁, Bond(3, 2, [1,1,0]))
 set_exchange!(sys, J₄, Bond(1, 1, [0,0,1]))
 set_exchange!(sys, J₂, Bond(1, 3, [0,0,0]))
 
-# The final two exchanges are setting according to the desired chirality ``ϵ_T``
-# of the magnetic structure.
+# The final two exchanges are set according to the desired chirality ``ϵ_T`` of
+# the magnetic structure.
 
 ϵT = -1
 if ϵT == -1

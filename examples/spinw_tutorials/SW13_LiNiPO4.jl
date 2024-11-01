@@ -8,8 +8,8 @@
 
 using Sunny, GLMakie
 
-# Build an orthorhombic lattice and populate the Ni atoms according to
-# spacegroup 62 (Pnma).
+# Build an orthorhombic lattice and populate the Ni atoms according to Wyckoff
+# 4c of spacegroup 62.
 
 units = Units(:meV, :angstrom)
 a = 10.02
@@ -18,7 +18,7 @@ c = 4.68
 latvecs = lattice_vectors(a, b, c, 90, 90, 90)
 positions = [[1/4, 1/4, 0]]
 types = ["Ni"]
-cryst = Crystal(latvecs, positions, 62, setting=""; types)
+cryst = Crystal(latvecs, positions, 62; types)
 view_crystal(cryst)
 
 # Create a system with exchange parameters taken from [T. Jensen, et al., PRB

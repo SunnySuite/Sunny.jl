@@ -431,7 +431,7 @@ end
 @testitem "Invariance to reshaping" begin    
     # Diamond-cubic with antiferromagnetic exchange
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+    cryst = Crystal(latvecs, [[0,0,0]], 227; choice="1")
     s = 3/2
     sys = System(cryst, [1 => Moment(; s, g=2)], :dipole; seed=0)
     set_exchange!(sys, 1.0, Bond(1, 3, [0,0,0]))

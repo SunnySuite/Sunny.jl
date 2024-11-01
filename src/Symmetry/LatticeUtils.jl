@@ -61,28 +61,6 @@ function is_standard_form(latvecs::Mat3)
     return latvecs ≈ conventional_latvecs
 end
 
-# Return true if lattice vectors are compatible with a monoclinic space group
-# "setting" for a Hall number.
-function is_compatible_monoclinic_cell(latvecs, hall_number)
-    @assert cell_type(hall_number) == monoclinic
-
-    # Special handling of monoclinic space groups. There are three possible
-    # conventions for the unit cell, depending on which of α, β, or γ is
-    # special.
-    _, _, _, α, β, γ = lattice_params(latvecs)
-    choice = Spglib.get_spacegroup_type(hall_number).choice
-    x = first(replace(choice, "-" => ""))
-    if x == 'a'
-        return β≈90 && γ≈90
-    elseif x == 'b'
-        return α≈90 && γ≈90
-    elseif x == 'c'
-        return α≈90 && β≈90
-    else
-        error()
-    end
-end
-
 """
     CellType
 
@@ -106,16 +84,6 @@ end
 # which would invalidate the table of symops for a given Hall number.
 function cell_type(latvecs::Mat3)
     a, b, c, α, β, γ = lattice_params(latvecs)
-
-    # Previously, we had errored on the condition:
-    #
-    # !(latvecs ≈ lattice_vectors(a, b, c, α, β, γ))
-    #
-    # This condition seems allowable, however, because a global rotation of
-    # lattice vectors should not affect the meaning of symops, which act on
-    # fractional coordinates. Such a rotation naturally arises when specifying,
-    # e.g., the primitive cell for FCC or BCC as a subvolume of the conventional
-    # cubic unit cell.
 
     if a ≈ b ≈ c
         if α ≈ β ≈ γ ≈ 90
@@ -167,7 +135,7 @@ function cell_type(hall_number::Int)
         tetragonal
     elseif 430 <= hall_number <= 461
         # The trigonal space groups require either rhombohedral or hexagonal
-        # cells. The Hall numbers below have "setting" R.
+        # cells. The Hall numbers below have "choice" R.
         hall_number in [434, 437, 445, 451, 453, 459, 461] ? rhombohedral : hexagonal
     elseif 462 <= hall_number <= 488
         hexagonal
@@ -188,7 +156,7 @@ function all_compatible_cells(cell::CellType)
     elseif cell == tetragonal
         [tetragonal, cubic]
     elseif cell == rhombohedral
-        [rhombohedral]
+        [rhombohedral, cubic]
     elseif cell == hexagonal
         [hexagonal]
     elseif cell == cubic

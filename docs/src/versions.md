@@ -9,6 +9,11 @@
   polynomial order according to an error tolerance.
 * Rename mode `:dipole_large_S` to `:dipole_uncorrected` to emphasize that
   corrections are missing.
+* The [`Crystal`](@ref) constructor, by default, interprets a spacegroup number
+  in its ITA standard setting, e.g., as used by the [Bilbao crystallographic
+  server](https://www.cryst.ehu.es/cryst/get_wp.html). The keyword argument
+  `setting` becomes `choice`, and can typically be omitted.
+* Rename `primitive_cell_shape` to [`primitive_cell`](@ref).
 
 ## v0.7.2
 (Sep 11, 2024)
