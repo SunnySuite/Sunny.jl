@@ -21,9 +21,9 @@ Reasonable starting points are `1e-1` (more speed) or `1e-2` (more accuracy).
     particular, KPM may mask intensities that arise near the Goldstone modes of
     an ordered state with continuous symmetry.
 
-## References:
+## References
 
-1. H. Lane et al., Kernel Polynomial Method for Linear Spin Wave Theory (2023)
+1. H. Lane et al., _Kernel Polynomial Method for Linear Spin Wave Theory_ (2023)
    [[arXiv:2312.08349v3](https://arxiv.org/abs/2312.08349)].
 """
 struct SpinWaveTheoryKPM

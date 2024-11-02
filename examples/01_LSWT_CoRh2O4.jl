@@ -2,8 +2,8 @@
 #
 # This tutorial introduces Sunny through its features for performing
 # conventional spin wave theory calculations. We consider the crystal CoRh₂O₄
-# and reproduce the calculations of [Ge et al., Phys. Rev. B 96,
-# 064413](https://doi.org/10.1103/PhysRevB.96.064413).
+# and reproduce the calculations of [Ge et al., Phys. Rev. B **96**,
+# 064413 (2017)](https://doi.org/10.1103/PhysRevB.96.064413).
 
 # ### Get Julia and Sunny
 # 
