@@ -8,7 +8,7 @@
 # that is observable in neutron scattering, and cannot be described by a
 # dipole-only model. We will use the linear spin wave theory of SU(3) coherent
 # states (i.e. 2-flavor bosons) to model the magnetic spectrum of FeI₂. The
-# original study was performed in [Bai et al., Nature Physics 17, 467–472
+# original study was performed in [Bai et al., Nature Physics **17**, 467–472
 # (2021)](https://doi.org/10.1038/s41567-020-01110-1).
 #
 # ```@raw html

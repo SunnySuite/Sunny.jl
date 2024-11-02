@@ -96,14 +96,15 @@ Two special, ``𝐪``-independent form factor values are available:
 as a perfect point particle, while the second zeros all contributions from the
 magnetic ion.
 
-## References:
+## References
 
-1. [P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form
-   Factors (2003)](https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html)
+1. [P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 _Magnetic Form
+   Factors_ (2003)](https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html).
 2. Coefficient tables in [McPhase
-   documentation](https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html)
-3. [K. Kobayashi, T. Nagao, M. Ito, Acta Cryst. A, 67 pp 473–480
-   (2011)](https://doi.org/10.1107/S010876731102633X)
+   documentation](https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html).
+3. [K. Kobayashi, T. Nagao, M. Ito, _Radial integrals for the magnetic form
+   factor of 5d transition elements_, Acta Cryst. A, **67**, 473–480
+   (2011)](https://doi.org/10.1107/S010876731102633X).
 """
 function FormFactor(ion::String; g_lande=2)
     if !haskey(radial_integral_coefficients, ion)
