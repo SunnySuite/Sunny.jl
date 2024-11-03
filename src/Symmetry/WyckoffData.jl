@@ -12,8 +12,9 @@ struct WyckoffExpr
 end
 
 # Extracts (F, c) from expressions of the form (F θ + c), where θ = [x, y, z].
-function WyckoffExpr(str)
+function WyckoffExpr(str::String)
     s = SymOp(strip(str, ['(', ')']))
+    @assert all(in((-2, -1, 0, 1, 2)), s.R)
     return WyckoffExpr(s.R, s.T)
 end
 
@@ -48,17 +49,17 @@ end
 # return nothing if this equation cannot be satisfied. Write F θ = b + Δb,
 # involving b = r - c, and arbitrary integers Δb. Given candidate Δb, one can
 # use the pseudo-inverse of F to find least squares solution θ, and then check
-# whether it satisfies the original linear system of equations. A search over
-# integer shifts Δb seems unavoidable.
+# whether it satisfies the original linear system of equations.
 function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; symprec=1e-8)
     (; F, c) = w
     # Wrapping components to [0, 1] simplifies the search in the next step.
     b = wrap_to_unit_cell(r - c; symprec)
-    # Loop over 8 vector shifts Δb ∈ [{-1,0}, {-1,0}, {-1,0}]. In the general
-    # case, one might need to search over all Δb ∈ ℕ³. This reduced search space
-    # has been empirically determined through consideration of all Wyckoffs of
-    # the 230 spacegroups. Similar logic appears in Crystalline.jl:
-    # https://github.com/thchr/Crystalline.jl/blob/31fa2f61a5db62f4dfd6b0e8fb994d8aacef3d5c/src/wyckoff.jl#L321-L335
+    # If F were arbitrary, one would need to search over all offsets Δb ∈ ℕ³.
+    # Fortunately, the actual matrices are constrained: matrix elements Fᵢⱼ are
+    # in {0, ±1, ±2} for hexagonal crystal systems, and in {0, ±1} for all other
+    # systems. Empirical tests indicate that just eight shifts are sufficient:
+    # Δb ∈ [{-1,0}, {-1,0}, {-1,0}]. Removing these shifts will cause failures
+    # in the "Wyckoff table" unit test.
     for Δb in Iterators.product((-1, 0), (-1, 0), (-1, 0))
         Δb = Vec3(Δb)
         θ = pinv(F) * (b + Δb)

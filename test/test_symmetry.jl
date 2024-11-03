@@ -26,11 +26,23 @@
     end
     =#
 
+    # Test that the orbit of a Wyckoff matches the multiplicity data.
     for sgnum in 1:230
         sg = Sunny.Spacegroup(Sunny.standard_setting[sgnum])
         for (mult, letter, sitesym, pos) in Sunny.wyckoff_table[sgnum]
             orbit = Sunny.crystallographic_orbit(sg.symops, Sunny.WyckoffExpr(pos))
-            @assert length(orbit) == mult
+            @test length(orbit) == mult
+        end
+    end
+
+    # Test that Wyckoffs can be correctly inferred from a position
+    niters = 20
+    for sgnum in rand(1:230, niters)
+        for (_, letter, _, pos) in Sunny.wyckoff_table[sgnum]
+            w = Sunny.WyckoffExpr(pos)
+            θ = 10 * randn(3)
+            r = w.F * θ + w.c
+            @test letter == Sunny.find_wyckoff_for_position(sgnum, r; symprec=1e-8).letter
         end
     end
 end
