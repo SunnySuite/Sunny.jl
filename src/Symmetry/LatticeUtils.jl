@@ -61,27 +61,25 @@ function is_standard_form(latvecs::Mat3)
     return latvecs ≈ conventional_latvecs
 end
 
-"""
-    CellType
-
-An enumeration over the different types of 3D Bravais unit cells.
-"""
+# Labels for the 7 lattice systems. Note that these are subtly distinct from the
+# 7 crystal systems. In particular, the rhombohedral lattice system (a=b=c,
+# α=β=γ) should not be confused with the trigonal crystal system. Trigonal
+# spacegroups are characterized by a 3-fold rotational symmetry. All trigonal
+# spacegroups (143-167) admit a hexagonal setting. Some of these (146, 148, 155,
+# 160, 161, 166, 167) additionally admit a rhombohedral setting.
 @enum CellType begin
     triclinic
     monoclinic
     orthorhombic
     tetragonal
-    # Rhombohedral is a special case. It is a lattice type (a=b=c, α=β=γ) but
-    # not a spacegroup type. Trigonal space groups are conventionally described
-    # using either hexagonal or rhombohedral lattices.
     rhombohedral
     hexagonal
     cubic
 end
 
-# Infer the `CellType` of a unit cell from its lattice vectors, i.e. the columns
-# of `latvecs`. Report an error if the unit cell is not in conventional form,
-# which would invalidate the table of symops for a given Hall number.
+# Infer the CellType (lattice system) from lattice vectors. Report an error if
+# the unit cell is not in conventional form, which would invalidate the table of
+# symops for a given Hall number.
 function cell_type(latvecs::Mat3)
     a, b, c, α, β, γ = lattice_params(latvecs)
 
@@ -121,8 +119,7 @@ function cell_type(latvecs::Mat3)
     return triclinic
 end
 
-# Return the standard cell convention for a given Hall number using the
-# convention of spglib, listed at
+# The lattice system that is expected for a given Hall number. Taken from:
 # http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37
 function cell_type(hall_number::Int)
     if 1 <= hall_number <= 2
