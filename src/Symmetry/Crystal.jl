@@ -397,11 +397,9 @@ function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::
     wyckoffs = find_wyckoff_for_position.(Ref(sg), positions; symprec)
     orbits = crystallographic_orbits_distinct(sg.symops, positions; symprec, wyckoffs)
 
-    # Check that inferred orbits match known multiplicities of the Wyckoffs
+    # Symmetry-propagated orbits must match known multiplicities of the Wyckoffs
     foreach(orbits, wyckoffs) do orbit, wyckoff
-        if wyckoff.multiplicity ≉ length(orbit) / abs(det(sg.setting.R))
-            error("Internal error filling Wyckoff positions! Please report this.")
-        end
+        @assert wyckoff.multiplicity ≈ length(orbit) / abs(det(sg.setting.R))
     end
 
     all_positions = reduce(vcat, orbits)
