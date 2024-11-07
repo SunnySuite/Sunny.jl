@@ -118,15 +118,14 @@ Multiple proposals can be mixed with the macro [`@mix_proposals`](@ref).
 The returned object stores fields `ΔE` and `ΔS`, which represent the cumulative
 change to the net energy and dipole, respectively.
 
-!!! warning "Efficiency considerations"
-
-  Prefer [`Langevin`](@ref) sampling in most cases. Langevin dynamics will
-  usually be much more efficient for sampling Heisenberg-like spins that vary
-  continuously. `LocalSampler` is most useful for sampling from discrete spin
-  states. In particular, [`propose_flip`](@ref) may be required for sampling
-  Ising-like spins that arise due to a strong easy-axis anisotropy. For strong
-  but finite single-ion anisotropy, consider alternating between `Langevin` and
-  `LocalSampler` update steps.
+!!! warning "Efficiency considerations"  
+    Prefer [`Langevin`](@ref) sampling in most cases. Langevin dynamics will
+    usually be much more efficient for sampling Heisenberg-like spins that vary
+    continuously. `LocalSampler` is most useful for sampling from discrete spin
+    states. In particular, [`propose_flip`](@ref) may be required for sampling
+    Ising-like spins that arise due to a strong easy-axis anisotropy. For strong
+    but finite single-ion anisotropy, consider alternating between `Langevin`
+    and `LocalSampler` update steps.
 """
 mutable struct LocalSampler{F}
     kT      :: Float64   # Temperature

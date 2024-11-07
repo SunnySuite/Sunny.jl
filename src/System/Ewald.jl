@@ -251,13 +251,12 @@ employs real-space pair couplings with truncation at the specified `cutoff`
 distance. If the cutoff is relatively small, then this function may be faster
 than `enable_dipole_dipole!`.
 
-!!! warning "Mutation of existing couplings"
-
-  This function will modify existing bilinear couplings between spins by adding
-  dipole-dipole interactions. It must therefore be called _after_ all other pair
-  couplings have been specified. Conversely, any calls to `set_exchange!`,
-  `set_pair_coupling!`, etc. will irreversibly delete the dipole-dipole
-  interactions that have been introduced by this function.
+!!! warning "Mutation of existing couplings"  
+    This function will modify existing bilinear couplings between spins by
+    adding dipole-dipole interactions. It must therefore be called _after_ all
+    other pair couplings have been specified. Conversely, any calls to
+    `set_exchange!`, `set_pair_coupling!`, etc. will irreversibly delete the
+    dipole-dipole interactions that have been introduced by this function.
 """
 function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, μ0_μB²=nothing) where N
     if isnothing(μ0_μB²)

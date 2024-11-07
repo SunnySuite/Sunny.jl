@@ -88,11 +88,10 @@ systems = [make_system(; seed=id) for id in 1:npar]
 scs = [SampledCorrelations(sys; dt=0.1, energies, measure) for _ in 1:npar]
 ```
 
-!!! warning "Dealing with memory constraints"
-
-  If many threads are available and the system sizes are large, there may not be
-  enough computer memory available to store the dynamical correlation data. In
-  this case, consider reducing the number of parallel threads, `npar`.
+!!! warning "Dealing with memory constraints"  
+    If many threads are available and the system sizes are large, there may not
+    be enough computer memory available to store the dynamical correlation data.
+    In this case, consider reducing the number of parallel threads, `npar`.
 
 When the `Threads.@threads` macro is applied before a `for` loop, the
 iterations of the loop will execute in parallel using the available threads.
