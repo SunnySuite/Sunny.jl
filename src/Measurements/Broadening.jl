@@ -73,9 +73,9 @@ function gaussian(; fwhm=nothing, σ=nothing)
         error("Either fwhm or σ must be specified.")
     end
     fwhm = @something fwhm 2√(2log(2))*σ
-    σ = fwhm/2√(2log(2))
+    σ = fwhm / 2√(2log(2))
     kernel(x) = exp(-x^2/2σ^2) / √(2π*σ^2)
-    integral(x) = erf(x/√2σ)/2
+    integral(x) = erf(x/√2σ) / 2
     return Broadening(kernel; integral, fwhm, name="Gaussian")
 end
 
