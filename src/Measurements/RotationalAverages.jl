@@ -24,6 +24,81 @@ function q_space_shell(cryst::Crystal, radius, n)
     return Ref(scale) .* sphere_points(n)
 end
 
+# Apply isotropic Gaussian broadening to powder averaged data.
+#
+# Consider a point source of unit intensity at a distance k from the origin,
+# displaced along the ẑ direction, and an isotropic broadening kernel G(x). We
+# will calculate the induced intensity on a spherical shell of radius q,
+# centered about the origin. Decompose the radius-q shell into circular rings of
+# circumference `2 π q sin(θ)`, with θ the polar angle. By symmetry, the
+# intensity on each ring has uniform magnitude G(l), where l is the distance
+# from the point source to the ring, satisfying `l² = k² + q² - 2 k q cos θ`. To
+# integrate over all rings comprising the radius-q sphere, use the integration
+# measure `(2πq sin(θ)) (q dθ) dq`. Divide by a factor of 4πq² to get a proper
+# surface density of intensity. The broadened intensity, per unit area, induced
+# on the radius-q sphere is then,
+#
+#   ρ = (1/2) ∫ sin(θ) G(l(θ)) dθ   for θ ∈ [0, π]  
+#     = (1/2) ∫ G(l(u)) du,         for u ∈ [-1, 1],
+#
+# where we have made the variable substitution u = cos(θ). In the special case
+# of Gaussian broadening with some width σ,
+#
+#   G(x) = exp(-x²/2σ²) / σ³ √(2π)³,
+#
+# the integral simplifies to,
+#
+#   ρ = (σ²/2qk) [G(k-q) - G(k+q)]
+#
+# A nice check on this result is that integrating the total intensity on all
+# shells q ∈ [0, ∞) yields the original unit intensity, `∫ ρ (4πq²) dq = 1`. By
+# q ↔ k symmetry, another identity is `C = ∫ ρ (4πk²) dk = 1`. This is the
+# broadened surface density on an arbitrary shell, as produced by a uniform
+# intensity throughout ℝ³. In practice, numerical integration will cut off the
+# k-integral above some maximum radius, yielding C(q) < 1, now with a q
+# dependence. To empirically compensate for the finite cutoff, we will amplify
+# broadened intensities by the factor 1/C(q).
+function broaden_powder_intensities(res::PowderIntensities; fwhm)
+    (; crystal, data, radii, energies) = res
+    broadened_data = zero(data)
+    C = zeros(length(radii))
+    dk = radii[2] - radii[1]
+    @assert iszero(abs(radii[1]))
+    @assert dk ≈ radii[end] / (length(radii) - 1)
+
+    σ = fwhm / 2√(2log(2))
+    G(x) = exp(-x^2/2σ^2) / (σ^3 * (2π)^(3/2))
+
+    # Loop over shells of radius k. These are treated as "source" intensities,
+    # which are accumulated into broadened_data.
+    for (i, k) in enumerate(radii)
+        # Vanishing contribution for the sphere of radius k=0.
+        iszero(k) && continue
+
+        # Undo averaging to get total source intensity on shell-k.
+        source_intensity = data[:, i] * 4π * k^2
+
+        # Loop over contributions to the shell at radius q
+        for (j, q) in enumerate(radii)
+            if iszero(q)
+                ρ = G(k) # The limit where q → 0
+            else
+                ρ = (σ^2 / (2q*k)) * (G(k-q) - G(k+q))
+            end
+            C[j] += ρ * 4π*k^2 * dk
+            broadened_data[:, j] += source_intensity * ρ
+        end
+    end
+
+    # Amplification due to missing spherical shell sources, i.e. truncation of
+    # the k integral.
+    for j in eachindex(C)
+        broadened_data[:, j] /= C[j]
+    end
+
+    return PowderIntensities(crystal, radii, energies, broadened_data)
+end
+
 
 """
     powder_average(f, cryst, radii, n; seed=0)
