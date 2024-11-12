@@ -43,11 +43,12 @@ Sunny is inspired by SpinW, especially regarding symmetry analysis and tradition
 | -- | -- | -- | -- |
 | Symmetry-guided modeling | ❌ | ✅ | ✅ |
 | Interactive graphics | ❌ | ✅ | ✅ |
-| [Incommensurate spiral order](https://arxiv.org/abs/1402.6069) | ❌ | ✅ | ✅ |
+| [Incommensurate spiral order](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html) | ❌ | ✅ | ✅ |
 | Arbitrary couplings of quantum operators | ✅ | ❌ | ✅ |
-| [Interaction renormalization corrections](https://arxiv.org/abs/2304.03874) | ❌ | ❌ | ✅ |
-| [Multi-flavor spin wave theory](https://arxiv.org/abs/1307.7731) | ✅ | ❌ | ✅ |
-| [Classical SU(_N_) spin dynamics](https://arxiv.org/abs/2209.01265) | ❌ | ❌ | ✅ |
+| [Interaction renormalization corrections](https://sunnysuite.github.io/Sunny.jl/stable/renormalization.html) | ❌ | ❌ | ✅ |
+| [Multi-flavor spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html) | ✅ | ❌ | ✅ |
+| [Linear-scaling spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html) | ❌ | ❌ | ✅ |
+| [Classical SU(_N_) spin dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/04_GSD_FeI2.html) | ❌ | ❌ | ✅ |
 | [Fast long-range dipole interactions](https://sunnysuite.github.io/Sunny.jl/stable/examples/07_Dipole_Dipole.html) | ❌ | ❌ | ✅ |
 | Programming language | C++ | Matlab | [Julia](https://julialang.org/) |
 
