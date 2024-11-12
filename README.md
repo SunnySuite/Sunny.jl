@@ -44,7 +44,7 @@ Sunny is inspired by SpinW, especially regarding symmetry analysis and tradition
 | Symmetry-guided modeling | ❌ | ✅ | ✅ |
 | Interactive graphics | ❌ | ✅ | ✅ |
 | [Incommensurate spiral order](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html) | ❌ | ✅ | ✅ |
-| Arbitrary couplings of quantum operators | ✅ | ❌ | ✅ |
+| Arbitrary coupling of quantum operators | ✅ | ❌ | ✅ |
 | [Interaction renormalization corrections](https://sunnysuite.github.io/Sunny.jl/stable/renormalization.html) | ❌ | ❌ | ✅ |
 | [Multi-flavor spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html) | ✅ | ❌ | ✅ |
 | [Linear-scaling spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html) | ❌ | ❌ | ✅ |
