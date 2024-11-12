@@ -31,7 +31,7 @@ function propagate_moments(cryst::Crystal, moments::Vector{Pair{Int, Moment}})
     for (i, m) in moments
         1 <= i <= natoms(cryst) || error("Atom $i outside the valid range 1:$(natoms(cryst))")
         if !is_coupling_valid(cryst, Bond(i, i, [0,0,0]), m.g)
-            error("g-tensor $(m.g) is inconsistent with the site symmetry of atom $(m.atom).")
+            error("g-tensor on site $i is symmetry inconsistent; see `print_site(cryst, $i)` for more information.")
         end
     end
 
