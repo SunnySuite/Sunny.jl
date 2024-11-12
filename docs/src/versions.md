@@ -4,6 +4,7 @@
 (In development)
 
 * Better error message when a $g$-tensor is symmetry disallowed.
+* Fix [`minimize_energy!`](@ref) when used with [`set_vacancy_at!`](@ref).
 
 ## v0.7.3
 (Nov 12, 2024)
