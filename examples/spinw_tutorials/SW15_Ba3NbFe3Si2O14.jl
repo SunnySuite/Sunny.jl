@@ -3,6 +3,9 @@
 # This is a Sunny port of [SpinW Tutorial
 # 15](https://spinw.org/tutorials/15tutorial), originally authored by Sandor
 # Toth. It calculates the linear spin wave theory spectrum of Ba₃NbFe₃Si₂O₁₄.
+# The ground state is an incommensurate spiral, which can be directly studied
+# using the functions [`minimize_spiral_energy!`](@ref) and
+# [`SpinWaveTheorySpiral`](@ref).
 
 # Load packages 
 
