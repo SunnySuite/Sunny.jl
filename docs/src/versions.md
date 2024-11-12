@@ -1,7 +1,7 @@
 # Version History
 
 ## v0.7.3
-(In development)
+(Nov 12, 2024)
 
 * Fix error in `print_symmetry_table` for slightly-distorted crystal cells ([PR
   #317](https://github.com/SunnySuite/Sunny.jl/pull/317)).
