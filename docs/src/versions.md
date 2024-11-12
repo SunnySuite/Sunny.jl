@@ -1,5 +1,10 @@
 # Version History
 
+## v0.7.4
+(In development)
+
+* Better error message when a $g$-tensor is symmetry disallowed.
+
 ## v0.7.3
 (Nov 12, 2024)
 
