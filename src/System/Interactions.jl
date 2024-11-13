@@ -69,7 +69,7 @@ end
 Enables long-range interactions between magnetic dipole moments,
 
 ```math
-    -(μ_0/4π) ∑_{⟨ij⟩}  [3 (μ_i⋅𝐫̂_{ij})(μ_j⋅𝐫̂_{ij}) - μ_i⋅μ_j] / r_{ij}^3
+    -(μ_0/4π) ∑_{⟨ij⟩}  [3 (μ_i⋅𝐫̂_{ij})(μ_j⋅𝐫̂_{ij}) - μ_i⋅μ_j] / r_{ij}^3,
 ```
 
 where the sum is over all pairs of sites (singly counted), including periodic
@@ -78,6 +78,15 @@ is ``μ = -g μ_B 𝐒``, where ``𝐒`` is the spin angular momentum dipole. Th
 parameter `μ0_μB²` specifies the physical constant ``μ_0 μ_B^2``, which has
 dimensions of length³-energy. Obtain this constant for a given system of
 [`Units`](@ref) via its `vacuum_permeability` property.
+
+Dipole-dipole interactions can be incorporated into spin dynamics simulations
+with very high efficiency. The key observation is that dipole-dipole
+interactions are translation invariant and diagonalize in Fourier space. To
+calculate these interactions, Sunny will perform a fast Fourier transform (FFT)
+on the spins of each Bravais sublattice, and then account for the relative
+displacement of the sublattices. With this approach, the computational cost of
+an integration time-step scales like ``M^2 N \\ln N``, where ``N`` is the number
+of unit cells in the system and ``M`` is the number of atoms per cell.
 
 # Example
 
