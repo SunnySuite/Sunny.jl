@@ -44,8 +44,8 @@ Sunny is inspired by SpinW, especially regarding symmetry analysis and tradition
 | Symmetry-guided modeling | ❌ | ✅ | ✅ |
 | Interactive graphics | ❌ | ✅ | ✅ |
 | [Incommensurate spiral order](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html) | ❌ | ✅ | ✅ |
-| Arbitrary coupling of quantum operators | ✅ | ❌ | ✅ |
-| [Interaction renormalization corrections](https://sunnysuite.github.io/Sunny.jl/stable/renormalization.html) | ❌ | ❌ | ✅ |
+| [Arbitrary coupling of spin multipoles](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!-Union{Tuple{N},%20Tuple{System{N},%20AbstractMatrix,%20Any}}%20where%20N) | ✅ | ❌ | ✅ |
+| [Interaction renormalization](https://sunnysuite.github.io/Sunny.jl/stable/renormalization.html) | ❌ | ❌ | ✅ |
 | [Multi-flavor spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html) | ✅ | ❌ | ✅ |
 | [Linear-scaling spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html) | ❌ | ❌ | ✅ |
 | [Classical SU(_N_) spin dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/04_GSD_FeI2.html) | ❌ | ❌ | ✅ |
