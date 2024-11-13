@@ -89,15 +89,15 @@ end
 
 """
     minimize_energy!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
-                     g_tol=1e-10, kwargs...) where N
+                     kwargs...) where N
 
 Optimizes the spin configuration in `sys` to minimize energy. A total of
-`maxiters` iterations will be attempted. Convergence is reached when the root
-mean squared energy gradient goes below `g_tol`. The remaining `kwargs` will be
-forwarded to the `optimize` method of the Optim.jl package.
+`maxiters` iterations will be attempted. All of `kwargs` will be forwarded to
+the `optimize` method of the Optim.jl package, and can be used to modify
+convergence tolerances.
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
-                          g_tol=1e-10, kwargs...) where N
+                          kwargs...) where N
     # Allocate buffers for optimization:
     #   - Each `ns[site]` defines a direction for stereographic projection.
     #   - Each `αs[:,site]` will be optimized in the space orthogonal to `ns[site]`.
@@ -119,18 +119,14 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         optim_set_gradient!(G, sys, αs, ns)
     end
 
-    # Monitor energy gradient magnitude relative to absolute tolerance `g_tol`.
-    g_res = Inf
-
     # Repeatedly optimize using a small number (`subiters`) of steps.
-    options = Optim.Options(; iterations=subiters, g_tol, kwargs...)
+    options = Optim.Options(; iterations=subiters, kwargs...)
+    local output
     for iter in 1 : div(maxiters, subiters, RoundUp)
         output = Optim.optimize(f, g!, αs, method, options)
-        g_res = Optim.g_residual(output)
-        @assert g_tol == Optim.g_tol(output)
 
         # Exit if converged
-        if g_res ≤ g_tol
+        if Optim.converged(output)
             cnt = (iter-1)*subiters + output.iterations
             return cnt
         end
@@ -140,8 +136,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         αs .*= 0
     end
 
-    # res_str = number_to_simple_string(g_res; digits=2)
-    # tol_str = number_to_simple_string(g_tol; digits=2)
-    # @warn "Optimization failed to converge within $maxiters iterations ($res_str ≰ $tol_str)"
+    f_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(output), Optim.g_residual(output)); digits=2)
+    @warn "Failed to converge within $maxiters iterations (|ΔE|=$f_abschange, max|∇E|=$g_residual)"
     return -1
 end
