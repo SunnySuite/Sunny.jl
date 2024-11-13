@@ -2,10 +2,11 @@
 #
 # This example demonstrates long-range dipole-dipole interactions in the context
 # of a spin wave calculation. These interactions can be included two ways: with
-# infinite-range [Ewald summation](@ref enable_dipole_dipole!) or in [real-space
-# with a distance cutoff](@ref modify_exchange_with_truncated_dipole_dipole!).
-# The study follows [Del Maestro and Gingras, J. Phys.: Cond. Matter, **16**,
-# 3339 (2004)](https://arxiv.org/abs/cond-mat/0403494).
+# infinite-range [Ewald summation](@ref enable_dipole_dipole!) or with a
+# [real-space distance cutoff](@ref
+# modify_exchange_with_truncated_dipole_dipole!). The study follows [Del Maestro
+# and Gingras, J. Phys.: Cond. Matter, **16**, 3339
+# (2004)](https://arxiv.org/abs/cond-mat/0403494).
 
 using Sunny, GLMakie
 
