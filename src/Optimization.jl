@@ -138,6 +138,6 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
     end
 
     f_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(output), Optim.g_residual(output)); digits=2)
-    @warn "Failed to converge within $maxiters iterations (|ΔE|=$f_abschange, max|∇E|=$g_residual)"
+    @warn "Non-converged after $maxiters iterations: ΔE=$f_abschange, max|∂E|=$g_residual"
     return -1
 end
