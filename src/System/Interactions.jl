@@ -69,7 +69,7 @@ end
 Enables long-range interactions between magnetic dipole moments,
 
 ```math
-    -(μ_0/4π) ∑_{⟨ij⟩}  [3 (μ_i⋅𝐫̂_{ij})(μ_j⋅𝐫̂_{ij}) - μ_i⋅μ_j] / r_{ij}^3
+    -(μ_0/4π) ∑_{⟨ij⟩}  [3 (μ_i⋅𝐫̂_{ij})(μ_j⋅𝐫̂_{ij}) - μ_i⋅μ_j] / r_{ij}^3,
 ```
 
 where the sum is over all pairs of sites (singly counted), including periodic
@@ -85,6 +85,17 @@ dimensions of length³-energy. Obtain this constant for a given system of
 units = Units(:meV, :angstrom)
 enable_dipole_dipole!(sys, units.vacuum_permeability)
 ```
+
+!!! tip "Efficiency considerations"  
+    Dipole-dipole interactions are very efficient in the context of spin
+    dynamics simulation, e.g. [`Langevin`](@ref). Sunny applies the fast Fourier
+    transform (FFT) to spins on each Bravais sublattice, such that the
+    computational cost to integrate one time-step scales like ``M^2 N \\ln N``,
+    where ``N`` is the number of cells in the system and ``M`` is the number of
+    Bravais sublattices per cell. Conversely, dipole-dipole interactions are
+    highly _inefficient_ in the context of a [`LocalSampler`](@ref). Each Monte
+    Carlo update of a single spin currently requires scanning over all other
+    spins in the system.
 
 See also [`modify_exchange_with_truncated_dipole_dipole!`](@ref).
 """

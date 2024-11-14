@@ -1,14 +1,14 @@
 # # 9. Disordered system with KPM
 #
-# This example uses the kernel polynomial method (KPM) to efficiently calculate
-# the neutron scattering spectrum of a disordered triangular antiferromagnet.
-# The model is inspired by YbMgGaO4, as studied in [Paddison et al, Nature
-# Phys., **13**, 117–122 (2017)](https://doi.org/10.1038/nphys3971) and [Zhu et
-# al, Phys. Rev. Lett. **119**, 157201
-# (2017)](https://doi.org/10.1103/PhysRevLett.119.157201). Disordered occupancy
-# of non-magnetic Mg/Ga sites can be modeled as a stochastic distribution of
-# exchange constants and ``g``-factors. Including this disorder introduces
-# broadening of the spin wave spectrum.
+# This example uses the [kernel polynomial method](@ref SpinWaveTheoryKPM) to
+# efficiently calculate the neutron scattering spectrum of a disordered
+# triangular antiferromagnet. The model is inspired by YbMgGaO4, as studied in
+# [Paddison et al, Nature Phys., **13**, 117–122
+# (2017)](https://doi.org/10.1038/nphys3971) and [Zhu et al, Phys. Rev. Lett.
+# **119**, 157201 (2017)](https://doi.org/10.1103/PhysRevLett.119.157201).
+# Disordered occupancy of non-magnetic Mg/Ga sites can be modeled as a
+# stochastic distribution of exchange constants and ``g``-factors. Including
+# this disorder introduces broadening of the spin wave spectrum.
 
 using Sunny, GLMakie
 
