@@ -87,14 +87,15 @@ enable_dipole_dipole!(sys, units.vacuum_permeability)
 ```
 
 !!! tip "Efficiency considerations"  
-    Dipole-dipole interactions are very efficient in combination with spin
-    dynamics simulation, e.g. [`Langevin`](@ref). With the fast Fourier
-    transform (FFT) applied to Bravais sublattices, the computational cost to
-    integrate one time-step scales like ``M^2 N \\ln N``, where ``N`` is the
-    number of cells in the system and ``M`` is the number of sublattices per
-    cell. Conversely, dipole-dipole interactions are very slow in combination
-    with a [`LocalSampler`](@ref). Here, ``N`` local spin updates will cost
-    order ``N^2`` computational operations.
+    Dipole-dipole interactions are very efficient in the context of spin
+    dynamics simulation, e.g. [`Langevin`](@ref). Sunny applies the fast Fourier
+    transform (FFT) to spins on each Bravais sublattice, such that the
+    computational cost to integrate one time-step scales like ``M^2 N \\ln N``,
+    where ``N`` is the number of cells in the system and ``M`` is the number of
+    Bravais sublattices per cell. Conversely, dipole-dipole interactions are
+    highly _inefficient_ in the context of a [`LocalSampler`](@ref). Each Monte
+    Carlo update of a single spin currently requires scanning over all other
+    spins in the system.
 
 See also [`modify_exchange_with_truncated_dipole_dipole!`](@ref).
 """
