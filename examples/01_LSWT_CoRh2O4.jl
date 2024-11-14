@@ -159,7 +159,7 @@ plot_intensities(res; units, title="CoRh₂O₄ LSWT")
 # average over all possible crystal orientations. Use [`powder_average`](@ref)
 # to simulate these intensities. Each ``𝐪``-magnitude defines a spherical shell
 # in reciprocal space. Consider 200 radii from 0 to 3 inverse angstroms, and
-# collect `2000` random samples per spherical shell. As configured, this
+# collect 2000 random samples per spherical shell. As configured, this
 # calculation completes in about two seconds. Had we used the conventional cubic
 # cell, the calculation would be an order of magnitude slower.
 

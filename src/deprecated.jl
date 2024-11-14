@@ -31,21 +31,6 @@ function Base.setproperty!(value::Langevin, name::Symbol, x)
 end
 
 
-Base.@deprecate lorentzian06(x, η) let
-    @warn "`lorentzian06(x, η)` is deprecated! Use `lorentzian06(; fwhm=2η)(x)` instead."
-    return lorentzian06(; fwhm=2η)(x)
-end
-
-Base.@deprecate lorentzian06(η) let
-    @warn "`lorentzian06(η)` is deprecated! Use `lorentzian06(; fwhm=2η)` instead."
-    return lorentzian06(; fwhm=2η)
-end
-
-Base.@deprecate integrated_lorentzian(η::Float64) let
-    @warn "`integrated_lorentzian(η)` is deprecated! Use `integrated_lorentzian(; fwhm=2η)` instead."
-    return integrated_lorentzian(; fwhm=2η)
-end
-
 Base.@deprecate set_external_field!(sys::System, B) let
     @warn "`set_external_field!(sys, B)` is deprecated! Consider `set_field!(sys, B*units.T)` where `units = Units(:meV, :angstrom)`."
     set_field!(sys, Vec3(B) * Units(:meV, :angstrom).T)
@@ -78,7 +63,10 @@ Base.@deprecate instant_correlations(sys; opts...) let
 end
 
 Base.@deprecate intensity_formula(opts1...; opts2...) let
-    error("Formulas have been removed. See revised Sunny docs for new interface.")
+    error("""Intensities interface has changed significantly in Sunny 0.7! See revised examples
+                 to learn about the new SpinWaveTheory and SampledCorrelations interface:
+                 https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4.html
+          """)
 end
 
 Base.@deprecate reciprocal_space_path(cryst::Crystal, qs, density) let
