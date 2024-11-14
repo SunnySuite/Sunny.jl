@@ -6,7 +6,7 @@ dipole. This generalization can be important when modeling quantum spin
 Hamiltonians that include, e.g., a single-ion anisotropy, or a biquadratic
 coupling between sites. Sunny also supports constraining quantum spin to the
 space of pure dipoles; in this case, Sunny will automatically perform an
-interaction strength renormalization that maximizes accuracy.
+interaction strength renormalization that enhances accuracy.
 
 ## Local operators
 
