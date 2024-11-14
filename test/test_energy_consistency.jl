@@ -65,7 +65,7 @@
             # Pick a random site, try to set it to a random spin
             site = rand(sys.rng, eachsite(sys))
             spin = Sunny.randspin(sys, site)
-            
+
             ΔE = Sunny.local_energy_change(sys, site, spin)
 
             E0 = energy(sys)

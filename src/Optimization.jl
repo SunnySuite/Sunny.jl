@@ -4,7 +4,7 @@
 # normalized. When `α=0`, the output is `u=n`, and when `|α|→ ∞` the output is
 # `u=-n`. In all cases, `|u|=1`.
 function stereographic_projection(α, n)
-    @assert n'*n ≈ 1
+    @assert n'*n ≈ 1 || all(isnan, n)
 
     v = α - n*(n'*α)              # project out component parallel to `n`
     v² = real(v'*v)
@@ -30,7 +30,9 @@ end
 # Using the above definitions, return:
 #   x̄ du/dα = x̄ du/dv P
 #
-@inline function vjp_stereographic_projection(x, α, n)
+@inline function vjp_stereographic_projection(x̄, α, n)
+    all(isnan, n) && return zero(Vec3) # No gradient when α = [0, 0, 0] is fixed
+
     @assert n'*n ≈ 1
 
     v = α - n*(n'*α)
@@ -38,13 +40,15 @@ end
     b = (1-v²)/2
     c = 2/(1+v²)
     # Perform dot products first to avoid constructing outer-product
-    x̄_dudv = c*x' - c * (x' * ((1+c*b)*n + c*v)) * v'
+    x̄_dudv = c*x̄' - c * (x̄' * ((1+c*b)*n + c*v)) * v'
     # Apply projection P=1-nn̄ on right
     return x̄_dudv - (x̄_dudv * n) * n'
 end
 
 # Returns v such that u = (2v + (1-v²)n)/(1+v²) and v⋅n = 0
 function inverse_stereographic_projection(u, n)
+    all(isnan, n) && return zero(Vec3) # NaN values denote α = v = [0, 0, 0]
+
     @assert u'*u ≈ 1
 
     uperp = u - n*(n'*u)

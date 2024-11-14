@@ -88,3 +88,22 @@ end
     @test minimize_energy!(sys_dip) > 0
     @test minimize_energy!(sys_sun) > 0
 end
+
+
+@testitem "Vacancies" begin
+    latvecs = lattice_vectors(1, 1, 10, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0,0,0]])
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(3, 3, 1), seed=1)
+    set_exchange!(sys, 1, Bond(1, 1, [1, 0, 0]))
+    sys2 = to_inhomogeneous(sys)
+    sys2.κs[1, 1, 1, 1] = 0.01
+    randomize_spins!(sys2)
+    minimize_energy!(sys2)
+    energy_per_site(sys2)
+    @test energy_per_site(sys2) ≈ -0.8889
+    
+    set_vacancy_at!(sys2, (1, 1, 1, 1))
+    randomize_spins!(sys2)
+    minimize_energy!(sys2)
+    @test energy_per_site(sys2) ≈ -8/9
+end
