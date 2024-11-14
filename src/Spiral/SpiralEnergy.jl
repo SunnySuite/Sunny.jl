@@ -207,7 +207,7 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     check_rotational_symmetry(sys; axis, θ=0.01)
 
     L = natoms(sys.crystal)
-    
+
     params = fill(zero(Vec3), L+1)
     for i in 1:L
         params[i] = inverse_stereographic_projection(normalize(sys.dipoles[i]), axis)
@@ -218,8 +218,9 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     f(params) = spiral_f(sys, axis, params, λ)
     g!(G, params) = spiral_g!(G, sys, axis, params, λ)
 
-    # Minimize f, the energy of a spiral
-    options = Optim.Options(; iterations=maxiters)
+    # Minimize f, the energy of a spiral. See comment in `minimize_energy!` for
+    # a discussion of the tolerance settings.
+    options = Optim.Options(; iterations=maxiters, x_tol=1e-12, g_tol=0, f_reltol=NaN, f_abstol=NaN)
 
     # LBFGS does not converge to high precision, but ConjugateGradient can fail
     # to converge: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175.
