@@ -120,8 +120,13 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         optim_set_gradient!(G, sys, αs, ns)
     end
 
-    # Repeatedly optimize using a small number (`subiters`) of steps.
-    options = Optim.Options(; iterations=subiters, g_tol=1e-12, f_reltol=NaN, f_abstol=NaN, kwargs...)
+    # Repeatedly optimize using a small number (`subiters`) of steps. See
+    # https://github.com/JuliaNLSolvers/Optim.jl/issues/1120 for discussion of
+    # settings required to find the minimizer `x` to high-accuracy. Note that
+    # `x` contains normalized spin variables, while gradient `g` has dimensions
+    # of energy, so we elect to set `x_tol` as the dimensionless convergence
+    # tolerance.
+    options = Optim.Options(; iterations=subiters, x_tol=1e-12, g_tol=0, f_reltol=NaN, f_abstol=NaN, kwargs...)
     local output
     for iter in 1 : div(maxiters, subiters, RoundUp)
         output = Optim.optimize(f, g!, αs, method, options)
@@ -137,7 +142,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         αs .*= 0
     end
 
-    f_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(output), Optim.g_residual(output)); digits=2)
-    @warn "Non-converged after $maxiters iterations: ΔE=$f_abschange, max|∂E|=$g_residual"
+    f_abschange, x_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(output), Optim.x_abschange(output), Optim.g_residual(output)); digits=2)
+    @warn "Non-converged after $maxiters iterations: |ΔE|=$f_abschange, |Δx|=$x_abschange, |∂E/∂x|=$g_residual"
     return -1
 end
