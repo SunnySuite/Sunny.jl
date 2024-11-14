@@ -92,9 +92,10 @@ end
                      kwargs...) where N
 
 Optimizes the spin configuration in `sys` to minimize energy. A total of
-`maxiters` iterations will be attempted. All of `kwargs` will be forwarded to
-the `optimize` method of the Optim.jl package, and can be used to modify
-convergence tolerances.
+`maxiters` iterations will be attempted. The `method` parameter will be used in
+the `optimize` function of the [Optim.jl
+package](https://github.com/JuliaNLSolvers/Optim.jl). Any remaining `kwargs`
+will be included in the `Options` constructor of Optim.jl.
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
                           kwargs...) where N
@@ -120,7 +121,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
     end
 
     # Repeatedly optimize using a small number (`subiters`) of steps.
-    options = Optim.Options(; iterations=subiters, kwargs...)
+    options = Optim.Options(; iterations=subiters, g_tol=1e-12, f_reltol=NaN, f_abstol=NaN, kwargs...)
     local output
     for iter in 1 : div(maxiters, subiters, RoundUp)
         output = Optim.optimize(f, g!, αs, method, options)

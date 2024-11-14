@@ -37,7 +37,7 @@
     # minimize_energy!(sys; maxiters=1000)
     # println(round(reinterpret(reshape, ComplexF64, sys.coherents); digits=3))
     ground_state = ComplexF64[0.452 + 0.069im; 0.586 + 0.166im; 0.31 + 0.351im; 0.035 + 0.39im; -0.136 + 0.145im; -0.03 - 0.076im;;;;; -0.026 - 0.064im; 0.247 - 0.209im; -0.444 + 0.307im; 0.501 - 0.122im; -0.478 - 0.012im; 0.32 - 0.046im;;;;; -0.078 - 0.451im; -0.029 - 0.609im; 0.234 - 0.406im; 0.358 - 0.158im; 0.181 + 0.083im; -0.063 + 0.053im;;;;; -0.061 + 0.033im; -0.235 - 0.222im; 0.354 + 0.407im; -0.177 - 0.485im; 0.042 + 0.476im; -0.082 - 0.312im;;;;; -0.782 + 0.332im; 0.184 - 0.453im; 0.058 + 0.138im; 0.121 + 0.049im; -0.007 + 0.003im; -0.006 + 0.015im;;;;; 0.057 - 0.005im; -0.023 - 0.013im; -0.101 + 0.009im; -0.247 - 0.257im; -0.631 - 0.193im; -0.617 + 0.209im;;;;; -0.695 - 0.489im; 0.482 - 0.083im; -0.087 + 0.122im; 0.022 + 0.129im; -0.006 - 0.004im; -0.016 + 0.003im;;;;; 0.04 + 0.041im; -0.004 - 0.026im; -0.07 - 0.072im; 0.044 - 0.354im; -0.248 - 0.611im; -0.551 - 0.347im;;;;; 0.347 + 0.149im; -0.216 + 0.511im; -0.386 - 0.36im; 0.434 - 0.153im; -0.024 + 0.24im; 0.026 - 0.021im;;;;; 0.061 + 0.082im; 0.096 + 0.219im; 0.361 + 0.203im; 0.487 - 0.18im; 0.228 - 0.554im; -0.282 - 0.229im;;;;; -0.205 + 0.317im; -0.468 - 0.298im; 0.419 - 0.32im; 0.078 + 0.454im; -0.233 - 0.064im; 0.016 + 0.029im;;;;; 0.101 + 0.018im; 0.22 + 0.095im; 0.402 - 0.097im; 0.233 - 0.464im; -0.211 - 0.561im; -0.363 + 0.025im;;;;; 0.059 - 0.582im; 0.442 - 0.355im; 0.51 + 0.063im; 0.158 + 0.213im; -0.009 + 0.024im; 0.03 - 0.026im;;;;; 0.582 - 0.058im; 0.436 + 0.363im; 0.04 + 0.512im; -0.177 + 0.197im; -0.025 - 0.004im; 0.031 + 0.024im;;;;; 0.561 + 0.165im; 0.268 + 0.5im; -0.156 + 0.49im; -0.238 + 0.116im; -0.022 - 0.013im; 0.02 + 0.034im;;;;; -0.337 + 0.478im; -0.56 + 0.092im; -0.413 - 0.306im; -0.033 - 0.263im; 0.019 - 0.017im; -0.039 + 0.008im]
-    
+
     sys.coherents .= reinterpret(reshape, Sunny.CVec{6}, ground_state)
     minimize_energy!(sys)
     @assert energy_per_site(sys) ≈ -328.38255
@@ -65,7 +65,7 @@
     data_flat = reinterpret(ComplexF64, res.data[1:5])
     # println(round.(data_flat; digits=12))
     data_golden = natoms * ComplexF64[0.000768755803 + 0.0im, 0.000453313199 - 4.8935387e-5im, 0.000468535469 + 8.5812793e-5im, 0.000453313199 + 4.8935387e-5im, 0.00027042076 + 0.0im, 0.000270819458 + 8.0426107e-5im, 0.000468535469 - 8.5812793e-5im, 0.000270819458 - 8.0426107e-5im, 0.000295138353 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.00021794048 + 0.0im, -0.000114399503 - 0.000211293782im, -0.000126018935 + 0.000199895684im, -0.000114399503 + 0.000211293782im, 0.000264899429 + 0.0im, -0.000127650501 - 0.000227103219im, -0.000126018935 - 0.000199895684im, -0.000127650501 + 0.000227103219im, 0.000256212415 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, 7.5017149e-5 + 0.0im, 0.000206625046 + 0.000158601356im, 0.000240055385 - 0.00011016714im, 0.000206625046 - 0.000158601356im, 0.000904437194 + 0.0im, 0.000428286033 - 0.000810966567im, 0.000240055385 + 0.00011016714im, 0.000428286033 + 0.000810966567im, 0.000929965845 + 0.0im]
-    
+
     @test isapprox(data_flat, data_golden; atol=1e-9)
 end
 
@@ -160,7 +160,7 @@ end
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [[0, 0, 0]]
     cryst = Crystal(latvecs, positions)
-    
+
     function test_biquad(mode, q, s)
         # System
         sys = System(cryst, [1 => Moment(; s, g=2)], mode; dims=(2, 2, 2))
@@ -181,7 +181,7 @@ end
         # Analytical result
         γq = 2 * (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*q[3]))
         disp_ref = J * (s*cos(α) - (2*s-2+1/s) * sin(α)) * √(36 - γq^2)
-        
+
         @test disp[end-1] ≈ disp[end] ≈ disp_ref
     end
 
@@ -197,16 +197,16 @@ end
 
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
-    
+
     sys = System(cryst, [1 => Moment(s=1, g=2), 2 => Moment(s=2, g=2)], :dipole)
     set_pair_coupling!(sys, (S1, S2) -> +(S1'*diagm([2,-1,-1])*S1)*(S2'*diagm([2,-1,-1])*S2), Bond(1, 2, [0,0,0]))
-    
+
     θ = randn()
     set_dipole!(sys, [1, 0, 0], (1, 1, 1, 1))
     set_dipole!(sys, [0, cos(θ), sin(θ)], (1, 1, 1, 2))
     energy(sys)
     @test energy(sys) ≈ -3
-    
+
     swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
     res = intensities_bands(swt, [[0,0,0]])
     @test res.disp[1] ≈ 9
@@ -223,7 +223,7 @@ end
         positions = [[0, 0, 0]]
         cryst = Crystal(latvecs, positions)
         q = [0.12, 0.23, 0.34]
-        
+
         sys = System(cryst, [1 => Moment(; s, g=-1)], :dipole)
         sys = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
@@ -304,7 +304,7 @@ end
 
         polarize_spins!(sys, (0,0,1))
         @test energy_per_site(sys) ≈ -0.1913132980155851
-        
+
         swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
         qs = [[0, 0, 0], [0, 0, 1/2], [0, 1/2, 1/2], [0, 0, 0]]
         res = intensities_bands(swt, qs)
@@ -318,19 +318,19 @@ end
         sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole, seed=2)
         enable_dipole_dipole!(sys, Units(:meV, :angstrom).vacuum_permeability)
         polarize_spins!(sys, (1,2,3)) # arbitrary direction
-        
+
         R = hcat([1,1,-1], [-1,1,1], [1,-1,1]) / 2
         sys_reshape = reshape_supercell(sys, R)
         @test energy_per_site(sys_reshape) ≈ energy_per_site(sys) ≈ -0.89944235377
-        
+
         swt1 = SpinWaveTheory(sys; measure=nothing)
         swt2 = SpinWaveTheory(sys_reshape; measure=nothing)
         q = [0.5, -0.1, 0.3]
         disp1 = dispersion(swt1, [q])
         disp2 = dispersion(swt2, [q])
-        
+
         @test disp1 ≈ [1.3236778213351734, 0.9206655419611791]
-        @test disp2 ≈ [0.9206655419611772]        
+        @test disp2 ≈ [0.9206655419611772]
     end
 end
 
@@ -359,7 +359,7 @@ end
     swt = SpinWaveTheory(sys; measure)
     q = [0.41568,0.56382,0.76414]
     res = intensities_bands(swt, [q])
-    
+
     SpinW_energies = [2.6267,2.6541,2.8177,2.8767,3.2458,3.3172,3.4727,3.7767,3.8202,3.8284,3.8749,3.9095,3.9422,3.9730,4.0113,4.0794,4.2785,4.4605,4.6736,4.7564,4.7865]
     SpinW_intensities = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0.2999830079, -0.2999830079im, 0,0.2999830079im, 0.2999830079, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.3591387785, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5954018134, -0.5954018134im, 0,0.5954018134im, 0.5954018134, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.3708506016,1.3708506016im, 0, -1.3708506016im, 1.3708506016, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0511743697, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0734875342, 0.0 + 0.0734875342im, 0, 0.0 - 0.0734875342im, 0.0734875342, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0577275935, -0.0577275935im, 0,0.0577275935im, 0.0577275935, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6.1733740706, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0338873034,0.0338873034im, 0, -0.0338873034im, 0.0338873034, 0, 0, 0, 0]
 
@@ -384,7 +384,7 @@ end
 
     h = 2.0*J₃
     set_field!(sys, [0, 0, h])
-    
+
     dipole_array = zeros(Float64,3,7,7)
     dipole_array[:,:,1]= [0.856769   0.811926  -0.485645   -0.950288   -0.429787  -0.0800935  0.217557;
                           0.35333   -0.2906     0.0685251  -0.297433   -0.854291  -0.004611   0.97169;
@@ -410,7 +410,7 @@ end
     for x in 1:7, y in 1:7
         set_dipole!(sys, dipole_array[:,x,y], (x,y,1,1))
     end
-    
+
     q1 = [0.0391,0.0415,0.5530]
     q2 = [0.2360,0.7492,0.9596]
     q3 = [0.1131,0.7654,0.2810]
@@ -428,7 +428,7 @@ end
 end
 
 
-@testitem "Invariance to reshaping" begin    
+@testitem "Invariance to reshaping" begin
     # Diamond-cubic with antiferromagnetic exchange
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]], 227; choice="1")
@@ -438,12 +438,12 @@ end
     randomize_spins!(sys)
     minimize_energy!(sys)
     @test energy_per_site(sys) ≈ -2s^2
-    
+
     # Reshaped system
     shape = [0 1 1; 1 0 1; 1 1 0] / 2
     sys_prim = reshape_supercell(sys, shape)
     @test energy_per_site(sys_prim) ≈ -2s^2
-    
+
     # Both systems should produce the same intensities
     formfactors = [1 => FormFactor("Co2")]
     swt1 = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim; formfactors))
@@ -594,7 +594,7 @@ end
     using LinearAlgebra
 
     function dimer_model(; J=1.0, J′=0.0, h=0.0, dims=(2,1,1), fast=false)
-        cryst = Crystal(I(3), [[0,0,0]], 1) 
+        cryst = Crystal(I(3), [[0,0,0]], 1)
         sys = System(cryst, [1 => Moment(s=3/2, g=1)], :SUN; dims)
 
         S = spin_matrices(1/2)
@@ -605,13 +605,13 @@ end
         S1i, S1j = Sunny.to_product_space(S1, S1)
         S2i, S2j = Sunny.to_product_space(S2, S2)
         scalar, bilin, biquad, tensordec = Sunny.decompose_general_coupling(J′*(S1i' * S1j + S2i' * S2j), 4, 4; extract_parts=fast)
-        Sunny.set_pair_coupling_aux!(sys, scalar, Sunny.Mat3(I)*bilin, biquad, tensordec, Bond(1, 1, [-1,0,0]))  
+        Sunny.set_pair_coupling_aux!(sys, scalar, Sunny.Mat3(I)*bilin, biquad, tensordec, Bond(1, 1, [-1,0,0]))
 
         return sys, cryst
     end
 
     # Set up dimer model and observables (0 and π channels manually specified)
-    sys, cryst = dimer_model(; J=1.0, J′=0.2, h=0.0, dims=(2,1,1), fast=false) 
+    sys, cryst = dimer_model(; J=1.0, J′=0.2, h=0.0, dims=(2,1,1), fast=false)
     s = spin_matrices(1/2)
     S1, S2 = Sunny.to_product_space(s, s)
     observables0 = Hermitian.([
