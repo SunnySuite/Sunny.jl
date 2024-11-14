@@ -4,6 +4,7 @@
 (In development)
 
 * Better error message when a $g$-tensor is symmetry disallowed.
+* Higher-precision convergence in [`minimize_energy!`](@ref).
 
 ## v0.7.3
 (Nov 12, 2024)
