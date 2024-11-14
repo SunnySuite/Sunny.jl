@@ -93,15 +93,16 @@ end
 
 """
     minimize_energy!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
-                     g_tol=1e-10, kwargs...) where N
+                     kwargs...) where N
 
 Optimizes the spin configuration in `sys` to minimize energy. A total of
-`maxiters` iterations will be attempted. Convergence is reached when the root
-mean squared energy gradient goes below `g_tol`. The remaining `kwargs` will be
-forwarded to the `optimize` method of the Optim.jl package.
+`maxiters` iterations will be attempted. The `method` parameter will be used in
+the `optimize` function of the [Optim.jl
+package](https://github.com/JuliaNLSolvers/Optim.jl). Any remaining `kwargs`
+will be included in the `Options` constructor of Optim.jl.
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
-                          g_tol=1e-10, kwargs...) where N
+                          kwargs...) where N
     # Allocate buffers for optimization:
     #   - Each `ns[site]` defines a direction for stereographic projection.
     #   - Each `αs[:,site]` will be optimized in the space orthogonal to `ns[site]`.
@@ -123,18 +124,19 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         optim_set_gradient!(G, sys, αs, ns)
     end
 
-    # Monitor energy gradient magnitude relative to absolute tolerance `g_tol`.
-    g_res = Inf
-
-    # Repeatedly optimize using a small number (`subiters`) of steps.
-    options = Optim.Options(; iterations=subiters, g_tol, kwargs...)
+    # Repeatedly optimize using a small number (`subiters`) of steps. See
+    # https://github.com/JuliaNLSolvers/Optim.jl/issues/1120 for discussion of
+    # settings required to find the minimizer `x` to high-accuracy. Note that
+    # `x` contains normalized spin variables, while gradient `g` has dimensions
+    # of energy, so we elect to set `x_tol` as the dimensionless convergence
+    # tolerance.
+    options = Optim.Options(; iterations=subiters, x_tol=1e-12, g_tol=0, f_reltol=NaN, f_abstol=NaN, kwargs...)
+    local output
     for iter in 1 : div(maxiters, subiters, RoundUp)
         output = Optim.optimize(f, g!, αs, method, options)
-        g_res = Optim.g_residual(output)
-        @assert g_tol == Optim.g_tol(output)
 
         # Exit if converged
-        if g_res ≤ g_tol
+        if Optim.converged(output)
             cnt = (iter-1)*subiters + output.iterations
             return cnt
         end
@@ -144,8 +146,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         αs .*= 0
     end
 
-    # res_str = number_to_simple_string(g_res; digits=2)
-    # tol_str = number_to_simple_string(g_tol; digits=2)
-    # @warn "Optimization failed to converge within $maxiters iterations ($res_str ≰ $tol_str)"
+    f_abschange, x_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(output), Optim.x_abschange(output), Optim.g_residual(output)); digits=2)
+    @warn "Non-converged after $maxiters iterations: |ΔE|=$f_abschange, |Δx|=$x_abschange, |∂E/∂x|=$g_residual"
     return -1
 end
