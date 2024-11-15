@@ -1,5 +1,5 @@
 """
-    System(crystal::Crystal, moments, mode; dims=(1, 1, 1), seed=rand(Int))
+    System(crystal::Crystal, moments, mode; dims=(1, 1, 1), seed=rand(UInt))
 
 A spin system is constructed from the [`Crystal`](@ref) unit cell, a
 specification of the spin `moments` symmetry-distinct sites, and a calculation
@@ -26,12 +26,12 @@ details, see the documentation page: [Interaction Renormalization](@ref).
 Stochastic operations applied to this system can be made reproducible by
 selecting an integer `seed` for the pseudo-random number generator internal to
 `System`. Alternatively, calling `Random.seed!` will make the default value of
-`seed=rand(Int)` a reproducible quantity.
+`seed=rand(UInt)` a reproducible quantity.
 
 All spins are initially polarized in the global ``z``-direction.
 """
 function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symbol;
-                dims::NTuple{3,Int}=(1, 1, 1), seed=rand(Int), units=nothing)
+                dims::NTuple{3,Int}=(1, 1, 1), seed=rand(UInt), units=nothing)
     if !isnothing(units)
         @warn "units argument to System is deprecated and will be ignored!"
     end
