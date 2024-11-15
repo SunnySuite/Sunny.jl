@@ -1,5 +1,5 @@
 """
-    System(crystal::Crystal, moments, mode; dims=(1, 1, 1), seed=nothing)
+    System(crystal::Crystal, moments, mode; dims=(1, 1, 1), seed=rand(Int))
 
 A spin system is constructed from the [`Crystal`](@ref) unit cell, a
 specification of the spin `moments` symmetry-distinct sites, and a calculation
@@ -23,13 +23,15 @@ be renormalized to improve accuracy. To disable this renormalization, use the
 mode `:dipole_uncorrected`, which corresponds to the formal ``s → ∞`` limit. For
 details, see the documentation page: [Interaction Renormalization](@ref).
 
-An integer `seed` for the random number generator can optionally be specified to
-enable reproducible calculations.
+Stochastic operations applied to this system can be made reproducible by
+selecting an integer `seed` for the pseudo-random number generator internal to
+`System`. Alternatively, calling `Random.seed!` will make the default value of
+`seed=rand(Int)` a reproducible quantity.
 
 All spins are initially polarized in the global ``z``-direction.
 """
 function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symbol;
-                dims::NTuple{3,Int}=(1, 1, 1), seed::Union{Int,Nothing}=nothing, units=nothing)
+                dims::NTuple{3,Int}=(1, 1, 1), seed=rand(Int), units=nothing)
     if !isnothing(units)
         @warn "units argument to System is deprecated and will be ignored!"
     end
@@ -78,7 +80,8 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     coherents = fill(zero(CVec{N}), 1, 1, 1, na)
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
-    rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
+
+    rng = Random.Xoshiro(seed)
 
     ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, interactions, ewald,
                  extfield, dipoles, coherents, dipole_buffers, coherent_buffers, rng)
