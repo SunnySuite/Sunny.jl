@@ -50,17 +50,17 @@ path = q_space_path(cryst, qs, 400)
 fig = Figure(size=(768,600))
 
 formfactors = [1 => FormFactor("Cu2"), 2 => FormFactor("Fe2")]
-swt = SpinWaveTheory(sys; measure=ssf_perp(sys; formfactors))
+swt = SpinWaveTheory(sys; measure=ssf_trace(sys; formfactors))
 res = intensities_bands(swt, path)
 plot_intensities!(fig[1, 1], res; units, title="All correlations")
 
 formfactors = [1 => FormFactor("Cu2"), 2 => zero(FormFactor)]
-swt = SpinWaveTheory(sys; measure=ssf_perp(sys; formfactors))
+swt = SpinWaveTheory(sys; measure=ssf_trace(sys; formfactors))
 res = intensities_bands(swt, path)
 plot_intensities!(fig[1, 2], res; units, title="Cu-Cu correlations")
 
 formfactors = [1 => zero(FormFactor), 2 => FormFactor("Fe2")]
-swt = SpinWaveTheory(sys; measure=ssf_perp(sys; formfactors))
+swt = SpinWaveTheory(sys; measure=ssf_trace(sys; formfactors))
 res = intensities_bands(swt, path)
 plot_intensities!(fig[2, 2], res; units, title="Fe-Fe correlations")
 
