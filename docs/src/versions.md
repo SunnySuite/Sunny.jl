@@ -7,7 +7,7 @@
 * Higher-precision convergence in [`minimize_energy!`](@ref).
 * Fix [`minimize_energy!`](@ref) when used with [`set_vacancy_at!`](@ref).
 * The `System` constructor now, by default, seeds its internal random number
-  generator with `seed=rand(Int)`. Note that Julia's global random number
+  generator with `seed=rand(UInt)`. Note that Julia's global random number
   generator can itself be seeded with `Random.seed!`.
 
 ## v0.7.3
