@@ -18,8 +18,10 @@ positions = [[0, 0, 0]]
 cryst = Crystal(latvecs, positions, 227)
 view_crystal(cryst)
 
-# Create a system and reshape to the primitive cell, which contains four atoms.
-# Add antiferromagnetic nearest neighbor exchange interactions.
+# Create a [`System`](@ref) with a random number `seed` that was empirically
+# selected to produce the desired type of spontaneous symmetry breaking. Reshape
+# to the primitive cell, which contains four atoms. Add antiferromagnetic
+# nearest neighbor exchange interactions.
 
 sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole; seed=0)
 sys = reshape_supercell(sys, primitive_cell(cryst))

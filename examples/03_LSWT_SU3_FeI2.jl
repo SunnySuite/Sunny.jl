@@ -84,11 +84,8 @@ print_symmetry_table(cryst, 8.0)
 # magnitude. This physics is, however, well captured with a theory of SU(_N_)
 # coherent states, where ``N = 2S+1 = 3`` is the number of levels. Activate this
 # generalized theory by selecting `:SUN` mode instead of `:dipole` mode.
-# 
-# An optional random number `seed` will make the calculations exactly
-# reproducible.
 
-sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN, seed=2)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN)
 
 # Set the exchange interactions for FeI₂ following the fits of [Bai et
 # al.](https://doi.org/10.1038/s41567-020-01110-1)
@@ -177,21 +174,20 @@ print_wrapped_intensities(sys)
 # two-down order. It can be described as a generalized spiral with a single
 # propagation wavevector ``𝐤``. Rotational symmetry allows for three equivalent
 # orientations: ``±𝐤 = [0, -1/4, 1/4]``, ``[1/4, 0, 1/4]``, or
-# ``[-1/4,1/4,1/4]``. Small systems can spontaneously break this symmetry, but
-# for larger systems, defects and competing domains are to be expected.
-# Nonetheless, `print_wrapped_intensities` shows large intensities consistent
-# with a subset of the known ordering wavevectors.
+# ``[-1/4,1/4,1/4]``. Energy minimization of large systems can easily get
+# trapped in a metastable state with competing domains and defects. Nonetheless,
+# `print_wrapped_intensities` shows that a non-trivial fraction of the total
+# intensity is consistent with known ordering wavevectors.
 #
 # Let's break the three-fold symmetry by hand. The function
-# [`suggest_magnetic_supercell`](@ref) takes one or more ``𝐤`` modes, and
-# suggests a magnetic cell shape that is commensurate.
+# [`suggest_magnetic_supercell`](@ref) takes any number of ``𝐤`` modes and
+# suggests a magnetic cell shape that is commensurate with all of them.
 
 suggest_magnetic_supercell([[0, -1/4, 1/4]])
 
-# Calling [`reshape_supercell`](@ref) yields a much smaller system, making it
-# much easier to find the global energy minimum. Plot the system again, now
-# including "ghost" spins out to 12Å, to verify that the magnetic order is
-# consistent with FeI₂.
+# Using the minimal system returned by [`reshape_supercell`](@ref), it is now
+# easy to find the ground state. Plot the system again, now including "ghost"
+# spins out to 12Å, to verify that the magnetic order is consistent with FeI₂.
 
 sys_min = reshape_supercell(sys, [1 0 0; 0 2 1; 0 -2 1])
 randomize_spins!(sys_min)
