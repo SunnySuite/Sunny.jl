@@ -156,20 +156,16 @@ sys = resize_supercell(sys, (4, 4, 4))
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-# A positive number above indicates that the procedure has converged to a local
-# energy minimum. The configuration, however, may still have defects. This can
-# be checked by visualizing the expected spin dipoles, colored according to
-# their ``z``-components.
+# The positive step-count above indicates successful convergence to a local
+# energy minimum. Defects, however, are visually apparent.
 
 plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
-# To better understand the spin configuration, we could inspect the static
-# structure factor ``\mathcal{S}(𝐪)`` in the 3D space of momenta ``𝐪``. The
-# general tool for this analysis is [`SampledCorrelationsStatic`](@ref). For the
-# present purposes, however, it is more convenient to use
-# [`print_wrapped_intensities`](@ref), which reports ``\mathcal{S}(𝐪)`` with
-# periodic wrapping of all commensurate ``𝐪`` wavevectors into the first
-# Brillouin zone.
+# One could precisely quantify the Fourier-space static structure factor
+# ``\mathcal{S}(𝐪)`` of this spin configuration using
+# [`SampledCorrelationsStatic`](@ref). For the present purposes, however, it is
+# most convenient to use [`print_wrapped_intensities`](@ref), which effectively
+# averages over all Brillouin zones.
 
 print_wrapped_intensities(sys)
 
