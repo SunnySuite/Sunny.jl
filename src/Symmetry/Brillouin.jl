@@ -44,7 +44,17 @@ high-symmetry paths.
    (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015).
 """
 function print_irreducible_bz_paths(cryst::Crystal)
-    (; points, paths) = irreducible_bz_paths(cryst)
+    try 
+        (; points, paths) = irreducible_bz_paths(cryst)
+    catch e
+        if startswith(e.msg, "Triclinic")
+            rethrow(ErrorException("""Triclinic lattice angles must currently be all-acute or all-obtuse.
+                                          See https://github.com/thchr/Brillouin.jl/issues/34
+                                   """))
+        else
+            rethrow()
+        end
+    end
 
     pt_strs = map(collect(keys(points))) do k
         "$k = " * fractional_vec3_to_string(points[k])

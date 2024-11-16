@@ -126,10 +126,12 @@ function Sunny.view_qspace(cryst::Crystal, objs...; orthographic=false, compass=
         Makie.text!(ax, pts; text=String.(names), fontsize=16, font=:bold, color=:purple, glowwidth=4.0,
                     glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-0.9f0)
     catch e
-        if e isa DomainError
-            @error "Brillouin.jl limitation: " * e.msg
+        if startswith(e.msg, "Triclinic")
+            @error """Triclinic lattice angles must currently be all-acute or all-obtuse.
+                          See https://github.com/thchr/Brillouin.jl/issues/34
+                   """
         else
-            rethrow(e)
+            rethrow()
         end
     end
 
