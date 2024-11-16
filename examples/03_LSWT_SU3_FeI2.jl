@@ -84,8 +84,11 @@ print_symmetry_table(cryst, 8.0)
 # magnitude. This physics is, however, well captured with a theory of SU(_N_)
 # coherent states, where ``N = 2S+1 = 3`` is the number of levels. Activate this
 # generalized theory by selecting `:SUN` mode instead of `:dipole` mode.
+#
+# An optional `seed` for random number generation can be used to to make the
+# calculation exactly reproducible.
 
-sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN; seed=2)
 
 # Set the exchange interactions for FeI₂ following the fits of [Bai et
 # al.](https://doi.org/10.1038/s41567-020-01110-1)
