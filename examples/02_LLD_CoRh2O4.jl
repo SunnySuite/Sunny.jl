@@ -9,9 +9,8 @@
 # classical-to-quantum correction factor, the resulting intensities can be
 # compared to inelastic neutron scattering data.
 
-# Construct the system as in the [previous tutorial](@ref "1. Spin wave
-# simulations of CoRh₂O₄"). For this antiferromagnetic model on the diamond
-# cubic lattice, the ground state is unfrustrated Néel order.
+# Construct the CoRh₂O₄ antiferromagnet as before. Energy minimization yields
+# the expected Néel order.
 
 using Sunny, GLMakie
 
@@ -22,7 +21,7 @@ cryst = Crystal(latvecs, [[1/8, 1/8, 1/8]], 227)
 
 sys = System(cryst, [1 => Moment(s=3/2, g=2)], :dipole)
 J = 0.63 # (meV)
-set_exchange!(sys, J, Bond(2, 3, [0,0,0]))
+set_exchange!(sys, J, Bond(2, 3, [0, 0, 0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys; color=[S[3] for S in sys.dipoles])

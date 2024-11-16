@@ -15,19 +15,20 @@ copied and pasted into your preferred Julia development environment.
 
 The serial approach to calculating a structure factor, covered in the [FeI₂
 tutorial](@ref "4. Generalized spin dynamics of FeI₂ at finite *T*"), involves
-thermalizing a spin `System` and then calling [`add_sample!`](@ref).
+thermalizing a spin [`System`](@ref) and then calling [`add_sample!`](@ref).
 `add_sample!` uses the state of the `System` as an initial condition for the
 calculation of a dynamical trajectory. The correlations of the trajectory are
 calculated and accumulated into a running average of the ``\mathcal{S}(𝐪,ω)``.
 This sequence is repeated to generate additional samples.
 
 To illustrate, we'll set up a a simple model: a spin-1 antiferromagnet on a BCC
-crystal. 
+crystal. Constructing the `System` with a specific random number `seed` ensures
+full reproducibility of the simulation.
 
 ```julia
 using Sunny, GLMakie
 
-function make_system(; seed=nothing)
+function make_system(seed)
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     positions = [[0, 0, 0]/2, [1, 1, 1]/2]
     cryst = Crystal(latvecs, positions)
@@ -36,7 +37,7 @@ function make_system(; seed=nothing)
     return sys
 end
 
-sys = make_system()
+sys = make_system(0)
 ```
 
 A serial calculation of [`SampledCorrelations`](@ref) involving the
@@ -80,11 +81,12 @@ Before going further, make sure that `Threads.nthreads()` returns a number great
 
 We will use multithreading in a very simple way, essentially employing a
 distributed memory approach to avoid conflicts around memory access. First
-preallocate a number of systems and correlations.
+preallocate a number of systems and correlations. The integer `id` of each
+system is used as its random number seed.
 
 ```julia
 npar = Threads.nthreads()
-systems = [make_system(; seed=id) for id in 1:npar]
+systems = [make_system(id) for id in 1:npar]
 scs = [SampledCorrelations(sys; dt=0.1, energies, measure) for _ in 1:npar]
 ```
 
@@ -151,7 +153,7 @@ environments. This is easily achieved with the `@everywhere` macro.
 ```julia
 @everywhere using Sunny
 
-@everywhere function make_system(; seed=nothing)
+@everywhere function make_system(seed)
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     positions = [[0, 0, 0]/2, [1, 1, 1]/2]
     cryst = Crystal(latvecs, positions)
@@ -181,7 +183,7 @@ called `scs`.
 
 ```julia
 scs = pmap(1:ncores) do id
-    sys = make_system(; seed=id)
+    sys = make_system(id)
     sc = SampledCorrelations(sys; dt=0.1, energies, measure)
     integrator = Langevin(0.05; damping=0.2, kT=0.5)
 
