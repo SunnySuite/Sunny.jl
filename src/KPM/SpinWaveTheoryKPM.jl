@@ -23,8 +23,8 @@ Reasonable starting points are `1e-1` (more speed) or `1e-2` (more accuracy).
 
 ## References
 
-1. H. Lane et al., _Kernel Polynomial Method for Linear Spin Wave Theory_ (2023)
-   [[arXiv:2312.08349v3](https://arxiv.org/abs/2312.08349)].
+1. [H. Lane et al., _Kernel Polynomial Method for Linear Spin Wave Theory_
+   (2023) [arXiv:2312.08349]](https://arxiv.org/abs/2312.08349).
 """
 struct SpinWaveTheoryKPM
     swt :: SpinWaveTheory
