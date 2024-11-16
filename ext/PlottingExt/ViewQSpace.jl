@@ -1,4 +1,4 @@
-function show_qspace_obj(ax, recipvecs, params::Sunny.BinningParameters)
+function show_qspace_obj(ax, recipvecs, ℓ0, params::Sunny.BinningParameters)
     bin_colors = [:red,:blue,:green]
     line_alpha = 0.3
     bin_line_width = 0.5
@@ -38,9 +38,9 @@ function show_qspace_obj(ax, recipvecs, params::Sunny.BinningParameters)
     end
 end
 
-function show_qspace_obj(ax, recipvecs, qpts::Sunny.AbstractQPoints)
+function show_qspace_obj(ax, recipvecs, ℓ0, qpts::Sunny.AbstractQPoints)
     pts = Makie.Point3f.(Ref(recipvecs) .* vec(qpts.qs))
-    Makie.meshscatter!(ax, pts; markersize=0.01, color=:red, inspectable=false)
+    Makie.meshscatter!(ax, pts; markersize=ℓ0*0.01, color=:red, inspectable=false)
 end
 
 
@@ -54,6 +54,8 @@ function Sunny.view_qspace(cryst::Crystal, objs...; orthographic=false, compass=
     if compass
         axcompass = add_cartesian_compass(fig, ax)
     end
+
+    ℓ0 = maximum(norm.(eachcol(cryst.recipvecs)))
 
     # Set of widgets
     widget_list = Makie.GridLayout(; tellheight=false, valign=:top)
@@ -95,22 +97,30 @@ function Sunny.view_qspace(cryst::Crystal, objs...; orthographic=false, compass=
     end
     Makie.lines!(ax, segments; inspectable=false)
 
-    (; paths, points) = Sunny.brillouin_zone_path(cryst)
+    try
+        (; paths, points) = Sunny.irreducible_bz_paths(cryst)
 
-    # Show high symmetry paths
-    for path in paths
-        Makie.lines!(ax, [cryst.recipvecs * points[pt] for pt in path]; inspectable=false, color=:pink, linewidth=4)
+        # Show high symmetry paths
+        for path in paths
+            Makie.lines!(ax, [cryst.recipvecs * points[pt] for pt in path]; inspectable=false, color=:pink, linewidth=4)
+        end
+
+        # High symmetry q-points
+        names = keys(points)
+        pts = [Makie.Point3f(cryst.recipvecs * points[nm]) for nm in names]
+        Makie.text!(ax, pts; text=String.(names), fontsize=16, font=:bold, color=:purple, glowwidth=4.0,
+                    glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-0.9f0)
+    catch e
+        if e isa DomainError
+            @error "Brillouin.jl limitation: " * e.msg
+        else
+            rethrow(e)
+        end
     end
-
-    # High symmetry q-points
-    names = keys(points)
-    pts = [Makie.Point3f(cryst.recipvecs * points[nm]) for nm in names]
-    Makie.text!(ax, pts; text=String.(names), fontsize=16, font=:bold, color=:purple, glowwidth=4.0,
-                glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-0.9f0)
 
     # Show other objects
     for obj in objs
-        show_qspace_obj(ax, cryst.recipvecs, obj)
+        show_qspace_obj(ax, cryst.recipvecs, ℓ0, obj)
     end
 
     # See similar command in `view_crystal`

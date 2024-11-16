@@ -44,7 +44,7 @@ include("Symmetry/Printing.jl")
 include("Symmetry/Brillouin.jl")
 export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primitive_cell, Bond,
     reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame,
-    special_points, special_paths
+    print_irreducible_bz_paths
 
 include("Units.jl")
 export Units, meV_per_K

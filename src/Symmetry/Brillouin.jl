@@ -4,7 +4,61 @@ function prim_recipvecs(cryst::Crystal)
     return 2π * inv(prim_latvecs)'
 end
 
-function brillouin_zone_path(cryst::Crystal)
+# Equivalent to Bravais.bravaistype(sgnum, 3, normalize=false) with the Bravais
+# package.
+function standard_bravais_type(sgnum)
+    hall = standard_setting[sgnum]
+    letters = Dict(triclinic => 'a', monoclinic => 'm', orthorhombic => 'o',
+                   tetragonal => 't', hexagonal => 'h', cubic => 'c')
+    return letters[cell_type(hall)] * centering_symbol(hall)
+end
+
+function extended_bravais_symbol(cryst)
+    sgnum = cryst.sg.number
+    std_latvecs = cryst.latvecs / cryst.sg.setting.R
+    bt = standard_bravais_type(sgnum)
+    return Brillouin.KPaths.extended_bravais(sgnum, bt, SVector{3}(eachcol(std_latvecs)), Val{3}())
+end
+
+
+"""
+    print_irreducible_bz_paths(cryst::Crystal)
+
+Prints certain high-symmetry points with suggested paths between them. The
+points lie in the irreducible Brillouin, which is reduced from the first
+Brillouin zone by the point group symmetries of the crystal. Coordinates are
+printed in reciprocal lattice units (RLU), i.e., as multiples of the
+conventional lattice vectors of `cryst`. These high-symmetry paths were
+originally formulated in Ref. [1] and implemented in
+[SeeK-path](https://github.com/giovannipizzi/seekpath). Sunny obtains this
+functionality from the [Brillouin.jl](https://github.com/thchr/Brillouin.jl)
+package.
+
+See also [`view_qspace`](@ref) for an interactive visualization of these
+high-symmetry paths.
+
+## References
+
+1. [Y. Hinuma, G. Pizzi, Y. Kumagai, F. Oba, I. Tanaka, _Band structure diagram
+   paths based on crystallography_, Comp. Mat. Sci. **128**, 140
+   (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015).
+"""
+function print_irreducible_bz_paths(cryst::Crystal)
+    (; points, paths) = irreducible_bz_paths(cryst)
+
+    pt_strs = map(collect(keys(points))) do k
+        "$k = " * fractional_vec3_to_string(points[k])
+    end
+    path_strs = [join(String.(path), ", ") for path in paths]
+
+    println("High-symmetry points in irreducible BZ:")
+    println("    ", join(pt_strs, "\n    "))
+    println("High-symmetry paths:")
+    println("    [" * join(path_strs, "]\n    [") * "]")
+    println("Extended Bravais symbol for SeeK-path: '$(extended_bravais_symbol(cryst))'")
+end
+
+function irreducible_bz_paths(cryst::Crystal)
     # Lattice vectors in ITA standard setting, [aₛ bₛ cₛ] = [a, b, c] P⁻¹.
     std_latvecs = cryst.latvecs / cryst.sg.setting.R
 
@@ -18,69 +72,6 @@ function brillouin_zone_path(cryst::Crystal)
     A = inv(primitive_cell(cryst)')
     @assert A ≈ cryst.recipvecs \ prim_recipvecs(cryst)
     map!(q -> A * q, values(bzpath.points))
-    return (; bzpath.paths, bzpath.points)
-end
 
-"""
-    special_points(cryst::Crystal)
-
-The high-symmetry points of the irreducible Brillouin zone for `cryst`. Returns
-a dictionary that maps symbol names to positions in conventional reciprocal
-lattice units (RLU). Data is obtained from the
-[Brillouin.jl](https://github.com/thchr/Brillouin.jl) package and originates
-from SeeK-path [1, 2].
-
-## Examples
-
-```jl
-latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-cryst = Crystal(latvecs, [[0, 0, 0]], 227)
-pts = special_points(cryst)
-@assert keys(pts) == Set([:U, :W, :K, :Γ, :L, :X])
-@assert pts[:Γ] == [0, 0, 0]
-@assert pts[:U] == [1/4, 1, 1/4]
-```
-
-## References
-
-1. [Y. Hinuma, G. Pizzi, Y. Kumagai, F. Oba, I. Tanaka, _Band structure diagram
-   paths based on crystallography_, Comp. Mat. Sci. **128**, 140
-   (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015).
-2. SeeK-path software, [available
-   online](https://www.materialscloud.org/work/tools/seekpath).
-"""
-function special_points(cryst::Crystal)
-    return brillouin_zone_path(cryst).points
-end
-
-"""
-    special_paths(cryst::Crystal)
-
-Standardized paths that connect high-symmetry points within the irreducible
-Brillouin zone for `cryst`. Data is obtained from the
-[Brillouin.jl](https://github.com/thchr/Brillouin.jl) package and originates
-from SeeK-path [1, 2].
-
-## Examples
-
-```jl
-latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-cryst = Crystal(latvecs, [[0, 0, 0]], 227)
-paths = special_paths(cryst)
-@assert paths == [[:Γ, :X, :U], [:K, :Γ, :L, :W, :X]]
-```
-
-See also [`special_points`](@ref) which maps from symbols to coordinates in
-reciprocal lattice units (RLU).
-
-## References
-
-1. [Y. Hinuma, G. Pizzi, Y. Kumagai, F. Oba, I. Tanaka, _Band structure diagram
-   paths based on crystallography_, Comp. Mat. Sci. **128**, 140
-   (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015).
-2. SeeK-path software, [available
-   online](https://www.materialscloud.org/work/tools/seekpath).
-"""
-function special_paths(cryst::Crystal)
-    return brillouin_zone_path(cryst).paths
+    return (; bzpath.points, bzpath.paths)
 end

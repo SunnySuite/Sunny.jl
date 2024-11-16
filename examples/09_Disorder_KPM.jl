@@ -35,7 +35,7 @@ path = q_space_path(cryst, qs, 150; labels)
 # associated with coherent excitations about the K-point ordering wavevector,
 # ``𝐪 = [1/3, 1/3, 0]``.
 
-kernel = lorentzian(fwhm=0.4);
+kernel = lorentzian(fwhm=0.4)
 energies = range(0.0, 3.0, 150)
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities(swt, path; energies, kernel)
