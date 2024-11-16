@@ -37,6 +37,7 @@ function build_examples(example_sources, destdir)
             """
             # Download this example as [Julia file]($assetsdir/scripts/$name.jl) or [Jupyter notebook]($assetsdir/notebooks/$name.ipynb).
 
+            import Random; Random.seed!(0); #hide
             """ * str
         end
         # Write to `src/$destpath/$name.md`

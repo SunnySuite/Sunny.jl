@@ -25,7 +25,7 @@ view_crystal(cryst)
 # Define the interactions.
 
 moments = [1 => Moment(s=1/2, g=2), 3 => Moment(s=1/2, g=2)]
-sys = System(cryst, moments, :dipole, seed=0)
+sys = System(cryst, moments, :dipole)
 J   = -2
 Jp  = -1
 Jab = 0.75

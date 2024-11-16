@@ -23,13 +23,15 @@ be renormalized to improve accuracy. To disable this renormalization, use the
 mode `:dipole_uncorrected`, which corresponds to the formal ``s → ∞`` limit. For
 details, see the documentation page: [Interaction Renormalization](@ref).
 
-An integer `seed` for the random number generator can optionally be specified to
-enable reproducible calculations.
+Stochastic operations on this system can be made reproducible by selecting a
+`seed` for this system's pseudo-random number generator. The default system seed
+will be generated from Julia's task-local RNG, which can itself be seeded using
+`Random.seed!`.
 
 All spins are initially polarized in the global ``z``-direction.
 """
 function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symbol;
-                dims::NTuple{3,Int}=(1, 1, 1), seed::Union{Int,Nothing}=nothing, units=nothing)
+                dims::NTuple{3,Int}=(1, 1, 1), seed=nothing, units=nothing)
     if !isnothing(units)
         @warn "units argument to System is deprecated and will be ignored!"
     end
@@ -47,7 +49,7 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     if !isnothing(crystal.root)
         @assert crystal.latvecs == crystal.root.latvecs
     end
-    
+
     na = natoms(crystal)
 
     moments = propagate_moments(crystal, moments)
@@ -78,7 +80,8 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     coherents = fill(zero(CVec{N}), 1, 1, 1, na)
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
-    rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
+
+    rng = isnothing(seed) ? Random.Xoshiro(rand(UInt64, 4)...) : Random.Xoshiro(seed)
 
     ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, interactions, ewald,
                  extfield, dipoles, coherents, dipole_buffers, coherent_buffers, rng)

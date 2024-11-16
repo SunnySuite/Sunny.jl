@@ -30,7 +30,7 @@ view_crystal(cryst)
 # [Loire et al., Phys. Rev. Lett. **106**, 207201
 # (2011)](http://dx.doi.org/10.1103/PhysRevLett.106.207201).
 
-sys = System(cryst, [1 => Moment(s=5/2, g=2)], :dipole; seed=0)
+sys = System(cryst, [1 => Moment(s=5/2, g=2)], :dipole)
 J₁ = 0.85
 J₂ = 0.24
 J₃ = 0.053

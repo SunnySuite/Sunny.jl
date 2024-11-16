@@ -33,7 +33,7 @@ grid = q_space_grid(cryst, [1, 0, 0], range(0, 2, 201), [0, 1, 0], range(0, 2, 2
 # Apply a line broadening with a full-width half-max of 0.2 meV to approximately
 # capture intensities between 3.5 and 4.0 meV.
 
-swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
+swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
 res = intensities(swt, grid; energies=[3.75], kernel=gaussian(fwhm=0.2))
 plot_intensities(res; units)
 
