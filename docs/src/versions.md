@@ -24,6 +24,9 @@
   server](https://www.cryst.ehu.es/cryst/get_wp.html). The keyword argument
   `setting` becomes `choice`, and can typically be omitted.
 * Rename `primitive_cell_shape` to [`primitive_cell`](@ref).
+* Add [`special_points`](@ref) and [`special_paths`](@ref), which are enabled
+  via [Brillouin.jl](https://github.com/thchr/Brillouin.jl) and
+  [SeeK-path](http://www.materialscloud.org/tools/seekpath/).
 
 ## v0.7.2
 (Sep 11, 2024)

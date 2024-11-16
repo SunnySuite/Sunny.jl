@@ -38,11 +38,11 @@ function show_qspace_obj(ax, recipvecs, params::Sunny.BinningParameters)
     end
 end
 
-
 function show_qspace_obj(ax, recipvecs, qpts::Sunny.AbstractQPoints)
     pts = Makie.Point3f.(Ref(recipvecs) .* vec(qpts.qs))
     Makie.meshscatter!(ax, pts; markersize=0.01, color=:red, inspectable=false)
 end
+
 
 function Sunny.view_qspace(cryst::Crystal, objs...; orthographic=false, compass=true, size=(768, 512))
     fig = Makie.Figure(; size)
@@ -85,13 +85,8 @@ function Sunny.view_qspace(cryst::Crystal, objs...; orthographic=false, compass=
     Makie.text!(ax, bs; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
                 glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
 
-    # Map direct basis to ITA standard setting via [aₛ bₛ cₛ] = [a, b, c] P⁻¹.
-    std_latvecs = cryst.latvecs / cryst.sg.setting.R
-    # Map path and 1st BZ cell back to original Cartesian coordinates.
-    bzpath = Brillouin.cartesianize!(Brillouin.irrfbz_path(cryst.sg.number, eachcol(std_latvecs)))
-    bzcell = Brillouin.cartesianize!(Brillouin.wignerseitz(Brillouin.basis(bzpath)))
-
-    # Show Brillouin zone
+    # Calculate and show Brillouin zone
+    bzcell = Brillouin.cartesianize!(Brillouin.wignerseitz(eachcol(Sunny.prim_recipvecs(cryst))))
     segments = Makie.Point3f0[]
     for face in bzcell
         append!(segments, face)
@@ -100,22 +95,25 @@ function Sunny.view_qspace(cryst::Crystal, objs...; orthographic=false, compass=
     end
     Makie.lines!(ax, segments; inspectable=false)
 
+    (; paths, points) = Sunny.brillouin_zone_path(cryst)
+
     # Show high symmetry paths
-    for path in bzpath.paths
-        Makie.lines!(ax, [bzpath.points[pt] for pt in path]; inspectable=false, color=:pink, linewidth=4)
+    for path in paths
+        Makie.lines!(ax, [cryst.recipvecs * points[pt] for pt in path]; inspectable=false, color=:pink, linewidth=4)
     end
+
+    # High symmetry q-points
+    names = keys(points)
+    pts = [Makie.Point3f(cryst.recipvecs * points[nm]) for nm in names]
+    Makie.text!(ax, pts; text=String.(names), fontsize=16, font=:bold, color=:purple, glowwidth=4.0,
+                glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-0.9f0)
 
     # Show other objects
     for obj in objs
         show_qspace_obj(ax, cryst.recipvecs, obj)
     end
 
-    names = keys(bzpath.points)
-    pts = Makie.Point3f.(values(bzpath.points))
-    Makie.text!(ax, pts; text=String.(names), fontsize=16, font=:bold, color=:purple, glowwidth=4.0,
-                glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-0.9f0)
-
-    # Following `view_crystal` settings
+    # See similar command in `view_crystal`
     Makie.DataInspector(ax; indicator_color=:gray, fontsize, font="Deja Vu Sans Mono", depth=(1e4 - 1))
 
     return fig

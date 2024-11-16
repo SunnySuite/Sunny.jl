@@ -262,8 +262,12 @@ end
 # [0.5, 0, 0]; this, in turn, will effectively swap the Wyckoffs 8a and 8b.
 function mapping_to_standard_setting_from_spglib_dataset(d::Spglib.Dataset)
     # Map from an arbitrary setting (inferred by Spglib) to the Spglib standard
-    # setting
-    spglib_from_any = SymOp(d.transformation_matrix, d.origin_shift)
+    # setting. Commonly the elements will be a simple fractions, so search for
+    # this case up to 15 digits.
+    spglib_from_any = SymOp(
+        rationalize.(d.transformation_matrix; tol=1e-15),
+        rationalize.(d.origin_shift; tol=1e-15),
+    )
 
     # Map from the Spglib standard setting to the ITA one
     hall_spglib = standard_setting_for_spglib[d.spacegroup_number]
