@@ -442,7 +442,8 @@ function primitive_cell(cryst::Crystal)
     (; number, setting) = cryst.sg
 
     # Primitive lattice vectors in units of ITA standard lattice vectors
-    prim_shape = standard_primitive_basis[standard_centerings[number]]
+    centering = centering_symbol(standard_setting[number])
+    prim_shape = standard_primitive_basis[centering]
 
     # Lattice vectors of ITA standard setting:
     #     std_latvecs = cryst.latvecs * inv(setting.R)

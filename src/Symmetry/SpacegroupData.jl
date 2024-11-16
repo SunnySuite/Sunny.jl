@@ -240,7 +240,7 @@ end
 
 # Given a spacegroup number and a table of symops, try to infer the affine map
 # that transforms to the ITA standard setting.
-function mapping_to_standard_setting_from_symops(sgnum, symops)
+function hall_number_from_symops(sgnum, symops)
     sgts = filter(all_spacegroup_types_for_symbol(sgnum)) do sgt
         Rs, Ts = Spglib.get_symmetry_from_database(sgt.hall_number)
         SymOp.(Rs, Ts) ≈ symops
@@ -250,7 +250,7 @@ function mapping_to_standard_setting_from_symops(sgnum, symops)
         # Cannot be matched to any of the Hall number settings
         return nothing
     else
-        return mapping_to_standard_setting(only(sgts).hall_number)
+        return Int(only(sgts).hall_number)
     end
 end
 
@@ -277,10 +277,38 @@ function mapping_to_standard_setting_from_spglib_dataset(d::Spglib.Dataset)
     return std_from_spglib * spglib_from_any
 end
 
-# Centering type for each spacegroup 1..230 following ITA standard setting.
-# Possible values: 'P' (simple), 'C', 'A' (Base), 'I' (Body), 'F' (Face), 'R'
-# (Rhombohedral).
-const standard_centerings = map(standard_setting) do hall_number
+
+# The lattice system that is expected for a given Hall number. See:
+# http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37
+function cell_type(hall_number::Int)
+    if 1 <= hall_number <= 2
+        triclinic
+    elseif 3 <= hall_number <= 107
+        monoclinic
+    elseif 108 <= hall_number <= 348
+        orthorhombic
+    elseif 349 <= hall_number <= 429
+        tetragonal
+    elseif 430 <= hall_number <= 461
+        # The trigonal space groups require either rhombohedral or hexagonal
+        # cells. The Hall numbers below have "choice" R.
+        hall_number in [434, 437, 445, 451, 453, 459, 461] ? rhombohedral : hexagonal
+    elseif 462 <= hall_number <= 488
+        hexagonal
+    elseif 489 <= hall_number <= 530
+        cubic
+    else
+        error("Invalid Hall number $hall_number. Allowed range is 1..530")
+    end
+end
+
+function is_trigonal_symmetry(hall_number::Int)
+    return 430 <= hall_number <= 461
+end
+
+# Centering type for Hall number. Possible values: 'P' (simple), 'C', 'A'
+# (Base), 'I' (Body), 'F' (Face), 'R' (Rhombohedral).
+function centering_symbol(hall_number::Int)
     first(all_spacegroup_types[hall_number].international_short)
 end
 

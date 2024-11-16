@@ -119,30 +119,6 @@ function cell_type(latvecs::Mat3)
     return triclinic
 end
 
-# The lattice system that is expected for a given Hall number. Taken from:
-# http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37
-function cell_type(hall_number::Int)
-    if 1 <= hall_number <= 2
-        triclinic
-    elseif 3 <= hall_number <= 107
-        monoclinic
-    elseif 108 <= hall_number <= 348
-        orthorhombic
-    elseif 349 <= hall_number <= 429
-        tetragonal
-    elseif 430 <= hall_number <= 461
-        # The trigonal space groups require either rhombohedral or hexagonal
-        # cells. The Hall numbers below have "choice" R.
-        hall_number in [434, 437, 445, 451, 453, 459, 461] ? rhombohedral : hexagonal
-    elseif 462 <= hall_number <= 488
-        hexagonal
-    elseif 489 <= hall_number <= 530
-        cubic
-    else
-        error("Invalid Hall number $hall_number. Allowed range is 1..530")
-    end
-end
-
 function all_compatible_cells(cell::CellType)
     if cell == triclinic
         [triclinic, monoclinic, orthorhombic, tetragonal, rhombohedral, hexagonal, cubic]
@@ -163,6 +139,3 @@ function all_compatible_cells(cell::CellType)
     end
 end
 
-function is_trigonal_symmetry(hall_number::Int)
-    return 430 <= hall_number <= 461
-end
