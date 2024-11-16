@@ -149,8 +149,8 @@ end
 
 extension_fns = [
     # ext/PlottingExt
-    :Makie => [:view_crystal, :plot_spins!, :plot_spins, :plot_intensities!, :plot_intensities,
-               :view_qspace],
+    :Makie => [:plot_spins!, :plot_spins, :plot_intensities!, :plot_intensities,
+               :view_crystal, :view_qspace],
     # ext/ExportVTKExt
     :WriteVTK => [:export_vtk],
 ]

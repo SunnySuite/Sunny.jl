@@ -44,6 +44,19 @@ function show_qspace_obj(ax, recipvecs, ℓ0, qpts::Sunny.AbstractQPoints)
 end
 
 
+"""
+    view_qspace(crystal::Crystal, objs...; orthographic=false, compass=true)
+
+Launches a graphical user interface to visualize reciprocal space with respect
+to the [`Crystal`](@ref) unit cell. The first Brilliouin zone for the primitive
+lattice is shown as a convex polyhedron. High-symmetry points and paths between
+them are inspectable, consistent with the data in
+[`print_irreducible_bz_paths`](@ref). Additional `objs` may be passed, e.g., to
+visualize custom paths or grids in reciprocal space.
+
+ - `orthographic`: Use orthographic camera perspective.
+ - `compass`: If true, draw Cartesian axes in bottom left.
+"""
 function Sunny.view_qspace(cryst::Crystal, objs...; orthographic=false, compass=true, size=(768, 512))
     fig = Makie.Figure(; size)
 
