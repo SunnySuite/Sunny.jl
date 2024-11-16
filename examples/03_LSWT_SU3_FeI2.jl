@@ -165,7 +165,7 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 # ``\mathcal{S}(𝐪)`` of this spin configuration using
 # [`SampledCorrelationsStatic`](@ref). For the present purposes, however, it is
 # most convenient to use [`print_wrapped_intensities`](@ref), which effectively
-# averages over all Brillouin zones.
+# averages ``\mathcal{S}(𝐪)`` over all Brillouin zones.
 
 print_wrapped_intensities(sys)
 
