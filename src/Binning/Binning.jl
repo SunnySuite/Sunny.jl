@@ -1,3 +1,4 @@
+import StaticArrays: MVector, MMatrix # TODO: remove
 
 """
     BinningParameters(binstart, binend, binwidth; covectors=I(4))
@@ -376,7 +377,6 @@ function binned_intensities(sc, params::BinningParameters; kT=nothing, integrate
     end
 
     # Bin (and broaden) those intensities according to BinningParameters
-    k = zero(MVector{3, Float64})
     v = zero(MVector{4, Float64})
     q = view(v,1:3)
     coords = zero(MVector{4, Float64})
@@ -415,7 +415,6 @@ function binned_intensities(sc, params::BinningParameters; kT=nothing, integrate
     for cell_ix in eachindex(cells), (iω, ω) in enumerate(energies)
         cell = cells[cell_ix]
         q .= ((cell.I .- 1) ./ Ls) # q is in R.L.U.
-        k .= (static_mode ? sc.parent : sc).crystal.recipvecs * q
         if isnothing(integrated_kernel) # `Delta-function energy' logic
             # Figure out which bin this goes in
             v[4] = ω
