@@ -41,7 +41,7 @@ include("Symmetry/AllowedCouplings.jl")
 include("Symmetry/AllowedAnisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
-include("Symmetry/Brillouin.jl")
+include("Symmetry/BZPaths.jl")
 export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primitive_cell, Bond,
     reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame,
     print_irreducible_bz_paths
