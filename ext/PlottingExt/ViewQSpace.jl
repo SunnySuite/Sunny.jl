@@ -47,6 +47,8 @@ end
 """
     view_qspace(crystal::Crystal, objs...; orthographic=false, compass=true)
 
+**Experimental**
+
 Launches a graphical user interface to visualize reciprocal space with respect
 to the [`Crystal`](@ref) unit cell. The first Brilliouin zone for the primitive
 lattice is shown as a convex polyhedron. High-symmetry points and paths between
