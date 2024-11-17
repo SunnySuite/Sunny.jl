@@ -16,7 +16,7 @@ units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(1, 1, 10, 90, 90, 90)
 positions = [[0, 0, 0]]
 types = ["Cu"]
-cryst = Crystal(latvecs, positions; types)
+cryst = Crystal(latvecs, positions, 139; types)
 view_crystal(cryst; ndims=2)
 
 # Build a spin system using the exchange parameters from [R. Coldea, Phys. Rev.

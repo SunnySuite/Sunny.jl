@@ -147,20 +147,6 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         hm_symbol = cif[hm_header][1]
     end
 
-    sg_label = if !isnothing(hm_symbol)
-        if !isnothing(sg_number)
-            "'$hm_symbol' ($sg_number)"
-        else
-            "'$hm_symbol'"
-        end
-    else
-        if !isnothing(sg_number)
-            "($sg_number)"
-        else
-            ""
-        end
-    end
-
     # If we're overriding symmetry, then distinct labels may need to be merged
     # into equivalent sites. E.g., site-symmetry may be broken due to magnetic
     # order in an .mcif -- undo that.
@@ -206,8 +192,10 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
 
     if !isnothing(symops)
         isnothing(sg_number) && error("Spacegroup number not specified.")
-        sg_setting = mapping_to_standard_setting_from_symops(sg_number, symops)
-        isnothing(sg_setting) && error("Symmetry operations do not match an ITA setting for spacegroup $sg_number.")
+        hall_number = hall_number_from_symops(sg_number, symops)
+        isnothing(hall_number) && error("Symmetry operations do not match an ITA setting for spacegroup $sg_number.")
+        sg_label = spacegroup_label(hall_number)
+        sg_setting = mapping_to_standard_setting(hall_number)
         sg = Spacegroup(symops, sg_label, sg_number, sg_setting)
         ret = crystal_from_spacegroup(latvecs, positions, classes, sg; symprec)
     elseif !isnothing(hall_symbol)

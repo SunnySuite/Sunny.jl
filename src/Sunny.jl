@@ -2,9 +2,9 @@ module Sunny
 
 using LinearAlgebra
 import Statistics
-import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
-import OffsetArrays: OffsetArray, OffsetMatrix, Origin
-import ElasticArrays: ElasticArray, resize!
+import StaticArrays: SVector, SMatrix, SArray, SA
+import OffsetArrays: OffsetArray
+import ElasticArrays: ElasticArray
 import SpecialFunctions: erf, erfc
 import FFTW
 import DynamicPolynomials as DP
@@ -18,6 +18,7 @@ import HCubature: hcubature
 import CrystalInfoFramework as CIF
 import Spglib
 import RowEchelon: rref!
+import Brillouin
 
 include("MathBasics.jl")
 
@@ -40,8 +41,10 @@ include("Symmetry/AllowedCouplings.jl")
 include("Symmetry/AllowedAnisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
+include("Symmetry/BZPaths.jl")
 export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primitive_cell, Bond,
-    reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame
+    reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame,
+    print_irreducible_bz_paths
 
 include("Units.jl")
 export Units, meV_per_K
@@ -137,39 +140,47 @@ export set_external_field!, set_external_field_at!, dynamic_correlations,
     instant_correlations, intensity_formula, reciprocal_space_path,
     set_spiral_order_on_sublattice!, set_spiral_order!
 
-isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
-### ext/PlottingExt.jl, dependent on Makie
-function view_crystal(args...; opts...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import Makie to enable plotting")
-end
-function plot_spins!(args...; opts...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import Makie to enable plotting")
-end
-function plot_spins(args...; opts...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import Makie to enable plotting")
-end
-function plot_intensities!(args...; opts...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import Makie to enable plotting")
-end
-function plot_intensities(args...; opts...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
-end
-export view_crystal, plot_spins, plot_spins!, plot_intensities, plot_intensities!
+### Initialize package extensions
 
-function viz_qqq_path(args...; opts...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+function is_pkg_loaded(pkg::Symbol)
+    return any(k -> Symbol(k.name) == pkg, keys(Base.loaded_modules))
 end
 
-### ext/ExportVTKExt.jl, dependent on WriteVTK
-function export_vtk(args...)
-    error(isloaded("WriteVTK") ? "Invalid method call" : "Import WriteVTK to enable exporting")
+extension_fns = [
+    # ext/PlottingExt
+    :Makie => [:plot_spins!, :plot_spins, :plot_intensities!, :plot_intensities,
+               :view_crystal, :view_qspace],
+    # ext/ExportVTKExt
+    :WriteVTK => [:export_vtk],
+]
+
+for (_pkg, fns) in extension_fns
+    for fn in fns
+        @eval function $fn end
+        @eval export $fn
+    end
 end
-export export_vtk
+
+function __init__()
+    # Notify user if extension function requires package import
+    if isdefined(Base.Experimental, :register_error_hint)
+        Base.Experimental.register_error_hint(MethodError) do io, exc, _argtypes, _kwargs
+            fn = Symbol(exc.f)
+            for (pkg, fns) in extension_fns
+                if in(fn, fns) && !is_pkg_loaded(pkg)
+                    printstyled(io, "\nImport package $pkg to enable `$fn`.\n"; bold=true)
+                end
+            end
+        end
+    end
+end
 
 # Access to PlottingExt module for developer convenience
 PlottingExt() = Base.get_extension(@__MODULE__, :PlottingExt)
 
+
+### Precompile workloads
 
 import PrecompileTools as PT
 PT.@setup_workload begin

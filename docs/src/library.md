@@ -12,8 +12,8 @@ Private = false
 
 ## Optional Makie extensions
 
-The following will be enabled through a package extension if either `GLMakie` or
-`WGLMakie` is loaded.
+Load a Makie graphics package (`GLMakie`, `WGLMakie`, or `CairoMakie`) to enable
+the following extensions:
 
 ```@docs
 plot_spins
@@ -21,12 +21,12 @@ plot_spins!
 plot_intensities
 plot_intensities!
 view_crystal
+view_qspace
 ```
 
 ## Optional WriteVTK extensions
 
-The following will be enabled through a package extension if `WriteVTK` is
-loaded.
+Load the `WriteVTK` package to enable the following extensions:
 
 ```@docs
 export_vtk
