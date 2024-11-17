@@ -1,10 +1,10 @@
-# Overview
+# A toolkit for atomic scale magnetism
 
-[Sunny](https://github.com/SunnySuite/Sunny.jl/) is a Julia package for modeling
-atomic-scale magnetism. It provides powerful tools to study equilibrium and
-non-equilibrium magnetic phenomena. In particular, it allows estimation of
-dynamical structure factor intensities, $\mathcal{S}(𝐪,ω)$, to support
-quantitative modeling of experimental scattering data.
+[Sunny](https://github.com/SunnySuite/Sunny.jl/) provides powerful tools to
+study equilibrium and non-equilibrium magnetic phenomena. In particular, it
+allows estimation of dynamical structure factor intensities,
+$\mathcal{S}(𝐪,ω)$, to support quantitative modeling of experimental scattering
+data.
 
 ## Start with the examples
 
@@ -12,7 +12,7 @@ quantitative modeling of experimental scattering data.
 in a progressive way. See also the [SpinW ports](@ref "SW01 - FM Heisenberg
 chain") for a focus on traditional spin wave theory.
 
-## Why use Sunny?
+## Why choose Sunny?
 
 Sunny is both powerful and easy to use. Features include:
 
