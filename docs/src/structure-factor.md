@@ -340,7 +340,8 @@ sublattice $j$.
 Calculating the structure factor involves several steps, with various possible
 settings. Sunny provides tools to facilitate this calculation and to extract
 information from the results. For details, please see our [tutorials](@ref "1.
-Spin wave simulations of CoRh₂O₄") as well as the complete [Library API](@ref).
+Spin wave simulations of CoRh₂O₄") as well as the complete [Library
+Reference](@ref).
 
 Through [`ssf_custom`](@ref) and related functions, Sunny will calculate the
 spin structure factor as a 3×3 matrix in dimensionless units,

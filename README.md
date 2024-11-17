@@ -46,7 +46,7 @@ Sunny is inspired by SpinW, especially regarding symmetry analysis and tradition
 | [Incommensurate spiral order](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html) | ❌ | ✅ | ✅ |
 | [Interaction renormalization](https://sunnysuite.github.io/Sunny.jl/stable/renormalization.html) | ❌ | ❌ | ✅ |
 | [Multi-flavor spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html) | ✅ | ❌ | ✅ |
-| [Arbitrary spin-multipole couplings](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!-Union{Tuple{N},%20Tuple{System{N},%20AbstractMatrix,%20Any}}%20where%20N) | ✅ | ❌ | ✅ |
+| [Arbitrary spin-multipole couplings](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!) | ✅ | ❌ | ✅ |
 | [Classical SU(_N_) spin dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/04_GSD_FeI2.html) | ❌ | ❌ | ✅ |
 | [Linear-scaling spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html) | ❌ | ❌ | ✅ |
 | [Fast long-range dipole interactions](https://sunnysuite.github.io/Sunny.jl/stable/examples/07_Dipole_Dipole.html) | ❌ | ❌ | ✅ |
