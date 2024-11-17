@@ -3,12 +3,15 @@
 ## v0.7.4
 (In development)
 
-* Better error message when a $g$-tensor is symmetry disallowed.
 * Higher-precision convergence in [`minimize_energy!`](@ref).
-* Fix [`minimize_energy!`](@ref) when used with [`set_vacancy_at!`](@ref).
-* The `System` constructor now, by default, seeds its internal random number
-  generator with `seed=rand(UInt)`. Note that Julia's global random number
-  generator can itself be seeded with `Random.seed!`.
+* Make [`minimize_energy!`](@ref) compatible with [`set_vacancy_at!`](@ref).
+* The `System` constructor now seeds its internal random number generator using
+  Julia's task-local random number generator.
+* Add [`print_irreducible_bz_paths`](@ref), which builds on
+  [Brillouin.jl](https://github.com/thchr/Brillouin.jl) and
+  [SeeK-path](http://www.materialscloud.org/tools/seekpath/).
+* Add prototype function [`view_qspace`](@ref) for visualizing reciprocal-space
+  objects in the context of the first Brillouin zone.
 
 ## v0.7.3
 (Nov 12, 2024)
