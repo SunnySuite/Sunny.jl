@@ -5,7 +5,7 @@ This page describes the public types and functions exported by Sunny. This docum
 ## Index
 
 ```@index
-Modules = [Sunny, PlottingExt, ExportVTKExt]
+Modules = [Sunny]
 ```
 
 ## Core Sunny functions

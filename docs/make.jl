@@ -114,7 +114,7 @@ contributed_mds = isdraft ? [] : prepare_contributed()
 # Build docs as HTML, including the `examples/name.md` markdown built above
 Documenter.makedocs(;
     clean = false, # Don't wipe files in `build/assets/`
-    sitename = "Sunny documentation",
+    sitename = "Documentation",
     pages = [
         "index.md",
         "Examples" => [
