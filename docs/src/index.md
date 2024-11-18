@@ -2,8 +2,8 @@
 
 [Sunny](https://github.com/SunnySuite/Sunny.jl/) provides powerful tools to
 simulate equilibrium and non-equilibrium magnetic phenomena from microscopic
-models. It also facilitates calculation of dynamical spin structure factors that
-can be directly compared to experimental scattering data.
+models. It also facilitates calculation of the dynamical spin structure factor
+$\mathcal{S}(𝐪,ω)$ for direct comparison to experimental scattering data.
 
 To get a feel for Sunny, start by browsing the [CoRh₂O₄ example](@ref "1. Spin
 wave simulations of CoRh₂O₄"). This and subsequent examples demonstrate a range
