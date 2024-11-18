@@ -1,20 +1,30 @@
-# A toolkit for atomic scale magnetism
+# Welcome
 
 [Sunny](https://github.com/SunnySuite/Sunny.jl/) provides powerful tools to
-study equilibrium and non-equilibrium magnetic phenomena. In particular, it
-allows estimation of dynamical structure factor intensities,
-$\mathcal{S}(𝐪,ω)$, to support quantitative modeling of experimental scattering
+study equilibrium and non-equilibrium magnetic phenomena. For example, it
+facilitates calculation of dynamical structure factor intensities
+$\mathcal{S}(𝐪,ω)$ that can be directly compared to experimental scattering
 data.
 
-## Start with the examples
+## Look around
 
-[The examples](@ref "1. Spin wave simulations of CoRh₂O₄") teach Sunny concepts
-in a progressive way. See also the [SpinW ports](@ref "SW01 - FM Heisenberg
-chain") for a focus on traditional spin wave theory.
+A good place to start is the [CoRh₂O₄ example](@ref "1. Spin wave simulations of
+CoRh₂O₄"). This and subsequent tutorials demonstrate a range of Sunny features.
+One can also browse the [SpinW ports](@ref "SW01 - FM Heisenberg chain"), which
+focus on spin wave theory.
+
+## Join our community
+
+We want to interact with you! Please [join our Slack
+community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA)
+and say hello. If you encounter a problem with Sunny, please ask on the Slack
+`#helpdesk` channel. If you use Sunny in a paper, please add it to our
+[Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+
 
 ## Why choose Sunny?
 
-Sunny is both powerful and easy to use. Features include:
+Sunny is powerful and easy to use. Features include:
 
 - Ability to [specify a crystal](@ref Crystal) from a `.cif` file, from its
   spacegroup and Wyckoffs, or with symmetries inferred from the chemical cell.
