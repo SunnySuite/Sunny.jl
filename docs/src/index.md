@@ -13,15 +13,6 @@ CoRh₂O₄"). This and subsequent tutorials demonstrate a range of Sunny featur
 One can also browse the [SpinW ports](@ref "SW01 - FM Heisenberg chain"), which
 focus on spin wave theory.
 
-## Join our community
-
-We want to interact with you! Please [join our Slack
-community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA)
-and say hello. If you encounter a problem with Sunny, please ask on the Slack
-`#helpdesk` channel. If you use Sunny in a paper, please add it to our
-[Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
-
-
 ## Why choose Sunny?
 
 Sunny is powerful and easy to use. Features include:
@@ -57,3 +48,11 @@ Sunny is powerful and easy to use. Features include:
   FormFactor), [custom spin contractions](@ref ssf_custom_bm),
   classical-to-quantum [renormalization factors](@ref "Interaction
   Renormalization"), etc.
+
+## Join our community
+
+We want to interact with you! Please [join our Slack
+community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA)
+and say hello. If you encounter a problem with Sunny, please ask on the Slack
+`#helpdesk` channel. If you use Sunny in a paper, please add it to our
+[Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
