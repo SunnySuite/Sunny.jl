@@ -1,10 +1,9 @@
 # Welcome
 
 [Sunny](https://github.com/SunnySuite/Sunny.jl/) provides powerful tools to
-study equilibrium and non-equilibrium magnetic phenomena. For example, it
-facilitates calculation of dynamical structure factor intensities
-$\mathcal{S}(𝐪,ω)$ that can be directly compared to experimental scattering
-data.
+simulate equilibrium and non-equilibrium magnetic phenomena from microscopic
+models. It also facilitates calculation of dynamical spin structure factors that
+can be directly compared to experimental scattering data.
 
 To get a feel for Sunny, start by browsing the [CoRh₂O₄ example](@ref "1. Spin
 wave simulations of CoRh₂O₄"). This and subsequent examples demonstrate a range
@@ -16,23 +15,29 @@ chain"), which focus on spin wave theory.
 Sunny is powerful and easy to use. Features include:
 
 - Ability to [specify a crystal](@ref Crystal) from a `.cif` file, from its
-  spacegroup and Wyckoffs, or with symmetries inferred from the chemical cell.
-  Magnetic structures [can be read](@ref set_dipoles_from_mcif!) from `.mcif`
-  files.
+  spacegroup number and representative Wyckoff positions, or from the symmetry
+  operations inferred by [spglib](https://github.com/spglib/spglib). Magnetic
+  structures [can be read](@ref set_dipoles_from_mcif!) from `.mcif` files.
 - Interactive visualization of [3D crystals](@ref view_crystal) and [magnetic
-  ordering](@ref plot_spins).
-- Symmetry analysis to [classify allowed interaction terms](@ref
-  print_symmetry_table), and to propagate them by symmetry.
-- Single-ion anisotropy at arbitrary order, which [can be specified](@ref
-  set_onsite_coupling!) using [Stevens operators](@ref stevens_matrices) or
-  [spin polynomials](@ref spin_matrices). Arbitrary coupling between spin
-  multipoles is [also allowed](@ref set_pair_coupling!).
+  structures](@ref plot_spins).
+- Symmetry analysis to determine [allowed anisotropies and interaction
+  terms](@ref print_symmetry_table), and to propagate them by symmetry.
+- Single-ion anisotropy [can be specified](@ref set_onsite_coupling!) using
+  either [Stevens operators](@ref stevens_matrices) or [spin polynomials](@ref
+  spin_matrices). Arbitrary coupling between spin multipoles is [also
+  supported](@ref set_pair_coupling!). Classical-to-quantum [renormalization
+  factors](@ref "Interaction Renormalization") are included to enhance fidelity.
+- [Fast optimization](@ref minimize_energy!) of magnetic structures using
+  supercells or the propagation vector formalism.
 - Statistical sampling of spins in thermal equilibrium using [Langevin
-  dynamics](@ref Langevin) and [local Monte Carlo updates](@ref LocalSampler).
-- [Fast optimization](@ref minimize_energy!) of the magnetic ground state.
-- Support for non-equilibrium spin dynamics, with [generalization to spin
-  multipoles](@ref "6. Dynamical quench into CP² skyrmion liquid") via the
-  theory of [SU(_N_) coherent states](https://arxiv.org/abs/2209.01265).
+  dynamics](@ref Langevin) or [local Monte Carlo updates](@ref LocalSampler).
+  Advanced Monte Carlo methods such as [parallel
+  tempering](https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra/Advanced_MC)
+  are effective for simulations of classical spin liquids and frustrated
+  magnetism.
+- [Non-equilibrium spin dynamics](@ref "6. Dynamical quench into CP² skyrmion
+  liquid") with generalization to arbitrary spin multipoles via the theory of
+  [SU(_N_) coherent states](https://arxiv.org/abs/2209.01265).
 - Dynamical correlation measurement via [linear spin wave theory](@ref
   SpinWaveTheory) and its multi-boson generalization. Special support is
   provided for calculations on [incommensurate spiral phases](@ref
@@ -43,9 +48,9 @@ Sunny is powerful and easy to use. Features include:
 - Long-range [dipole-dipole interactions](@ref enable_dipole_dipole!)
   accelerated with the fast Fourier transform (FFT).
 - Conveniences for comparing to experimental data: [form factors](@ref
-  FormFactor), [custom spin contractions](@ref ssf_custom_bm),
-  classical-to-quantum [renormalization factors](@ref "Interaction
-  Renormalization"), etc.
+  FormFactor), [custom spin contractions](@ref ssf_custom_bm), averaging over
+  [powder](@ref powder_average) and [domain orientations](@ref domain_average)
+  etc.
 
 ## Join our community
 
