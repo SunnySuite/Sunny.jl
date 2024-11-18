@@ -6,12 +6,10 @@ facilitates calculation of dynamical structure factor intensities
 $\mathcal{S}(𝐪,ω)$ that can be directly compared to experimental scattering
 data.
 
-## Look around
-
-A good place to start is the [CoRh₂O₄ example](@ref "1. Spin wave simulations of
-CoRh₂O₄"). This and subsequent tutorials demonstrate a range of Sunny features.
-One can also browse the [SpinW ports](@ref "SW01 - FM Heisenberg chain"), which
-focus on spin wave theory.
+To get a feel for Sunny, start by browsing the [CoRh₂O₄ example](@ref "1. Spin
+wave simulations of CoRh₂O₄"). This and subsequent examples demonstrate a range
+of Sunny features. See also the [SpinW ports](@ref "SW01 - FM Heisenberg
+chain"), which focus on spin wave theory.
 
 ## Why choose Sunny?
 
