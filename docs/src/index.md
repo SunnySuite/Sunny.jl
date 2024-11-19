@@ -56,28 +56,27 @@ Sunny is powerful and easy to use. Features include:
 
 ## Advanced theory made accessible
 
-Sunny also serves as a platform for [disseminating foundational
+Sunny is also a platform for [disseminating foundational
 advances](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods)
-in quantum magnetism and computational methods. Sunny builds on the theory of
-[SU(_N_) coherent states](https://doi.org/10.1103/PhysRevB.104.104409), which
-offers a group theoretic framework to formulate alternative classical limits of
-a microscopic quantum model. Sunny also introduces [highly efficient
-algorithms](https://doi.org/10.1103/PhysRevB.106.235154) for simulating the
-coupled dynamics of quantum spin-multipoles. For reasons not fully understood,
-classical dynamics can be [remarkably accurate at finite
+in quantum magnetism and computational methods. The theory of [SU(_N_) coherent
+states](https://doi.org/10.1103/PhysRevB.104.104409) offers a group theoretic
+framework to formulate alternative classical limits of a microscopic quantum
+model. [New algorithms](https://doi.org/10.1103/PhysRevB.106.235154) enable
+highly efficient simulation of spin-multipoles and beyond. For reasons not fully
+understood, such classical limits can be [remarkably accurate at finite
 temperatures](https://doi.org/10.1103/PhysRevB.109.014427) when used in
 conjunction with appropriate renormalization schemes. The SU(_N_) picture also
 suggests new geometric interpretations of quantum spin. This leads to a [deeper
 understanding](https://arxiv.org/abs/2304.03874) of existing renormalization
-schemes for traditional spin wave theory, and suggests a new landscape to search
-novel topological states [such as CP²
+schemes for traditional spin wave theory, and suggests a whole landscape in
+which to search for novel topological states, [e.g. CP²
 skyrmions](https://doi.org/10.1038/s41467-023-39232-8). Ongoing Sunny research
 aims to incorporate more quantum entanglement into the classical picture. Local
 units of strongly entangled spins will soon be supported and show great promise
 for cases like [dimerized ladders](https://doi.org/10.1103/PhysRevB.110.104403).
-In the medium term, Sunny also aims to include perturbative corrections beyond
-linear spin wave theory, as well as a non-perturbative treatment of quantum
-bound states.
+Longer term, Sunny also aims to include perturbative corrections beyond linear
+spin wave theory, as well as a non-perturbative treatment of quantum bound
+states.
 
 ## Join our community
 
