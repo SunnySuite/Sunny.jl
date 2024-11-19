@@ -29,7 +29,8 @@ Sunny is powerful and easy to use. Features include:
   supported](@ref set_pair_coupling!). Classical-to-quantum [renormalization
   factors](@ref "Interaction Renormalization") are included to enhance fidelity.
 - [Fast optimization](@ref minimize_energy!) of magnetic structures using
-  supercells or the propagation vector formalism.
+  supercells or the [propagation vector formalism](@ref
+  minimize_spiral_energy!).
 - Statistical sampling of spins in thermal equilibrium using [Langevin
   dynamics](@ref Langevin) or [local Monte Carlo updates](@ref LocalSampler).
   Advanced Monte Carlo methods such as [parallel
@@ -48,10 +49,9 @@ Sunny is powerful and easy to use. Features include:
   nonlinearities.
 - Long-range [dipole-dipole interactions](@ref enable_dipole_dipole!)
   accelerated with the fast Fourier transform (FFT).
-- Conveniences for comparing to experimental data: [form factors](@ref
-  FormFactor), [custom spin contractions](@ref ssf_custom_bm), averaging over
-  [powder](@ref powder_average) and [domain orientations](@ref domain_average)
-  etc.
+- Tools for comparing to experimental data: [form factors](@ref FormFactor),
+  [custom spin contractions](@ref ssf_custom_bm), averaging over [powder](@ref
+  powder_average) and [domain orientations](@ref domain_average), etc.
 
 ## Join our community
 
