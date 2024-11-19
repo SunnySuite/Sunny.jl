@@ -15,13 +15,14 @@ chain"), which focus on spin wave theory.
 Sunny is powerful and easy to use. Features include:
 
 - Ability to [specify a crystal](@ref Crystal) from a `.cif` file, from its
-  spacegroup number and representative Wyckoff positions, or from the symmetry
-  operations inferred by [spglib](https://github.com/spglib/spglib). Magnetic
-  structures [can be read](@ref set_dipoles_from_mcif!) from `.mcif` files.
+  spacegroup number and representative Wyckoff positions, or from automatically
+  inferred symmetry operations. Magnetic structures [can be read](@ref
+  set_dipoles_from_mcif!) from `.mcif` files.
 - Interactive visualization of [3D crystals](@ref view_crystal) and [magnetic
   structures](@ref plot_spins).
 - Symmetry analysis to determine [allowed anisotropies and interaction
-  terms](@ref print_symmetry_table), and to propagate them by symmetry.
+  terms](@ref print_symmetry_table), and to propagate them by symmetry
+  equivalence.
 - Single-ion anisotropy [can be specified](@ref set_onsite_coupling!) using
   either [Stevens operators](@ref stevens_matrices) or [spin polynomials](@ref
   spin_matrices). Arbitrary coupling between spin multipoles is [also
