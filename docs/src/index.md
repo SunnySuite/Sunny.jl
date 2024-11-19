@@ -42,8 +42,8 @@ Sunny is powerful and easy to use. Features include:
   correlations at finite temperature](@ref SampledCorrelations), and the study of
   [highly nonequilibrium phenomena](@ref "6. Dynamical quench into CP² skyrmion
   liquid").
-- [Linear spin wave theory](@ref SpinWaveTheory) for low-temperature spin
-  dynamics. Special support is provided for calculations on [incommensurate
+- Generalized [linear spin wave theory](@ref SpinWaveTheory) for low-temperature
+  spin dynamics. Special support is provided for calculations on [incommensurate
   spiral phases](@ref SpinWaveTheorySpiral) and on [large, disordered magnetic
   cells](@ref SpinWaveTheoryKPM). See also the [FeI₂ example](@ref "3.
   Multi-flavor spin wave simulations of FeI₂") as a showcase of LSWT with
