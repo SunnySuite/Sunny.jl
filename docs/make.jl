@@ -1,4 +1,6 @@
-# julia --project=@. --compiled-modules=existing make.jl
+#=
+julia --project=@. --compiled-modules=existing make.jl
+=#
 
 isdraft = false # set `true` to disable cell evaluation
 
@@ -117,6 +119,7 @@ Documenter.makedocs(;
     sitename = "Documentation",
     pages = [
         "index.md",
+        "why.md",
         "Examples" => [
             example_mds...,
             "SpinW ports" => spinw_mds,
