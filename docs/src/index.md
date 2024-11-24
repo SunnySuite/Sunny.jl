@@ -6,8 +6,8 @@ models. It also facilitates calculation of the dynamical spin structure factor
 $\mathcal{S}(𝐪,ω)$ for direct comparison to experimental scattering data.
 
 See [Why Choose Sunny?](@ref) for feature highlights. The design of Sunny is
-closely tied to [theoretical advances](@ref "Advanced theory made accessible")
-that offer a new perspective on quantum magnetism.
+closely tied to our team's [theoretical advances](@ref "Advanced theory made
+accessible") in quantum magnetism.
 
 Learn Sunny by browsing the [CoRh₂O₄ tutorial](@ref "1. Spin wave simulations of
 CoRh₂O₄") and subsequent ones. See also the [SpinW ports](@ref "SW01 - FM
