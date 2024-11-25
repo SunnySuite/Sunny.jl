@@ -5,10 +5,10 @@ magnetic phenomena from microscopic models. It also facilitates calculation of
 the dynamical spin structure factor $\mathcal{S}(𝐪,ω)$ for direct comparison to
 experimental scattering data.
 
-[**Feature highlights**](@ref "Why Choose Sunny?") include symmetry-guided modeling
-and interactive visualization. Sunny also offers novel simulation capabilities
-that reflect [theoretical advances](@ref "Advanced theory made accessible") in
-quantum magnetism.
+[**Feature highlights**](@ref "Why Choose Sunny?") include symmetry-guided
+modeling and interactive visualization. Sunny also offers novel simulation
+capabilities that reflect [theoretical advances](@ref "Advanced theory made
+accessible") in quantum magnetism.
 
 [**Browse the tutorials**](@ref "1. Spin wave simulations of CoRh₂O₄") to get
 started. See also [SpinW ports](@ref "SW01 - FM Heisenberg chain") for
