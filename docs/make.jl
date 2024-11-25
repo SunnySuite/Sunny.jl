@@ -125,13 +125,13 @@ Documenter.makedocs(;
             "SpinW ports" => spinw_mds,
             "Contributed" => contributed_mds,
         ],
-        "Guides" => [
+        "library.md",
+        "Details" => [
             "structure-factor.md",
-            "parallelism.md",                        
             "renormalization.md",
+            "parallelism.md",
             # "writevtk.md",
         ],
-        "library.md",
         "versions.md",
     ],
     format = Documenter.HTML(;
