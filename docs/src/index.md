@@ -14,7 +14,8 @@ accessible") in quantum magnetism.
 started. See also [SpinW ports](@ref "SW01 - FM Heisenberg chain") for
 traditional spin wave theory.
 
-[**Library Reference**](@ref) lists all functions and their doc-strings.
+[**Library Reference**](@ref "Library Reference") lists all functions and their
+doc-strings.
 
 We want to interact with you! Please [join our Slack
 community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA)
