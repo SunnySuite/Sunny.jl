@@ -6,9 +6,8 @@ the dynamical spin structure factor $\mathcal{S}(𝐪,ω)$ for direct comparison
 experimental scattering data.
 
 [_**Feature highlights**_](@ref "Why Choose Sunny?") include symmetry-guided
-modeling and interactive visualization. Sunny's simulation capabilities build on
-[theoretical advances](@ref "Advanced theory made accessible") in quantum
-magnetism.
+modeling, interactive visualization, and more accurate approximations to quantum
+spin dynamics.
 
 [_**Browse the tutorials**_](@ref "1. Spin wave simulations of CoRh₂O₄") to get
 started. See also [SpinW ports](@ref "SW01 - FM Heisenberg chain") for
