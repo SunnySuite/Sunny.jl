@@ -90,8 +90,7 @@ The latter are defined as any states where the expected dipole 3-vector,
 ```math
 \boldsymbol{\Omega} ≡ \langle \boldsymbol{\Omega}| \hat{\mathbf{S}} | \boldsymbol{\Omega}\rangle,
 ```
-has maximal magnitude $|\boldsymbol{\Omega}| = s$ and
-arbitrary direction.
+has maximal magnitude $|\boldsymbol{\Omega}| = s$ and arbitrary direction.
 
 For a pure dipole state, group theory dictates that expectations of the Stevens
 operators can be expressed as a renormalization of the classical Stevens
@@ -126,7 +125,6 @@ dynamics of dipoles, but involving $E_{\mathrm{local}}(\boldsymbol{\Omega})$ as
 the classical Hamiltonian. The renormalization factors $c_k$ can therefore be
 interpreted as a correction to the traditional large-$s$ classical limit.
 
-
 Renormalization also applies to the coupling between different sites. In Sunny,
 couplings will often be expressed as a polynomial of spin operators using
 [`set_pair_coupling!`](@ref), but any such coupling can be decomposed as a sum
@@ -142,16 +140,21 @@ renormalized Stevens functions.
 
 ## Use `:dipole_uncorrected` mode to disable renormalization
 
-Although we generally recommend the above renormalization procedure, there are
-cases where it is not desirable. Examples include reproducing a legacy study, or
-modeling a micromagnetic system for which the $s\to\infty$ limit is a good
-approximation. To simulate dipoles without interaction strength renormalization,
+The above renormalization procedure is valid under the assumption that the
+starting model is the true microscopic quantum Hamiltonian. Sometimes, however,
+the starting model is instead an effective classical Hamiltonian that has been
+fitted to experimental data. In this case, the model parameters will already
+incorporate any appropriate renormalizations, and no further renormalization
+should be applied. Similarly, renormalization is unneeded for effective models
+of micromagnets that are far from the quantum regime.
+
+To specify an effective spin-dipole Hamiltonian with renormalization disabled,
 construct a [`System`](@ref) using the mode `:dipole_uncorrected` instead of
-`:dipole`. The fundamental difference between the two modes is the type of
-operator expected by [`set_onsite_coupling!`](@ref). The mode
-`:dipole_uncorrected` expects infinite-dimensional operators in the $s → ∞$
-limit. These can be obtained by passing `Inf` to either [`spin_matrices`](@ref)
-or [`stevens_matrices`](@ref).
+`:dipole`. Formally, `:dipole_uncorrected` takes the $s → ∞$ limit, such that
+all local operators become infinite dimensional and commute. A symbolic
+representation of these operators can be obtained by passing `Inf` to either
+[`spin_matrices`](@ref) or [`stevens_matrices`](@ref). Polynomials of such spin
+operators can be used, e.g., in [`set_onsite_coupling!`](@ref).
 
 ## Definition of Stevens operators
 

@@ -46,7 +46,7 @@ Sunny is inspired by SpinW, especially regarding symmetry analysis and tradition
 | [Incommensurate spiral order](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html) | ❌ | ✅ | ✅ |
 | [Interaction renormalization](https://sunnysuite.github.io/Sunny.jl/stable/renormalization.html) | ❌ | ❌ | ✅ |
 | [Multi-flavor spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html) | ✅ | ❌ | ✅ |
-| [Arbitrary spin-multipole couplings](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!-Union{Tuple{N},%20Tuple{System{N},%20AbstractMatrix,%20Any}}%20where%20N) | ✅ | ❌ | ✅ |
+| [Arbitrary spin-multipole couplings](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!) | ✅ | ❌ | ✅ |
 | [Classical SU(_N_) spin dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/04_GSD_FeI2.html) | ❌ | ❌ | ✅ |
 | [Linear-scaling spin wave theory](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html) | ❌ | ❌ | ✅ |
 | [Fast long-range dipole interactions](https://sunnysuite.github.io/Sunny.jl/stable/examples/07_Dipole_Dipole.html) | ❌ | ❌ | ✅ |
@@ -56,7 +56,7 @@ Codes like [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https:/
 
 ## Join our community
 
-We want to interact with you! Please **[join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA)** and say hello. If you encounter a problem with Sunny, please ask on the Slack `#helpdesk` channel or  [file a Github issue](https://github.com/SunnySuite/Sunny.jl/issues). If you use Sunny in a paper, please let us know and add it to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you use Sunny in a paper, please add it to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 <br>
 <div>

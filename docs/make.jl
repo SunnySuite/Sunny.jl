@@ -1,4 +1,6 @@
-# julia --project=@. --compiled-modules=existing make.jl
+#=
+julia --project=@. --compiled-modules=existing make.jl
+=#
 
 isdraft = false # set `true` to disable cell evaluation
 
@@ -114,21 +116,22 @@ contributed_mds = isdraft ? [] : prepare_contributed()
 # Build docs as HTML, including the `examples/name.md` markdown built above
 Documenter.makedocs(;
     clean = false, # Don't wipe files in `build/assets/`
-    sitename = "Sunny documentation",
+    sitename = "Documentation",
     pages = [
         "index.md",
+        "why.md",
         "Examples" => [
             example_mds...,
             "SpinW ports" => spinw_mds,
             "Contributed" => contributed_mds,
         ],
-        "Guides" => [
+        "library.md",
+        "Details" => [
             "structure-factor.md",
-            "parallelism.md",                        
             "renormalization.md",
+            "parallelism.md",
             # "writevtk.md",
         ],
-        "library.md",
         "versions.md",
     ],
     format = Documenter.HTML(;
