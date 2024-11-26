@@ -76,7 +76,7 @@ function load_nxs(filename; field="signal")
                 transform_from_orig = file["MDHistoWorkspace"]["transform_from_orig"]
                 transform_from_orig = reshape(transform_from_orig, 5, 5)
                 transform_from_orig = transform_from_orig'
-                
+
                 # U: Orthogonal rotation matrix
                 # B: inv(lattice_vectors(...)) matrix, as in Sunny
                 # The matrix stored in the file is transpose of U * B
@@ -105,7 +105,7 @@ function load_nxs(filename; field="signal")
 
         signal = file["MDHistoWorkspace"]["data"][field]
 
-        axes = Dict(JLD2.load_attributes(file, "MDHistoWorkspace/data/signal"))[:axes]
+        axes = JLD2.load_attributes(file, "MDHistoWorkspace/data/signal")["axes"]
 
         # Axes are just stored backwards in Mantid .nxs for some reason
         axes_names = reverse(split(axes,":"))
@@ -118,7 +118,7 @@ function load_nxs(filename; field="signal")
         spatial_covector_ixs = [0,0,0]
         std = x -> sqrt(sum((x .- sum(x) ./ length(x)).^2))
         for (i, name) in enumerate(axes_names)
-            long_name = Dict(JLD2.load_attributes(file, "MDHistoWorkspace/data/$name"))[:long_name]
+            long_name = JLD2.load_attributes(file, "MDHistoWorkspace/data/$name")["long_name"]
 
             if long_name == "DeltaE"
                 covectors[i,:] .= [0,0,0,1] # energy covector
