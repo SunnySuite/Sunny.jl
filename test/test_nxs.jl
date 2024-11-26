@@ -1,7 +1,7 @@
 @testitem "load_nxs" begin
     import CodecZlib, IOCapture
 
-    filename = joinpath(@__DIR__, "cifs", "1Dcut_sym_0p00T_K.nxs")
+    filename = joinpath(@__DIR__, "nxs", "1Dcut_sym_0p00T_K.nxs")
 
     # Discard warnings
     capt = IOCapture.capture() do
