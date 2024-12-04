@@ -3,10 +3,6 @@ module GLMakiePrecompilesExt
 import Sunny, GLMakie
 import PrecompileTools as PT
 
-# Julia 1.11.1 caused a change in the ordering of precompilation for extensions.
-# See https://github.com/JuliaLang/julia/issues/56204#issuecomment-2439588043
-@static if VERSION < v"1.11.1"
-
 PT.@setup_workload begin
     PT.@compile_workload begin
         cryst = Sunny.bcc_crystal()
@@ -20,7 +16,5 @@ PT.@setup_workload begin
         GLMakie.closeall()
     end
 end
-
-end # VERSION < v"1.11.1"
 
 end
