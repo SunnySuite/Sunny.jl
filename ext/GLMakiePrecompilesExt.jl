@@ -1,6 +1,6 @@
 module GLMakiePrecompilesExt
 
-import Sunny, GLMakie
+import Sunny, Makie, GLMakie
 import PrecompileTools as PT
 
 # Julia 1.11.1 broke extension precompiles, but this was fixed in 1.11.2.
