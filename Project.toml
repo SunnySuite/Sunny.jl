@@ -31,9 +31,9 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [extensions]
 ExportVTKExt = "WriteVTK"
-GLMakiePrecompilesExt = "GLMakie"
+GLMakiePrecompilesExt = ["Makie", "GLMakie"]
 PlottingExt = "Makie"
-WGLMakiePrecompilesExt = "WGLMakie"
+WGLMakiePrecompilesExt = ["Makie", "WGLMakie"]
 
 [compat]
 Brillouin = "0.5.19"
