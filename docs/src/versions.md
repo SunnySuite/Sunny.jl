@@ -12,6 +12,7 @@
   [SeeK-path](http://www.materialscloud.org/tools/seekpath/).
 * Add prototype function [`view_qspace`](@ref) for visualizing reciprocal-space
   objects in the context of the first Brillouin zone.
+* Fix `load_nxs` for compatibility with recent JLD2.
 
 ## v0.7.3
 (Nov 12, 2024)
