@@ -10,9 +10,8 @@
 * Add [`print_irreducible_bz_paths`](@ref), which builds on
   [Brillouin.jl](https://github.com/thchr/Brillouin.jl) and
   [SeeK-path](http://www.materialscloud.org/tools/seekpath/).
-* Add prototype function [`view_bz`](@ref) for visualizing reciprocal-space
-  objects in the context of the first Brillouin zone.
-* Fix [`load_nxs`](@ref) for compatibility with recent JLD2.
+* Add function [`view_bz`](@ref) for visualizing reciprocal-space objects in the
+  context of the first Brillouin zone.
 * Fix Makie precompiles for faster time-to-first-plot in Julia 1.11 ([PR
   #329](https://github.com/SunnySuite/Sunny.jl/pull/329)).
 
