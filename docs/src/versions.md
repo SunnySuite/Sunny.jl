@@ -1,18 +1,20 @@
 # Version History
 
 ## v0.7.4
-(In development)
+(Dec 6, 2024)
 
 * Higher-precision convergence in [`minimize_energy!`](@ref).
 * Make [`minimize_energy!`](@ref) compatible with [`set_vacancy_at!`](@ref).
-* The `System` constructor now seeds its internal random number generator using
-  Julia's task-local random number generator.
+* The [`System`](@ref) constructor now seeds its internal random number
+  generator using Julia's task-local random number generator.
 * Add [`print_irreducible_bz_paths`](@ref), which builds on
   [Brillouin.jl](https://github.com/thchr/Brillouin.jl) and
   [SeeK-path](http://www.materialscloud.org/tools/seekpath/).
 * Add prototype function [`view_bz`](@ref) for visualizing reciprocal-space
   objects in the context of the first Brillouin zone.
-* Fix `load_nxs` for compatibility with recent JLD2.
+* Fix [`load_nxs`](@ref) for compatibility with recent JLD2.
+* Fix Makie precompiles for faster time-to-first-plot in Julia 1.11 ([PR
+  #329](https://github.com/SunnySuite/Sunny.jl/pull/329)).
 
 ## v0.7.3
 (Nov 12, 2024)
