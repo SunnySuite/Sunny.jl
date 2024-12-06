@@ -150,7 +150,7 @@ end
 extension_fns = [
     # ext/PlottingExt
     :Makie => [:plot_spins!, :plot_spins, :plot_intensities!, :plot_intensities,
-               :view_crystal, :view_qspace],
+               :view_crystal, :view_bz],
     # ext/ExportVTKExt
     :WriteVTK => [:export_vtk],
 ]
@@ -169,7 +169,8 @@ function __init__()
             fn = Symbol(exc.f)
             for (pkg, fns) in extension_fns
                 if in(fn, fns) && !is_pkg_loaded(pkg)
-                    printstyled(io, "\nImport package $pkg to enable `$fn`.\n"; bold=true)
+                    pkgstr = (pkg == :Makie) ? "a variant of Makie" : "package $pkg"
+                    printstyled(io, "\nImport $pkgstr to enable `$fn`.\n"; bold=true)
                 end
             end
         end

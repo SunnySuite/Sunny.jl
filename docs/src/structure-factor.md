@@ -142,12 +142,12 @@ where $\tilde{𝐪}$ expresses momentum in dimensionless reciprocal lattice unit
 
 ```math
 \begin{equation}
-𝐪 = \tilde{k}_1 𝐛_1 + \tilde{k}_2 𝐛_2 + \tilde{k}_3 𝐛_3,
+𝐪 = \tilde{q}_1 𝐛_1 + \tilde{q}_2 𝐛_2 + \tilde{q}_3 𝐛_3,
 \end{equation}
 ```
 
 and $𝐛_{\{1,2,3\}}$ are the reciprocal lattice vectors. Equivalently,
-$\tilde{k}_μ ≡ 𝐪 ⋅ 𝐚_μ / 2π$.
+$\tilde{q}_μ ≡ 𝐪 ⋅ 𝐚_μ / 2π$.
 
 It will be convenient to introduce a dynamical correlation for the operators on
 sublattices $i$ and $j$ only,
