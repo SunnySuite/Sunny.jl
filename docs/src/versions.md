@@ -12,6 +12,7 @@
   [SeeK-path](http://www.materialscloud.org/tools/seekpath/).
 * Add function [`view_bz`](@ref) for visualizing reciprocal-space objects in the
   context of the first Brillouin zone.
+* Fix [`load_nxs`](@ref) for compatibility with recent JLD2.
 * Fix Makie precompiles for faster time-to-first-plot in Julia 1.11 ([PR
   #329](https://github.com/SunnySuite/Sunny.jl/pull/329)).
 
