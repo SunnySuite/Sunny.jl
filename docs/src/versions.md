@@ -10,7 +10,7 @@
 * Add [`print_irreducible_bz_paths`](@ref), which builds on
   [Brillouin.jl](https://github.com/thchr/Brillouin.jl) and
   [SeeK-path](http://www.materialscloud.org/tools/seekpath/).
-* Add prototype function [`view_qspace`](@ref) for visualizing reciprocal-space
+* Add prototype function [`view_bz`](@ref) for visualizing reciprocal-space
   objects in the context of the first Brillouin zone.
 * Fix `load_nxs` for compatibility with recent JLD2.
 
