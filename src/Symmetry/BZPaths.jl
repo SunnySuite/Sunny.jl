@@ -34,7 +34,7 @@ originally formulated in Ref. [1] and implemented in
 functionality from the [Brillouin.jl](https://github.com/thchr/Brillouin.jl)
 package.
 
-See also [`view_qspace`](@ref) for an interactive visualization of these
+See also [`view_bz`](@ref) for an interactive visualization of these
 high-symmetry paths.
 
 ## References
@@ -44,8 +44,8 @@ high-symmetry paths.
    (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015).
 """
 function print_irreducible_bz_paths(cryst::Crystal)
-    try 
-        (; points, paths) = irreducible_bz_paths(cryst)
+    (; points, paths) = try 
+        irreducible_bz_paths(cryst)
     catch e
         if startswith(e.msg, "Triclinic")
             rethrow(ErrorException("""Triclinic lattice angles must currently be all-acute or all-obtuse.

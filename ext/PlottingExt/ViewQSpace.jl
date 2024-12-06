@@ -45,7 +45,7 @@ end
 
 
 """
-    view_qspace(crystal::Crystal, objs...; orthographic=false, compass=true)
+    view_bz(crystal::Crystal, objs...; orthographic=false, compass=true)
 
 **Experimental**
 
@@ -59,7 +59,7 @@ visualize custom paths or grids in reciprocal space.
  - `orthographic`: Use orthographic camera perspective.
  - `compass`: If true, draw Cartesian axes in bottom left.
 """
-function Sunny.view_qspace(cryst::Crystal, objs...; orthographic=false, compass=true, size=(768, 512))
+function Sunny.view_bz(cryst::Crystal, objs...; orthographic=false, compass=true, size=(768, 512))
     fig = Makie.Figure(; size)
 
     # Main scene

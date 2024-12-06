@@ -116,12 +116,12 @@ Load a Makie graphics package (`GLMakie`, `WGLMakie`, or `CairoMakie`) to enable
 the following extensions:
 
 ```@docs
-plot_spins
-plot_spins!
+view_bz
+view_crystal
 plot_intensities
 plot_intensities!
-view_crystal
-view_qspace
+plot_spins
+plot_spins!
 ```
 
 ## Optional WriteVTK extensions

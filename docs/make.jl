@@ -126,7 +126,7 @@ Documenter.makedocs(;
             "Contributed" => contributed_mds,
         ],
         "library.md",
-        "Details" => [
+        "Notes and Details" => [
             "structure-factor.md",
             "renormalization.md",
             "parallelism.md",
