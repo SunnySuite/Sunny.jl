@@ -252,7 +252,7 @@ function basis_for_symmetry_allowed_couplings_aux(cryst::Crystal, b::BondPos)
             P_asym = P_asym * (I - x*x')
         end
     end
-    
+
     # Search for eigenvectors of P_sym with eigenvalue 1. These provide an
     # orthonormal basis for symmetric couplings.
     v = nullspace(P_sym-I; atol)
@@ -272,13 +272,12 @@ function basis_for_symmetry_allowed_couplings_aux(cryst::Crystal, b::BondPos)
     return map(acc) do x
         # Normalize each basis vector so that its maximum component is 1. The
         # shift by atol avoids unnecessary sign change in the case where the
-        # maximum magnitude values of x appear symmetrically as ±c for some c.
-        _, i = findmax(abs.(x.+atol))
-        x = x / x[i]
+        # maximum magnitude values of x appear symmetrically as ±c.
+        x /= argmax(c -> abs(c + atol), x)
 
         # Reinterpret as 3x3 matrix
         x = Mat3(reshape(x, 3, 3))
-        
+
         # Double check that x indeed satifies the necessary symmetries
         @assert is_coupling_valid(cryst, b, x)
 

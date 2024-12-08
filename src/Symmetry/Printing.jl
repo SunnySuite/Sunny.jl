@@ -112,20 +112,20 @@ end
 
 
 """
-    print_bond(cryst::Crystal, bond::Bond; b_ref::Bond)
+    print_bond(cryst::Crystal, b::Bond; b_ref=b)
 
-Prints symmetry information for bond `bond`. A symmetry-equivalent reference
-bond `b_ref` can optionally be provided to fix the meaning of the coefficients
-`A`, `B`, ...
+Prints symmetry information for bond `b`. A symmetry-equivalent reference bond
+`b_ref` can optionally be provided to keep a consistent meaning of the free
+parameters `A`, `B`, etc.
 """
-function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
+function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
     # How many digits to use in printing coefficients
     digits = 14
     # Tolerance below which coefficients are dropped
     atol = 1e-12
     
     if b.i == b.j && iszero(b.n)
-        print_site(cryst, b.i; io)
+        print_site(cryst, b.i; i_ref=b.i, io)
     else
         ri = cryst.positions[b.i]
         rj = cryst.positions[b.j] + b.n
@@ -145,12 +145,6 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
             println(io, "Connects '$(cryst.types[b.i])' at $(fractional_vec3_to_string(ri)) to '$(cryst.types[b.j])' at $(fractional_vec3_to_string(rj))")
         end
 
-        # If `b_ref` is nothing, select it from `reference_bonds`
-        b_ref = @something b_ref begin
-            d = global_distance(cryst, b)
-            ref_bonds = reference_bonds(cryst, d; min_dist=d)
-            only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
-        end
         basis = basis_for_symmetry_allowed_couplings(cryst, b; b_ref)
         basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
         println(io, formatted_matrix(basis_strs; prefix="Allowed exchange matrix: "))
@@ -184,7 +178,7 @@ b)` for every bond `b` in `reference_bonds(cryst, max_dist)`, where
 function print_symmetry_table(cryst::Crystal, max_dist; io=stdout)
     validate_crystal(cryst)
     for b in reference_bonds(cryst, max_dist)
-        print_bond(cryst, b; b_ref=b, io)
+        print_bond(cryst, b; io)
     end
 end
 
@@ -206,13 +200,15 @@ end
 
 
 """
-    print_site(cryst, i; R=I)
+    print_site(cryst, i; i_ref=i, R=I)
 
 Print symmetry information for the site `i`, including allowed g-tensor and
-allowed anisotropy operator. An optional rotation matrix `R` can be provided to
-define the reference frame for expression of the anisotropy.
+allowed anisotropy operator.  A symmetry-equivalent reference atom `i_ref` can
+optionally be provided to keep a consistent meaning of the free parameters. A
+rotation matrix `R` can optionally define a transformed global
+Cartesian reference frame for expression of the allowed anisotropy.
 """
-function print_site(cryst, i; R=Mat3(I), ks=[2,4,6], io=stdout)
+function print_site(cryst, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
     r = cryst.positions[i]
     class_i = cryst.classes[i]
     m = count(==(class_i), cryst.classes)
@@ -229,14 +225,27 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6], io=stdout)
     # How many digits to use in printing coefficients
     digits = 10
 
-    R = convert(Mat3, R) # Rotate to frame of R
-    basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
-    # TODO: `basis_for_symmetry_allowed_couplings` should accept R instead
-    basis = [R * b * R' for b in basis]
+    # User-specified rotation of gloal Cartesian coordinates
+    R = convert(Mat3, R)
+
+    # Rotation that maps from i_ref to i
+    if i == i_ref
+        R2 = Mat3(I)
+    else
+        syms = symmetries_between_atoms(cryst, i, i_ref)
+        isempty(syms) && error("Atoms $i and $i_ref are not symmetry equivalent.")
+        R2 = cryst.latvecs * first(syms).R * inv(cryst.latvecs)
+    end
+
+    basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i_ref, i_ref, [0, 0, 0]))
+    basis = map(basis) do b
+        transform_coupling_by_symmetry(b, R2 * R, true) # == R * b * R'
+    end
+
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
     println(io, formatted_matrix(basis_strs; prefix="Allowed g-tensor: "))
 
-    print_allowed_anisotropy(cryst, i; R, atol, digits, ks, io)
+    print_allowed_anisotropy(cryst, i_ref; R, R2, atol, digits, ks, io)
 end
 
 function int_to_underscore_string(x::Int)
@@ -253,33 +262,22 @@ function int_to_underscore_string(x::Int)
 end
 
 
-function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits, ks, io=stdout)
+function print_allowed_anisotropy(cryst::Crystal, i_ref::Int; R::Mat3, R2::Mat3, atol, digits, ks, io=stdout)
     prefix="    "
 
     lines = String[]
     cnt = 1
     for k in ks
-        B = basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
+        B = basis_for_symmetry_allowed_anisotropies(cryst, i_ref; k, R, atol)
+
+        # Rotation R2 acting as a linear operator on Stevens coefficients
+        V = operator_for_stevens_rotation(k, R2)
 
         if size(B, 2) > 0
             terms = String[]
-            for b in reverse(collect(eachcol(B)))
-                # rescale column so that the largest component is 1
-                b /= argmax(abs, b)
-
-                if any(x -> atol < abs(x) < sqrt(atol), b)
-                    @info """Found a very small but nonzero expansion coefficient.
-                             This may indicate a slightly misaligned reference frame."""
-                end
-
-                # rescale by up to 60× if it makes all coefficients integer
-                denoms = denominator.(rationalize.(b; tol=atol))
-                if all(<=(60), denoms)
-                    factor = lcm(denominator.(rationalize.(b; tol=atol)))
-                    if factor <= 60
-                        b .*= factor
-                    end
-                end
+            for b in reverse(B)
+                # map expansion for i_ref to expansion for relevant site i
+                b = V * b
 
                 # reverse b elements to print q-components in ascending order, q=-k...k
                 ops = String[]
@@ -291,7 +289,11 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
                 end
 
                 # clean up printing of term
-                ops = length(ops) == 1 ? ops[1] : "("*join(ops, "+")*")"
+                ops = if length(ops) > 1 || startswith(only(ops), '-')
+                    "("*join(ops, "+")*")"
+                else
+                    only(ops)
+                end
                 ops = replace(ops, "+-" => "-")
                 push!(terms, "c" * int_to_underscore_string(cnt) * "*" * ops)
                 cnt += 1

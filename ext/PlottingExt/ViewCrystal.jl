@@ -178,7 +178,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
 end
 
 function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bonds, refbonds, color)
-    
+
     # Map each bond to line segments in global coordinates
     segments = map(bonds) do b
         (; ri, rj) = Sunny.BondPos(cryst, b)

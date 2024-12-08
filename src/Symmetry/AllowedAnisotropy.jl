@@ -17,7 +17,7 @@ function transform_spherical_to_stevens_coefficients(k, c)
 end
 
 
-function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3)
+function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3, atol::Float64)
     # The symmetry operations for the point group at atom i. Each one encodes a
     # rotation/reflection.
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
@@ -39,7 +39,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
         # the 3x3 rotation Q (see more below).
         return unitary_irrep_for_rotation(Q; N=2k+1)
     end
-    
+
     # A general operator in the spin-k representation can be decomposed in the
     # basis of spherical tensors, 𝒜 = ∑_q c_q T_kq, for some coefficients c_q.
     # Spherical tensors transform as T_kq → D^{*}_qq′ T_kq′. Alternatively, we
@@ -74,10 +74,34 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # an over-complete set of symmetry-allowed operators that are guaranteed to
     # be Hermitian. Create a widened real matrix from these two parts, and
     # eliminate linearly-dependent vectors from the column space.
-    B = colspace(hcat(real(B), imag(B)); atol=1e-12)
+    B = colspace(hcat(real(B), imag(B)); atol)
 
     # Find linear combination of columns that sparsifies B
-    return sparsify_columns(B; atol=1e-12)
+    B = sparsify_columns(B; atol)
+
+    # Scale each column to make prettier
+    return map(eachcol(B)) do b
+        # Rescale column so that the largest component is 1
+        b /= argmax(abs, b)
+
+        if any(x -> atol < abs(x) < sqrt(atol), b)
+            @info """Found a very small but nonzero expansion coefficient.
+                        This may indicate a slightly misaligned reference frame."""
+        end
+
+        # Rescale by up to 60× if it makes all coefficients integer
+        denoms = denominator.(rationalize.(b; tol=atol))
+        if all(<=(60), denoms)
+            factor = lcm(denominator.(rationalize.(b; tol=atol)))
+            if factor <= 60
+                b .*= factor
+            end
+        end
+
+        b
+    end
+
+    return B
 end
 
 
