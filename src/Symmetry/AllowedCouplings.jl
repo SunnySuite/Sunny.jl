@@ -222,15 +222,28 @@ end
 
 # Returns a list of ``3×3`` matrices that form a linear basis for the
 # symmetry-allowed coupling matrices associated with bond `b`.
-function basis_for_symmetry_allowed_couplings_aux(cryst::Crystal, b::BondPos)
+function basis_for_symmetry_allowed_couplings_aux(cryst::Crystal, b::BondPos; R_global::Mat3)
     # Expected floating point precision for 9x9 matrix operations
     atol = 1e-12
 
+    # Output basis vectors x should be reported in a rotated Cartesian
+    # coordinate system prior to sparsification. The transformation x → K x is
+    # equivalent to J → R J Rᵀ, where J = reshape(x, 3, 3). Note that K† = K⁻¹.
+    K = kron(R_global, R_global)
+
+    # P is a product of projection operators, each of which impose one
+    # constraint. An eigenvector with eigenvalue of 1 satisfies all constraints,
+    # and is therefore an allowed coupling.
     P = symmetry_allowed_couplings_operator(cryst, b)
-    # Any solution to the original symmetry constraints `R J Rᵀ = J` or `R J Rᵀ
-    # = Jᵀ` decomposes into purely symmetric/antisymmetric solutions. Therefore
-    # we can pick a basis that separates into symmetric and antisymmetric parts.
-    # We will do so by decomposing P. By construction, P = P_sym+P_asym.
+
+    # Global rotation of the coordinate system. Solutions to K P K⁻¹ x̃ = x̃
+    # yield solutions to P x = x where x̃ = K x.
+    P = K * P * K'
+
+    # Each constraint has the form `R J Rᵀ = J` or `R J Rᵀ = Jᵀ`. If J is a
+    # solution, then its symmetric and antisymmetric parts are individually
+    # solutions. Knowing this, decompose P to solve for the symmetric and
+    # antisymmetric parts separately. By construction, P = P_sym+P_asym.
     P_sym  = P *  sym_basis *  sym_basis'
     P_asym = P * asym_basis * asym_basis'
 
@@ -238,14 +251,14 @@ function basis_for_symmetry_allowed_couplings_aux(cryst::Crystal, b::BondPos)
     acc_asym = Vector{Float64}[]
 
     # If any "reference" basis vectors are eigenvalues of P_sym with eigenvalue
-    # 1, use them as outputs, and remove them from P_sym
+    # 1, use them as outputs, and remove them from P_sym.
     for x in eachcol(sym_basis)
         if isapprox(P_sym*x, x; atol)
             push!(acc_sym, x)
             P_sym = P_sym * (I - x*x')
         end
     end
-    # Same for P_asym
+    # Same for P_asym.
     for x in eachcol(asym_basis)
         if isapprox(P_asym*x, x; atol)
             push!(acc_asym, x)
@@ -275,11 +288,12 @@ function basis_for_symmetry_allowed_couplings_aux(cryst::Crystal, b::BondPos)
         # maximum magnitude values of x appear symmetrically as ±c.
         x /= argmax(c -> abs(c + atol), x)
 
-        # Reinterpret as 3x3 matrix
+        # Reinterpret as 3x3 matrix.
         x = Mat3(reshape(x, 3, 3))
 
-        # Double check that x indeed satifies the necessary symmetries
-        @assert is_coupling_valid(cryst, b, x)
+        # Check that the coupling J satisifies the point group symmetries in the
+        # original coordinate system (after undoing the R_global rotation).
+        @assert is_coupling_valid(cryst, b, R_global' * x * R_global)
 
         return x
     end
@@ -296,8 +310,8 @@ function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
     return transform_coupling_by_symmetry(J_ref, R*det(R), parity)
 end
 
-function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond; b_ref=b)
-    basis = basis_for_symmetry_allowed_couplings_aux(cryst, BondPos(cryst, b_ref))
+function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond; b_ref=b, R_global=Mat3(I))
+    basis = basis_for_symmetry_allowed_couplings_aux(cryst, BondPos(cryst, b_ref); R_global)
 
     # Transform coupling basis from `b_ref` to `b`
     if b == b_ref

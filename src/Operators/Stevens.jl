@@ -162,15 +162,15 @@ function operator_for_stevens_rotation(k, R)
     return real(V)
 end
 
-# Let c denote coefficients of an operator expansion 𝒜 = c† 𝒪. Under the
+# Let c denote coefficients of an operator expansion 𝒜 = cᵀ 𝒪. Under the
 # rotation R, Stevens operators transform as 𝒪 → V 𝒪. Alternatively, we can
 # treat the Stevens operators as fixed, provided the coefficients transform as
-# c† → c† V, or c → V† c.
-function rotate_stevens_coefficients(c, R::Mat3)
+# cᵀ → cᵀ V, or c → Vᵀ c.
+function rotate_operator(c::AbstractVector{Float64}, R::Mat3)
     N = length(c)
     k = Int((N-1)/2)
     V = operator_for_stevens_rotation(k, R)
-    return V' * c
+    return transpose(V) * c
 end
 
 

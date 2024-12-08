@@ -17,26 +17,22 @@ function transform_spherical_to_stevens_coefficients(k, c)
 end
 
 
-function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3, atol::Float64)
-    # The symmetry operations for the point group at atom i. Each one encodes a
-    # rotation/reflection.
+function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R_global::Mat3, atol::Float64)
+    # The symmetry operations for the point group at atom i.
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
 
     # The Wigner D matrices for each symop
     Ds = map(symops) do s
         # R is an orthogonal matrix that transforms positions, x → x′ = R x. It
-        # might or might not include a reflection, i.e., det R = ±1.
-        sR = cryst.latvecs * s.R * inv(cryst.latvecs)
+        # might or might not include an inversion, i.e., det R = ±1.
+        R = cryst.latvecs * s.R * inv(cryst.latvecs)
 
-        # Unlike position x, spin S = [Sx, Sy, Sz] is a _pseudo_ vector, which
-        # means that, under reflection, the output gains an additional minus
-        # sign. That is, the orthogonal transformation R applied to spin has the
-        # action, S → S′ = ± R S, where the minus sign corresponds to the case
-        # det(R) = -1. More simply, we may write S′ = Q S, where Q = det(R) R.
-        Q = det(sR) * sR
+        # Unlike position, spin angular momentum is a pseudo-vector, which means
+        # it is invariant under global inversion. The transformation of spin is
+        # always a pure rotation, S → S′ = Q S, where Q = R det R.
+        Q = det(R) * R
 
-        # The Wigner D matrix, whose action on a spherical tensor corresponds to
-        # the 3x3 rotation Q (see more below).
+        # The Wigner D matrix corresponding to Q (see more below).
         return unitary_irrep_for_rotation(Q; N=2k+1)
     end
 
@@ -53,20 +49,18 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # operator 𝒜.
     C = sum(D' for D in Ds)
 
-    # Transform coefficients c to c′ in rotated Stevens operators, T′ = D* T,
-    # where the Wigner D matrix is associated with the rotation R. That is, find
-    # c′ satisfying c′ᵀ T′ = c T. Recall c′ᵀ T′ = (c′ᵀ D*) T = (D† c′)ᵀ T. The
-    # constraint becomes D† c′ = c. Since D is unitary, we have c′ = D c. We
-    # apply this transformation to each column c of C.
-    D = unitary_irrep_for_rotation(R; N=2k+1)
-    C = D * C
-
     # Transform columns c of C to columns b of B such that 𝒜 = cᵀ T = bᵀ 𝒪.
     # Effectively, this reexpresses the symmetry-allowed operators 𝒜 in the
     # basis of Stevens operators 𝒪.
     B = mapslices(C; dims=1) do c
         transform_spherical_to_stevens_coefficients(k, c)
     end
+
+    # Apply a global rotation R to the Cartesian coordinate system. Stevens
+    # operators rotate as 𝒪′ = V 𝒪. Coefficients satisfying b′ᵀ 𝒪′ = bᵀ 𝒪
+    # must therefore transform as b′ = V⁻ᵀ b.
+    V = operator_for_stevens_rotation(k, R_global)
+    B = transpose(V) \ B
 
     # If 𝒜 is symmetry-allowed, then its Hermitian and anti-Hermitian parts are
     # independently symmetry-allowed. These are associated with the real and
@@ -79,17 +73,15 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # Find linear combination of columns that sparsifies B
     B = sparsify_columns(B; atol)
 
-    # Scale each column to make prettier
+    # Scale each column to make the final expression prettier
     return map(eachcol(B)) do b
-        # Rescale column so that the largest component is 1
         b /= argmax(abs, b)
-
         if any(x -> atol < abs(x) < sqrt(atol), b)
             @info """Found a very small but nonzero expansion coefficient.
                         This may indicate a slightly misaligned reference frame."""
         end
 
-        # Rescale by up to 60× if it makes all coefficients integer
+        # Magnify by up to 60× if it makes all coefficients integer
         denoms = denominator.(rationalize.(b; tol=atol))
         if all(<=(60), denoms)
             factor = lcm(denominator.(rationalize.(b; tol=atol)))
@@ -97,6 +89,11 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
                 b .*= factor
             end
         end
+
+        # Check that the operator bᵀ 𝒪 satisifies point group symmetries in the
+        # original coordinate system. Multiply by Vᵀ to effectively undo the
+        # global rotation of Stevens operators 𝒪.
+        @assert is_anisotropy_valid(cryst, i, transpose(V) * b)
 
         b
     end

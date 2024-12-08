@@ -114,8 +114,8 @@ end
 """
     print_bond(cryst::Crystal, b::Bond; b_ref=b)
 
-Prints symmetry information for bond `b`. A symmetry-equivalent reference bond
-`b_ref` can optionally be provided to keep a consistent meaning of the free
+Prints symmetry information for bond `b`. An optional symmetry-equivalent
+reference bond `b_ref` can be provided to keep a consistent meaning of the free
 parameters `A`, `B`, etc.
 """
 function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
@@ -203,12 +203,13 @@ end
     print_site(cryst, i; i_ref=i, R=I)
 
 Print symmetry information for the site `i`, including allowed g-tensor and
-allowed anisotropy operator.  A symmetry-equivalent reference atom `i_ref` can
-optionally be provided to keep a consistent meaning of the free parameters. A
-rotation matrix `R` can optionally define a transformed global
-Cartesian reference frame for expression of the allowed anisotropy.
+allowed anisotropy operator.  An optional symmetry-equivalent reference atom
+`i_ref` can be provided to keep a consistent meaning of the free parameters. An
+optional rotation matrix `R` can map to a new Cartesian reference frame for
+expression of the allowed anisotropy.
 """
 function print_site(cryst, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
+    R_global = convert(Mat3, R)
     r = cryst.positions[i]
     class_i = cryst.classes[i]
     m = count(==(class_i), cryst.classes)
@@ -225,27 +226,24 @@ function print_site(cryst, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
     # How many digits to use in printing coefficients
     digits = 10
 
-    # User-specified rotation of gloal Cartesian coordinates
-    R = convert(Mat3, R)
-
     # Rotation that maps from i_ref to i
     if i == i_ref
-        R2 = Mat3(I)
+        R_site = Mat3(I)
     else
         syms = symmetries_between_atoms(cryst, i, i_ref)
         isempty(syms) && error("Atoms $i and $i_ref are not symmetry equivalent.")
-        R2 = cryst.latvecs * first(syms).R * inv(cryst.latvecs)
+        R_site = cryst.latvecs * first(syms).R * inv(cryst.latvecs)
     end
 
-    basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i_ref, i_ref, [0, 0, 0]))
+    basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i_ref, i_ref, [0, 0, 0]); R_global)
     basis = map(basis) do b
-        transform_coupling_by_symmetry(b, R2 * R, true) # == R * b * R'
+        R_site * b * R_site' # == transform_coupling_by_symmetry(b, R_site, true)
     end
 
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
     println(io, formatted_matrix(basis_strs; prefix="Allowed g-tensor: "))
 
-    print_allowed_anisotropy(cryst, i_ref; R, R2, atol, digits, ks, io)
+    print_allowed_anisotropy(cryst, i_ref; R_global, R_site, atol, digits, ks, io)
 end
 
 function int_to_underscore_string(x::Int)
@@ -262,16 +260,17 @@ function int_to_underscore_string(x::Int)
 end
 
 
-function print_allowed_anisotropy(cryst::Crystal, i_ref::Int; R::Mat3, R2::Mat3, atol, digits, ks, io=stdout)
+function print_allowed_anisotropy(cryst::Crystal, i_ref::Int; R_global::Mat3, R_site::Mat3, atol, digits, ks, io=stdout)
     prefix="    "
 
     lines = String[]
     cnt = 1
     for k in ks
-        B = basis_for_symmetry_allowed_anisotropies(cryst, i_ref; k, R, atol)
+        B = basis_for_symmetry_allowed_anisotropies(cryst, i_ref; k, R_global, atol)
 
-        # Rotation R2 acting as a linear operator on Stevens coefficients
-        V = operator_for_stevens_rotation(k, R2)
+        # Rotation R_site transforms from i_ref to atom i of interest. V is the
+        # corresponding linear operator that acts on Stevens coefficients
+        V = operator_for_stevens_rotation(k, R_site)
 
         if size(B, 2) > 0
             terms = String[]
@@ -304,7 +303,7 @@ function print_allowed_anisotropy(cryst::Crystal, i_ref::Int; R::Mat3, R2::Mat3,
     println(io, "Allowed anisotropy in Stevens operators:")
     println(io, join(lines, " +\n"))
 
-    if R != I
+    if R_global != I
         println(io, "Modified reference frame! Transform using `rotate_operator(op, R)`.")
     end
 end
