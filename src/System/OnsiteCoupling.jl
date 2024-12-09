@@ -65,9 +65,9 @@ function Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion)
 end
 
 function rotate_operator(stvexp::StevensExpansion, R)
-    c2′ = rotate_operator(stvexp.c2, R)
-    c4′ = rotate_operator(stvexp.c4, R)
-    c6′ = rotate_operator(stvexp.c6, R)
+    c2′ = rotate_stevens_coefficients(stvexp.c2, R)
+    c4′ = rotate_stevens_coefficients(stvexp.c4, R)
+    c6′ = rotate_stevens_coefficients(stvexp.c6, R)
     return StevensExpansion(stvexp.kmax, stvexp.c0, c2′, c4′, c6′)
 end
 

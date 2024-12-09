@@ -166,7 +166,7 @@ end
 # rotation R, Stevens operators transform as 𝒪 → V 𝒪. Alternatively, we can
 # treat the Stevens operators as fixed, provided the coefficients transform as
 # cᵀ → cᵀ V, or c → Vᵀ c.
-function rotate_operator(c::AbstractVector{Float64}, R::Mat3)
+function rotate_stevens_coefficients(c::AbstractVector{Float64}, R::Mat3)
     N = length(c)
     k = Int((N-1)/2)
     V = operator_for_stevens_rotation(k, R)

@@ -304,6 +304,6 @@ function print_allowed_anisotropy(cryst::Crystal, i_ref::Int; R_global::Mat3, R_
     println(io, join(lines, " +\n"))
 
     if R_global != I
-        println(io, "Modified reference frame! Transform using `rotate_operator(op, R)`.")
+        println(io, "Modified reference frame! Use R*g*R' or rotate_operator(op, R).")
     end
 end

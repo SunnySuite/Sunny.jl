@@ -1,6 +1,6 @@
 # Stevens function expansion, renormalized for dipole projection
 struct StevensExpansion
-    kmax ::Int
+    kmax :: Int
     c0 :: SVector{1, Float64}
     c2 :: SVector{5, Float64}
     c4 :: SVector{9, Float64}

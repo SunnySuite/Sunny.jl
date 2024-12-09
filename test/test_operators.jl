@@ -232,7 +232,7 @@ end
         c = Sunny.matrix_to_stevens_coefficients(A)
 
         # Rotate coefficients directly
-        c′1 = Sunny.rotate_operator.(c, Ref(R))
+        c′1 = Sunny.rotate_stevens_coefficients.(c, Ref(R))
 
         # Rotate matrix and recalculate coefficients
         A′ = rotate_operator(A, R)

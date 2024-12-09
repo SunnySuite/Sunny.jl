@@ -427,7 +427,7 @@ end
             c₁*𝒪[2,0] +
             c₂*𝒪[4,-3] + c₃*𝒪[4,0] +
             c₄*𝒪[6,-3] + c₅*𝒪[6,0] + c₆*𝒪[6,6]
-        Modified reference frame! Transform using `rotate_operator(op, R)`.
+        Modified reference frame! Use R*g*R' or rotate_operator(op, R).
         """
 
     cryst = Sunny.hyperkagome_crystal()
@@ -467,7 +467,7 @@ end
             c₁*𝒪[2,0] +
             c₂*𝒪[4,-3] + c₃*𝒪[4,0] +
             c₄*𝒪[6,-3] + c₅*𝒪[6,0] + c₆*𝒪[6,6]
-        Modified reference frame! Transform using `rotate_operator(op, R)`.
+        Modified reference frame! Use R*g*R' or rotate_operator(op, R).
         Atom 2
         Type 'B', position [1/2, 1/2, 0], multiplicity 3
         Allowed g-tensor: [A   0   0
@@ -477,7 +477,7 @@ end
             c₁*𝒪[2,-1] + c₂*𝒪[2,0] + c₃*𝒪[2,2] +
             c₄*𝒪[4,-3] + c₅*𝒪[4,-1] + c₆*𝒪[4,0] + c₇*𝒪[4,2] + c₈*𝒪[4,4] +
             c₉*𝒪[6,-5] + c₁₀*𝒪[6,-3] + c₁₁*𝒪[6,-1] + c₁₂*𝒪[6,0] + c₁₃*𝒪[6,2] + c₁₄*𝒪[6,4] + c₁₅*𝒪[6,6]
-        Modified reference frame! Transform using `rotate_operator(op, R)`.
+        Modified reference frame! Use R*g*R' or rotate_operator(op, R).
         """
 
     # These operators should be symmetry allowed
