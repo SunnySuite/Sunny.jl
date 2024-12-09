@@ -390,19 +390,22 @@ end
         """
 
     capt = IOCapture.capture() do
-        print_site(cryst, 2; i_ref=1)
+        print_site(cryst, 5; i_ref=2)
     end
     @test capt.output == """
-        Atom 2
-        Position [1/4, 1/4, 0], multiplicity 16
-        Allowed g-tensor: [ A  B -B
-                            B  A -B
-                           -B -B  A]
+        Atom 5
+        Position [1/4, 0, 1/4], multiplicity 16
+        Allowed g-tensor: [ A -B  B
+                           -B  A -B
+                            B -B  A]
         Allowed anisotropy in Stevens operators:
-            c₁*(4𝒪[2,-2]-2𝒪[2,-1]-(1/2)𝒪[2,1]) +
-            c₂*(-6𝒪[4,-4]-(11/2)𝒪[4,-3]+25𝒪[4,-2]+(23/2)𝒪[4,-1]+(1/2)𝒪[4,1]+(1/2)𝒪[4,3]) + c₃*((89/4)𝒪[4,0]-(17/4)𝒪[4,2]+(3/4)𝒪[4,4]) +
-            c₄*(11𝒪[6,-6]+(3/2)𝒪[6,-5]-6𝒪[6,-4]-(7/2)𝒪[6,-3]-7𝒪[6,-2]-(25/2)𝒪[6,-1]-(179/16)𝒪[6,1]+(65/16)𝒪[6,3]-(3/16)𝒪[6,5]) + c₅*(-(659/8)𝒪[6,0]-(31/8)𝒪[6,2]+(137/8)𝒪[6,4]-(31/8)𝒪[6,6]) + c₆*(15𝒪[6,-6]-(17/2)𝒪[6,-5]-62𝒪[6,-4]+(93/2)𝒪[6,-3]+101𝒪[6,-2]-(109/2)𝒪[6,-1]-(161/16)𝒪[6,1]+(27/16)𝒪[6,3]-(17/16)𝒪[6,5])
+            c₁*(𝒪[2,-2]+2𝒪[2,-1]-2𝒪[2,1]) +
+            c₂*(7𝒪[4,-3]+2𝒪[4,-2]-𝒪[4,-1]+𝒪[4,1]+7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
+            c₄*(-11𝒪[6,-6]-8𝒪[6,-3]+𝒪[6,-2]-8𝒪[6,-1]+8𝒪[6,1]-8𝒪[6,3]) + c₅*(-𝒪[6,0]+21𝒪[6,4]) + c₆*(9𝒪[6,-6]+24𝒪[6,-5]+5𝒪[6,-2]+8𝒪[6,-1]-8𝒪[6,1]-24𝒪[6,5])
         """
+
+    𝒪 = stevens_matrices(4)
+    @test Sunny.is_anisotropy_valid(cryst, 5, 7𝒪[4,-3]+2𝒪[4,-2]-𝒪[4,-1]+𝒪[4,1]+7𝒪[4,3])
 
     capt = IOCapture.capture() do
         print_suggested_frame(cryst, 2)
@@ -481,11 +484,8 @@ end
         """
 
     # These operators should be symmetry allowed
-    s = 4
-    sys = System(cryst, [1 => Moment(; s, g=2), 2 => Moment(; s, g=2)], :dipole)
-    O = stevens_matrices(s)
-    set_onsite_coupling!(sys, O[6,-1]+0.997385420O[6,1], 2)
-    set_onsite_coupling!(sys, rotate_operator(O[6,2], R), 2)
+    @test Sunny.is_anisotropy_valid(cryst, 2, 𝒪[6,-1]+0.997385420𝒪[6,1])
+    @test Sunny.is_anisotropy_valid(cryst, 2, rotate_operator(𝒪[6,2], R))
 end
 
 

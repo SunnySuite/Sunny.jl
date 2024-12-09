@@ -233,6 +233,7 @@ function print_site(cryst, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
         syms = symmetries_between_atoms(cryst, i, i_ref)
         isempty(syms) && error("Atoms $i and $i_ref are not symmetry equivalent.")
         R_site = cryst.latvecs * first(syms).R * inv(cryst.latvecs)
+        R_site *= det(R_site) # Remove possible inversion (appropriate for spin pseudo-vector)
     end
 
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i_ref, i_ref, [0, 0, 0]); R_global)
@@ -268,16 +269,17 @@ function print_allowed_anisotropy(cryst::Crystal, i_ref::Int; R_global::Mat3, R_
     for k in ks
         B = basis_for_symmetry_allowed_anisotropies(cryst, i_ref; k, R_global, atol)
 
-        # Rotation R_site transforms from i_ref to atom i of interest. V is the
-        # corresponding linear operator that acts on Stevens coefficients
+        # B is an allowed basis for i_ref, but we want to print the allowed
+        # basis for i. These sites are symmetry equivalent under the rotation
+        # R_site. V is the corresponding linear operator that acts on Stevens
+        # operators, 𝒪′ = V 𝒪. Coefficients satisfying b′ᵀ 𝒪′ = bᵀ 𝒪 then
+        # transform as b′ = V⁻ᵀ b.
         V = operator_for_stevens_rotation(k, R_site)
+        B = [transpose(V) \ b for b in B]
 
         if size(B, 2) > 0
             terms = String[]
             for b in reverse(B)
-                # map expansion for i_ref to expansion for relevant site i
-                b = V * b
-
                 # reverse b elements to print q-components in ascending order, q=-k...k
                 ops = String[]
                 for (b_q, q) in zip(reverse(b), -k:k)

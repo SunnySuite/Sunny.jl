@@ -146,7 +146,7 @@ Rotates the local quantum operator `A` according to the ``3×3`` rotation matrix
 function rotate_operator(A::AbstractMatrix{ComplexF64}, R)
     isempty(A) && return A
     A ≈ A' || error("Non-Hermitian operator")
-    A = Hermitian(hermitianpart(A))
+    A = hermitianpart(A)
     R = convert(Mat3, R)
     N = size(A, 1)
     U = unitary_irrep_for_rotation(R; N)

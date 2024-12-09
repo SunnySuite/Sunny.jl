@@ -68,7 +68,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
         transform_spherical_to_stevens_coefficients(k, c)
     end
 
-    # Apply a global rotation R to the Cartesian coordinate system. Stevens
+    # Apply a global rotation to the Cartesian coordinate system. Stevens
     # operators rotate as 𝒪′ = V 𝒪. Coefficients satisfying b′ᵀ 𝒪′ = bᵀ 𝒪
     # must therefore transform as b′ = V⁻ᵀ b.
     V = operator_for_stevens_rotation(k, R_global)
