@@ -291,8 +291,7 @@ function label_atoms(cryst; ismagnetic)
             refatoms = [b.i for b in Sunny.reference_bonds(cryst, 0.0)]
             i_ref = Sunny.findfirstval(i_ref -> Sunny.is_related_by_symmetry(cryst, i, i_ref), refatoms)
             R_site = Sunny.rotation_between_sites(cryst, i, i_ref)
-            push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, digits=8, atol=1e-12))
-            push!(ret, "See print_site($i; i_ref=$i_ref)")
+            push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, prefix="Aniso: ", digits=8, atol=1e-12))
         end
         join(ret, "\n")
     end

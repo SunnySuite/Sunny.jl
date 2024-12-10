@@ -252,13 +252,13 @@ function rotation_between_sites(cryst, i, i_ref)
     end
 end
 
-function allowed_g_tensor_string(cryst, i_ref; R_global=Mat3(I), R_site, digits, atol)
+function allowed_g_tensor_string(cryst, i_ref; R_global=Mat3(I), R_site, prefix="Allowed g-tensor: ", digits, atol)
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i_ref, i_ref, [0, 0, 0]); R_global)
     basis = map(basis) do b
         R_site * b * R_site' # == transform_coupling_by_symmetry(b, R_site, true)
     end
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-    return formatted_matrix(basis_strs; prefix="Allowed g-tensor: ")
+    return formatted_matrix(basis_strs; prefix)
 end
 
 function allowed_anisotropy_string(cryst::Crystal, i_ref::Int; R_global::Mat3, R_site::Mat3, digits, atol, ks)
