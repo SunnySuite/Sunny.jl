@@ -1,4 +1,6 @@
-# Stevens function expansion, renormalized for dipole projection
+# Coefficients for an expansion in Stevens functions. Each component ck lists
+# coefficients in descending order q = k,..-k. In :dipole mode, the
+# renormalization factors (`rcs_factor`) are included in these coefficients.
 struct StevensExpansion
     kmax :: Int
     c0 :: SVector{1, Float64}
