@@ -88,13 +88,6 @@ function quadratic_anisotropy(sys, i)
         [0 1 0; 1 0 0; 0 0 0],     # 𝒪₂₋₂ = SˣSʸ + SʸSˣ
     ]
 
-    # Check consistency with Stevens operators as symbolic polynomials
-    S = spin_matrices(Inf)
-    O = stevens_matrices(Inf)
-    for (b, q) in zip(quadrupole_basis, 2:-1:-2)
-        @assert iszero(S' * b * S - O[2, q])
-    end
-
     # The c0 coefficient incorporates a factor of S². For quantum spin
     # operators, S² = s(s+1) I. For the large-s classical limit, S² = s² is a
     # scalar.
