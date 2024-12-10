@@ -78,7 +78,7 @@ struct Crystal
     recipvecs :: Mat3                    # Reciprocal lattice vectors (conventional)
     positions :: Vector{Vec3}            # Positions in fractional coords
     types     :: Vector{String}          # Types
-    classes   :: Vector{Int}             # Class indices
+    classes   :: Vector{Int}             # Symmetry-equivalent class indices
     sg        :: Spacegroup              # Spacegroup symmetries and setting
     symprec   :: Float64                 # Tolerance to imperfections in symmetry
 end
