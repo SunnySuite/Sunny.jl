@@ -350,7 +350,7 @@ end
             c₄*(11𝒪[6,-6]+8𝒪[6,-3]-𝒪[6,-2]+8𝒪[6,-1]+8𝒪[6,1]-8𝒪[6,3]) + c₅*(-𝒪[6,0]+21𝒪[6,4]) + c₆*(9𝒪[6,-6]+24𝒪[6,-5]+5𝒪[6,-2]+8𝒪[6,-1]+8𝒪[6,1]+24𝒪[6,5])
 
         Bond(1, 2, [0, 0, 0])
-        Distance 0.35355339059327, coordination 6
+        Distance 0.3535533906, coordination 6
         Connects [0, 0, 0] to [1/4, 1/4, 0]
         Allowed exchange matrix: [A C -D
                                   C A -D
@@ -358,7 +358,7 @@ end
         Allowed DM vector: [-D D 0]
 
         Bond(3, 5, [0, 0, 0])
-        Distance 0.61237243569579, coordination 12
+        Distance 0.6123724357, coordination 12
         Connects [1/2, 1/2, 0] to [1/4, 0, 1/4]
         Allowed exchange matrix: [  A  C-E  D-F
                                   C+E    B -C+E
@@ -366,21 +366,21 @@ end
         Allowed DM vector: [E F -E]
 
         Bond(1, 3, [-1, 0, 0])
-        Distance 0.70710678118655, coordination 6
+        Distance 0.7071067812, coordination 6
         Connects [0, 0, 0] to [-1/2, 1/2, 0]
         Allowed exchange matrix: [A D C
                                   D A C
                                   C C B]
 
         Bond(1, 3, [0, 0, 0])
-        Distance 0.70710678118655, coordination 6
+        Distance 0.7071067812, coordination 6
         Connects [0, 0, 0] to [1/2, 1/2, 0]
         Allowed exchange matrix: [A D C
                                   D A C
                                   C C B]
 
         Bond(1, 2, [-1, 0, 0])
-        Distance 0.79056941504209, coordination 12
+        Distance 0.790569415, coordination 12
         Connects [0, 0, 0] to [-3/4, 1/4, 0]
         Allowed exchange matrix: [A  D -F
                                   D  B  E
@@ -452,6 +452,15 @@ end
     latvecs = lattice_vectors(a, a, a, 90+distortion, 90+distortion, 90+distortion)
     positions = Sunny.fcc_crystal().positions
     cryst = Crystal(latvecs, positions; types = ["A", "B", "B", "B"])
+
+    capt = IOCapture.capture() do
+        print_suggested_frame(cryst, 1)
+    end
+    @test capt.output == """
+        R = [0.70803177573023 -0.70618057503467                 0
+             0.40878233631266  0.40985392929053 -0.81542428107328
+             0.57583678770556  0.57734630170186  0.57886375066688]
+        """
 
     R = [0.70803177573023 -0.70618057503467                 0
          0.40878233631266  0.40985392929053 -0.81542428107328

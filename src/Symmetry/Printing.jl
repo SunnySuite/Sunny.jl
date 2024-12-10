@@ -54,7 +54,6 @@ function fractional_mat3_to_string(m; digits=4, atol=1e-12)
     return "["*join(rowstrs, "; ")*"]"
 end
 
-
 # Like number_to_math_string(), but outputs a string that can be prefixed to a
 # variable name.
 function coefficient_to_math_string(x::T; digits=4, atol=1e-12) where T <: Real
@@ -110,6 +109,19 @@ function formatted_matrix(elemstrs::AbstractMatrix{String}; prefix)
     return "$prefix["*join(join.(eachrow(padded_elems), " "), spacing)*"]"
 end
 
+function int_to_underscore_string(x::Int)
+    subscripts = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
+    chars = collect(repr(x))
+    if chars[begin] == '-'
+        popfirst!(chars)
+        sign = "₋"
+    else
+        sign = ""
+    end
+    digits = map(c -> parse(Int, c), chars)
+    return sign * prod(subscripts[digits.+1])
+end
+
 
 """
     print_bond(cryst::Crystal, b::Bond; b_ref=b)
@@ -123,7 +135,7 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
     digits = 14
     # Tolerance below which coefficients are dropped
     atol = 1e-12
-    
+
     if b.i == b.j && iszero(b.n)
         print_site(cryst, b.i; i_ref=b.i, io)
     else
@@ -133,7 +145,7 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
         printstyled(io, "Bond($(b.i), $(b.j), $(b.n))"; bold=true, color=:underline)
         println(io)
         (m_i, m_j) = (coordination_number(cryst, b.i, b), coordination_number(cryst, b.j, b))
-        dist_str = number_to_simple_string(global_distance(cryst, b); digits, atol=1e-12)
+        dist_str = number_to_simple_string(global_distance(cryst, b); digits=10, atol=1e-12)
         if m_i == m_j
             println(io, "Distance $dist_str, coordination $m_i")
         else
@@ -192,9 +204,7 @@ anisotropies.
 """
 function print_suggested_frame(cryst::Crystal, i::Int)
     R = suggest_frame_for_atom(cryst, i)
-
     R_strs = [number_to_math_string(x; digits=14, atol=1e-12) for x in R]
-
     println(formatted_matrix(R_strs; prefix="R = "))
 end
 
@@ -221,47 +231,37 @@ function print_site(cryst, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
         println(io, "Type '$(cryst.types[i])', position $(fractional_vec3_to_string(r)), multiplicity $m")
     end
 
-    # Tolerance below which coefficients are dropped
+    digits = 14
     atol = 1e-12
-    # How many digits to use in printing coefficients
-    digits = 10
 
+    R_site = rotation_between_sites(cryst, i, i_ref)
+    println(io, allowed_g_tensor_string(cryst, i_ref; R_global, R_site, digits, atol))
+    println(io, allowed_anisotropy_string(cryst, i_ref; R_global, R_site, digits, atol, ks))
+end
+
+
+function rotation_between_sites(cryst, i, i_ref)
     # Rotation that maps from i_ref to i
     if i == i_ref
-        R_site = Mat3(I)
+        return Mat3(I)
     else
         syms = symmetries_between_atoms(cryst, i, i_ref)
         isempty(syms) && error("Atoms $i and $i_ref are not symmetry equivalent.")
-        R_site = cryst.latvecs * first(syms).R * inv(cryst.latvecs)
-        R_site *= det(R_site) # Remove possible inversion (appropriate for spin pseudo-vector)
+        R = cryst.latvecs * first(syms).R * inv(cryst.latvecs)
+        return R * det(R) # Remove possible inversion (appropriate for spin pseudo-vector)
     end
+end
 
+function allowed_g_tensor_string(cryst, i_ref; R_global=Mat3(I), R_site, digits, atol)
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i_ref, i_ref, [0, 0, 0]); R_global)
     basis = map(basis) do b
         R_site * b * R_site' # == transform_coupling_by_symmetry(b, R_site, true)
     end
-
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-    println(io, formatted_matrix(basis_strs; prefix="Allowed g-tensor: "))
-
-    print_allowed_anisotropy(cryst, i_ref; R_global, R_site, atol, digits, ks, io)
+    return formatted_matrix(basis_strs; prefix="Allowed g-tensor: ")
 end
 
-function int_to_underscore_string(x::Int)
-    subscripts = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
-    chars = collect(repr(x))
-    if chars[begin] == '-'
-        popfirst!(chars)
-        sign = "-"
-    else
-        sign = ""
-    end
-    digits = map(c -> parse(Int, c), chars)
-    return sign * prod(subscripts[digits.+1])
-end
-
-
-function print_allowed_anisotropy(cryst::Crystal, i_ref::Int; R_global::Mat3, R_site::Mat3, atol, digits, ks, io=stdout)
+function allowed_anisotropy_string(cryst::Crystal, i_ref::Int; R_global::Mat3, R_site::Mat3, digits, atol, ks)
     prefix="    "
 
     lines = String[]
@@ -302,10 +302,10 @@ function print_allowed_anisotropy(cryst::Crystal, i_ref::Int; R_global::Mat3, R_
             push!(lines, prefix * join(terms, " + "))
         end
     end
-    println(io, "Allowed anisotropy in Stevens operators:")
-    println(io, join(lines, " +\n"))
 
+    ret = "Allowed anisotropy in Stevens operators:\n" * join(lines, " +\n")
     if R_global != I
-        println(io, "Modified reference frame! Use R*g*R' or rotate_operator(op, R).")
+        ret *= "\nModified reference frame! Use R*g*R' or rotate_operator(op, R)."
     end
+    return ret
 end

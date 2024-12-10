@@ -36,7 +36,7 @@ function reference_bonds_upto(cryst, nbonds, ndims)
     refbonds = filter(reference_bonds(cryst, max_dist)) do b
         return !(b.i == b.j && iszero(b.n))
     end
-    
+
     # Verify max_dist heuristic
     if length(refbonds) > 10nbonds
         @warn "Found $(length(refbonds)) bonds using max_dist of $max_dist"
@@ -100,7 +100,7 @@ function exchange_decomposition(J)
 
     # Now vecs is a pure rotation
     @assert vecs'*vecs ≈ I && det(vecs) ≈ 1
-    
+
     # Quaternion that rotates Cartesian coordinates into principle axes of J.
     axis, angle = Sunny.matrix_to_axis_angle(Mat3(vecs))
     q = iszero(axis) ? Makie.Quaternionf(0,0,0,1) : Makie.qrotation(axis, angle)
@@ -287,7 +287,12 @@ function label_atoms(cryst; ismagnetic)
             push!(ret, isempty(typ) ? "Position $rstr" : "'$typ' at $rstr")
         end
         if ismagnetic
-            # TODO: Show onsite couplings?
+            # See similar logic in print_site()
+            refatoms = [b.i for b in Sunny.reference_bonds(cryst, 0.0)]
+            i_ref = Sunny.findfirstval(i_ref -> Sunny.is_related_by_symmetry(cryst, i, i_ref), refatoms)
+            R_site = Sunny.rotation_between_sites(cryst, i, i_ref)
+            push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, digits=8, atol=1e-12))
+            push!(ret, "See print_site($i; i_ref=$i_ref)")
         end
         join(ret, "\n")
     end
@@ -339,7 +344,7 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
                 labels = label_atoms(xtal; ismagnetic)[idxs]
                 inspector_label = (_plot, index, _position) -> labels[index]
             end
-            
+
             # Show dipoles. Mostly consistent with code in plot_spins.
             if !isnothing(sys) && ismagnetic
                 sites = Sunny.position_to_site.(Ref(sys), rs)
