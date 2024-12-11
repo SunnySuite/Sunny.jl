@@ -64,7 +64,7 @@ function anisotropy_on_site(sys, i)
     interactions = isnothing(sys) ? nothing : Sunny.interactions_homog(something(sys.origin, sys))
     onsite = interactions[i].onsite
     if onsite isa Sunny.HermitianC64
-        onsite = StevensExpansion(Sunny.matrix_to_stevens_coefficients(onsite))
+        onsite = Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(onsite))
     end
     return onsite :: Sunny.StevensExpansion
 end
