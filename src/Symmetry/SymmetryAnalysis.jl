@@ -109,6 +109,11 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
     return ret
 end
 
+# Are i1 and i2 symmetry-equivalent sites?
+function is_related_by_symmetry(cryst::Crystal, i1::Int, i2::Int)
+    return cryst.classes[i1] == cryst.classes[i2]
+end
+
 # Is there a symmetry operation that transforms `b1` into either `b2` or its
 # reverse?
 function is_related_by_symmetry(cryst::Crystal, b1::Bond, b2::Bond)

@@ -330,11 +330,11 @@ end
     # Test Stevens coefficients extraction
     S = spin_matrices(Inf)
     O = stevens_matrices(Inf)
-    S_mag = π
+    S² = π
     p = S'*S * O[4, 2]
-    c = Sunny.operator_to_stevens_coefficients(p, S_mag)
+    c = Sunny.operator_to_stevens_coefficients(p, S²)
     @test iszero(c[1]) && iszero(c[2]) && iszero(c[3]) && iszero(c[5]) && iszero(c[6])
-    @test c[4] ≈ [0.0, 0.0, S_mag^2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    @test c[4] ≈ [0.0, 0.0, S², 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     # Test round trip Stevens -> spin -> Stevens
     c_ref = map(OffsetArrays.OffsetArray(0:6, 0:6)) do k
