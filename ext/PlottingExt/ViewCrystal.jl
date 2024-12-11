@@ -60,26 +60,28 @@ function propagate_reference_bond_for_cell(cryst, b_ref)
     return reduce(vcat, found)
 end
 
+function anisotropy_on_site(sys, i)
+    interactions = isnothing(sys) ? nothing : Sunny.interactions_homog(something(sys.origin, sys))
+    onsite = interactions[i].onsite
+    if onsite isa Sunny.HermitianC64
+        onsite = StevensExpansion(Sunny.matrix_to_stevens_coefficients(onsite))
+    end
+    return onsite :: Sunny.StevensExpansion
+end
+
 # Get the quadratic anisotropy as a 3×3 exchange matrix for atom `i` in the
 # chemical cell.
 function quadratic_anisotropy(sys, i)
-    # Extract quadratic Stevens coefficients
-    interactions = isnothing(sys) ? nothing : Sunny.interactions_homog(something(sys.origin, sys))
-    onsite = interactions[i].onsite
-    (c0, c2) = if onsite isa Sunny.HermitianC64
-        Sunny.matrix_to_stevens_coefficients(onsite)[[0, 2]]
-    else
-        @assert onsite isa Sunny.StevensExpansion
-        (onsite.c0, onsite.c2)
-    end
+    # Get certain Stevens expansion coefficients
+    (; c0, c2) = anisotropy_on_site(sys, i)
 
     # Undo RCS renormalization for quadrupolar anisotropy for spin-s
     if sys.mode == :dipole
         s = (sys.Ns[i] - 1) / 2
-        c2 /= Sunny.rcs_factors(s)[2]
+        c2 = c2 / Sunny.rcs_factors(s)[2] # Don't mutate c2 in-place!
     end
 
-    # Stevens quadrupoles expressed as 3×3 bilinears
+    # Stevens quadrupole operators expressed as 3×3 spin bilinears
     quadrupole_basis = [
         [1 0 0; 0 -1 0; 0 0 0],    # 𝒪₂₂  = SˣSˣ - SʸSʸ
         [0 0 1; 0 0 0; 1 0 0] / 2, # 𝒪₂₁  = (SˣSᶻ + SᶻSˣ)/2
@@ -105,13 +107,17 @@ function quadratic_anisotropy(sys, i)
     return c2' * quadrupole_basis + only(c0) * I / S²
 end
 
-# Get the 3×3 exchange matrix for bond `b`
-function exchange_on_bond(interactions, b)
-    isnothing(interactions) && return zero(Sunny.Mat3)
+function coupling_on_bond(interactions, b)
+    isnothing(interactions) && return zero(Mat3)
     pairs = interactions[b.i].pair
     indices = findall(pc -> pc.bond == b, pairs)
-    isempty(indices) && return zero(Sunny.Mat3)
-    return pairs[only(indices)].bilin * Mat3(I)
+    return isempty(indices) ? nothing : pairs[only(indices)]
+end
+
+# Get the 3×3 exchange matrix for bond `b`
+function exchange_on_bond(interactions, b)
+    coupling = coupling_on_bond(interactions, b)
+    return isnothing(coupling) ? zero(Mat3) : coupling.bilin * Mat3(I)
 end
 
 # Get largest exchange interaction scale. For symmetric part, this is the
@@ -270,6 +276,10 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
                 dmvecstr = join(Sunny.number_to_simple_string.(dmvec; digits=3), ", ")
                 J_matrix_str *= "\nDM: [$dmvecstr]"
             end
+            c = coupling_on_bond(interactions, b)
+            if !isnothing(c) && (!iszero(c.biquad) || !isempty(c.general.data))
+                J_matrix_str *= "\n  + higher order terms"
+            end
         end
 
         return """
@@ -324,12 +334,11 @@ function label_atoms(cryst; ismagnetic, sys)
         rstr = Sunny.fractional_vec3_to_string(cryst.positions[i])
         ret = []
 
-        if ismagnetic && is_type_degenerate(cryst, i)
-            c = cryst.classes[i]
-            push!(ret, isempty(typ) ? "Class $c at $rstr" : "'$typ' (class $c) at $rstr")
-        else
-            push!(ret, isempty(typ) ? "Position $rstr" : "'$typ' at $rstr")
-        end
+        (; multiplicity, letter) = Sunny.get_wyckoff(cryst, i)
+        wyckstr = "$multiplicity$letter"
+        typstr = isempty(typ) ? "" : "'$typ', "
+        push!(ret, typstr * "Wyckoff $wyckstr, $rstr")
+
         if ismagnetic
             if isnothing(sys)
                 # See similar logic in print_site()
@@ -338,9 +347,13 @@ function label_atoms(cryst; ismagnetic, sys)
                 R_site = Sunny.rotation_between_sites(cryst, i, i_ref)
                 push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, prefix="Aniso: ", digits=8, atol=1e-12))
             else
-                ansio = quadratic_anisotropy(sys, i)
-                basis_strs = Sunny.number_to_simple_string.(ansio; digits=3)
-                push!(ret, Sunny.formatted_matrix(basis_strs; prefix="Ansiso: "))
+                aniso = quadratic_anisotropy(sys, i)
+                basis_strs = Sunny.number_to_simple_string.(aniso; digits=3)
+                push!(ret, Sunny.formatted_matrix(basis_strs; prefix="Aniso: "))
+                (; c4, c6) = anisotropy_on_site(sys, i)
+                if !iszero(c4) || !iszero(c6)
+                    push!(ret, "  + higher order terms")
+                end
             end
         end
         join(ret, "\n")

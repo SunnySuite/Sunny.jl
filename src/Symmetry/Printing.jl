@@ -222,13 +222,15 @@ function print_site(cryst, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
     R_global = convert(Mat3, R)
     r = cryst.positions[i]
     class_i = cryst.classes[i]
-    m = count(==(class_i), cryst.classes)
     printstyled(io, "Atom $i\n"; bold=true, color=:underline)
 
+    (; multiplicity, letter) = get_wyckoff(cryst, i)
+    wyckstr = "$multiplicity$letter"
+
     if isempty(cryst.types[i])
-        println(io, "Position $(fractional_vec3_to_string(r)), multiplicity $m")
+        println(io, "Position $(fractional_vec3_to_string(r)), Wyckoff $wyckstr")
     else
-        println(io, "Type '$(cryst.types[i])', position $(fractional_vec3_to_string(r)), multiplicity $m")
+        println(io, "Type '$(cryst.types[i])', position $(fractional_vec3_to_string(r)), Wyckoff $wyckstr")
     end
 
     digits = 14

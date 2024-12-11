@@ -148,7 +148,7 @@ function set_onsite_coupling!(sys::System, op, i::Int)
 
     if !is_anisotropy_valid(sys.crystal, i, onsite)
         error("""Symmetry-violating anisotropy: $op.
-                 Use `print_site(crystal, $i)` for more information.""")
+                 Use `print_site(cryst, $i)` for more information.""")
     end
 
     cryst = sys.crystal

@@ -340,7 +340,7 @@ end
     end
     @test capt.output == """
         Atom 1
-        Position [0, 0, 0], multiplicity 16
+        Position [0, 0, 0], Wyckoff 16c
         Allowed g-tensor: [A B B
                            B A B
                            B B A]
@@ -394,7 +394,7 @@ end
     end
     @test capt.output == """
         Atom 5
-        Position [1/4, 0, 1/4], multiplicity 16
+        Position [1/4, 0, 1/4], Wyckoff 16c
         Allowed g-tensor: [ A -B  B
                            -B  A -B
                             B -B  A]
@@ -422,7 +422,7 @@ end
     end
     @test capt.output == """
         Atom 2
-        Position [1/4, 1/4, 0], multiplicity 16
+        Position [1/4, 1/4, 0], Wyckoff 16c
         Allowed g-tensor: [A 0 0
                            0 A 0
                            0 0 B]
@@ -471,7 +471,7 @@ end
     end
     @test capt.output == """
         Atom 1
-        Type 'A', position [0, 0, 0], multiplicity 1
+        Type 'A', position [0, 0, 0], Wyckoff 3a
         Allowed g-tensor: [A 0 0
                            0 A 0
                            0 0 B]
@@ -481,7 +481,7 @@ end
             c₄*𝒪[6,-3] + c₅*𝒪[6,0] + c₆*𝒪[6,6]
         Modified reference frame! Use R*g*R' or rotate_operator(op, R).
         Atom 2
-        Type 'B', position [1/2, 1/2, 0], multiplicity 3
+        Type 'B', position [1/2, 1/2, 0], Wyckoff 9e
         Allowed g-tensor: [A   0   0
                            0   B D+E
                            0 D-E   C]
