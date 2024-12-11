@@ -36,7 +36,7 @@ function reference_bonds_upto(cryst, nbonds, ndims)
     refbonds = filter(reference_bonds(cryst, max_dist)) do b
         return !(b.i == b.j && iszero(b.n))
     end
-    
+
     # Verify max_dist heuristic
     if length(refbonds) > 10nbonds
         @warn "Found $(length(refbonds)) bonds using max_dist of $max_dist"
@@ -60,14 +60,64 @@ function propagate_reference_bond_for_cell(cryst, b_ref)
     return reduce(vcat, found)
 end
 
+function anisotropy_on_site(sys, i)
+    interactions = isnothing(sys) ? nothing : Sunny.interactions_homog(something(sys.origin, sys))
+    onsite = interactions[i].onsite
+    if onsite isa Sunny.HermitianC64
+        onsite = Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(onsite))
+    end
+    return onsite :: Sunny.StevensExpansion
+end
+
+# Get the quadratic anisotropy as a 3×3 exchange matrix for atom `i` in the
+# chemical cell.
+function quadratic_anisotropy(sys, i)
+    # Get certain Stevens expansion coefficients
+    (; c0, c2) = anisotropy_on_site(sys, i)
+
+    # Undo RCS renormalization for quadrupolar anisotropy for spin-s
+    if sys.mode == :dipole
+        s = (sys.Ns[i] - 1) / 2
+        c2 = c2 / Sunny.rcs_factors(s)[2] # Don't mutate c2 in-place!
+    end
+
+    # Stevens quadrupole operators expressed as 3×3 spin bilinears
+    quadrupole_basis = [
+        [1 0 0; 0 -1 0; 0 0 0],    # 𝒪₂₂  = SˣSˣ - SʸSʸ
+        [0 0 1; 0 0 0; 1 0 0] / 2, # 𝒪₂₁  = (SˣSᶻ + SᶻSˣ)/2
+        [-1 0 0; 0 -1 0; 0 0 2],   # 𝒪₂₀  = 2SᶻSᶻ - SˣSˣ - SʸSʸ
+        [0 0 0; 0 0 1; 0 1 0] / 2, # 𝒪₂₋₁ = (SʸSᶻ + SᶻSʸ)/2
+        [0 1 0; 1 0 0; 0 0 0],     # 𝒪₂₋₂ = SˣSʸ + SʸSˣ
+    ]
+
+    # The c0 coefficient incorporates a factor of S². For quantum spin
+    # operators, S² = s(s+1) I. For the large-s classical limit, S² = s² is a
+    # scalar.
+    S² = if sys.mode == :dipole_uncorrected
+        # Undoes extraction in `operator_to_stevens_coefficients`. Note that
+        # spin magnitude s² is set to κ², as originates from `onsite_coupling`
+        # for p::AbstractPolynomialLike.
+        sys.κs[i]^2
+    else
+        # Undoes extraction in `matrix_to_stevens_coefficients` where 𝒪₀₀ = I.
+        s = (sys.Ns[i]-1) / 2
+        s * (s+1)
+    end
+
+    return c2' * quadrupole_basis + only(c0) * I / S²
+end
+
+function coupling_on_bond(interactions, b)
+    isnothing(interactions) && return zero(Mat3)
+    pairs = interactions[b.i].pair
+    indices = findall(pc -> pc.bond == b, pairs)
+    return isempty(indices) ? nothing : pairs[only(indices)]
+end
 
 # Get the 3×3 exchange matrix for bond `b`
 function exchange_on_bond(interactions, b)
-    isnothing(interactions) && return zero(Sunny.Mat3)
-    pairs = interactions[b.i].pair
-    indices = findall(pc -> pc.bond == b, pairs)
-    isempty(indices) && return zero(Sunny.Mat3)
-    return pairs[only(indices)].bilin * Mat3(I)
+    coupling = coupling_on_bond(interactions, b)
+    return isnothing(coupling) ? zero(Mat3) : coupling.bilin * Mat3(I)
 end
 
 # Get largest exchange interaction scale. For symmetric part, this is the
@@ -100,7 +150,7 @@ function exchange_decomposition(J)
 
     # Now vecs is a pure rotation
     @assert vecs'*vecs ≈ I && det(vecs) ≈ 1
-    
+
     # Quaternion that rotates Cartesian coordinates into principle axes of J.
     axis, angle = Sunny.matrix_to_axis_angle(Mat3(vecs))
     q = iszero(axis) ? Makie.Quaternionf(0,0,0,1) : Makie.qrotation(axis, angle)
@@ -178,7 +228,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
 end
 
 function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bonds, refbonds, color)
-    
+
     # Map each bond to line segments in global coordinates
     segments = map(bonds) do b
         (; ri, rj) = Sunny.BondPos(cryst, b)
@@ -225,6 +275,10 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
                 dmvec = Sunny.extract_dmvec(J)
                 dmvecstr = join(Sunny.number_to_simple_string.(dmvec; digits=3), ", ")
                 J_matrix_str *= "\nDM: [$dmvecstr]"
+            end
+            c = coupling_on_bond(interactions, b)
+            if !isnothing(c) && (!iszero(c.biquad) || !isempty(c.general.data))
+                J_matrix_str *= "\n  + higher order terms"
             end
         end
 
@@ -274,20 +328,33 @@ function is_type_degenerate(cryst, i)
 end
 
 # Construct atom labels for use in DataInspector
-function label_atoms(cryst; ismagnetic)
+function label_atoms(cryst; ismagnetic, sys)
     return map(1:natoms(cryst)) do i
         typ = cryst.types[i]
         rstr = Sunny.fractional_vec3_to_string(cryst.positions[i])
         ret = []
 
-        if ismagnetic && is_type_degenerate(cryst, i)
-            c = cryst.classes[i]
-            push!(ret, isempty(typ) ? "Class $c at $rstr" : "'$typ' (class $c) at $rstr")
-        else
-            push!(ret, isempty(typ) ? "Position $rstr" : "'$typ' at $rstr")
-        end
+        (; multiplicity, letter) = Sunny.get_wyckoff(cryst, i)
+        wyckstr = "$multiplicity$letter"
+        typstr = isempty(typ) ? "" : "'$typ', "
+        push!(ret, typstr * "Wyckoff $wyckstr, $rstr")
+
         if ismagnetic
-            # TODO: Show onsite couplings?
+            if isnothing(sys)
+                # See similar logic in print_site()
+                refatoms = [b.i for b in Sunny.reference_bonds(cryst, 0.0)]
+                i_ref = Sunny.findfirstval(i_ref -> Sunny.is_related_by_symmetry(cryst, i, i_ref), refatoms)
+                R_site = Sunny.rotation_between_sites(cryst, i, i_ref)
+                push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, prefix="Aniso: ", digits=8, atol=1e-12))
+            else
+                aniso = quadratic_anisotropy(sys, i)
+                basis_strs = Sunny.number_to_simple_string.(aniso; digits=3)
+                push!(ret, Sunny.formatted_matrix(basis_strs; prefix="Aniso: "))
+                (; c4, c6) = anisotropy_on_site(sys, i)
+                if !iszero(c4) || !iszero(c6)
+                    push!(ret, "  + higher order terms")
+                end
+            end
         end
         join(ret, "\n")
     end
@@ -336,10 +403,10 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
             # Labels for non-ghost atoms
             inspector_label = nothing
             if !isghost
-                labels = label_atoms(xtal; ismagnetic)[idxs]
+                labels = label_atoms(xtal; ismagnetic, sys)[idxs]
                 inspector_label = (_plot, index, _position) -> labels[index]
             end
-            
+
             # Show dipoles. Mostly consistent with code in plot_spins.
             if !isnothing(sys) && ismagnetic
                 sites = Sunny.position_to_site.(Ref(sys), rs)

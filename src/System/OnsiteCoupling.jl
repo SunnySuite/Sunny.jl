@@ -24,8 +24,8 @@ function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
         error("Symbolic operator only valid for system with mode `:dipole_uncorrected`.")
     end
 
-    s = sys.κs[site]
-    c = operator_to_stevens_coefficients(p, s)
+    S² = sys.κs[site]^2
+    c = operator_to_stevens_coefficients(p, S²)
 
     # No renormalization here because symbolic polynomials `p` are associated
     # with the large-s limit.
@@ -148,7 +148,7 @@ function set_onsite_coupling!(sys::System, op, i::Int)
 
     if !is_anisotropy_valid(sys.crystal, i, onsite)
         error("""Symmetry-violating anisotropy: $op.
-                 Use `print_site(crystal, $i)` for more information.""")
+                 Use `print_site(cryst, $i)` for more information.""")
     end
 
     cryst = sys.crystal

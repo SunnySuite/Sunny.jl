@@ -91,9 +91,9 @@ end
 
 
 # Extract Stevens operator coefficients from spin polynomial
-function operator_to_stevens_coefficients(p::DP.AbstractPolynomialLike, S)
+function operator_to_stevens_coefficients(p::DP.AbstractPolynomialLike, S²)
     p = expand_in_stevens_operators(p)
-    p = DP.subs(p, spin_squared_symbol => S^2)
+    p = DP.subs(p, spin_squared_symbol => S²)
     return map(stevens_symbols) do 𝒪ₖ
         map(𝒪ₖ) do 𝒪kq
             j = findfirst(==(𝒪kq), DP.monomials(p))
@@ -102,7 +102,7 @@ function operator_to_stevens_coefficients(p::DP.AbstractPolynomialLike, S)
     end
 end
 
-function rotate_operator(p, R)
+function rotate_operator(p::DP.AbstractPolynomialLike, R)
     𝒮′ = R * [𝒮ˣ, 𝒮ʸ, 𝒮ᶻ]
     DP.subs(p, 𝒮ˣ => 𝒮′[1], 𝒮ʸ => 𝒮′[2], 𝒮ᶻ => 𝒮′[3])
 end
