@@ -130,12 +130,6 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
 end
 
 
-function multiply_by_hamiltonian_SUN(x::AbstractMatrix{ComplexF64}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
-    y = zero(x)
-    multiply_by_hamiltonian_SUN!(y, x, swt, qs_reshaped)
-    return y
-end
-
 # Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical
 # matrix). Note that x is assumed to be a 2D array with first index
 # corresponding to q. 

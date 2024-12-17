@@ -157,11 +157,6 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 end
 
 
-function multiply_by_hamiltonian_dipole(x::AbstractMatrix{ComplexF64}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
-    y = zero(x)
-    multiply_by_hamiltonian_dipole!(y, x, swt, qs_reshaped)
-    return y
-end
 
 function multiply_by_hamiltonian_dipole!(y::AbstractMatrix{ComplexF64}, x::AbstractMatrix{ComplexF64}, swt::SpinWaveTheory, qs_reshaped::Vector{Vec3};
                                          phases=zeros(ComplexF64, size(qs_reshaped)))
