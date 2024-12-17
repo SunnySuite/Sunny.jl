@@ -288,7 +288,7 @@ function energy_per_site_lswt_correction(swt::EntangledSpinWaveTheory; opts...)
     # The uniform correction to the classical energy (trace of the (1,1)-block
     # of the spin-wave Hamiltonian)
     dynamical_matrix!(H, swt, zero(Vec3))
-    δE₁ = -real(tr(view(H, 1:L, 1:L))) / Natoms
+    δE₁ = -real(tr(view(H, 1:L, 1:L))) / 2Natoms
 
     # Integrate zero-point energy over the first Brillouin zone 𝐪 ∈ [0, 1]³ for
     # magnetic cell in reshaped RLU
@@ -326,7 +326,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
         op = int.onsite
         for m in 1:N-1
             for n in 1:N-1
-                c = 0.5 * (op[m, n] - δ(m, n) * op[N, N])
+                c = op[m, n] - δ(m, n) * op[N, N]
                 H11[m, i, n, i] += c
                 H22[n, i, m, i] += c
             end
@@ -343,23 +343,23 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
             # of sublattice i and j, respectively.
             for (Ai, Bj) in coupling.general.data 
                 for m in 1:N-1, n in 1:N-1
-                    c = 0.5 * (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
+                    c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
                     H11[m, i, n, i] += c
                     H22[n, i, m, i] += c
-            
-                    c = 0.5 * Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
+
+                    c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
                     H11[m, j, n, j] += c
                     H22[n, j, m, j] += c
-            
-                    c = 0.5 * Ai[m,N] * Bj[N,n]
+
+                    c = Ai[m,N] * Bj[N,n]
                     H11[m, i, n, j] += c * phase
                     H22[n, j, m, i] += c * conj(phase)
-            
-                    c = 0.5 * Ai[N,m] * Bj[n,N]
+
+                    c = Ai[N,m] * Bj[n,N]
                     H11[n, j, m, i] += c * conj(phase)
                     H22[m, i, n, j] += c * phase
-                    
-                    c = 0.5 * Ai[m,N] * Bj[n,N]
+
+                    c = Ai[m,N] * Bj[n,N]
                     H12[m, i, n, j] += c * phase
                     H12[n, j, m, i] += c * conj(phase)
                     H21[n, j, m, i] += conj(c) * conj(phase)
@@ -377,6 +377,6 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
 
     # Add small constant shift for positive-definiteness
     for i in 1:2L
-        H[i,i] += swt.regularization
+        H[i,i] += 2 * swt.regularization
     end
 end
