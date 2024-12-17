@@ -12,9 +12,9 @@
 
 ## Overview
 
-Sunny is a Julia package for modeling atomic-scale magnetism with quantum effects. Through spin dynamics simulations, it enables direct comparison with experimental scattering data, e.g., neutrons or x-rays. Ease of use is a priority, with tools for symmetry-guided modeling and interactive visualization.
+Sunny is a Julia package for modeling atomic-scale magnetism with quantum effects. Spin dynamics simulation enables direct comparison with experimental scattering data, e.g., neutrons or x-rays. Ease of use is a priority, with tools for symmetry-guided modeling and interactive visualization.
 
-At low-temperatures, Sunny supports the usual linear spin wave theory of spin dipoles with generalization to multi-flavor bosons. At finite temperatures, Sunny supports the classical Landau-Lifshitz spin dynamics with generalization to SU(_N_) coherent states. Such generalizations are useful for modeling the coupled dynamics of higher order spin multipoles (see, e.g., the [FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html)), and for capturing localized "units" of strongly entangled spins. Through dynamical coupling to a thermal bath, Sunny makes possible the study of non-equilibrium dynamics, e.g., thermal transport, pump-probe experiments, and spin-glass relaxation. Many of these features build on our team's [theoretical research](https://sunnysuite.github.io/Sunny.jl/stable/why.html#Advanced-theory-made-accessible).
+At low-temperatures, Sunny supports the usual linear spin wave theory of spin dipoles with generalization to multi-flavor bosons. At finite temperatures, Sunny supports the classical Landau-Lifshitz spin dynamics with generalization to SU(_N_) coherent states. Such generalizations are useful for modeling the coupled dynamics of higher order spin multipoles (see, e.g., the [FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html)), and for capturing localized "units" of strongly entangled spins. Dynamical coupling to a thermal bath makes possible the study of non-equilibrium dynamics, e.g., thermal transport, pump-probe experiments, and spin-glass relaxation. Many of these features build on our team's [theoretical research](https://sunnysuite.github.io/Sunny.jl/stable/why.html#Advanced-theory-made-accessible).
 
 ## Try it out!
 
