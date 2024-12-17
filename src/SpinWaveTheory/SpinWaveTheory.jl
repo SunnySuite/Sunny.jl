@@ -95,6 +95,13 @@ function to_reshaped_rlu(sys::System{N}, q) where N
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
+function dynamical_matrix(swt::SpinWaveTheory, q_reshaped)
+    L = nbands(swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    dynamical_matrix!(H, swt, q_reshaped)
+    return Hermitian(H)
+end
+
 function dynamical_matrix!(H, swt::SpinWaveTheory, q_reshaped)
     if swt.sys.mode == :SUN
         swt_hamiltonian_SUN!(H, swt, q_reshaped)
@@ -104,14 +111,22 @@ function dynamical_matrix!(H, swt::SpinWaveTheory, q_reshaped)
     end
 end
 
+function mul_dynamical_matrix(swt, x, qs_reshaped)
+    y = zero(x)
+    mul_dynamical_matrix!(swt, y, x, qs_reshaped)
+end
+
 function mul_dynamical_matrix!(swt, y, x, qs_reshaped)
+    @assert size(x) == size(y) "Dimensions of x and y do not match"
+    @assert size(x, 1) == length(qs_reshaped)
+
     if swt.sys.mode == :SUN
         multiply_by_hamiltonian_SUN!(y, x, swt, qs_reshaped)
     else
         multiply_by_hamiltonian_dipole!(y, x, swt, qs_reshaped)
     end
-    # TODO: Incorporate this factor into Hamiltonian itself
-    y .*= 2
+
+    return y
 end
 
 
