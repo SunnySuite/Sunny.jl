@@ -28,14 +28,14 @@ function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
         view(T, :, j) .*= c
     end
 
-    # Inverse of λ are eigenvalues of Ĩ H. A factor of 2 yields the physical
-    # quasiparticle energies.
+    # Inverse of λ are eigenvalues of Ĩ H, or equivalently, of √H Ĩ √H.
     energies = λ        # reuse storage
-    @. energies = 2 / λ
+    @. energies = 1 / λ
 
-    # The first L elements are positive, while the next L energies are negative.
-    # Their absolute values are excitation energies for the wavevectors q and
-    # -q, respectively.
+    # By Sylvester's theorem, "inertia" (sign signature) is invariant under a
+    # congruence transform Ĩ → √H Ĩ √H. The first L elements are positive,
+    # while the next L elements are negative. Their absolute values are
+    # excitation energies for the wavevectors q and -q, respectively.
     @assert all(>(0), view(energies, 1:L)) && all(<(0), view(energies, L+1:2L))
 
     # Disable tests below for speed. Note that the data in H has been
@@ -43,7 +43,7 @@ function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     #=
     Ĩ = Diagonal([ones(L); -ones(L)])
     @assert T' * Ĩ * T ≈ Ĩ
-    @assert diag(T' * H0 * T) ≈ Ĩ * energies / 2
+    @assert diag(T' * H0 * T) ≈ Ĩ * energies
     # Reflection symmetry H(q) = H(-q) is identified as H11 = conj(H22). In this
     # case, eigenvalues come in pairs.
     if H0[1:L, 1:L] ≈ conj(H0[L+1:2L, L+1:2L])

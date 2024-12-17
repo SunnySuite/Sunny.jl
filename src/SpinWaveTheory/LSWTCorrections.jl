@@ -24,7 +24,7 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
     # The uniform correction to the classical energy (trace of the (1,1)-block
     # of the spin-wave Hamiltonian)
     dynamical_matrix!(H, swt, zero(Vec3))
-    δE₁ = -real(tr(view(H, 1:L, 1:L))) / Natoms
+    δE₁ = -real(tr(view(H, 1:L, 1:L))) / 2Natoms
 
     # Integrate zero-point energy over the first Brillouin zone 𝐪 ∈ [0, 1]³ for
     # magnetic cell in reshaped RLU

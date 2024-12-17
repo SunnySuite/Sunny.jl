@@ -7,7 +7,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
 
     N = sys.Ns[1]
     Na = natoms(sys.crystal)
-    L = (N-1) * Na   
+    L = (N-1) * Na
 
     # Clear the Hamiltonian
     @assert size(H) == (2L, 2L)
@@ -25,7 +25,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         op = int.onsite
         for m in 1:N-1
             for n in 1:N-1
-                c = 0.5 * (op[m, n] - δ(m, n) * op[N, N])
+                c = op[m, n] - δ(m, n) * op[N, N]
                 H11[m, i, n, i] += c
                 H22[n, i, m, i] += c
             end
@@ -42,23 +42,23 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             # of sublattice i and j, respectively.
             for (Ai, Bj) in coupling.general.data 
                 for m in 1:N-1, n in 1:N-1
-                    c = 0.5 * (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
+                    c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
                     H11[m, i, n, i] += c
                     H22[n, i, m, i] += c
-            
-                    c = 0.5 * Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
+
+                    c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
                     H11[m, j, n, j] += c
                     H22[n, j, m, j] += c
-            
-                    c = 0.5 * Ai[m,N] * Bj[N,n]
+
+                    c = Ai[m,N] * Bj[N,n]
                     H11[m, i, n, j] += c * phase
                     H22[n, j, m, i] += c * conj(phase)
-            
-                    c = 0.5 * Ai[N,m] * Bj[n,N]
+
+                    c = Ai[N,m] * Bj[n,N]
                     H11[n, j, m, i] += c * conj(phase)
                     H22[m, i, n, j] += c * phase
-                    
-                    c = 0.5 * Ai[m,N] * Bj[n,N]
+
+                    c = Ai[m,N] * Bj[n,N]
                     H12[m, i, n, j] += c * phase
                     H12[n, j, m, i] += c * conj(phase)
                     H21[n, j, m, i] += conj(c) * conj(phase)
@@ -91,23 +91,23 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
                 Bj = spins_localized[β, j]
 
                 for m in 1:N-1, n in 1:N-1
-                    c = 0.5 * (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
+                    c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
                     H11[m, i, n, i] += c * J0[α, β]
                     H22[n, i, m, i] += c * J0[α, β]
 
-                    c = 0.5 * Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
+                    c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
                     H11[m, j, n, j] += c * J0[α, β]
                     H22[n, j, m, j] += c * J0[α, β]
 
-                    c = 0.5 * Ai[m,N] * Bj[N,n]
+                    c = Ai[m,N] * Bj[N,n]
                     H11[m, i, n, j] += c * J[α, β]
                     H22[n, j, m, i] += c * conj(J[α, β])
 
-                    c = 0.5 * Ai[N,m] * Bj[n,N]
+                    c = Ai[N,m] * Bj[n,N]
                     H11[n, j, m, i] += c * conj(J[α, β])
                     H22[m, i, n, j] += c * J[α, β]
 
-                    c = 0.5 * Ai[m,N] * Bj[n,N]
+                    c = Ai[m,N] * Bj[n,N]
                     H12[m, i, n, j] += c * J[α, β]
                     H12[n, j, m, i] += c * conj(J[α, β])
                     H21[n, j, m, i] += conj(c) * conj(J[α, β])
@@ -125,16 +125,10 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
 
     # Add small constant shift for positive-definiteness
     for i in 1:2L
-        H[i,i] += swt.regularization
+        H[i,i] += 2 * swt.regularization
     end
 end
 
-
-function multiply_by_hamiltonian_SUN(x::AbstractMatrix{ComplexF64}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
-    y = zero(x)
-    multiply_by_hamiltonian_SUN!(y, x, swt, qs_reshaped)
-    return y
-end
 
 # Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical
 # matrix). Note that x is assumed to be a 2D array with first index
@@ -160,7 +154,7 @@ function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::Abstract
         # Onsite coupling, including Zeeman
         op = int.onsite
         for m in 1:N-1, n in 1:N-1
-            c = 0.5 * (op[m, n] - δ(m, n) * op[N, N])
+            c = op[m, n] - δ(m, n) * op[N, N]
             @inbounds for q in 1:Nq
                 Y[q, m, i, 1] += c * X[q, n, i, 1]
                 Y[q, n, i, 2] += c * X[q, m, i, 2]
@@ -180,13 +174,12 @@ function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::Abstract
 
             # General pair interactions
             for (A, B) in coupling.general.data
-            
                 for m in 1:N-1, n in 1:N-1
-                    c1 = 0.5 * (A[m,n] - δ(m,n)*A[N,N]) * B[N,N]
-                    c2 = 0.5 * A[N,N] * (B[m,n] - δ(m,n)*B[N,N])
-                    c3 = 0.5 * A[m,N] * B[N,n]
-                    c4 = 0.5 * A[N,m] * B[n,N]
-                    c5 = 0.5 * A[m,N] * B[n,N]
+                    c1 = (A[m,n] - δ(m,n)*A[N,N]) * B[N,N]
+                    c2 = A[N,N] * (B[m,n] - δ(m,n)*B[N,N])
+                    c3 = A[m,N] * B[N,n]
+                    c4 = A[N,m] * B[n,N]
+                    c5 = A[m,N] * B[n,N]
 
                     @inbounds for q in axes(Y, 1)
                         Y[q, m, i, 1] += c1 * X[q, n, i, 1] 
@@ -216,7 +209,7 @@ function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::Abstract
     end
 
     # Add small constant shift for positive-definiteness
-    @inbounds @. Y += swt.regularization * X
+    @inbounds @. Y += 2 * swt.regularization * X
 
     nothing
 end

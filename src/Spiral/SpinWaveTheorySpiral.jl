@@ -51,7 +51,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     for ints in sys.interactions_union
 
         for c in ints.pair
-            (; i, j, n) = c.bond            
+            (; i, j, n) = c.bond
             θ = (2*π * dot(k,n))
             Rn = axis_angle_to_matrix(axis, θ)
 
@@ -84,12 +84,10 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
         end
     end
 
-    @. H /= 2
-
     # Add Zeeman term
     for i in 1:L
         B = sys.extfield[1, 1, 1, i]' * sys.gs[1, 1, 1, i]
-        B′ = - (B * local_rotations[i][:, 3]) / 2
+        B′ = - B * local_rotations[i][:, 3]
         H[i, i]     += B′
         H[i+L, i+L] += conj(B′)
     end
@@ -98,10 +96,10 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     for i in 1:L
         s = sqrtS[i]^2
         (; c2, c4, c6) = stevens_coefs[i]
-        H[i, i]     += -3s*c2[3] - 40*s^3*c4[5] - 168*s^5*c6[7]
-        H[i+L, i+L] += -3s*c2[3] - 40*s^3*c4[5] - 168*s^5*c6[7]
-        H[i, i+L]   += +im*(s*c2[5] + 6s^3*c4[7] + 16s^5*c6[9]) + (s*c2[1] + 6s^3*c4[3] + 16s^5*c6[5])
-        H[i+L, i]   += -im*(s*c2[5] + 6s^3*c4[7] + 16s^5*c6[9]) + (s*c2[1] + 6s^3*c4[3] + 16s^5*c6[5])
+        H[i, i]     += -6s*c2[3] - 80*s^3*c4[5] - 336*s^5*c6[7]
+        H[i+L, i+L] += -6s*c2[3] - 80*s^3*c4[5] - 336*s^5*c6[7]
+        H[i, i+L]   += 2s*(c2[1]+im*c2[5]) + 12s^3*(c4[3]+im*c4[7]) + 32s^5*(c6[5]+im*c6[9])
+        H[i+L, i]   += 2s*(c2[1]-im*c2[5]) + 12s^3*(c4[3]-im*c4[7]) + 32s^5*(c6[5]-im*c6[9])
     end
 
     isnothing(sys.ewald) || error("Ewald interactions not yet supported")
@@ -110,7 +108,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     hermitianpart!(H)
 
     for i in 1:2L
-        H[i, i] += swt.regularization
+        H[i, i] += 2 * swt.regularization
     end
 end
 
