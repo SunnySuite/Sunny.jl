@@ -13,6 +13,8 @@ end
 # the normalized input vectors. If `u = v` then `R = I` and if `u = -v` then R
 # is a rotation by π about an arbitrary axis perpendicular to u and v.
 function rotation_between_vectors(u, v)
+    (iszero(u) || iszero(v)) && return Mat3(I)
+
     u, v = normalize.((u, v))
     axis = u × v
     θ = angle_between_vectors(u, v)

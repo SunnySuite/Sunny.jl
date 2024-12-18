@@ -16,6 +16,11 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     H22 = view(H, L+1:2L, L+1:2L)
 
     for (i, int) in enumerate(sys.interactions_union)
+        s = sqrtS[i]^2
+
+        # Skip this site if s is zero, i.e., a vacant site.
+        iszero(s) && continue
+
         # Zeeman term
         B = gs[1, 1, 1, i]' * extfield[1, 1, 1, i]
         B′ = - dot(B, local_rotations[i][:, 3]) / 2
@@ -24,13 +29,12 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
         # Single-ion anisotropy
         (; c2, c4, c6) = stevens_coefs[i]
-        s = sqrtS[i]^2
         A1 = -3s*c2[3] - 40*s^3*c4[5] - 168*s^5*c6[7]
         A2 = im*(s*c2[5] + 6s^3*c4[7] + 16s^5*c6[9]) + (s*c2[1] + 6s^3*c4[3] + 16s^5*c6[5])
         H11[i, i] += A1
         H22[i, i] += A1
         H12[i, i] += A2
-        H21[i, i] += conj(A2)        
+        H21[i, i] += conj(A2)
 
         # Pair interactions
         for coupling in int.pair
@@ -42,6 +46,9 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             si = sqrtS[i]^2
             sj = sqrtS[j]^2
             sij = sqrtS[i] * sqrtS[j]
+
+            # Skip this bond if either si or sj is zero, i.e., a vacant site.
+            iszero(sij) && continue
 
             # Bilinear exchange
             if !iszero(coupling.bilin)
@@ -157,11 +164,6 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 end
 
 
-function multiply_by_hamiltonian_dipole(x::AbstractMatrix{ComplexF64}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
-    y = zero(x)
-    multiply_by_hamiltonian_dipole!(y, x, swt, qs_reshaped)
-    return y
-end
 
 function multiply_by_hamiltonian_dipole!(y::AbstractMatrix{ComplexF64}, x::AbstractMatrix{ComplexF64}, swt::SpinWaveTheory, qs_reshaped::Vector{Vec3};
                                          phases=zeros(ComplexF64, size(qs_reshaped)))
@@ -182,6 +184,10 @@ function multiply_by_hamiltonian_dipole!(y::AbstractMatrix{ComplexF64}, x::Abstr
     for i in 1:L
         (; c2, c4, c6) = stevens_coefs[i]
         s = sqrtS[i]^2
+
+        # Skip this site if s is zero, i.e., a vacant site.
+        iszero(s) && continue
+
         A1 = -3s*c2[3] - 40*s^3*c4[5] - 168*s^5*c6[7]
         A2 = im*(s*c2[5] + 6s^3*c4[7] + 16s^5*c6[9]) + (s*c2[1] + 6s^3*c4[3] + 16s^5*c6[5])
 
@@ -200,7 +206,6 @@ function multiply_by_hamiltonian_dipole!(y::AbstractMatrix{ComplexF64}, x::Abstr
     # Pair interactions 
     for ints in sys.interactions_union
 
-        # Bilinear exchange
         for coupling in ints.pair
             (; isculled, bond) = coupling
             isculled && break
@@ -210,10 +215,14 @@ function multiply_by_hamiltonian_dipole!(y::AbstractMatrix{ComplexF64}, x::Abstr
             sj = sqrtS[j]^2
             sij = sqrtS[i] * sqrtS[j]
 
+            # Skip this bond if either si or sj is zero, i.e., a vacant site.
+            iszero(sij) && continue
+
             map!(phases, qs_reshaped) do q
                 cis(2π*dot(q, bond.n))
             end
 
+            # Bilinear exchange
             if !iszero(coupling.bilin)
                 J = coupling.bilin  # This is Rij in previous notation (transformed exchange matrix)
 

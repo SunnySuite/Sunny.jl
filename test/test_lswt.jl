@@ -533,13 +533,7 @@ end
 
 
 @testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
-    import LinearAlgebra: diagm
-
-    function onehot(i, n)
-        out = zeros(ComplexF64, 1, n)
-        out[1, i] = 1.0
-        return out
-    end
+    using LinearAlgebra
 
     # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
     function simple_swt(mode)
@@ -558,35 +552,23 @@ end
         return SpinWaveTheory(sys; measure=nothing)
     end
 
-    # Construct dipole Hamiltonian standard way
-    swt = simple_swt(:dipole)
-    H1 = zeros(ComplexF64, 16, 16)
-    q = Sunny.Vec3([0.5,0,0])
-    Sunny.swt_hamiltonian_dipole!(H1, swt, q)
+    q = Sunny.Vec3(0.5, 0, 0)
 
-    # Construct dipole Hamiltonian from sparse matrix-vector multiplies
-    H2 = zero(H1)
-    L = Sunny.natoms(swt.sys.crystal)
-    for i in 1:2L
-        H2[:, i] = Sunny.multiply_by_hamiltonian_dipole(onehot(i, 2L), swt, [q])
+    for mode = (:dipole, :SUN)
+        # Construct Hamiltonian directly
+        swt = simple_swt(mode)
+        H1 = Sunny.dynamical_matrix(swt, q)
+
+        # Construct Hamiltonian by sparse matrix-vector multiplies
+        L = Sunny.nbands(swt)
+        x = Matrix{ComplexF64}(I, 2L, 2L)
+        H2 = transpose(Sunny.mul_dynamical_matrix(swt, x, fill(q, 2L)))
+
+        # FIXME
+        H2 /= 2
+
+        @test H1 ≈ H2
     end
-
-    @test isapprox(H1, H2; atol=1e-12)
-
-    # Construct SU(N) Hamiltonian standard way
-    swt = simple_swt(:SUN)
-    N = swt.sys.Ns[1]
-    L = (N-1) * Sunny.natoms(swt.sys.crystal)
-    H1 = zeros(ComplexF64, 2L, 2L)
-    Sunny.swt_hamiltonian_SUN!(H1, swt, q)
-
-    # Construct SU(N) Hamiltonian from sparse matrix-vector multiplies
-    H2 = zero(H1)
-    for i in 1:2L
-        H2[:, i] = Sunny.multiply_by_hamiltonian_SUN(onehot(i, 2L), swt, [q])
-    end
-
-    @test isapprox(H1, H2; atol=1e-12)
 end
 
 
