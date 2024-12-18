@@ -36,25 +36,28 @@ end
 # is tridiagonal and Q is orthogonal in the measure S, i.e. Q† S Q = I. The
 # first column of Q is the initial vector v. The approximant is useful purposes
 # of multiplying by v. For example, f(A S) v ≈ Q f(T) e₁ is a near-optimal
-# approximation for any Krylov space method.
+# approximation within the Krylov space, for any function f [1]
 #
 # Returns T, as well as Q† lhs, if left-hand side vectors are specified.
 #
-# Traditional Lanczos uses the identity measure, S = I. The extension to
-# non-identity matrices S is implemented as follows: Each matrix-vector product
-# A v becomes A S v, and each vector inner product w† v becomes w† S v. The
-# implementation below follows the notation of Wikipedia, and is the most stable
-# of the four variants considered by Paige [1]. Each Lanczos iteration requires
-# only one matrix-vector multiplication for A and S, respectively.
-
-# Similar generalizations of Lanczos have been considered in [2] and [3].
+# The implementation below follows the notation of Wikipedia, and is the most
+# stable of the four variants considered by Paige [2].
 #
-# 1. C. C. Paige, IMA J. Appl. Math., 373-381 (1972),
-# https://doi.org/10.1093%2Fimamat%2F10.3.373.
-# 2. H. A. van der Vorst, Math. Comp. 39, 559-561 (1982),
-# https://doi.org/10.1090/s0025-5718-1982-0669648-0
-# 3. M. Grüning, A. Marini, X. Gonze, Comput. Mater. Sci. 50, 2148-2156 (2011),
-# https://doi.org/10.1016/j.commatsci.2011.02.021.
+# The generalization to non-identity matrices S is implemented as follows: Each
+# matrix-vector product A v becomes A S v, and each vector inner product w† v
+# becomes w† S v. Each Lanczos iteration requires only one matrix-vector
+# multiplication for A and S, respectively. Similar generalizations of Lanczos
+# have been considered in [3] and [4].
+#
+# 1. N. Amsel, T. Chen, A. Greenbaum, C. Musco, C. Musco, Near-optimal
+#    approximation of matrix functions by the Lanczos method, (2013)
+#    https://arxiv.org/abs/2303.03358v2.
+# 2. C. C. Paige, IMA J. Appl. Math., 373-381 (1972),
+#    https://doi.org/10.1093%2Fimamat%2F10.3.373.
+# 3. H. A. van der Vorst, Math. Comp. 39, 559-561 (1982),
+#    https://doi.org/10.1090/s0025-5718-1982-0669648-0
+# 4. M. Grüning, A. Marini, X. Gonze, Comput. Mater. Sci. 50, 2148-2156 (2011),
+#    https://doi.org/10.1016/j.commatsci.2011.02.021.
 function lanczos(mulA!, mulS!, v; niters, lhs=zeros(length(v), 0))
     αs = Float64[]
     βs = Float64[]
