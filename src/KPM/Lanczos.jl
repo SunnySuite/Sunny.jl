@@ -93,6 +93,7 @@ function lanczos(mulA!, mulS!, v; min_iters, resolution=Inf, lhs=zeros(length(v)
     βs = Float64[]
     lhs_adj_Q = Vector{ComplexF64}[]
 
+    v = copy(v)
     vp  = zero(v)
     Sv  = zero(v)
     Svp = zero(v)
