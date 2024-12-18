@@ -125,6 +125,6 @@ function eigbounds(swt, q_reshaped, niters)
     end
 
     v = randn(ComplexF64, 2L)
-    tridiag = lanczos(mulA!, mulS!, v; niters)
+    tridiag, _ = lanczos(mulA!, mulS!, v; niters)
     return eigmin(tridiag), eigmax(tridiag)
 end

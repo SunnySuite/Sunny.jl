@@ -187,3 +187,115 @@ function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::Abstrac
     data = zeros(eltype(swt_kpm.swt.measure), length(energies), length(qpts.qs))
     return intensities!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
 end
+
+
+function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
+    iszero(kT) || error("KPM does not yet support finite kT")
+    qpts = convert(AbstractQPoints, qpts)
+
+    (; swt, lanczos_iters) = swt_kpm
+    (; sys, measure) = swt
+    cryst = orig_crystal(sys)
+
+    isnothing(kernel.fwhm) && error("Cannot determine the kernel fwhm")
+
+    @assert eltype(data) == eltype(measure)
+    @assert size(data) == (length(energies), length(qpts.qs))
+
+    Na = nsites(sys)
+    Ncells = Na / natoms(cryst)
+    Nf = nflavors(swt)
+    L = Nf*Na
+    Avec_pref = zeros(ComplexF64, Na)
+    u = zeros(ComplexF64, Nobs, 2L)
+    v = zeros(ComplexF64, 2L)
+
+    Nobs = size(measure.observables, 1)
+    Ncorr = length(measure.corr_pairs)
+    corr_β = zeros(ComplexF64, Nobs, Nobs)
+    corrbuf = zeros(ComplexF64, Ncorr)
+
+    for (iq, q) in enumerate(qpts.qs)
+        q_reshaped = to_reshaped_rlu(sys, q)
+        q_global = cryst.recipvecs * q
+
+        # Represent each local observable A(q) as a complex vector u(q) that
+        # denotes a linear combination of HP bosons.
+
+        for i in 1:Na
+            r = sys.crystal.positions[i]
+            ff = get_swt_formfactor(measure, 1, i)
+            Avec_pref[i] = exp(2π*im * dot(q_reshaped, r))
+            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
+        end
+
+        if sys.mode == :SUN
+            (; observables_localized) = swt.data::SWTDataSUN
+            N = sys.Ns[1]
+            for μ in 1:Nobs, i in 1:Na
+                O = observables_localized[μ, i]
+                for f in 1:Nf
+                    u[f + (i-1)*Nf, μ]     = Avec_pref[i] * O[f, N]
+                    u[f + (i-1)*Nf + L, μ] = Avec_pref[i] * O[N, f]
+                end
+            end
+        else
+            @assert sys.mode in (:dipole, :dipole_uncorrected)
+            (; sqrtS, observables_localized) = swt.data::SWTDataDipole
+            for μ in 1:Nobs, i in 1:Na
+                O = observables_localized[μ, i]
+                u[i, μ]   = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] + im*O[2])
+                u[i+L, μ] = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] - im*O[2])
+            end
+        end
+
+        # Perform Lanczos calculation
+ 
+        # w = Ĩ v
+        function mulA!(w, v)
+            @views w[1:L]    = +v[1:L]
+            @views w[L+1:2L] = -v[L+1:2L]
+            return w
+        end
+
+        # w = D v
+        function mulS!(w, v)
+            mul_dynamical_matrix!(swt, reshape(w, 1, :), reshape(v, 1, :), [q_reshaped])
+            return w
+        end
+
+        data[iω, iq] .= zero(eltype(data))
+
+        for ξ in 1:Nobs
+            mulA!(v, view(u, :, ξ))
+            tridiag, Q_adj_lhs = lanczos(mulA!, mulS!, v; lhs=u, niters=lanczos_iters)
+
+            (; values, vectors) = eigen(tridiag)
+
+            for (iω, ω) in enumerate(energies)
+                f(x) = kernel(x, ω) * thermal_prefactor(x; kT)
+
+                corr_ξ = Q_adj_lhs' * vectors * Diagonal(f.(values)) * (vectors')[:, 1]
+
+                # Have available all correlations C[:, ξ]. Accumulate C[μ, ξ]
+                # into C[μ, ν] if ξ = ν, or accumulate C[ν, ξ]* into C[ν, μ] if
+                # ξ = μ.
+                corrbuf .= 0
+                for (i, (μ, ν)) in enumerate(measure.corr_pairs)
+                    if ξ == ν
+                        corrbuf[i] += (1/2) * (corr_ξ[μ] / Ncells)
+                    end
+                    if ξ == μ
+                        corrbuf[i] += (1/2) * conj(corr_ξ[ν] / Ncells)
+                    end
+                end
+
+                # Assumes combiner is linear!
+                data[iω, iq] += measure.combiner(q_global, corrbuf)
+            end
+        end
+    end
+
+    return Intensities(cryst, qpts, collect(energies), data)
+end
+
