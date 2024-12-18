@@ -212,7 +212,6 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
 
     Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
-    corr_β = zeros(ComplexF64, Nobs, Nobs)
     corrbuf = zeros(ComplexF64, Ncorr)
 
     for (iq, q) in enumerate(qpts.qs)
@@ -277,7 +276,7 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
 
                 corr_ξ = Q_adj_lhs' * vectors * Diagonal(f.(values)) * (vectors')[:, 1]
 
-                # Have available all correlations C[:, ξ]. Accumulate C[μ, ξ]
+                # Correlations C[:, ξ] available for one ξ. Accumulate C[μ, ξ]
                 # into C[μ, ν] if ξ = ν, or accumulate C[ν, ξ]* into C[ν, μ] if
                 # ξ = μ.
                 corrbuf .= 0
