@@ -1,27 +1,35 @@
 @testitem "Lanczos" begin
     using LinearAlgebra
 
-    N = 200
+    N = 40
     A = hermitianpart(randn(N, N))
-    A = diagm(vcat(ones(N÷2), -ones(N÷2)))
 
     S = randn(N, N)
     S = S' * S
     S = S / eigmax(S)
-    S = S + 0.0I
+    S = S + 1e-2I
 
+    # Check that fast and slow Lanczos implementations match
+
+    lhs = randn(N, 2)
     v = randn(N)
-    ev1 = eigvals(Sunny.lanczos_ref(A*S*A, S, v; niters=10))
+    v /= sqrt(dot(v, S, v))
+    Q, T = Sunny.lanczos_ref(A, S, v; niters=10)
+    ev1 = eigvals(T)
 
-    mulA!(w, v) = (w .= A * S * A * v)
+    mulA!(w, v) = mul!(w, A, v)
     mulS!(w, v) = mul!(w, S, v)
-    ev2 = eigvals(Sunny.lanczos(mulA!, mulS!, copy(v); niters=10))
+    T, Q_adj_lhs = Sunny.lanczos(mulA!, mulS!, copy(v); lhs, niters=10)
+    ev2 = eigvals(T)
 
     @test ev1 ≈ ev2
+    @test Q' * lhs ≈ Q_adj_lhs
 
-    ev3 = extrema(eigvals(Sunny.lanczos_ref(A*S*A, S, v; niters=100)))
-    ev4 = extrema(eigvals((A*S)^2))
-    @test isapprox(collect(ev3), collect(ev4); atol=1e-3)
+    # Check that extremal eigenvalues match to reasonable accuracy
+
+    T, _ = Sunny.lanczos(mulA!, mulS!, copy(v); niters=20)
+    @test isapprox(eigmin(T), eigmin(A * S); atol=1e-3)
+    @test isapprox(eigmax(T), eigmax(A * S); atol=1e-3)
 end
 
 

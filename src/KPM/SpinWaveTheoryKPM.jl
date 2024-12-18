@@ -276,20 +276,25 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
 
                 corr_ξ = Q_adj_lhs' * vectors * Diagonal(f.(values)) * (vectors')[:, 1]
 
-                # Correlations C[:, ξ] available for one ξ. Accumulate C[μ, ξ]
-                # into C[μ, ν] if ξ = ν, or accumulate C[ν, ξ]* into C[ν, μ] if
-                # ξ = μ.
+                # This step assumes that each local observable in the
+                # correlation is Hermitian. In this case, bare correlations
+                # should be symmetric, C[μ, ν] = C[ν, μ]*. The Lanczos
+                # approximation C̃ breaks this symmetry. Restore it by looping
+                # over ξ in 1:Nobs and accumulate Lanczos data C̃[:, ξ] in a
+                # symmetric way. Accumulate C̃[μ, ξ] into C[μ, ν] if ξ = ν. Also
+                # accumulate C̃[ν, ξ]* into C[μ, ν] if ξ = μ. A factor of 1/2
+                # avoids double counting. In the special case that μ = ν, this
+                # assigns real(C̃[μ, μ]) to C[μ, μ] only once.
                 corrbuf .= 0
                 for (i, (μ, ν)) in enumerate(measure.corr_pairs)
-                    if ξ == ν
-                        corrbuf[i] += (1/2) * (corr_ξ[μ] / Ncells)
-                    end
-                    if ξ == μ
-                        corrbuf[i] += (1/2) * conj(corr_ξ[ν] / Ncells)
-                    end
+                    ξ == ν && (corrbuf[i] += (1/2) *     (corr_ξ[μ] / Ncells))
+                    ξ == μ && (corrbuf[i] += (1/2) * conj(corr_ξ[ν] / Ncells))
                 end
 
-                # Assumes combiner is linear!
+                # This step assumes that combiner is linear, so that it is valid
+                # to move the ξ loop outside the data accumulation. One could
+                # relax this assumption by preallocating an array of size (Nω,
+                # Ncorr) to accumulate into corrbuf prior to calling combiner.
                 data[iω, iq] += measure.combiner(q_global, corrbuf)
             end
         end

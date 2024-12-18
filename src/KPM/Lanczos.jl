@@ -4,7 +4,10 @@ function lanczos_ref(A, S, v; niters)
     βs = Float64[]
     vs = typeof(v)[]
 
-    @assert sqrt(real(dot(v, S, v))) ≈ 1 "Initial vector not normalized"
+    c = sqrt(real(dot(v, S, v)))
+    @assert c ≈ 1 "Initial vector not normalized"
+    v /= c
+
     w = A * S * v
     α = real(dot(w, S, v))
     w = w - α * v
@@ -80,7 +83,7 @@ function lanczos(mulA!, mulS!, v; niters, lhs=zeros(length(v), 0))
     @. w = w - α * v
     mulS!(Sw, w)
     push!(αs, α)
-    mul!(view(Q_adj_lhs, 1, :), v', lhs)
+    mul!(view(Q_adj_lhs, 1:1, :), v', lhs)
 
     for i in 2:niters
         β = sqrt(real(dot(w, Sw)))
@@ -94,7 +97,7 @@ function lanczos(mulA!, mulS!, v; niters, lhs=zeros(length(v), 0))
         @. v = vp
         push!(αs, α)
         push!(βs, β)
-        mul!(view(Q_adj_lhs, i, :), v', lhs)
+        mul!(view(Q_adj_lhs, i:i, :), v', lhs)
     end
 
     return SymTridiagonal(αs, βs), Q_adj_lhs
@@ -125,6 +128,9 @@ function eigbounds(swt, q_reshaped, niters)
     end
 
     v = randn(ComplexF64, 2L)
-    tridiag, _ = lanczos(mulA!, mulS!, v; niters)
-    return eigmin(tridiag), eigmax(tridiag)
+    Sv = zero(v)
+    mulS!(Sv, v)
+    v /= sqrt(v' * Sv)
+    T, _ = lanczos(mulA!, mulS!, v; niters)
+    return eigmin(T), eigmax(T)
 end
