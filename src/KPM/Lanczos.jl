@@ -2,12 +2,14 @@
 function lanczos_ref(A, S, v; niters)
     αs = Float64[]
     βs = Float64[]
+    vs = typeof(v)[]
 
-    v /= sqrt(real(dot(v, S, v)))
+    @assert sqrt(real(dot(v, S, v))) ≈ 1 "Initial vector not normalized"
     w = A * S * v
     α = real(dot(w, S, v))
     w = w - α * v
     push!(αs, α)
+    push!(vs, v)
 
     for _ in 2:niters
         β = sqrt(real(dot(w, S, w)))
@@ -19,22 +21,31 @@ function lanczos_ref(A, S, v; niters)
         v = vp
         push!(αs, α)
         push!(βs, β)
+        push!(vs, v)
     end
 
-    return SymTridiagonal(αs, βs)
+    Q = reduce(hcat, vs)
+    T = SymTridiagonal(αs, βs)
+    return Q, T
 end
 
 
-
-# Use Lanczos iterations to find a truncated tridiagonal representation of A S,
-# up to similarity transformation. Here, A is any Hermitian matrix, while S is
-# both Hermitian and positive definite. Traditional Lanczos uses the identity
-# matrix, S = I. The extension to non-identity matrices S is as follows: Each
-# matrix-vector product A v becomes A S v, and each vector inner product w† v
-# becomes w† S v. The implementation below follows the notation of Wikipedia,
-# and is the most stable of the four variants considered by Paige [1]. Each
-# Lanczos iteration requires only one matrix-vector multiplication for A and S,
-# respectively.
+# Apply Lanczos iterations to a Hermitian matrix A, with the option to specify
+# an inner-product measure S that must be both Hermitian and positive definite.
+# Loosely speaking, Lanczos finds a low-rank approximant A S ≈ Q T Q† S, where T
+# is tridiagonal and Q is orthogonal in the measure S, i.e. Q† S Q = I. The
+# first column of Q is the initial vector v. The approximant is useful purposes
+# of multiplying by v. For example, f(A S) v ≈ Q f(T) e₁ is a near-optimal
+# approximation for any Krylov space method.
+#
+# Returns T, as well as Q† lhs, if left-hand side vectors are specified.
+#
+# Traditional Lanczos uses the identity measure, S = I. The extension to
+# non-identity matrices S is implemented as follows: Each matrix-vector product
+# A v becomes A S v, and each vector inner product w† v becomes w† S v. The
+# implementation below follows the notation of Wikipedia, and is the most stable
+# of the four variants considered by Paige [1]. Each Lanczos iteration requires
+# only one matrix-vector multiplication for A and S, respectively.
 
 # Similar generalizations of Lanczos have been considered in [2] and [3].
 #
@@ -44,7 +55,7 @@ end
 # https://doi.org/10.1090/s0025-5718-1982-0669648-0
 # 3. M. Grüning, A. Marini, X. Gonze, Comput. Mater. Sci. 50, 2148-2156 (2011),
 # https://doi.org/10.1016/j.commatsci.2011.02.021.
-function lanczos(mulA!, mulS!, v; niters)
+function lanczos(mulA!, mulS!, v; niters, lhs=zeros(length(v), 0))
     αs = Float64[]
     βs = Float64[]
 
@@ -53,9 +64,11 @@ function lanczos(mulA!, mulS!, v; niters)
     Svp = zero(v)
     w   = zero(v)
     Sw  = zero(v)
+    Q_adj_lhs = zeros(niters, size(lhs, 2))
 
     mulS!(Sv, v)
     c = sqrt(real(dot(v, Sv)))
+    @assert c ≈ 1 "Initial vector not normalized"
     @. v /= c
     @. Sv /= c
 
@@ -64,8 +77,9 @@ function lanczos(mulA!, mulS!, v; niters)
     @. w = w - α * v
     mulS!(Sw, w)
     push!(αs, α)
+    mul!(view(Q_adj_lhs, 1, :), v', lhs)
 
-    for _ in 2:niters
+    for i in 2:niters
         β = sqrt(real(dot(w, Sw)))
         iszero(β) && break
         @. vp = w / β
@@ -77,9 +91,10 @@ function lanczos(mulA!, mulS!, v; niters)
         @. v = vp
         push!(αs, α)
         push!(βs, β)
+        mul!(view(Q_adj_lhs, i, :), v', lhs)
     end
 
-    return SymTridiagonal(αs, βs)
+    return SymTridiagonal(αs, βs), Q_adj_lhs
 end
 
 
