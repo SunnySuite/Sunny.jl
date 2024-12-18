@@ -258,7 +258,7 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
             return w
         end
 
-        resolution = (kernel.fwhm/2) / (-log10(tol))
+        resolution = (kernel.fwhm/2) / max(-log10(tol), 0)
 
         for ξ in 1:Nobs
             mulA!(v, view(u, :, ξ))
