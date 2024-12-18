@@ -2,24 +2,16 @@
     SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol)
 
 A variant of [`SpinWaveTheory`](@ref) that uses the kernel polynomial method
-(KPM) to perform [`intensities`](@ref) calculations [1]. Instead of explicitly
-diagonalizing the dynamical matrix, KPM approximates intensities using
-polynomial expansion truncated at order ``M``. The reduces the computational
-cost from ``𝒪(N^3)`` to ``𝒪(N M)``, which is favorable for large system sizes
-``N``.
+(KPM) to calculate [`intensities`](@ref) [1]. This method avoids direct matrix
+diagonalization, which scales cubically in the system size ``N``. Instead, using
+``M`` iterative matrix-vector multiplications, the cost becomes ``𝒪(N M +
+M^2)``. This provides a very significant acceleration when ``N`` is large.
 
-The polynomial order ``M`` will be determined from the line broadening kernel
-and the specified error tolerance `tol`. Specifically, for each wavevector,
-``M`` scales like the spectral bandwidth of excitations, divided by the energy
-resolution of the broadening kernel, times the negative logarithm of `tol`.
-
-The error tolerance `tol` should be tuned empirically for each calculation.
-Reasonable starting points are `1e-1` (more speed) or `1e-2` (more accuracy).
-
-!!! warning "Missing intensity at small quasi-particle energy"  
-    The KPM-calculated intensities are unreliable at small energies ``ω``. In
-    particular, KPM may mask intensities that arise near the Goldstone modes of
-    an ordered state with continuous symmetry.
+The number of iterations is typically not too large: `M ≈ -2 log10(tol) Δϵ /
+fwhm` where `Δϵ` is the estimated spectral bandwidth of excitations, `fwhm` is
+the full width at half maximum of the broadening kernel, and `tol` is a
+dimensionless tolerance parameter. Good choices are `0.05` (more speed) or
+`0.01` (more accuracy).
 
 ## References
 
@@ -185,15 +177,15 @@ end
 function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
     qpts = convert(AbstractQPoints, qpts)
     data = zeros(eltype(swt_kpm.swt.measure), length(energies), length(qpts.qs))
+    # return intensities!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
     return intensities2!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
 end
 
 
 function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
-    iszero(kT) || error("KPM does not yet support finite kT")
     qpts = convert(AbstractQPoints, qpts)
 
-    (; swt, lanczos_iters) = swt_kpm
+    (; swt, tol, lanczos_iters) = swt_kpm
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
 
@@ -266,12 +258,22 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
             return w
         end
 
+        resolution = (kernel.fwhm/2) / (-log10(tol))
+
         for ξ in 1:Nobs
             mulA!(v, view(u, :, ξ))
             mulS!(Sv, v)
             c = sqrt(Sv' * v)
             v ./= c
-            tridiag, lhs_adj_Q = lanczos(mulA!, mulS!, v; lhs=u, niters=lanczos_iters)
+            tridiag, lhs_adj_Q = try
+                lanczos(mulA!, mulS!, v; lhs=u, min_iters=lanczos_iters, resolution, verbose)
+            catch e
+                if e.msg == "S is not a positive definite measure"
+                    rethrow(ErrorException("Not an energy-minimum; wavevector q = $q unstable."))
+                else
+                    rethrow()
+                end
+            end
 
             (; values, vectors) = eigen(tridiag)
 
@@ -306,4 +308,3 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
 
     return Intensities(cryst, qpts, collect(energies), data)
 end
-

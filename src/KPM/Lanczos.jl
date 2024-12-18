@@ -1,4 +1,26 @@
-# Reference implementation, without consideration of speed.
+# Reference implementation of the generalized Lanczos method, without
+# consideration of speed. The input A can be any Hermitian matrix. The optional
+# argument S is an inner-product that must be both Hermitian and positive
+# definite. Intuitively, Lanczos finds a low-rank approximant A S ≈ Q T Q† S,
+# where T is tridiagonal and Q is orthogonal in the sense that Q† S Q = I. The
+# first column of Q is the initial vector v, which must be normalized. The
+# Lanczos method is useful in two ways. First, eigenvalues of T are
+# representative of extremal eigenvalues of A (in an appropriate S-measure
+# sense). Second, one obtains a very good approximation to the matrix-vector
+# product, f(A S) v ≈ Q f(T) e₁, valid for any function f [1].
+# 
+# The generalization of Lanczos to an arbitrary measure S is implemented as
+# follows: Each matrix-vector product A v is replaced by A S v, and each vector
+# inner product w† v is replaced by w† S v. Similar generalizations of Lanczos
+# have been considered in [2] and [3].
+#
+# 1. N. Amsel, T. Chen, A. Greenbaum, C. Musco, C. Musco, Near-optimal
+#    approximation of matrix functions by the Lanczos method, (2013)
+#    https://arxiv.org/abs/2303.03358v2.
+# 2. H. A. van der Vorst, Math. Comp. 39, 559-561 (1982),
+#    https://doi.org/10.1090/s0025-5718-1982-0669648-0
+# 3. M. Grüning, A. Marini, X. Gonze, Comput. Mater. Sci. 50, 2148-2156 (2011),
+#    https://doi.org/10.1016/j.commatsci.2011.02.021.
 function lanczos_ref(A, S, v; niters)
     αs = Float64[]
     βs = Float64[]
@@ -33,35 +55,40 @@ function lanczos_ref(A, S, v; niters)
 end
 
 
-# Apply Lanczos iterations to a Hermitian matrix A, with the option to specify
-# an inner-product measure S that must be both Hermitian and positive definite.
-# Loosely speaking, Lanczos finds a low-rank approximant A S ≈ Q T Q† S, where T
-# is tridiagonal and Q is orthogonal in the measure S, i.e. Q† S Q = I. The
-# first column of Q is the initial vector v. The approximant is useful purposes
-# of multiplying by v. For example, f(A S) v ≈ Q f(T) e₁ is a near-optimal
-# approximation within the Krylov space, for any function f [1]
+# An optimized implementation of the generalized Lanczos method. See
+# `lanczos_ref` for explanation, and a reference implementation. This optimized
+# implementation follows "the most stable" of the four variants considered by
+# Paige [1], as listed on Wikipedia. Here, however, we allow for an arbitary
+# measure S. In practice, this means that each matrix-vector product A v is
+# replaced by A S v, and each inner product w† v is replaced by w† S v.
 #
-# Returns T, as well as Q† lhs, if left-hand side vectors are specified.
+# In this implementation, each Lanczos iteration requires only one matrix-vector
+# multiplication involving A and S, respectively. 
 #
-# The implementation below follows the notation of Wikipedia, and is the most
-# stable of the four variants considered by Paige [2].
+# Details:
 #
-# The generalization to non-identity matrices S is implemented as follows: Each
-# matrix-vector product A v becomes A S v, and each vector inner product w† v
-# becomes w† S v. Each Lanczos iteration requires only one matrix-vector
-# multiplication for A and S, respectively. Similar generalizations of Lanczos
-# have been considered in [3] and [4].
+# * The return value is a pair, (T, lhs† Q). The symbol `lhs` denotes "left-hand
+#   side" column vectors, packed horizontally into a matrix. If the `lhs`
+#   argument is ommitted, its default value will be a matrix of width 0.
+# * If the initial vector `v` is not normalized, then this normalization will be
+#   performed automatically, and the scale `√v S v` will be absorbed into the
+#   return value `lhs† Q`.
+# * The number of iterations will never exceed length(v). If this limit is hit
+#   then, mathematically, the Krylov subspace should be complete, and the matrix
+#   T should be exactly similar to the matrix A S. In practice, however,
+#   numerical error at finite precision may be severe. Further testing is
+#   required to determine whether the Lanczos method is appropriate in this
+#   case, where the matrices have modest dimension. (Direct diagonalization may
+#   be preferable.)
+# * After `min_iters` iterations, this procedure will estimate the spectral
+#   bandwidth Δϵ between extreme eigenvalues of T. Then `Δϵ / resolution` will
+#   be an upper bound on the total number of iterations (which includes the
+#   initial `min_iters` iterations as well as subsequent ones).
 #
-# 1. N. Amsel, T. Chen, A. Greenbaum, C. Musco, C. Musco, Near-optimal
-#    approximation of matrix functions by the Lanczos method, (2013)
-#    https://arxiv.org/abs/2303.03358v2.
-# 2. C. C. Paige, IMA J. Appl. Math., 373-381 (1972),
+# 1. C. C. Paige, IMA J. Appl. Math., 373-381 (1972),
 #    https://doi.org/10.1093%2Fimamat%2F10.3.373.
-# 3. H. A. van der Vorst, Math. Comp. 39, 559-561 (1982),
-#    https://doi.org/10.1090/s0025-5718-1982-0669648-0
-# 4. M. Grüning, A. Marini, X. Gonze, Comput. Mater. Sci. 50, 2148-2156 (2011),
-#    https://doi.org/10.1016/j.commatsci.2011.02.021.
-function lanczos(mulA!, mulS!, v; niters, lhs=zeros(length(v), 0))
+
+function lanczos(mulA!, mulS!, v; min_iters, resolution=Inf, lhs=zeros(length(v), 0), verbose=false)
     αs = Float64[]
     βs = Float64[]
     lhs_adj_Q = Vector{ComplexF64}[]
@@ -85,9 +112,34 @@ function lanczos(mulA!, mulS!, v; niters, lhs=zeros(length(v), 0))
     push!(αs, α)
     push!(lhs_adj_Q, lhs' * v)
 
-    for _ in 2:niters
-        β = sqrt(real(dot(w, Sw)))
-        iszero(β) && break
+    # The maximum number of iterations is length(v)-1, because that is the
+    # dimension of the full vector space. Break out early if niters has been
+    # reached, which will be set according to the spectral bounds Δϵ after
+    # iteration i == min_iters.
+    niters = typemax(Int)
+    for i in 1:length(v)-1
+        if i == min_iters
+            T = SymTridiagonal(αs, βs)
+            Δϵ = eigmax(T) - eigmin(T)
+            niters = max(min_iters, fld(Δϵ, resolution))
+            niters += mod(niters, 2) # Round up to nearest even integer
+            if verbose
+                println("Δϵ=$Δϵ, niters=$niters")
+            end
+        end
+
+        i >= niters && break
+
+        # Let β = w† S w. If β < 0 then S is not a valid positive definite
+        # measure. If β = 0, this would formally indicate that v is a linear
+        # combination of only a subset of the eigenvectors of A S. In this case,
+        # it is valid to break early for purposes of approximating the
+        # matrix-vector product f(A S) v. 
+        β² = real(dot(w, Sw))
+        iszero(β²) && break
+        β² < 0 && error("S is not a positive definite measure")
+
+        β = sqrt(β²)
         @. vp = w / β
         @. Svp = Sw / β
         mulA!(w, Svp)
@@ -131,6 +183,6 @@ function eigbounds(swt, q_reshaped, niters)
     Sv = zero(v)
     mulS!(Sv, v)
     v /= sqrt(v' * Sv)
-    T, _ = lanczos(mulA!, mulS!, v; niters)
+    T, _ = lanczos(mulA!, mulS!, v; min_iters=niters)
     return eigmin(T), eigmax(T)
 end
