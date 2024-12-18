@@ -279,7 +279,7 @@ function energy(sys::System{N}) where N
     if !isnothing(sys.ewald)
         E += ewald_energy(sys)
     end
-    
+
     return E
 end
 

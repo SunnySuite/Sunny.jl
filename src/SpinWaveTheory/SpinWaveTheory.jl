@@ -249,13 +249,11 @@ function swt_data(sys::System{0}, measure)
 
     # Operators for rotating vectors into local frame
     Rs = map(1:Na) do i
-        # Direction n of dipole will define rotation R that aligns the
-        # quantization axis.
-        n = normalize(sys.dipoles[1, 1, 1, i])
+        # Defines quantization axis.
+        n = sys.dipoles[1, 1, 1, i]
 
-        # Build matrix that rotates from z to n.
+        # Build rotation R satisfying R*z ∝ n.
         R = rotation_between_vectors([0, 0, 1], n)
-        @assert R * [0, 0, 1] ≈ n
 
         # Rotation about the quantization axis is a U(1) gauge symmetry. The
         # angle θ below, for each atom, is arbitrary. We include this rotation
