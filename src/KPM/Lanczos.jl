@@ -64,13 +64,13 @@ end
 function lanczos(mulA!, mulS!, v; niters, lhs=zeros(length(v), 0))
     αs = Float64[]
     βs = Float64[]
+    lhs_adj_Q = Vector{ComplexF64}[]
 
     vp  = zero(v)
     Sv  = zero(v)
     Svp = zero(v)
     w   = zero(v)
     Sw  = zero(v)
-    Q_adj_lhs = zeros(niters, size(lhs, 2))
 
     mulS!(Sv, v)
     c = sqrt(real(dot(v, Sv)))
@@ -83,9 +83,9 @@ function lanczos(mulA!, mulS!, v; niters, lhs=zeros(length(v), 0))
     @. w = w - α * v
     mulS!(Sw, w)
     push!(αs, α)
-    mul!(view(Q_adj_lhs, 1:1, :), v', lhs)
+    push!(lhs_adj_Q, lhs' * v)
 
-    for i in 2:niters
+    for _ in 2:niters
         β = sqrt(real(dot(w, Sw)))
         iszero(β) && break
         @. vp = w / β
@@ -97,10 +97,10 @@ function lanczos(mulA!, mulS!, v; niters, lhs=zeros(length(v), 0))
         @. v = vp
         push!(αs, α)
         push!(βs, β)
-        mul!(view(Q_adj_lhs, i:i, :), v', lhs)
+        push!(lhs_adj_Q, lhs' * v)
     end
 
-    return SymTridiagonal(αs, βs), Q_adj_lhs
+    return SymTridiagonal(αs, βs), reduce(hcat, lhs_adj_Q)
 end
 
 

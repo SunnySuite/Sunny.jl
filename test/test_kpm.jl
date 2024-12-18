@@ -19,11 +19,11 @@
 
     mulA!(w, v) = mul!(w, A, v)
     mulS!(w, v) = mul!(w, S, v)
-    T, Q_adj_lhs = Sunny.lanczos(mulA!, mulS!, copy(v); lhs, niters=10)
+    T, lhs_adj_Q = Sunny.lanczos(mulA!, mulS!, copy(v); lhs, niters=10)
     ev2 = eigvals(T)
 
     @test ev1 ≈ ev2
-    @test Q' * lhs ≈ Q_adj_lhs
+    @test lhs' * Q ≈ lhs_adj_Q
 
     # Check that extremal eigenvalues match to reasonable accuracy
 

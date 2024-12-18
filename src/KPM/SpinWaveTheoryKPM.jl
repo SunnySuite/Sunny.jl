@@ -185,7 +185,7 @@ end
 function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
     qpts = convert(AbstractQPoints, qpts)
     data = zeros(eltype(swt_kpm.swt.measure), length(energies), length(qpts.qs))
-    return intensities!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
+    return intensities2!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
 end
 
 
@@ -201,18 +201,21 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
 
     @assert eltype(data) == eltype(measure)
     @assert size(data) == (length(energies), length(qpts.qs))
+    fill!(data, zero(eltype(data)))
 
     Na = nsites(sys)
     Ncells = Na / natoms(cryst)
     Nf = nflavors(swt)
     L = Nf*Na
     Avec_pref = zeros(ComplexF64, Na)
-    u = zeros(ComplexF64, Nobs, 2L)
-    v = zeros(ComplexF64, 2L)
 
     Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
     corrbuf = zeros(ComplexF64, Ncorr)
+
+    u = zeros(ComplexF64, 2L, Nobs)
+    v = zeros(ComplexF64, 2L)
+    Sv = zeros(ComplexF64, 2L)
 
     for (iq, q) in enumerate(qpts.qs)
         q_reshaped = to_reshaped_rlu(sys, q)
@@ -263,18 +266,19 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
             return w
         end
 
-        data[iω, iq] .= zero(eltype(data))
-
         for ξ in 1:Nobs
             mulA!(v, view(u, :, ξ))
-            tridiag, Q_adj_lhs = lanczos(mulA!, mulS!, v; lhs=u, niters=lanczos_iters)
+            mulS!(Sv, v)
+            c = sqrt(Sv' * v)
+            v ./= c
+            tridiag, lhs_adj_Q = lanczos(mulA!, mulS!, v; lhs=u, niters=lanczos_iters)
 
             (; values, vectors) = eigen(tridiag)
 
             for (iω, ω) in enumerate(energies)
                 f(x) = kernel(x, ω) * thermal_prefactor(x; kT)
 
-                corr_ξ = Q_adj_lhs' * vectors * Diagonal(f.(values)) * (vectors')[:, 1]
+                corr_ξ = c * lhs_adj_Q * vectors * Diagonal(f.(values)) * (vectors'[:, 1])
 
                 # This step assumes that each local observable in the
                 # correlation is Hermitian. In this case, bare correlations
