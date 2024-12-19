@@ -34,10 +34,10 @@ Sunny.step_ensemble!(PT, n_therm, exch_interval)
 
 # Start PT simulation
 for _ in 1:n_measure
-    # Run some sweeps and replica exchanges
+    ## Run some sweeps and replica exchanges
     Sunny.step_ensemble!(PT, measure_interval, exch_interval)
 
-    # Measurements - assuming LocalSampler used
+    ## Measurements - assuming LocalSampler used
     for (j, sampler) in enumerate(PT.samplers)
         E_hists[j][sampler.ΔE] += 1
     end
