@@ -65,11 +65,11 @@ function plot_triangular_plaquettes(f, frames;
     colormap=:RdBu, colorrange=(-0.5, 0.5), offset_spacing=1,
     numcols=nothing, texts=nothing, force_aspect=true, text_offset = (0.0, 0.0), fig_kwargs...
 )
-    # Consolidate lattice info and panel layout
+    ## Consolidate lattice info and panel layout
     numpanels = length(frames)
     isnothing(numcols) && (numcols = numpanels)
     numrows = floor(Int, (numpanels - 1) / numcols) + 1
-    v₁, v₂ = [1, 0, 0], [-1/2, √3/2, 0] # Derives from lattice_vectors(a,a,c,90,90,120)
+    v₁, v₂ = [1, 0, 0], [-1/2, √3/2, 0] ## Derives from lattice_vectors(a,a,c,90,90,120)
     nx, ny = size(frames[1])[1:2]
     v₁, v₂ = Point3f(v₁), Point3f(v₂)
     x, y = [1.0, 0, 0], [0.0, 1, 0]
@@ -79,7 +79,7 @@ function plot_triangular_plaquettes(f, frames;
     y_panel = -ny * v₂
     aspect = aspect_ratio(x_panel, y_panel, x_offset, y_offset, numrows, numcols; adhoc_offset=text_offset)
 
-    # Set up figure
+    ## Set up figure
     fig = Figure(; fig_kwargs...)
     if force_aspect
         ax = Axis(fig[1, 1:length(frames)]; aspect)
@@ -89,7 +89,7 @@ function plot_triangular_plaquettes(f, frames;
     hidespines!(ax)
     hidedecorations!(ax)
 
-    # Plot panels
+    ## Plot panels
     plaq1(p) = Makie.Polygon(Point2f.([p, p+v₁+v₂, p+v₂]))
     plaq2(p) = Makie.Polygon(Point2f.([p, p+v₁, p+v₂+v₁]))
     for (i, frame) ∈ enumerate(frames)

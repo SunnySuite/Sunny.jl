@@ -26,7 +26,7 @@ exch_interval = 100
 for i in 1:n_iters
     for mcs in 1:max_hchecks_per_iter
         Sunny.step_ensemble!(REWL, hcheck_interval, exch_interval)
-        # If flat, go to next iteration
+        ## If flat, go to next iteration
         flat = fill(false, length(REWL.samplers))
         @Threads.threads for i in eachindex(REWL.samplers)
             flat[i] = Sunny.check_flat(REWL.samplers[i].hist; p=0.5)

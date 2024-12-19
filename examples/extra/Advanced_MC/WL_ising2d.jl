@@ -20,14 +20,14 @@ nsweeps = 1_000
 for i in 1:n_iters
     for mcs in 1:max_hchecks_per_iter
         Sunny.step_ensemble!(WL, nsweeps)
-        # If flat, go to next iteration
+        ## If flat, go to next iteration
         if Sunny.check_flat(WL.hist; p=0.5)
             break
         end
     end
     println("iteration $i complete.")
     Sunny.reset!(WL.hist)
-    # Can change to 1/t algorithm or other
+    ## Can change to 1/t algorithm or other
     WL.ln_f /= 2
 end
 
