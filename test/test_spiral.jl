@@ -49,42 +49,48 @@ end
 
 
 @testitem "Canted AFM" begin
-    function test_canted_afm(; s)
-        J, D, h = 1.0, 0.54, 0.76
-        rcs = Sunny.rcs_factors(s)[2]
-        a = 1
-        latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
-        positions = [[0, 0, 0]]
-        cryst = Crystal(latvecs, positions)
-
-        sys = System(cryst, [1 => Moment(; s, g=-1)], :dipole)
-        set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
-        set_onsite_coupling!(sys, S -> (D/rcs)*S[3]^2, 1)
-        set_field!(sys, [0, 0, h])
-
-        k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
-        @test k[1:2] ≈ [0.5, 0.5]
-
-        axis = [0, 0, 1]
-        randomize_spins!(sys)
-        k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
-        @test k[1:2] ≈ [0.5, 0.5]
-        @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
-
-        q = [0.12, 0.23, 0.34]
-        swt = SpinWaveTheorySpiral(sys; measure=nothing, k, axis)
-        ϵq_num = dispersion(swt, [q])
-
-        # Analytical
-        θ = acos(h / (2s*(4J+D)))
-        Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
-        ϵq_ana = real(√Complex(4J*s*(4J*s+2D*s*sin(θ)^2) + cos(2θ)*(Jq*s)^2 + 2s*Jq*(4J*s*cos(θ)^2 + D*s*sin(θ)^2)))
-
-        @test ϵq_num[begin, 1] ≈ ϵq_ana
-    end
-
-    test_canted_afm(s=1)
-    test_canted_afm(s=2)
+    s = 3/2
+    J, D, h = 1.0, 0.54, 0.76
+    rcs = Sunny.rcs_factors(s)[2]
+    a = 1
+    latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
+    positions = [[0, 0, 0]]
+    cryst = Crystal(latvecs, positions)
+    
+    sys = System(cryst, [1 => Moment(; s, g=-1)], :dipole)
+    set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
+    set_onsite_coupling!(sys, S -> (D/rcs)*S[3]^2, 1)
+    set_field!(sys, [0, 0, h])
+    
+    k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
+    @test k[1:2] ≈ [0.5, 0.5]
+    
+    axis = [0, 0, 1]
+    randomize_spins!(sys)
+    k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
+    @test k[1:2] ≈ [0.5, 0.5]
+    @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
+    
+    q = [0.12, 0.23, 0.34]
+    swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys), k, axis)
+    res = intensities_bands(swt, [q])
+    
+    # Analytical check on dispersion
+    
+    θ = acos(h / (2s*(4J+D)))
+    Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
+    disp_ref = real(√Complex(4J*s*(4J*s+2D*s*sin(θ)^2) + cos(2θ)*(Jq*s)^2 + 2s*Jq*(4J*s*cos(θ)^2 + D*s*sin(θ)^2)))
+    @test res.disp[1] ≈ res.disp[2] ≈ disp_ref
+    
+    # Same calculation with supercell
+    
+    sys2 = repeat_periodically_as_spiral(sys, (2, 2, 1); k, axis)
+    swt2 = SpinWaveTheory(sys2; measure=ssf_trace(sys2))
+    res2 = intensities_bands(swt2, [q])
+    @test res.disp[1] ≈ res.disp[2] ≈ res2.disp[2]
+    @test res.data[1] + res.data[2] ≈ res2.data[2]
+    @test res.disp[end] ≈ res2.disp[end]
+    @test res.data[end] ≈ res2.data[end]    
 end
 
 
