@@ -244,7 +244,7 @@ enables the faithful representation of the crystal field levels associated with
 an ion, or, equivalently, the implementation of completely general single-ion
 anisotropies. The generalization may also be used to capture local entanglement
 effects, where this entanglement may be between the spin and orbital degrees of
-freedom of a single site, or within a cluster of spins on different sites. 
+freedom of a single site or within a cluster of spins on different sites. 
 
 The SU(_N_) formalism applies equally to LSWT calculations [@muniz:2014] and
 classical spin dynamics [@zhang_batista:2021]. Users can access this formalism
