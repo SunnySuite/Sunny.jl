@@ -58,11 +58,11 @@ authors:
 
   - name: Harry Lane
     orcid: 
-    affiliation: "11"
+    affiliation: "11, 12, 13"
 
   - name: Ying Wai Li
     orcid: 0000-0003-0124-8262
-    affiliation: "12"
+    affiliation: "14"
 
   - name: Xiaojian Bai 
     orcid: 0000-0002-3974-626X 
@@ -105,9 +105,13 @@ affiliations:
    index: 10 
  - name: Department of Physics and Astronomy, University of Manchester 
    index: 11 
- - name: Computer, Computational, and Statistical Sciences Division, Los Alamos National Laboratory
+ - name: The University of Manchester at Harwell, University of Manchester 
    index: 12
-date: 12 December 2024
+ - name: School of Physics and Astronomy, University of St Andrews 
+   index: 13
+ - name: Computer, Computational, and Statistical Sciences Division, Los Alamos National Laboratory
+   index: 14
+date: 23 December 2024
 bibliography: paper.bib
 ---
 
@@ -162,21 +166,24 @@ Distinguishing features of Sunny include:
   can all be applied to the same system specification. 
 - Implementation of the SU(_N_) coherent state formalism for classical and
   semiclassical calculations.
-- An interface tailored toward the needs of scattering scientists.
+- An interface tailored toward the needs of scattering scientists, with tools
+  for integrating scattering intensities over regions of reciprocal space.
 - Code written entirely in Julia, a language that can achieve speeds comparable
-  to C++ or Fortran while maintaining the usability of a scripting language. 
-- A well documented codebase, an extensive collection of correctness tests, and
-  a website featuring many tutorials.
+  to C++ or Fortran while offering a syntax and level of interactivity that will
+  be familiar to users of Python and Matlab.
+- A well documented codebase, an extensive collection of correctness tests, a
+  website featuring many tutorials, and an active Slack channel where users can
+  ask questions.
 
 There are a number of existing codes that can calculate
 $\mathcal{S}(\mathbf{q},\omega)$ using linear spin wave theory (LSWT), some of
 which have served as inspiration to the Sunny project [@rotter:2004;
-@SpinWaveGenie; @petit:2016; @li:2024]. The symmetry analysis tools of SpinW in
-particular have served as a model [@toth:2015]. There are also codes that
-perform classical spin simulations using Landau-Lifshitz (LL) dynamics
-[@muller:2019; @evans:2014]. Sunny is unique in offering both approaches and
-generalizing them through a formalism based on SU(_N_) coherent states
-[@muniz:2014; @zhang_batista:2021]. Sunny additionally permits completely
+@SpinWaveGenie; @petit:2016; weber:2016; @li:2024]. The symmetry analysis tools
+of SpinW in particular have served as a model [@toth:2015]. There are also codes
+that perform classical spin simulations using Landau-Lifshitz (LL) dynamics
+[@muller:2019; @evans:2014; @uppasd:2024]. Sunny is unique in offering both
+approaches and generalizing them through a formalism based on SU(_N_) coherent
+states [@muniz:2014; @zhang_batista:2021]. Sunny additionally permits completely
 general single-ion anisotropies and coupling of multipolar moments; provides an
 efficient implementation of long-range dipole-dipole interactions; automates the
 application of a number of quantum renormalizations [@dahlbom:2023]; and offers
@@ -204,11 +211,15 @@ analysis of crystals -- including Spglib [@togo:2024], Brillouin.jl
 facilitates the process of determining the complete set of interactions allowed
 by spacegroup symmetries. Similarly, any interaction specified on a site or bond
 will be automatically propagated to all symmetry-equivalent sites and bonds, as
-required by the spacegroup symmetries. Finally, the symmetry information enables
-convenient specification of paths and slices through reciprocal space, aiding
-visualization and comparison to experimental data. All these tools can be
-applied just as easily to a user-specified crystal or to a crystal loaded from
-an industry-standard CIF file [@hall:1991]. 
+required by the spacegroup symmetries. Models may also be specified according to
+symmetry properties and subsequently made "inhomogenous," allowing the arbitrary
+modification of pair interactions and site properties without regard to symmetry
+constraints. This greatly facilitates the modeling of systems exhibiting
+chemical disorder. Finally, the symmetry information enables convenient
+specification of paths and slices through reciprocal space, aiding visualization
+and comparison to experimental data. All these tools can be applied just as
+easily to a user-specified crystal or to a crystal loaded from an
+industry-standard CIF file [@hall:1991]. 
 
 ![a) Ground state of $\mathrm{FeI}_{2}$, found using Sunny's `minimize_energy!` function and visualized with `plot_spins`. b) The crystal of $\mathrm{FeI}_2$ visualized with the `view_crystal` function. Hovering the cursor over a bond reveals the exchange interaction, if already assigned, or a general expression for all symmetry-allowed interactions. \label{fig:symmetry}](figs/FigInteractions.png)
 
@@ -227,18 +238,22 @@ predicted results of scattering experiments \autoref{fig:Sqw}.
 Traditional classical and semiclassical approaches to spin dynamics are based on
 the assignment of a classical dipole to each lattice site. Recent theoretical
 work has generalized this picture, replacing dipoles with richer objects, namely
-SU(_N_) coherent states. Within this formalism, quantum spin-$s$ is faithfully
-represented as a linear combination of the $N = 2s + $ possible levels.
-Capturing such local quantum effects is particularly important for describing
-systems characterized by strong onsite anisotropies or local entanglement
-effects. The SU(_N_) generalization applies equally to LSWT calculations
-[@muniz:2014] and classical spin dynamics [@zhang_batista:2021]. Users can
-access this formalism simply by setting the "mode" of a spin system to `:SUN`.
-Sunny also offers a `:dipole` mode, which is similar to the traditional
-classical approach but includes quantum renormalizations of biquadratic and
-single-ion anisotropy terms [@dahlbom:2023]. Finally, there is a mode that
-implements the traditional approach without any additional corrections,
-`:dipole_uncorrected`. Most Sunny features are supported in all modes. 
+SU(_N_) coherent states. Within this formalism, a quantum spin-$s$ is faithfully
+represented as a linear combination of the $N = 2s + 1$ possible levels. This
+enables the faithful representation of the crystal field levels associated with
+an ion, or, equivalently, the implementation of completely general single-ion
+anisotropies. The generalization may also be used to capture local entanglement
+effects, where this entanglement may be between the spin and orbital degrees of
+freedom of a single site, or within a cluster of spins on different sites. 
+
+The SU(_N_) formalism applies equally to LSWT calculations [@muniz:2014] and
+classical spin dynamics [@zhang_batista:2021]. Users can access this formalism
+simply by setting the "mode" of a spin system to `:SUN`. Sunny also offers a
+`:dipole` mode, which is similar to the traditional classical approach but
+includes quantum renormalizations of biquadratic and single-ion anisotropy terms
+[@dahlbom:2023]. Finally, there is a mode that implements the traditional
+approach without any additional corrections, `:dipole_uncorrected`. Most Sunny
+features are supported in all modes. 
 
 ![_Left_: Scattering intensities of $\mathrm{FeI}_2$ as measured on the SEQUOIA instrument at the Spallation Neutron Source, Oak Ridge National Laboratory [@bai:2021]. _Right_: Predicted scattering intensities calculated with Sunny's SU(_N_) linear spin wave solver. The figure was generated with Sunny's data retrieval and plotting functions. \label{fig:Sqw}](figs/FigSqw.png)
 
@@ -289,22 +304,32 @@ to integrate Sunny into the Calvera platform for neutron data analysis
 analysis techniques, building on its mature model specification and data
 retrieval features. Current efforts are directed at supporting: the
 self-consistent Gaussian approximation for diffuse scattering, enabling
-functionality inspired by [@paddison:2024]; non-perturbative corrections to LSWT
-for the modeling of continua and bound states, which can be probed in INS and
-terahertz spectroscopy experiments [@bai:2023; @legros:2021]; and observables
-relevant to RIXS experiments. 
+functionality inspired by [@paddison:2024]; the modeling of local entanglement
+effects generated by spin-orbit coupling or strongly coupled clusters of spins;
+non-perturbative corrections to LSWT for the modeling of continua and bound
+states, which can be probed in INS and terahertz spectroscopy experiments
+[@bai:2023; @legros:2021]; and observables relevant to RIXS experiments. 
 
 
 
 # Acknowledgements
 
-We thank Mosé Giordano and Simon Danisch for valuable discussions.
-This work was supported by the U.S. Department of Energy, Office of Science,
-Office of Basic Energy Sciences, under Award Numbers DE-SC0022311,
-DE-SC-0018660, and DE-SC0025426. Support was also provided by 
-the LANL LDRD program. C.D.B. acknowledges partial support from the National
-Science Foundation Materials Research Science and Engineering Center program
-through the UT Knoxville Center for Advanced Materials and Manufacturing
-(DMR-2309083).
+We thank Mosé Giordano and Simon Danisch for valuable discussions. This work was
+supported by the U.S. Department of Energy, Office of Science, Office of Basic
+Energy Sciences, under Award Numbers DE-SC0022311, DE-SC-0018660, and
+DE-SC0025426. The work was also sponsored by the Laboratory Directed Research
+and Development Programs (LDRD) at Los Alamos National Laboratory, managed by
+Triad National Security, LLC, and at Oak Ridge National Laboratory, managed by
+UT-Battelle, LLC, for the U. S. Department of Energy. C.D.B. acknowledges
+partial support from the National Science Foundation Materials Research Science
+and Engineering Center program through the UT Knoxville Center for Advanced
+Materials and Manufacturing (DMR-2309083). Z.W. acknowledges support from the
+National Key Research and Development Program of China (Grant No.
+2024YFA1408303). H.L. acknowledges funding from the Royal Commission for the
+Exhibition of 1851. The data shown in Figure 2 was collected at the the
+Spallation Neutron Source, a DOE Office of Science User Facility operated by the
+Oak Ridge National Laboratory. Beam time was allocated to the SEQUOIA instrument
+on proposal number IPTS-21166.
+
 
 # References
