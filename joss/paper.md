@@ -169,8 +169,8 @@ Distinguishing features of Sunny include:
 - An interface tailored toward the needs of scattering scientists, with tools
   for integrating scattering intensities over regions of reciprocal space.
 - Code written entirely in Julia, a language that can achieve speeds comparable
-  to C++ or Fortran while offering a syntax and level of interactivity that will
-  be familiar to users of Python and Matlab.
+  to C++ or Fortran while offering an interactive workflow that will be familiar
+  to users of Python and Matlab.
 - A well documented codebase, an extensive collection of correctness tests, a
   website featuring many tutorials, and an active Slack channel where users can
   ask questions.
@@ -238,16 +238,15 @@ predicted results of scattering experiments \autoref{fig:Sqw}.
 Traditional classical and semiclassical approaches to spin dynamics are based on
 the assignment of a classical dipole to each lattice site. Recent theoretical
 work has generalized this picture, replacing dipoles with richer objects, namely
-SU(_N_) coherent states. Within this formalism, a quantum spin-$s$ is faithfully
-represented as a linear combination of the $N = 2s + 1$ possible levels. This
-enables the faithful representation of the crystal field levels associated with
-an ion, or, equivalently, the implementation of completely general single-ion
-anisotropies. The generalization may also be used to capture local entanglement
-effects, where this entanglement may be between the spin and orbital degrees of
-freedom of a single site or within a cluster of spins on different sites. 
+SU(_N_) coherent states. Such states capture the full structure of an _N_-level
+system. Setting $N = 2s + 1$ enables the faithful representation of a quantum
+spin-$s$ and incorporation of all crystal field levels of a single-ion. The
+formalism can also be adapted to model local entanglement effects, where this
+entanglement may be between the spin and orbital degrees of freedom on a single
+site or within a cluster of spins on different sites. 
 
 The SU(_N_) formalism applies equally to LSWT calculations [@muniz:2014] and
-classical spin dynamics [@zhang_batista:2021]. Users can access this formalism
+classical spin dynamics [@zhang_batista:2021]. Users can access this framework
 simply by setting the "mode" of a spin system to `:SUN`. Sunny also offers a
 `:dipole` mode, which is similar to the traditional classical approach but
 includes quantum renormalizations of biquadratic and single-ion anisotropy terms
@@ -298,6 +297,7 @@ transport, pump-probe experiments, and spin-glass relaxation.
 
 
 ## Sunny as a Platform for Future Developments
+
 To make these existing features more widely available, work at ORNL is underway
 to integrate Sunny into the Calvera platform for neutron data analysis
 [@watson:2022]. Sunny itself can serve as a platform for new solvers and
