@@ -239,11 +239,11 @@ Traditional classical and semiclassical approaches to spin dynamics are based on
 the assignment of a classical dipole to each lattice site. Recent theoretical
 work has generalized this picture, replacing dipoles with richer objects, namely
 SU(_N_) coherent states. Such states capture the full structure of an _N_-level
-system. Setting $N = 2s + 1$ enables the faithful representation of a quantum
-spin-$s$ and incorporation of all crystal field levels of a single-ion. The
-formalism can also be adapted to model local entanglement effects, where this
-entanglement may be between the spin and orbital degrees of freedom on a single
-site or within a cluster of spins on different sites. 
+quantum system. Setting $N = 2s + 1$ enables the faithful representation of a
+quantum spin-$s$ and of the crystal field levels of a single-ion. The formalism
+can also be adapted to model local entanglement effects, where this entanglement
+may be between the spin and orbital degrees of freedom on a single site or
+within a cluster of spins on different sites. 
 
 The SU(_N_) formalism applies equally to LSWT calculations [@muniz:2014] and
 classical spin dynamics [@zhang_batista:2021]. Users can access this framework
