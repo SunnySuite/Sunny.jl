@@ -9,8 +9,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: TeX and PDF
-        # uses: openjournals/openjournals-draft-action@master
-        uses: docker://openjournals/paperdraft:latest
+        uses: openjournals/openjournals-draft-action@master
+        # uses: docker://openjournals/paperdraft:latest
         with:
           # journal: joss
           # # This should be the path to the paper within your repo.
