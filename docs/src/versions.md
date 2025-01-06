@@ -7,6 +7,9 @@
   [`print_site`](@ref) accepts an optional reference atom `i_ref`, with default
   of `i`. The optional reference bond `b_ref` of [`print_bond`](@ref) now
   defaults to `b`.
+* The `regularization` parameter in [`SpinWaveTheory`](@ref) is reduced by half,
+  and now corresponds to an effective energy shift. This may affect intensities,
+  especially at small excitation energies.
 
 ## v0.7.4
 (Dec 6, 2024)

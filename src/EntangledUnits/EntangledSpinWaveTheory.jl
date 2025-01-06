@@ -377,6 +377,6 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
 
     # Add small constant shift for positive-definiteness
     for i in 1:2L
-        H[i,i] += 2 * swt.regularization
+        H[i,i] += swt.regularization
     end
 end
