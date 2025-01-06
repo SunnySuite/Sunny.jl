@@ -108,7 +108,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     hermitianpart!(H)
 
     for i in 1:2L
-        H[i, i] += 2 * swt.regularization
+        H[i, i] += swt.regularization
     end
 end
 
