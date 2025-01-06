@@ -24,7 +24,7 @@ See [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-starte
 
 ## Related packages
 
-Sunny is inspired by SpinW, especially regarding symmetry analysis and traditional spin wave theory. Relative to other spin wave codes, this table highlights Sunny's special features (as of 2024):
+Sunny is inspired by SpinW, especially regarding symmetry analysis and traditional spin wave theory. Relative to other spin wave codes, this table highlights Sunny's special features (as of 2025):
 
 | | [McPhase](https://github.com/mducle/mcphase) | [SpinW](https://github.com/SpinW/spinw) | Sunny |
 | -- | -- | -- | -- |
