@@ -45,7 +45,7 @@ function add_quadratic_interactions!(sys, mode)
                     0  0 1.1  0 -1.4
                     0  0   0  1    0
                     0  0 1.4  0  1.3]
-        set_pair_coupling!(sys, 0.01(Qi'*biquad*Qj), Bond(1, 1, [0, 0, 1]))
+        set_pair_coupling!(sys, 0.01(Qi'*biquad*Qj), Bond(1, 2, [0, 0, 0]))
         =#
     end
 end

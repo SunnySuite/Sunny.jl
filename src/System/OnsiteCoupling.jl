@@ -187,6 +187,8 @@ See also [`set_onsite_coupling!`](@ref).
 """
 function set_onsite_coupling_at!(sys::System, op, site::Site)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+    is_vacant(sys, site) && error("Cannot couple vacant site")
+
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)
     ints[site].onsite = onsite_coupling(sys, site, op)

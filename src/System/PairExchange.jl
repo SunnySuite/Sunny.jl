@@ -429,6 +429,7 @@ end
 
 function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition, site1::Site, site2::Site, offset)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+    (is_vacant(sys, site1) || is_vacant(sys, site2)) && error("Cannot couple vacant site")
     ints = interactions_inhomog(sys)
 
     # General interactions require SU(N) mode

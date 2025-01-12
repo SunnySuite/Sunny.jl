@@ -190,7 +190,14 @@ function swt_data(sys::System{N}, measure) where N
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
         # Z that defines quantization axis
         Z = sys.coherents[i]
-        U = hcat(nullspace(Z'), Z)
+
+        U = if iszero(Z)
+            # Set all operators on a vacant site to zero
+            zeros(ComplexF64, N, N)
+        else
+            # Build unitary U satisfying U e_N ∝ Z.
+            hcat(nullspace(Z'), Z)
+        end
         local_unitaries[i] = U
 
         # Rotate observables into local reference frames
@@ -209,13 +216,13 @@ function swt_data(sys::System{N}, measure) where N
         Ui = local_unitaries[i]
         int = sys.interactions_union[i]
 
-        # Accumulate Zeeman terms into OnsiteCoupling
+        # Zeeman coupling operator
         S = spin_matrices_of_dim(; N)
         B = sys.gs[i]' * sys.extfield[i]
-        int.onsite += B' * S
+        zeeman = B' * S
 
-        # Rotate onsite anisotropy
-        int.onsite = Hermitian(Ui' * int.onsite * Ui) 
+        # Merge and rotate all onsite couplings
+        int.onsite = Hermitian(Ui' * (zeeman + int.onsite) * Ui)
 
         # Transform pair couplings into tensor decomposition and rotate.
         pair_new = PairCoupling[]
@@ -248,13 +255,16 @@ function swt_data(sys::System{0}, measure)
 
     # Operators for rotating vectors into local frame
     Rs = map(1:Na) do i
-        # Direction n of dipole will define rotation R that aligns the
-        # quantization axis.
-        n = normalize(sys.dipoles[1, 1, 1, i])
+        # Defines quantization axis.
+        n = sys.dipoles[1, 1, 1, i]
 
-        # Build matrix that rotates from z to n.
-        R = rotation_between_vectors([0, 0, 1], n)
-        @assert R * [0, 0, 1] ≈ n
+        R = if iszero(n)
+            # Set all operators on a vacant site to zero
+            zero(Mat3)
+        else
+            # Build rotation R satisfying R z ∝ n.
+            rotation_between_vectors([0, 0, 1], n)
+        end
 
         # Rotation about the quantization axis is a U(1) gauge symmetry. The
         # angle θ below, for each atom, is arbitrary. We include this rotation
@@ -264,7 +274,9 @@ function swt_data(sys::System{0}, measure)
     end
 
     # Operators for rotating Stevens quadrupoles into local frame
-    Vs = Mat5.(operator_for_stevens_rotation.(2, Rs))
+    Vs = map(Rs) do R
+        iszero(R) ? zero(Mat5) : Mat5(operator_for_stevens_rotation(2, R))
+    end
 
     # Observable is semantically a 1x3 row vector but stored in transpose
     # (column) form. To achieve effective right-multiplication by R, we should
@@ -297,7 +309,7 @@ function swt_data(sys::System{0}, measure)
 
     # Rotated Stevens expansion.
     cs = map(sys.interactions_union, Rs) do int, R
-        rotate_operator(int.onsite, R)
+        iszero(R) ? empty_anisotropy(sys.mode, 0) : rotate_operator(int.onsite, R)
     end
 
     # Square root of spin magnitudes
