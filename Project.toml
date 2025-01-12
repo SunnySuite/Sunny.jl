@@ -1,7 +1,7 @@
 name = "Sunny"
 uuid = "2b4a2ac8-8f8b-43e8-abf4-3cb0c45e8736"
 authors = ["The Sunny team"]
-version = "0.7.5"
+version = "0.7.6"
 
 [deps]
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"

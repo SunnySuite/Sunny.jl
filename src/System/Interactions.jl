@@ -158,10 +158,28 @@ function set_vacancy_at!(sys::System{N}, site) where N
 
     site = to_cartesian(site)
     sys.κs[site] = 0.0
+    sys.gs[site] = zero(Mat3)
     sys.dipoles[site] = zero(Vec3)
     sys.coherents[site] = zero(CVec{N})
+
+    # Remove onsite coupling
+    ints = interactions_inhomog(sys)
+    ints[site].onsite = empty_anisotropy(sys.mode, N)
+
+    # Remove this vacancy site from neighbors' pair lists
+    for (; bond) in ints[site].pair
+        site′ = bonded_site(site, bond, sys.dims)
+        pair′ = ints[site′].pair
+        deleteat!(pair′, only(findall(pc′ -> pc′.bond == reverse(bond), pair′)))
+    end
+
+    # Remove pair interactions
+    empty!(ints[site].pair)
 end
 
+function is_vacant(sys::System, site)
+    return iszero(sys.κs[to_cartesian(site)])
+end
 
 function local_energy_change(sys::System{N}, site, state::SpinState) where N
     (; S, Z) = state
