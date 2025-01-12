@@ -1,5 +1,11 @@
 # Version History
 
+## v0.7.6
+(In development)
+
+* Vacancies defined by [`set_vacancy_at!`](@ref) are supported in linear spin
+  wave theory. Empty sites are modeled using bosons that do not excite.
+
 ## v0.7.5
 (Jan 20, 2025)
 

@@ -31,7 +31,7 @@ end
 #   x̄ du/dα = x̄ du/dv P
 #
 @inline function vjp_stereographic_projection(x̄, α, n)
-    all(isnan, n) && return zero(Vec3) # No gradient when α = [0, 0, 0] is fixed
+    all(isnan, n) && return zero(n') # No gradient when α is fixed to zero
 
     @assert n'*n ≈ 1
 
@@ -47,7 +47,7 @@ end
 
 # Returns v such that u = (2v + (1-v²)n)/(1+v²) and v⋅n = 0
 function inverse_stereographic_projection(u, n)
-    all(isnan, n) && return zero(Vec3) # NaN values denote α = v = [0, 0, 0]
+    all(isnan, n) && return zero(n) # NaN values denote α = v = zero
 
     @assert u'*u ≈ 1
 
