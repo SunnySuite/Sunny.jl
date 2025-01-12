@@ -190,21 +190,21 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 @inline to_cartesian(i::CartesianIndex{N}) where N = i
 @inline to_cartesian(i::NTuple{N, Int})    where N = CartesianIndex(i)
 
+# Split a site `site` into its cell and sublattice parts
+@inline to_cell(site) = (site[1], site[2], site[3])
+@inline to_atom(site) = site[4]
+
 # Like mod1(x, L), but short-circuits early in the common case. See
 # https://github.com/SunnySuite/Sunny.jl/pull/184 for discussion.
 @inline function altmod1(x::Int, L::Int)
     1 <= x <= L ? x : mod1(x, L)
 end
 
-# Offset a `cell` by `ncells`
-@inline offsetc(cell::CartesianIndex{3}, delta, dims) = CartesianIndex(altmod1.(Tuple(cell) .+ Tuple(delta), dims))
-
-# Split a site `site` into its cell and sublattice parts
-@inline to_cell(site) = CartesianIndex((site[1],site[2],site[3]))
-@inline to_atom(site) = site[4]
-
-# An iterator over all unit cells using CartesianIndices
-@inline eachcell(sys::System) = CartesianIndices(sys.dims)
+# Get the neighboring site associated with site and bond
+@inline function bonded_site(site, bond, dims)
+    # @assert to_atom(site) == bond.i
+    CartesianIndex(altmod1.(to_cell(site) .+ bond.n, dims)..., bond.j)
+end
 
 """
     spin_label(sys::System, i::Int)
@@ -225,10 +225,13 @@ end
 
 """
     eachsite(sys::System)
+    eachsite(sys::System, i)
 
-An iterator over all [`Site`](@ref)s in the system. 
+An iterator over all [`Site`](@ref)s in the system. Restrict to one sublattice
+`i` with an optional second argument.
 """
-@inline eachsite(sys::System) = CartesianIndices(sys.dipoles)
+@inline eachsite(sys::System) = CartesianIndices(size(sys.dipoles))
+@inline eachsite(sys::System, i) = CartesianIndices((sys.dims..., i:i))
 
 """
 nsites(sys::System) = length(eachsite(sys))
@@ -383,50 +386,14 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
             new_bond = map_bond_to_other_crystal(orig_crystal(sys), bond′, sys.crystal, new_i)
 
             # loop over all new crystal cells and push site pairs
-            for new_cell_i in eachcell(sys)
-                new_cell_j = offsetc(new_cell_i, new_bond.n, sys.dims)
-                site_i = (Tuple(new_cell_i)..., new_bond.i)
-                site_j = (Tuple(new_cell_j)..., new_bond.j)
+            for site_i in eachsite(sys, new_bond.i)
+                site_j = bonded_site(site_i, new_bond, sys.dims)
                 site_i < site_j && push!(ret, (site_i, site_j, new_bond.n))
             end
         end
     end
 
     return ret
-end
-
-"""
-    remove_ion_at!(sys::System, site::Site)
-
-Remove all interactions associated with the magnetic ion at `site`. The system
-must support inhomogeneous interactions via [`to_inhomogeneous`](@ref).
-"""
-function remove_ion_at!(sys::System{N}, site) where N
-    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
-
-    site = to_cartesian(site)
-
-    # Remove onsite coupling
-    ints = interactions_inhomog(sys)
-    ints[site].onsite = empty_anisotropy(sys.mode, N)
-
-    # Remove this site from neighbors' pair lists
-    for (; bond) in ints[site].pair
-        cell′ = offsetc(to_cell(site), bond.n, sys.dims)
-        pair′ = ints[cell′, bond.j].pair
-        deleteat!(pair′, only(findall(pc′ -> pc′.bond == reverse(bond), pair′)))
-    end
-
-    # Empty pair list from this site
-    empty!(ints[site].pair)
-
-    # Set g=0 to disable Zeeman and dipole-dipole interactions
-    sys.gs[site] = Mat3(0I)
-
-    # Set κ=0 to disable all expectation values
-    sys.κs[site] = 0
-    sys.dipoles[site] = zero(Vec3)
-    sys.coherents[site] = zero(CVec{N})
 end
 
 

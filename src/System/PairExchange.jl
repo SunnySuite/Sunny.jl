@@ -389,15 +389,15 @@ end
 function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2::CartesianIndex{4}, n_ref) where N
     (; crystal, dims) = sys
 
-    n0 = Tuple(to_cell(site2)) .- Tuple(to_cell(site1))
+    n0 = to_cell(site2) .- to_cell(site1)
 
     # Try to build a bond with the provided offset n_ref
     if !isnothing(n_ref)
         if all(iszero, mod.(n_ref .- n0, dims))
             return Bond(to_atom(site1), to_atom(site2), n_ref)
         else
-            cell1 = Tuple(to_cell(site1))
-            cell2 = Tuple(to_cell(site2))
+            cell1 = to_cell(site1)
+            cell2 = to_cell(site2)
             error("""Cells $cell1 and $cell2 are not compatible with the offset
                      $n_ref for a system with dimensions $dims.""")
         end
@@ -536,7 +536,7 @@ function remove_periodicity!(sys::System{N}, flags) where N
     for site in eachsite(sys)
         ints = interactions_inhomog(sys)[site]
         filter!(ints.pair) do (; bond)
-            offset_cell = Tuple(to_cell(site)) .+ bond.n
+            offset_cell = to_cell(site) .+ bond.n
 
             # keep bond if it is acceptable along every dimension (either
             # `!flags` or if each cell component is within bounds)
