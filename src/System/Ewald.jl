@@ -213,7 +213,7 @@ end
 function ewald_pairwise_grad_at(sys::System{N}, site1, site2) where N
     (; gs, ewald) = sys
     dims = size(ewald.ϕ)[1:3]
-    cell_offset = mod.(Tuple(to_cell(site2)-to_cell(site1)), dims)
+    cell_offset = mod.(to_cell(site2) .- to_cell(site1), dims)
     cell = CartesianIndex(cell_offset .+ (1,1,1))
 
     # The factor of 1/2 in the energy formula `E = μ (A ⋆ μ) / 2` disappears due

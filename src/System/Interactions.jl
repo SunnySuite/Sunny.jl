@@ -53,10 +53,8 @@ function to_inhomogeneous(sys::System{N}) where N
     ret = clone_system(sys)
     na = natoms(ret.crystal)
     ret.interactions_union = Array{Interactions}(undef, ret.dims..., na)
-    for i in 1:natoms(ret.crystal)
-        for cell in eachcell(ret)
-            ret.interactions_union[cell, i] = clone_interactions(ints[i])
-        end
+    for site in eachsite(ret)
+        ret.interactions_union[site] = clone_interactions(ints[to_atom(site)])
     end
 
     return ret
@@ -196,9 +194,12 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
 
     # Pair coupling
     for pc in pair
-        cellⱼ = offsetc(to_cell(site), pc.bond.n, dims)
-        Sⱼ = dipoles[cellⱼ, pc.bond.j]
-        Zⱼ = coherents[cellⱼ, pc.bond.j]
+        @assert to_atom(site) == pc.bond.i
+        siteⱼ = bonded_site(site, pc.bond, dims)
+        siteⱼ == site && error("Energy delta for self-interaction not supported")
+
+        Sⱼ = dipoles[siteⱼ]
+        Zⱼ = coherents[siteⱼ]
 
         # Bilinear
         J = pc.bilin
@@ -262,16 +263,16 @@ function energy(sys::System{N}) where N
     end
 
     # Anisotropies and exchange interactions
-    for i in 1:natoms(sys.crystal)
-        if is_homogeneous(sys)
+    if is_homogeneous(sys)
+        for i in 1:natoms(sys.crystal)
             # Interactions for sublattice i (same for every cell)
             interactions = sys.interactions_union[i]
-            E += energy_aux(interactions, sys, i, eachcell(sys))
-        else
-            for cell in eachcell(sys)
-                interactions = sys.interactions_union[cell, i]
-                E += energy_aux(interactions, sys, i, (cell,))
-            end
+            E += energy_aux(interactions, sys, eachsite(sys, i))
+        end
+    else
+        for site in eachsite(sys)
+            interactions = sys.interactions_union[site]
+            E += energy_aux(interactions, sys, (site,))
         end
     end
 
@@ -279,25 +280,25 @@ function energy(sys::System{N}) where N
     if !isnothing(sys.ewald)
         E += ewald_energy(sys)
     end
-    
+
     return E
 end
 
-# Total energy contributed by sublattice `i`, summed over the list of `cells`.
-function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
+# Total energy associated with the sites of one sublattice
+function energy_aux(ints::Interactions, sys::System{N}, sites) where N
     E = 0.0
 
     # Single-ion anisotropy
     if N == 0       # Dipole mode
         stvexp = ints.onsite :: StevensExpansion
-        for cell in cells
-            S = sys.dipoles[cell, i]
+        for site in sites
+            S = sys.dipoles[site]
             E += energy_and_gradient_for_classical_anisotropy(S, stvexp)[1]
         end
     else            # SU(N) mode
         Λ = ints.onsite :: HermitianC64
-        for cell in cells
-            Z = sys.coherents[cell, i]
+        for site in sites
+            Z = sys.coherents[site]
             E += real(dot(Z, Λ, Z))
         end
     end
@@ -306,16 +307,17 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
         (; bond, isculled) = pc
         isculled && break
 
-        for cellᵢ in cells
-            cellⱼ = offsetc(cellᵢ, bond.n, sys.dims)
-            Sᵢ = sys.dipoles[cellᵢ, bond.i]
-            Sⱼ = sys.dipoles[cellⱼ, bond.j]
+        for siteᵢ in sites
+            @assert to_atom(siteᵢ) == bond.i
+            siteⱼ = bonded_site(siteᵢ, bond, sys.dims)
+            Sᵢ = sys.dipoles[siteᵢ]
+            Sⱼ = sys.dipoles[siteⱼ]
 
             # Scalar
             if sys.mode == :SUN
                 # The scalar originates as a product of two expectation values,
                 # which should rescale as κᵢ and κⱼ.
-                E += pc.scalar * sys.κs[cellᵢ, bond.i] * sys.κs[cellⱼ, bond.j]
+                E += pc.scalar * sys.κs[siteᵢ] * sys.κs[siteⱼ]
             else
                 E += pc.scalar
             end
@@ -330,8 +332,8 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
                     Qᵢ = quadrupole(Sᵢ)
                     Qⱼ = quadrupole(Sⱼ)
                 else
-                    Zᵢ = sys.coherents[cellᵢ, bond.i]
-                    Zⱼ = sys.coherents[cellⱼ, bond.j]
+                    Zᵢ = sys.coherents[siteᵢ]
+                    Zⱼ = sys.coherents[siteⱼ]
                     Qᵢ = expected_quadrupole(Zᵢ)
                     Qⱼ = expected_quadrupole(Zⱼ)
                 end
@@ -344,8 +346,8 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
 
             # General
             if sys.mode == :SUN
-                Zᵢ = sys.coherents[cellᵢ, bond.i]
-                Zⱼ = sys.coherents[cellⱼ, bond.j]
+                Zᵢ = sys.coherents[siteᵢ]
+                Zⱼ = sys.coherents[siteⱼ]
                 for (A, B) in pc.general.data
                     Ā = real(dot(Zᵢ, A, Zᵢ))
                     B̄ = real(dot(Zⱼ, B, Zⱼ))
@@ -373,17 +375,15 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
     end
 
     # Anisotropies and exchange interactions
-    for i in 1:natoms(sys.crystal)
-        if is_homogeneous(sys)
-            # Interactions for sublattice i (same for every cell)
+    if is_homogeneous(sys)
+        for i in 1:natoms(sys.crystal)
             interactions = sys.interactions_union[i]
-            set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, eachcell(sys))
-        else
-            for cell in eachcell(sys)
-                # Interactions for sublattice i and a specific cell
-                interactions = sys.interactions_union[cell, i]
-                set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, (cell,))
-            end
+            set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, eachsite(sys, i))
+        end
+    else
+        for site in eachsite(sys)
+            interactions = sys.interactions_union[site]
+            set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, (site,))
         end
     end
 
@@ -392,16 +392,15 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
     end
 end
 
-# Calculate the energy gradient `∇E' for the sublattice `i' at all elements of
-# `cells`.
-function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells) where N
+# Calculate the energy gradient `∇E' for all sites of one sublattice
+function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, sites) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into local H matrix.
     if sys.mode in (:dipole, :dipole_uncorrected)
         stvexp = ints.onsite :: StevensExpansion
-        for cell in cells
-            S = dipoles[cell, i]
-            ∇E[cell, i] += energy_and_gradient_for_classical_anisotropy(S, stvexp)[2]
+        for site in sites
+            S = dipoles[site]
+            ∇E[site] += energy_and_gradient_for_classical_anisotropy(S, stvexp)[2]
         end
     end
 
@@ -409,15 +408,16 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
         (; bond, isculled) = pc
         isculled && break
 
-        for cellᵢ in cells
-            cellⱼ = offsetc(cellᵢ, bond.n, sys.dims)
-            Sᵢ = dipoles[cellᵢ, bond.i]
-            Sⱼ = dipoles[cellⱼ, bond.j]
+        for siteᵢ in sites
+            @assert to_atom(siteᵢ) == bond.i
+            siteⱼ = bonded_site(siteᵢ, bond, sys.dims)
+            Sᵢ = dipoles[siteᵢ]
+            Sⱼ = dipoles[siteⱼ]
 
             # Bilinear
             J = pc.bilin
-            ∇E[cellᵢ, bond.i] += J  * Sⱼ
-            ∇E[cellⱼ, bond.j] += J' * Sᵢ
+            ∇E[siteᵢ] += J  * Sⱼ
+            ∇E[siteⱼ] += J' * Sᵢ
 
             # Biquadratic for dipole mode only (SU(N) handled differently)
             if sys.mode in (:dipole, :dipole_uncorrected)
@@ -431,12 +431,12 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
                     # taking gradient with respect to either sᵢ or sⱼ.
                     if pc.biquad isa Float64
                         J = pc.biquad::Float64
-                        ∇E[cellᵢ, bond.i] += J * (Qⱼ .* scalar_biquad_metric)' * ∇Qᵢ
-                        ∇E[cellⱼ, bond.j] += J * (Qᵢ .* scalar_biquad_metric)' * ∇Qⱼ
+                        ∇E[siteᵢ] += J * (Qⱼ .* scalar_biquad_metric)' * ∇Qᵢ
+                        ∇E[siteⱼ] += J * (Qᵢ .* scalar_biquad_metric)' * ∇Qⱼ
                     else
                         J = pc.biquad::Mat5
-                        ∇E[cellᵢ, bond.i] += (Qⱼ' * J') * ∇Qᵢ
-                        ∇E[cellⱼ, bond.j] += (Qᵢ' * J)  * ∇Qⱼ
+                        ∇E[siteᵢ] += (Qⱼ' * J') * ∇Qᵢ
+                        ∇E[siteⱼ] += (Qᵢ' * J)  * ∇Qⱼ
                     end
                 end
             end
@@ -459,18 +459,16 @@ function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) wh
     @. dipoles = expected_spin(Z)
     set_energy_grad_dipoles!(dE_dS, dipoles, sys)
 
-    # Accumulate onsite and pair couplings
-    for i in 1:natoms(sys.crystal)
-        if is_homogeneous(sys)
-            # Interactions for sublattice i (same for every cell)
+    # Anisotropies and exchange interactions
+    if is_homogeneous(sys)
+        for i in 1:natoms(sys.crystal)
             interactions = sys.interactions_union[i]
-            set_energy_grad_coherents_aux!(HZ, Z, dE_dS, interactions, sys, i, eachcell(sys))
-        else
-            for cell in eachcell(sys)
-                # Interactions for sublattice i and a specific cell
-                interactions = sys.interactions_union[cell, i]
-                set_energy_grad_coherents_aux!(HZ, Z, dE_dS, interactions, sys, i, (cell,))
-            end
+            set_energy_grad_coherents_aux!(HZ, Z, dE_dS, interactions, sys, eachsite(sys, i))
+        end
+    else
+        for site in eachsite(sys)
+            interactions = sys.interactions_union[site]
+            set_energy_grad_coherents_aux!(HZ, Z, dE_dS, interactions, sys, (site,))
         end
     end
 
@@ -478,22 +476,24 @@ function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) wh
     fill!(dipoles, zero(Vec3))
 end
 
-function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i, cells) where N
-    for cell in cells
+function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{Vec3, 4}, ints::Interactions, sys::System{N}, sites) where N
+    for site in sites
         # HZ += (Λ + dE/dS S) Z
         Λ = ints.onsite :: HermitianC64
-        HZ[cell, i] += mul_spin_matrices(Λ, dE_dS[cell, i], Z[cell, i])
+        HZ[site] += mul_spin_matrices(Λ, dE_dS[site], Z[site])
     end
 
     for pc in ints.pair
         (; bond, isculled) = pc
         isculled && break
 
-        if !iszero(pc.biquad)
-            for cellᵢ in cells
-                cellⱼ = offsetc(cellᵢ, bond.n, sys.dims)
-                Zᵢ = Z[cellᵢ, bond.i]
-                Zⱼ = Z[cellⱼ, bond.j]
+        for siteᵢ in sites
+            @assert to_atom(siteᵢ) == bond.i
+            siteⱼ = bonded_site(siteᵢ, bond, sys.dims)
+            Zᵢ = Z[siteᵢ]
+            Zⱼ = Z[siteⱼ]
+
+            if !iszero(pc.biquad)
                 Qᵢ = expected_quadrupole(Zᵢ)
                 Qⱼ = expected_quadrupole(Zⱼ)
                 if pc.biquad isa Float64
@@ -505,22 +505,17 @@ function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{V
                     dE_dQᵢ = pc.biquad * Qⱼ
                     dE_dQⱼ = pc.biquad' * Qᵢ
                 end
-                HZ[cellᵢ, bond.i] += mul_quadrupole_matrices(dE_dQᵢ, Zᵢ)
-                HZ[cellⱼ, bond.j] += mul_quadrupole_matrices(dE_dQⱼ, Zⱼ)
+                HZ[siteᵢ] += mul_quadrupole_matrices(dE_dQᵢ, Zᵢ)
+                HZ[siteⱼ] += mul_quadrupole_matrices(dE_dQⱼ, Zⱼ)
             end
-        end
 
-        for (A, B) in pc.general.data
-            A = SMatrix{N, N}(A)
-            B = SMatrix{N, N}(B)
-            for cellᵢ in cells
-                cellⱼ = offsetc(cellᵢ, bond.n, sys.dims)
-                Zᵢ = Z[cellᵢ, bond.i]
-                Zⱼ = Z[cellⱼ, bond.j]
+            for (A, B) in pc.general.data
+                A = SMatrix{N, N}(A)
+                B = SMatrix{N, N}(B)
                 Ā = real(dot(Zᵢ, A, Zᵢ))
                 B̄ = real(dot(Zⱼ, B, Zⱼ))
-                HZ[cellᵢ, bond.i] += (A * Zᵢ) * B̄
-                HZ[cellⱼ, bond.j] += Ā * (B * Zⱼ)
+                HZ[siteᵢ] += (A * Zᵢ) * B̄
+                HZ[siteⱼ] += Ā * (B * Zⱼ)
             end
         end
     end
