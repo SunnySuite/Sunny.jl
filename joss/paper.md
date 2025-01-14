@@ -320,12 +320,12 @@ Energy Sciences, under Award Numbers DE-SC0022311, DE-SC-0018660, and
 DE-SC0025426. The work was also sponsored by the Laboratory Directed Research
 and Development Programs (LDRD) at Los Alamos National Laboratory, managed by
 Triad National Security, LLC, and at Oak Ridge National Laboratory, managed by
-UT-Battelle, LLC, for the U. S. Department of Energy. C.D.B. acknowledges
-partial support from the National Science Foundation Materials Research Science
-and Engineering Center program through the UT Knoxville Center for Advanced
-Materials and Manufacturing (DMR-2309083). Z.W. acknowledges support from the
-National Key Research and Development Program of China (Grant No.
-2024YFA1408303). H.L. acknowledges funding from the Royal Commission for the
+UT-Battelle, LLC, for the U. S. Department of Energy. Applications to inverse
+scattering were partially supported by the National Science Foundation Materials
+Research Science and Engineering Center program through the UT Knoxville Center
+for Advanced Materials and Manufacturing (DMR-2309083). Z.W. acknowledges
+support from the National Key Research and Development Program of China (Grant
+No. 2024YFA1408303). H.L. acknowledges funding from the Royal Commission for the
 Exhibition of 1851. The data shown in Figure 2 was collected at the the
 Spallation Neutron Source, a DOE Office of Science User Facility operated by the
 Oak Ridge National Laboratory. Beam time was allocated to the SEQUOIA instrument
