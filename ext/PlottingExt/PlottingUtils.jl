@@ -61,7 +61,7 @@ atom_colors = let
     ]
     # Workaround for absence of `mapvalues` in Julia
     Dict(map(pairs) do (n, c)
-        (lowercase(n), Makie.color(c))
+        (lowercase(n), parse(Makie.Color, c))
     end)
 end
 
