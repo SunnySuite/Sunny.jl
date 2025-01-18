@@ -83,7 +83,7 @@ function Sunny.view_bz(cryst::Crystal, objs...; orthographic=false, compass=true
     button = Makie.Button(fig; label="Reset", fontsize)
     Makie.onany(button.clicks, menu.selection; update=true) do _, mselect
         b1, b2, _ = eachcol(cryst.recipvecs)
-        lookat = zero(Makie.Point3f0)
+        lookat = zero(Makie.Point3f)
         camshiftdir = normalize(b1 + b2)
         upvector = normalize(b1 × b2)
         camdist = 1.5 * maximum(norm.(eachcol(cryst.recipvecs)))
@@ -94,8 +94,8 @@ function Sunny.view_bz(cryst::Crystal, objs...; orthographic=false, compass=true
     widget_list[widget_cnt+=1, 1] = Makie.hgrid!(menu, button)
 
     # Show reciprocal vectors
-    bs = collect(Makie.Point3f0.(eachcol(cryst.recipvecs)))
-    b_segments = [(zero(Makie.Point3f0), b) for b in bs]
+    bs = collect(Makie.Point3f.(eachcol(cryst.recipvecs)))
+    b_segments = [(zero(Makie.Point3f), b) for b in bs]
     Makie.linesegments!(ax, b_segments; color=:teal, linewidth=1.5, inspectable=false)
 
     text = [Makie.rich("b", Makie.subscript(repr(i))) for i in 1:3]
@@ -104,11 +104,11 @@ function Sunny.view_bz(cryst::Crystal, objs...; orthographic=false, compass=true
 
     # Calculate and show Brillouin zone
     bzcell = Brillouin.cartesianize!(Brillouin.wignerseitz(eachcol(Sunny.prim_recipvecs(cryst))))
-    segments = Makie.Point3f0[]
+    segments = Makie.Point3f[]
     for face in bzcell
         append!(segments, face)
         push!(segments, face[1]) # cycle to first point
-        push!(segments, Makie.Point3f0(NaN)) # separator between faces
+        push!(segments, Makie.Point3f(NaN)) # separator between faces
     end
     Makie.lines!(ax, segments; inspectable=false)
 
