@@ -10,6 +10,7 @@
 * The `regularization` parameter in [`SpinWaveTheory`](@ref) is reduced by half,
   and now corresponds to an effective energy shift. This may affect intensities,
   especially at small excitation energies.
+* Update dependencies and in particular fix `color` compile error.
 
 ## v0.7.4
 (Dec 6, 2024)

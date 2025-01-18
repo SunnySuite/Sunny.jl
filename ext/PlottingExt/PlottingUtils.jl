@@ -178,7 +178,7 @@ function register_compass_callbacks(axcompass, lscene)
     refcam = lscene.scene.camera_controls
     Makie.onany(refcam.eyeposition, refcam.lookat, refcam.upvector; update=true) do cam_eye, cam_lookat, cam_upvector
         eye = 4normalize(cam_eye - cam_lookat)
-        lookat = Makie.Point3f0(0, 0, 0)
+        lookat = Makie.Point3f(0, 0, 0)
         Makie.update_cam!(axcompass.scene, eye, lookat, cam_upvector)
     end
 end
@@ -187,8 +187,8 @@ function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150
     axcompass = Makie.LScene(fig, bbox=Makie.BBox(left, right, bottom, top), show_axis=false)
 
     # Draw arrows at origin
-    pts = [Makie.Point3f0(0, 0, 0), Makie.Point3f0(0, 0, 0), Makie.Point3f0(0, 0, 0)]
-    vecs = [Makie.Point3f0(1, 0, 0), Makie.Point3f0(0, 1, 0), Makie.Point3f0(0, 0, 1)]
+    pts = [Makie.Point3f(0, 0, 0), Makie.Point3f(0, 0, 0), Makie.Point3f(0, 0, 0)]
+    vecs = [Makie.Point3f(1, 0, 0), Makie.Point3f(0, 1, 0), Makie.Point3f(0, 0, 1)]
     Makie.arrows!(axcompass, pts, 0.8*vecs; color=[:red, :orange, :yellow], arrowsize=0.3, inspectable=false)
 
     # Draw labels
@@ -213,10 +213,10 @@ function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150
 end
 
 function cell_wireframe(latvecs, ndims)
-    vecs = Makie.Point3f0.(eachcol(latvecs))
-    ret = Tuple{Makie.Point3f0, Makie.Point3f0}[]
+    vecs = Makie.Point3f.(eachcol(latvecs))
+    ret = Tuple{Makie.Point3f, Makie.Point3f}[]
 
-    origin = zero(Makie.Point3f0)
+    origin = zero(Makie.Point3f)
 
     if ndims == 3
         for j in 0:1, k in 0:1

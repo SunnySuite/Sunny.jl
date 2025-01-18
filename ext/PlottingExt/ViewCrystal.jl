@@ -217,7 +217,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
     ### we apply some heuristic amplification to the arrow size.
 
     dmvecs = Sunny.extract_dmvec.(scaled_exchanges)
-    dirs = @. Makie.Vec3f0(normalize(dmvecs))
+    dirs = @. Makie.Vec3f(normalize(dmvecs))
     # The largest possible ellipsoid occurs in the case of `scalings ==
     # [1,1,1]`, yielding a sphere with size `ionradius`.
     ellipsoid_radii = @. ionradius * norm(scalings) / √3
@@ -232,7 +232,7 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
     # Map each bond to line segments in global coordinates
     segments = map(bonds) do b
         (; ri, rj) = Sunny.BondPos(cryst, b)
-        Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
+        Makie.Point3f.(Ref(cryst.latvecs) .* (ri, rj))
     end
 
     # If the bonds are distinct from the refbonds, then add periodic "ghost" images
@@ -602,7 +602,7 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndim
 
     # Show cell volume
     Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, ndims); color=:teal, linewidth=1.5, inspectable=false)
-    pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:ndims]]
+    pos = [(3/4)*Makie.Point3f(p) for p in eachcol(cryst.latvecs)[1:ndims]]
     text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:ndims]
     Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
                 glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)

@@ -126,9 +126,9 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
         end
 
         # These observables will be reanimated upon calling `notify(notifier)`.
-        vecs = Makie.Observable(Makie.Vec3f0[])
-        pts = Makie.Observable(Makie.Point3f0[])
-        pts_shifted = Makie.Observable(Makie.Point3f0[])
+        vecs = Makie.Observable(Makie.Vec3f[])
+        pts = Makie.Observable(Makie.Point3f[])
+        pts_shifted = Makie.Observable(Makie.Point3f[])
         arrowcolor = Makie.Observable(Makie.RGBAf[])
 
         Makie.on(notifier, update=true) do _
@@ -145,9 +145,9 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
                 v = (lengthscale / s0) * vec(sys.dipoles[site])
                 pt = supervecs * (rs[site] + n)
                 pt_shifted = pt - arrow_fractional_shift * v
-                push!(vecs[], Makie.Vec3f0(v))
-                push!(pts[], Makie.Point3f0(pt))
-                push!(pts_shifted[], Makie.Point3f0(pt_shifted))
+                push!(vecs[], Makie.Vec3f(v))
+                push!(pts[], Makie.Point3f(pt))
+                push!(pts_shifted[], Makie.Point3f(pt_shifted))
                 push!(arrowcolor[], rgba_colors[site])
             end
             # Trigger Makie redraw
@@ -166,7 +166,7 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
     # Bounding box of original crystal unit cell in teal
     if show_cell
         Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, ndims); color=:teal, linewidth=1.5)
-        pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(orig_crystal(sys).latvecs)[1:ndims]]
+        pos = [(3/4)*Makie.Point3f(p) for p in eachcol(orig_crystal(sys).latvecs)[1:ndims]]
         text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:ndims]
         Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
                     glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
