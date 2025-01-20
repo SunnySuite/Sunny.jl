@@ -1,7 +1,7 @@
 # Version History
 
 ## v0.7.5
-(In development)
+(Jan 20, 2025)
 
 * [`view_crystal`](@ref) shows allowed quadratic anisotropy.
   [`print_site`](@ref) accepts an optional reference atom `i_ref`, with default
