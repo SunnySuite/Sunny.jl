@@ -1,5 +1,5 @@
 using Sunny, GLMakie
-@assert pkgversion(Sunny) >= v"0.7.5"
+@assert pkgversion(Sunny) >= v"0.7.6"
 
 units = Units(:meV, :angstrom)
 a = 3.0

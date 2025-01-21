@@ -1,5 +1,5 @@
 using Sunny, GLMakie
-@assert pkgversion(Sunny) >= v"0.7.5"
+@assert pkgversion(Sunny) >= v"0.7.6"
 
 lat_vecs = lattice_vectors(1, 1, 10, 90, 90, 120)
 positions = [[0, 0, 0]]

@@ -1,5 +1,5 @@
 using Sunny, GLMakie
-@assert pkgversion(Sunny) >= v"0.7.5"
+@assert pkgversion(Sunny) >= v"0.7.6"
 
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(3, 8, 8, 90, 90, 90)
