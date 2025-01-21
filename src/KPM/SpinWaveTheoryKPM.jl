@@ -2,24 +2,16 @@
     SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol)
 
 A variant of [`SpinWaveTheory`](@ref) that uses the kernel polynomial method
-(KPM) to perform [`intensities`](@ref) calculations [1]. Instead of explicitly
-diagonalizing the dynamical matrix, KPM approximates intensities using
-polynomial expansion truncated at order ``M``. The reduces the computational
-cost from ``𝒪(N^3)`` to ``𝒪(N M)``, which is favorable for large system sizes
-``N``.
+(KPM) to calculate [`intensities`](@ref) [1]. This method avoids direct matrix
+diagonalization, which scales cubically in the system size ``N``. Instead, using
+``M`` iterative matrix-vector multiplications, the cost becomes ``𝒪(N M +
+M^2)``. This provides a very significant acceleration when ``N`` is large.
 
-The polynomial order ``M`` will be determined from the line broadening kernel
-and the specified error tolerance `tol`. Specifically, for each wavevector,
-``M`` scales like the spectral bandwidth of excitations, divided by the energy
-resolution of the broadening kernel, times the negative logarithm of `tol`.
-
-The error tolerance `tol` should be tuned empirically for each calculation.
-Reasonable starting points are `1e-1` (more speed) or `1e-2` (more accuracy).
-
-!!! warning "Missing intensity at small quasi-particle energy"  
-    The KPM-calculated intensities are unreliable at small energies ``ω``. In
-    particular, KPM may mask intensities that arise near the Goldstone modes of
-    an ordered state with continuous symmetry.
+The number of iterations is typically not too large: `M ≈ -2 log10(tol) Δϵ /
+fwhm` where `Δϵ` is the estimated spectral bandwidth of excitations, `fwhm` is
+the full width at half maximum of the broadening kernel, and `tol` is a
+dimensionless tolerance parameter. Good choices are `0.05` (more speed) or
+`0.01` (more accuracy).
 
 ## References
 
@@ -185,5 +177,137 @@ end
 function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
     qpts = convert(AbstractQPoints, qpts)
     data = zeros(eltype(swt_kpm.swt.measure), length(energies), length(qpts.qs))
-    return intensities!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
+    # return intensities!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
+    return intensities2!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
+end
+
+
+function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
+    qpts = convert(AbstractQPoints, qpts)
+
+    (; swt, tol, lanczos_iters) = swt_kpm
+    (; sys, measure) = swt
+    cryst = orig_crystal(sys)
+
+    isnothing(kernel.fwhm) && error("Cannot determine the kernel fwhm")
+
+    @assert eltype(data) == eltype(measure)
+    @assert size(data) == (length(energies), length(qpts.qs))
+    fill!(data, zero(eltype(data)))
+
+    Na = nsites(sys)
+    Ncells = Na / natoms(cryst)
+    Nf = nflavors(swt)
+    L = Nf*Na
+    Avec_pref = zeros(ComplexF64, Na)
+
+    Nobs = size(measure.observables, 1)
+    Ncorr = length(measure.corr_pairs)
+    corrbuf = zeros(ComplexF64, Ncorr)
+
+    u = zeros(ComplexF64, 2L, Nobs)
+    v = zeros(ComplexF64, 2L)
+    Sv = zeros(ComplexF64, 2L)
+
+    for (iq, q) in enumerate(qpts.qs)
+        q_reshaped = to_reshaped_rlu(sys, q)
+        q_global = cryst.recipvecs * q
+
+        # Represent each local observable A(q) as a complex vector u(q) that
+        # denotes a linear combination of HP bosons.
+
+        for i in 1:Na
+            r = sys.crystal.positions[i]
+            ff = get_swt_formfactor(measure, 1, i)
+            Avec_pref[i] = exp(2π*im * dot(q_reshaped, r))
+            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
+        end
+
+        if sys.mode == :SUN
+            (; observables_localized) = swt.data::SWTDataSUN
+            N = sys.Ns[1]
+            for μ in 1:Nobs, i in 1:Na
+                O = observables_localized[μ, i]
+                for f in 1:Nf
+                    u[f + (i-1)*Nf, μ]     = Avec_pref[i] * O[f, N]
+                    u[f + (i-1)*Nf + L, μ] = Avec_pref[i] * O[N, f]
+                end
+            end
+        else
+            @assert sys.mode in (:dipole, :dipole_uncorrected)
+            (; sqrtS, observables_localized) = swt.data::SWTDataDipole
+            for μ in 1:Nobs, i in 1:Na
+                O = observables_localized[μ, i]
+                u[i, μ]   = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] + im*O[2])
+                u[i+L, μ] = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] - im*O[2])
+            end
+        end
+
+        # Perform Lanczos calculation
+ 
+        # w = Ĩ v
+        function mulA!(w, v)
+            @views w[1:L]    = +v[1:L]
+            @views w[L+1:2L] = -v[L+1:2L]
+            return w
+        end
+
+        # w = D v
+        function mulS!(w, v)
+            mul_dynamical_matrix!(swt, reshape(w, 1, :), reshape(v, 1, :), [q_reshaped])
+            return w
+        end
+
+        resolution = (kernel.fwhm/2) / max(-log10(tol), 0)
+
+        for ξ in 1:Nobs
+            # Don't accumulate observables that are zero
+            iszero(view(u, :, ξ)) && continue
+
+            mulA!(v, view(u, :, ξ))
+            mulS!(Sv, v)
+            c = sqrt(real(Sv' * v))
+            v ./= c
+            tridiag, lhs_adj_Q = try
+                lanczos(mulA!, mulS!, v; lhs=u, min_iters=lanczos_iters, resolution, verbose)
+            catch e
+                if e.msg == "S is not a positive definite measure"
+                    rethrow(ErrorException("Not an energy-minimum; wavevector q = $q unstable."))
+                else
+                    rethrow()
+                end
+            end
+
+            (; values, vectors) = eigen(tridiag)
+
+            for (iω, ω) in enumerate(energies)
+                f(x) = kernel(x, ω) * thermal_prefactor(x; kT)
+
+                corr_ξ = c * lhs_adj_Q * vectors * Diagonal(f.(values)) * (vectors'[:, 1])
+
+                # This step assumes that each local observable in the
+                # correlation is Hermitian. In this case, bare correlations
+                # should be symmetric, C[μ, ν] = C[ν, μ]*. The Lanczos
+                # approximation C̃ breaks this symmetry. Restore it by looping
+                # over ξ in 1:Nobs and accumulate Lanczos data C̃[:, ξ] in a
+                # symmetric way. Accumulate C̃[μ, ξ] into C[μ, ν] if ξ = ν. Also
+                # accumulate C̃[ν, ξ]* into C[μ, ν] if ξ = μ. A factor of 1/2
+                # avoids double counting. In the special case that μ = ν, this
+                # assigns real(C̃[μ, μ]) to C[μ, μ] only once.
+                corrbuf .= 0
+                for (i, (μ, ν)) in enumerate(measure.corr_pairs)
+                    ξ == ν && (corrbuf[i] += (1/2) *     (corr_ξ[μ] / Ncells))
+                    ξ == μ && (corrbuf[i] += (1/2) * conj(corr_ξ[ν] / Ncells))
+                end
+
+                # This step assumes that combiner is linear, so that it is valid
+                # to move the ξ loop outside the data accumulation. One could
+                # relax this assumption by preallocating an array of size (Nω,
+                # Ncorr) to accumulate into corrbuf prior to calling combiner.
+                data[iω, iq] += measure.combiner(q_global, corrbuf)
+            end
+        end
+    end
+
+    return Intensities(cryst, qpts, collect(energies), data)
 end
