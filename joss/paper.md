@@ -50,19 +50,19 @@ authors:
 
   - name: Steve Johnston 
     orcid: 0000-0002-2343-0113 
-    affiliation: "2"
+    affiliation: "2, 10"
 
   - name: Zhentao Wang
     orcid: 0000-0001-7442-2933
-    affiliation: "10" 
+    affiliation: "11" 
 
   - name: Harry Lane
     orcid: 
-    affiliation: "11, 12, 13"
+    affiliation: "12, 13, 14"
 
   - name: Ying Wai Li
     orcid: 0000-0003-0124-8262
-    affiliation: "14"
+    affiliation: "15"
 
   - name: Xiaojian Bai 
     orcid: 0000-0002-3974-626X 
@@ -101,17 +101,19 @@ affiliations:
    index: 8
  - name: Computer Science and Mathematics Division, Oak Ridge National Laboratory 
    index: 9
- - name: School of Physics, Zhejiang University
+ - name: Center for Correlated Matter and School of Physics, Zhejiang University 
    index: 10 
+ - name: Institute for Advanced Materials and Manufacturing, Unversity of Tennessee 
+   index: 11
  - name: Department of Physics and Astronomy, University of Manchester 
-   index: 11 
- - name: The University of Manchester at Harwell, University of Manchester 
    index: 12
- - name: School of Physics and Astronomy, University of St Andrews 
+ - name: The University of Manchester at Harwell, University of Manchester 
    index: 13
- - name: Computer, Computational, and Statistical Sciences Division, Los Alamos National Laboratory
+ - name: School of Physics and Astronomy, University of St Andrews 
    index: 14
-date: 23 December 2024
+ - name: Computer, Computational, and Statistical Sciences Division, Los Alamos National Laboratory
+   index: 15
+date: 23 January, 2025 
 bibliography: paper.bib
 ---
 
@@ -325,7 +327,8 @@ scattering were partially supported by the National Science Foundation Materials
 Research Science and Engineering Center program through the UT Knoxville Center
 for Advanced Materials and Manufacturing (DMR-2309083). Z.W. acknowledges
 support from the National Key Research and Development Program of China (Grant
-No. 2024YFA1408303). H.L. acknowledges funding from the Royal Commission for the
+No. 2024YFA1408303) and the National Natural Science Foundation of China (Grant
+No. 12374124). H.L. acknowledges funding from the Royal Commission for the
 Exhibition of 1851. The data shown in Figure 2 was collected at the the
 Spallation Neutron Source, a DOE Office of Science User Facility operated by the
 Oak Ridge National Laboratory. Beam time was allocated to the SEQUOIA instrument
