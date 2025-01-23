@@ -101,9 +101,9 @@ affiliations:
    index: 8
  - name: Computer Science and Mathematics Division, Oak Ridge National Laboratory 
    index: 9
- - name: Center for Correlated Matter and School of Physics, Zhejiang University 
-   index: 10 
  - name: Institute for Advanced Materials and Manufacturing, Unversity of Tennessee 
+   index: 10
+ - name: Center for Correlated Matter and School of Physics, Zhejiang University 
    index: 11
  - name: Department of Physics and Astronomy, University of Manchester 
    index: 12
