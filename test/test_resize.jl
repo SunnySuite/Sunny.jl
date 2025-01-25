@@ -36,6 +36,18 @@
 
             [[0, 1/2, 0]]
         """
+    capt = IOCapture.capture() do
+        suggest_magnetic_supercell([[1/2,0,0], [0,1/2,0]])
+    end
+    @test capt.output == """
+        Possible magnetic supercell in multiples of lattice vectors:
+
+            [2 0 0; 0 2 0; 0 0 1]
+
+        for the rationalized wavevectors:
+
+            [[1/2, 0, 0], [0, 1/2, 0]]
+        """
 
     A1 = [1 0 0; 0 2 0; 0 0 1]
     A2 = [1 0 0; 1 2 0; 0 0 1]
@@ -43,7 +55,7 @@
     newsys2 = reshape_supercell(sys, A2)
 
     @test energy_per_site(sys) ≈ 2.55
-    
+
     newsys = reshape_supercell(sys, A1)
     @test energy_per_site(newsys) ≈ 2.55
     newsys = reshape_supercell(sys, A2)

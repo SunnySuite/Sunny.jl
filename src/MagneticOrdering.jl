@@ -100,20 +100,20 @@ suggest_magnetic_supercell([[0, 0, 1/√5], [0, 0, 1/√7]]; tol=1e-2)
 ```
 """
 function suggest_magnetic_supercell(ks; tol=1e-12, maxsize=100)
+    denoms = zeros(Int, 3)
     new_ks = zeros(Rational{Int}, 3, length(ks))
 
     for i in 1:3
         xs = [k[i] for k in ks]
         numers, denom = rationalize_simultaneously(xs; tol, maxsize)
+        denoms[i] = denom
         new_ks[i, :] = numers .// denom
     end
 
-    suggest_magnetic_supercell_aux(eachcol(new_ks))
+    suggest_magnetic_supercell_aux(eachcol(new_ks), denoms)
 end
 
-function suggest_magnetic_supercell_aux(ks)
-    denoms = denominator.(first(ks))
-
+function suggest_magnetic_supercell_aux(ks, denoms)
     # All possible periodic offsets, sorted by length
     nmax = div.(denoms, 2)
     ns = [[n1, n2, n3] for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]][:]
@@ -125,7 +125,7 @@ function suggest_magnetic_supercell_aux(ks)
 
     # Filter out elements of ns that are not consistent with k ∈ ks
     for k in ks
-        ns = filter(ns) do n            
+        ns = filter(ns) do n
             # Wave vector `k` in RLU is commensurate if `n⋅k` is integer,
             # corresponding to the condition `exp(-i 2π n⋅k) = 1`.
             isinteger(n⋅k)
