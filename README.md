@@ -7,7 +7,8 @@
     </a>
     <br>
     <a href="https://sunnysuite.github.io/Sunny.jl/stable"><img src="https://img.shields.io/badge/docs-stable-blue.svg" alt="Docs-stable"></a>
-    <a href="https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml?query=branch%3Amain"><img src="https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml/badge.svg?branch=main" alt="CI"></a><a href="https://arxiv.org/abs/2501.13095"><img src="https://img.shields.io/badge/arXiv-2501.1309v2-b31b1b.svg" alt="arXiv"></a>
+    <a href="https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml?query=branch%3Amain"><img src="https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml/badge.svg?branch=main" alt="CI"></a>
+    <a href="https://arxiv.org/abs/2501.13095"><img src="https://img.shields.io/badge/arXiv-2501.1309v2-b31b1b.svg" alt="arXiv"></a>
 </div>
 
 ## Overview
@@ -79,3 +80,19 @@ We want to interact with you! Please [join our Slack community](https://join.sla
     </a>
 </div>
 
+
+## Citing Sunny
+
+If you use Sunny in your research, please cite the Sunny Paper:
+
+```
+@article{dahlbom2025sunny,
+  title={Sunny.jl: A Julia Package for Spin Dynamics},
+  author={Dahlbom, David and Zhang, Hao and Miles, Cole and Quinn, Sam and Niraula, Alin and Thipe, Bhushan and Wilson, Matthew and Matin, Sakib and Mankad, Het and Hahn, Steven and others},
+  year={2025},
+  arxivPrefix = {arXiv},
+  eprint = {2501.13095v2},
+  primaryClass = {quant-ph},
+}
+
+```
