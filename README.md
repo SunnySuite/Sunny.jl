@@ -42,10 +42,6 @@ Sunny is inspired by SpinW, especially regarding symmetry analysis and tradition
 
 Codes like [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https://vampire.york.ac.uk/) focus less on capturing quantum effects, but might be preferred for large-scale classical spin dynamics, e.g., for micromagnetics.
 
-## Join our community
-
-We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you use Sunny in a paper, please add it to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
-
 ## Citing Sunny
 
 If you use Sunny in your research, please cite the Sunny Paper:
@@ -61,6 +57,10 @@ If you use Sunny in your research, please cite the Sunny Paper:
 }
 
 ```
+
+## Join our community
+
+We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you use Sunny in a paper, please add it to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 <br>
 <div>
