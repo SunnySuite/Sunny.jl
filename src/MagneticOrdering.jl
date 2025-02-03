@@ -61,7 +61,7 @@ function rationalize_simultaneously(xs; tol, maxsize)
         numers = @. round(Int, xs * denom)
         errs = @. xs - numers / denom
         if all(e -> abs(e) < tol, errs)
-            return numers, denom
+            return numers .// denom
         end
     end
     error("Wavevectors are incommensurate for lattice sizes less than $maxsize. Try increasing `tol` parameter.")
@@ -100,23 +100,27 @@ suggest_magnetic_supercell([[0, 0, 1/√5], [0, 0, 1/√7]]; tol=1e-2)
 ```
 """
 function suggest_magnetic_supercell(ks; tol=1e-12, maxsize=100)
-    denoms = zeros(Int, 3)
-    new_ks = zeros(Rational{Int}, 3, length(ks))
+    @assert eltype(ks) <: AbstractVector{<: Number} "Pass a list of wavevectors"
 
+    rational_ks = zeros(Rational{Int}, 3, length(ks))
     for i in 1:3
         xs = [k[i] for k in ks]
-        numers, denom = rationalize_simultaneously(xs; tol, maxsize)
-        denoms[i] = denom
-        new_ks[i, :] = numers .// denom
+        rational_ks[i, :] = rationalize_simultaneously(xs; tol, maxsize)
     end
 
-    suggest_magnetic_supercell_aux(eachcol(new_ks), denoms)
+    suggest_magnetic_supercell_aux(eachcol(rational_ks))
 end
 
-function suggest_magnetic_supercell_aux(ks, denoms)
-    # All possible periodic offsets, sorted by length
-    nmax = div.(denoms, 2)
-    ns = [[n1, n2, n3] for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]][:]
+function suggest_magnetic_supercell_aux(ks)
+    # A supercell of shape A = diagm(nmax) is guaranteed to be commensurate
+    nmax = [lcm(denominator.(row)...) for row in zip(ks...)]
+    ns = Vec3.(eachcol(diagm(nmax)))
+
+    # Candidate lattice vectors for a smaller supercell
+    rg = div.(nmax, 2)
+    append!(ns, Vec3.(Iterators.product(-rg[1]:rg[1], -rg[2]:rg[2], -rg[3]:rg[3])))
+
+    # Sort by length
     sort!(ns, by=n->n'*n)
 
     # Remove zero vector
@@ -132,12 +136,6 @@ function suggest_magnetic_supercell_aux(ks, denoms)
         end
     end
 
-    # Add vectors that wrap the entire lattice to ensure that a subset of the ns
-    # span a nonzero volume.
-    push!(ns, [denoms[1], 0, 0])
-    push!(ns, [0, denoms[2], 0])
-    push!(ns, [0, 0, denoms[3]])
-
     # Goodness of supervectors A1, A2, A3. Lower is better.
     function score(A)
         (A1, A2, A3) = eachcol(A)
@@ -150,15 +148,8 @@ function suggest_magnetic_supercell_aux(ks, denoms)
         V <= 0 ? Inf : V - 1e-3*c1 - 1e-6c2
     end
 
-    # Find three vectors that span a nonzero volume which is hopefully small.
-    # This will be our initial guess for the supercell.
-    i1 = 1
-    A1 = ns[i1]
-    i2 = findfirst(n -> !iszero(n×A1), ns[i1+1:end])::Int
-    A2 = ns[i1+i2]
-    i3 = findfirst(n -> !iszero(n⋅(A1×A2)), ns[i1+i2+1:end])::Int
-    A3 = ns[i1+i2+i3]
-    best_A = [A1 A2 A3]
+    # Initial guess for the supercell
+    best_A = diagm(nmax)
     best_score = score(best_A)
 
     # Iteratively search for an improved supercell. For efficiency, restrict the
@@ -194,16 +185,8 @@ function suggest_magnetic_supercell_aux(ks, denoms)
     end
 
     # # Alternative brute force implementation, for reference
-    # push!(ns, [denoms[1],0,0])
-    # push!(ns, [0,denoms[2],0])
-    # push!(ns, [0,0,denoms[3]])
-    # for A1 in ns, A2 in ns, A3 in ns
-    #     A = [A1 A2 A3]
-    #     if best_score > score(A)
-    #         best_score = score(A)
-    #         best_A = A
-    #     end
-    # end
+    # all_As = ([A1 A2 A3] for (A1, A2, A3) in Iterators.product(ns, ns, ns))
+    # @assert minimum(score, all_As) == best_score
 
     kstrs = join(map(fractional_vec3_to_string, ks), ", ")
     println("""Possible magnetic supercell in multiples of lattice vectors:
