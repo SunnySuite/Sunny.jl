@@ -100,7 +100,7 @@ suggest_magnetic_supercell([[0, 0, 1/√5], [0, 0, 1/√7]]; tol=1e-2)
 ```
 """
 function suggest_magnetic_supercell(ks; tol=1e-12, maxsize=100)
-    @assert eltype(ks) <: AbstractVector{<: Number} "Pass a list of wavevectors"
+    eltype(ks) <: AbstractVector{<: Number} || error("Pass a list of wavevectors")
 
     rational_ks = zeros(Rational{Int}, 3, length(ks))
     for i in 1:3
