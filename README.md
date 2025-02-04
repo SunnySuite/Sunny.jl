@@ -1,3 +1,5 @@
+<div align="center">
+
 <a href="https://github.com/SunnySuite/Sunny.jl/">
     <picture>
         <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo-dark.svg">
@@ -5,9 +7,9 @@
     </picture>
 </a>
 
-| **Documentation**         | **Build Status**      |  **Citation**            |
-|:--------------            |:-------------------   |:------------------------ |
-| [![][docs-img]][docs-url] | [![][ci-img]][ci-url] | [![][doi-img]][doi-url]  |
+| **Documentation**         | **Build Status**      |  **Citation**           |
+| :-----------------------: | :-------------------: | :---------------------: |
+| [![][docs-img]][docs-url] | [![][ci-img]][ci-url] | [![][doi-img]][doi-url] |
 
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-url]: https://sunnysuite.github.io/Sunny.jl/stable
@@ -16,6 +18,7 @@
 [doi-img]: https://img.shields.io/badge/DOI-10.48550-blue
 [doi-url]: https://doi.org/10.48550/arXiv.2501.13095
 
+</div>
 
 ## Overview
 
