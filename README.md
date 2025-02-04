@@ -1,15 +1,21 @@
-<div align="center">
-    <a href="https://github.com/SunnySuite/Sunny.jl/">
-        <picture>
-            <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo-dark.svg">
-            <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo.svg" alt="Sunny.jl" width="350px">
-        </picture>
-    </a>
-    <br>
-    <a href="https://sunnysuite.github.io/Sunny.jl/stable"><img src="https://img.shields.io/badge/docs-stable-blue.svg" alt="Docs-stable"></a>
-    <a href="https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml?query=branch%3Amain"><img src="https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml/badge.svg?branch=main" alt="CI"></a>
-    <a href="https://arxiv.org/abs/2501.13095"><img src="https://img.shields.io/badge/arXiv-2501.1309v2-b31b1b.svg" alt="arXiv"></a>
-</div>
+<a href="https://github.com/SunnySuite/Sunny.jl/">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo-dark.svg">
+        <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo.svg" alt="Sunny.jl" width="350px">
+    </picture>
+</a>
+
+| **Documentation**         | **Build Status**      |  **Citation**            |
+|:--------------            |:-------------------   |:------------------------ |
+| [![][docs-img]][docs-url] | [![][ci-img]][ci-url] | [![][doi-img]][doi-url]  |
+
+[docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-url]: https://sunnysuite.github.io/Sunny.jl/stable
+[ci-img]: https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml/badge.svg?branch=main
+[ci-url]: https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml?query=branch%3Amain
+[doi-img]: https://img.shields.io/badge/DOI-10.48550-blue
+[doi-url]: https://doi.org/10.48550/arXiv.2501.13095
+
 
 ## Overview
 
@@ -42,12 +48,15 @@ Sunny is inspired by SpinW, especially regarding symmetry analysis and tradition
 
 Codes like [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https://vampire.york.ac.uk/) focus less on capturing quantum effects, but might be preferred for large-scale classical spin dynamics, e.g., for micromagnetics.
 
-## Citing Sunny
+## Join our community
 
-If you use Sunny in your research, please cite the Sunny Paper:
+We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you use Sunny in a paper, please [cite us](https://arxiv.org/abs/2501.13095) and your paper to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+
+<details>
+<summary>Bibtex entry</summary>
 
 ```
-@article{dahlbom2025sunny,
+@article{Sunny2025,
   title={Sunny.jl: A Julia Package for Spin Dynamics},
   author={Dahlbom, David and Zhang, Hao and Miles, Cole and Quinn, Sam and Niraula, Alin and Thipe, Bhushan and Wilson, Matthew and Matin, Sakib and Mankad, Het and Hahn, Steven and Pajerowski, Daniel and Johnston, Steve and Wang, Zhentao and Lane, Harry and Li, Ying Wai and Bai, Xiaojian and Mourigal, Martin and Batista, Cristian D. and Barros, Kipton},
   year={2025},
@@ -55,12 +64,8 @@ If you use Sunny in your research, please cite the Sunny Paper:
   eprint = {2501.13095v2},
   primaryClass = {quant-ph},
 }
-
 ```
-
-## Join our community
-
-We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you use Sunny in a paper, please add it to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+</details>
 
 <br>
 <div>
