@@ -25,7 +25,7 @@ At low-temperatures, Sunny supports the usual linear spin wave theory of spin di
 
 ## Try it out!
 
-Start by browsing the **[Tutorials](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4)**. For traditional linear spin wave theory, see also the [SpinW ports](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW01_FM_Heseinberg_chain.html).
+Browse the **[Tutorials](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4)**. For traditional linear spin wave theory, see also the [SpinW ports](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW01_FM_Heseinberg_chain.html).
 
 See [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia) for installation instructions. [Version History](https://sunnysuite.github.io/Sunny.jl/dev/versions) lists new features and breaking changes.
 
@@ -50,7 +50,7 @@ Codes like [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https:/
 
 ## Join our community
 
-We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you use Sunny in a paper, please [cite us](https://arxiv.org/abs/2501.13095) and your paper to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you use Sunny in a paper, please add it to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature) and cite the main Sunny reference paper:
 
 <details>
 <summary>Bibtex entry</summary>
