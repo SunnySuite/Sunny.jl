@@ -49,22 +49,7 @@ Codes like [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https:/
 
 ## Join our community
 
-We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you use Sunny in a paper, please add it to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature) and cite the main Sunny reference paper:
-
-<details>
-<summary>Bibtex entry</summary>
-
-```
-@article{Sunny2025,
-  title={Sunny.jl: A Julia Package for Spin Dynamics},
-  author={Dahlbom, David and Zhang, Hao and Miles, Cole and Quinn, Sam and Niraula, Alin and Thipe, Bhushan and Wilson, Matthew and Matin, Sakib and Mankad, Het and Hahn, Steven and Pajerowski, Daniel and Johnston, Steve and Wang, Zhentao and Lane, Harry and Li, Ying Wai and Bai, Xiaojian and Mourigal, Martin and Batista, Cristian D. and Barros, Kipton},
-  year={2025},
-  arxivPrefix = {arXiv},
-  eprint = {2501.13095v2},
-  primaryClass = {quant-ph},
-}
-```
-</details>
+We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you find Sunny useful, please cite our [software paper](https://arxiv.org/abs/2501.13095) and include your work in our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 <br>
 <div>
