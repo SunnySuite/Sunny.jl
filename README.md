@@ -49,7 +49,7 @@ Codes like [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https:/
 
 ## Join our community
 
-We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you find Sunny useful, please cite our [software paper](https://arxiv.org/abs/2501.13095) and include your work in our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+We want to interact with you! Please [join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, please ask on the Slack `#helpdesk` channel. If you find Sunny useful, please cite our [software paper](https://arxiv.org/abs/2501.13095) and include your work on the public [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 <br>
 <div>
