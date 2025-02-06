@@ -47,12 +47,13 @@ plot_intensities(res)
 
 sys_inhom = to_inhomogeneous(repeat_periodically(sys, (10, 10, 1)))
 
-# Use [`symmetry_equivalent_bonds`](@ref) to iterate over all nearest neighbor
-# bonds of the inhomogeneous system. Modify each AFM exchange with a noise term
-# that has variance of 1/3. The newly minimized energy configuration allows for
-# long wavelength modulations on top of the original 120° order.
+# Iterate over all [`symmetry_equivalent_bonds`](@ref) for nearest neighbor
+# sites in the inhomogeneous system. Set the AFM exchange to include a noise
+# term that has a standard deviation of 1/3. The newly minimized energy
+# configuration allows for long wavelength modulations on top of the original
+# 120° order.
 
-for (site1, site2, offset) in symmetry_equivalent_bonds(sys_inhom, Bond(1,1,[1,0,0]))
+for (site1, site2, offset) in symmetry_equivalent_bonds(sys_inhom, Bond(1, 1, [1, 0, 0]))
     noise = randn()/3
     set_exchange_at!(sys_inhom, 1.0 + noise, site1, site2; offset)
 end
@@ -60,38 +61,32 @@ end
 minimize_energy!(sys_inhom, maxiters=5_000)
 plot_spins(sys_inhom; color=[S[3] for S in sys_inhom.dipoles], ndims=2)
 
-# Traditional spin wave theory calculations become impractical for large system
-# sizes. Significant acceleration is possible with the [kernel polynomial
-# method](https://arxiv.org/abs/2312.08349). Enable it by selecting
-# [`SpinWaveTheoryKPM`](@ref) in place of the traditional
-# [`SpinWaveTheory`](@ref). Using KPM, the cost of an [`intensities`](@ref)
-# calculation becomes linear in system size and scales inversely with the width
-# of the line broadening `kernel`. Error tolerance is controlled through the
-# dimensionless `tol` parameter. A relatively small value, `tol = 0.01`, helps
-# to resolve the large intensities near the ordering wavevector. The alternative
-# choice `tol = 0.1` would be twice faster, but would introduce significant
-# numerical artifacts.
+# Spin wave theory with exact diagonalization becomes impractical for large
+# system sizes. Significant acceleration is possible with an iterative Krylov
+# space solver. With [`SpinWaveTheoryKPM`](@ref), the cost of an
+# [`intensities`](@ref) calculation scales linearly in the system size and
+# inversely with the width of the line broadening `kernel`. Good choices for the
+# dimensionless error tolerance are `tol=0.05` (more speed) or `tol=0.01` (more
+# accuracy).
 #
 # Observe from the KPM calculation that disorder in the nearest-neighbor
 # exchange serves to broaden the discrete excitation bands into a continuum.
 
-swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.01)
+swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
 res = intensities(swt, path; energies, kernel)
 plot_intensities(res)
 
 # Now apply a magnetic field of magnitude 7.5 (energy units) along the global
-# ``ẑ`` axis. This field fully polarizes the spins. Because gap opens, a larger
-# tolerance of `tol = 0.1` can be used to accelerate the KPM calculation without
-# sacrificing much accuracy. The resulting spin wave spectrum shows a sharp mode
-# at the Γ-point (zone center) that broadens into a continuum along the K and M
-# points (zone boundary).
+# ``ẑ`` axis. This field fully polarizes the spins and opens a gap. The spin
+# wave spectrum shows a sharp mode at the Γ-point (zone center) that broadens
+# into a continuum along the K and M points (zone boundary).
 
 set_field!(sys_inhom, [0, 0, 7.5])
 randomize_spins!(sys_inhom)
 minimize_energy!(sys_inhom)
 
 energies = range(0.0, 9.0, 150)
-swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.1)
+swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
 res = intensities(swt, path; energies, kernel)
 plot_intensities(res)
 
@@ -105,8 +100,10 @@ for site in eachsite(sys_inhom)
     noise = randn()/6
     sys_inhom.gs[site] = [1 0 0; 0 1 0; 0 0 1+noise]
 end
+randomize_spins!(sys_inhom)
+minimize_energy!(sys_inhom)
 
-swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.1)
+swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
 res = intensities(swt, path; energies, kernel)
 plot_intensities(res)
 
