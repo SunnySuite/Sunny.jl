@@ -5,7 +5,7 @@
     </picture>
 </a>
 
-| **Documentation**         | **Build Status**      |  **Citation**           |
+| **Documentation**         | **Build Status**      | **Citation**            |
 | ------------------------- | --------------------- | ----------------------- |
 | [![][docs-img]][docs-url] | [![][ci-img]][ci-url] | [![][doi-img]][doi-url] |
 
