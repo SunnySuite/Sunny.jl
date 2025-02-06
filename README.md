@@ -6,7 +6,7 @@
 </a>
 
 | **Documentation**         | **Build Status**      | **Citation**            |
-| ------------------------- | --------------------- | ----------------------- |
+| :------------------------ | :-------------------- | :---------------------- |
 | [![][docs-img]][docs-url] | [![][ci-img]][ci-url] | [![][doi-img]][doi-url] |
 
 [docs-img]: https://img.shields.io/badge/docs-stable-blue.svg
