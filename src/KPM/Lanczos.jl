@@ -8,7 +8,7 @@
 # representative of extremal eigenvalues of A (in an appropriate S-measure
 # sense). Second, one obtains a very good approximation to the matrix-vector
 # product, f(A S) v ≈ Q f(T) e₁, valid for any function f [1].
-# 
+#
 # The generalization of Lanczos to an arbitrary measure S is implemented as
 # follows: Each matrix-vector product A v is replaced by A S v, and each vector
 # inner product w† v is replaced by w† S v. Similar generalizations of Lanczos
@@ -56,11 +56,12 @@ end
 
 
 # An optimized implementation of the generalized Lanczos method. See
-# `lanczos_ref` for explanation, and a reference implementation. This optimized
-# implementation follows "the most stable" of the four variants considered by
-# Paige [1], as listed on Wikipedia. Here, however, we allow for an arbitary
-# measure S. In practice, this means that each matrix-vector product A v is
-# replaced by A S v, and each inner product w† v is replaced by w† S v.
+# `lanczos_ref` for explanation, and a reference implementation. No explicit
+# orthogonalization is performed. This optimized implementation follows "the
+# most stable" of the four variants considered by Paige [1], as listed on
+# Wikipedia. Here, however, we allow for an arbitary measure S. In practice,
+# this means that each matrix-vector product A v is replaced by A S v, and each
+# inner product w† v is replaced by w† S v.
 #
 # In this implementation, each Lanczos iteration requires only one matrix-vector
 # multiplication involving A and S, respectively. 
@@ -70,20 +71,22 @@ end
 # * The return value is a pair, (T, lhs† Q). The symbol `lhs` denotes "left-hand
 #   side" column vectors, packed horizontally into a matrix. If the `lhs`
 #   argument is ommitted, its default value will be a matrix of width 0.
-# * If the initial vector `v` is not normalized, then this normalization will be
-#   performed automatically, and the scale `√v S v` will be absorbed into the
-#   return value `lhs† Q`.
-# * The number of iterations will never exceed length(v). If this limit is hit
-#   then, mathematically, the Krylov subspace should be complete, and the matrix
-#   T should be exactly similar to the matrix A S. In practice, however,
-#   numerical error at finite precision may be severe. Further testing is
-#   required to determine whether the Lanczos method is appropriate in this
-#   case, where the matrices have modest dimension. (Direct diagonalization may
-#   be preferable.)
+# * The initial vector `v` must be normalized such that `√v S v ≈ 1`. (An
+#   alternative implementation might absorb this scale into the return value
+#   `lhs† Q`.)
 # * After `min_iters` iterations, this procedure will estimate the spectral
 #   bandwidth Δϵ between extreme eigenvalues of T. Then `Δϵ / resolution` will
 #   be an upper bound on the total number of iterations (which includes the
 #   initial `min_iters` iterations as well as subsequent ones).
+# * The number of iterations will never exceed length(v). If this limit is hit
+#   then, mathematically, the Krylov subspace should be complete, and the matrix
+#   T should be exactly similar to the matrix A S. In practice, however,
+#   numerical error at finite precision may be severe.
+# * Accumulation of numerical roundoff error can lead to significant artifacts
+#   in some cases. See https://github.com/SunnySuite/Sunny.jl/pull/339 for
+#   examples. An explicit orthogonalization step may be considered for future
+#   work. But note that there can be mixing between near-degenerate eigenvalues
+#   even when the number of Lanczos iterations is small.
 #
 # 1. C. C. Paige, IMA J. Appl. Math., 373-381 (1972),
 #    https://doi.org/10.1093%2Fimamat%2F10.3.373.

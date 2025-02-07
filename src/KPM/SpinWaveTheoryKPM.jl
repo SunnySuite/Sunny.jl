@@ -1,30 +1,76 @@
 """
-    SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol)
+    SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol=nothing,
+                      niters=nothing, method=:lanczos)
 
-A variant of [`SpinWaveTheory`](@ref) that uses the kernel polynomial method
-(KPM) to calculate [`intensities`](@ref) [1]. This method avoids direct matrix
-diagonalization, which scales cubically in the system size ``N``. Instead, using
-``M`` iterative matrix-vector multiplications, the cost becomes ``𝒪(N M +
-M^2)``. This provides a very significant acceleration when ``N`` is large.
+A variant of [`SpinWaveTheory`](@ref) that uses matrix-vector products to
+estimate [`intensities`](@ref) [1]. This approach avoids direct matrix
+diagonalization and therefore yields significant acceleration when the system
+size ``N`` is large. Large magnetic supercells may arise when studying models
+with quenched disorder, or for approximation of incommensurate ordering
+wavevectors.
 
-The number of iterations is typically not too large: `M ≈ -2 log10(tol) Δϵ /
+!!! warning "Accuracy considerations"  
+    The available energy-space resolution scales inversely with the dimension
+    ``M`` of the Krylov subspace. In practice, energy broadening artifacts can
+    be well controlled through appropriate choice of ``M``. A more serious
+    problem is intensity loss at small excitation energies, e.g., in the
+    viscinity of Goldstone modes. This missing intensity may be unrecoverable,
+    even when ``M`` is large.
+
+Computational cost scales like ``𝒪(N M + M^2)``. The number of iterations ``M``
+can be specified in two possible ways: Directly with the `niters` parameter, or
+indirectly through the `tol` parameter. For the latter, `M ≈ -2 log10(tol) Δϵ /
 fwhm` where `Δϵ` is the estimated spectral bandwidth of excitations, `fwhm` is
-the full width at half maximum of the broadening kernel, and `tol` is a
-dimensionless tolerance parameter. Good choices are `0.05` (more speed) or
-`0.01` (more accuracy).
+the full width at half maximum of the user-supplied broadening `kernel`. Good
+choices for the dimensionless `tol` parameter may be `0.05` (more speed) or
+`0.01` (more accuracy). Exactly one of `tol` or `niters` must be provided.
+
+The current default implementation uses the Lanczos method [1], which achieves
+near-optimal accuracy for a given Krylov subspace [2]. Sunny's original
+implementation used Kernel Polynomial Method [3] which is less accurate than
+Lanczos. Select `method=:kpm` to test this historical method.
 
 ## References
 
-1. [H. Lane et al., _Kernel Polynomial Method for Linear Spin Wave Theory_
+1. [T. Chen, _The Lanczos algorithm for matrix functions: a handbook for
+   scientists_ (2024) [arXiv:2410.11090]](https://arxiv.org/abs/2410.11090).
+2. [N. Amsel, T. Chen, A. Greenbaum, C. Musco, C. Musco, _Near-Optimal
+   Approximation of Matrix Functions by the Lanczos Method_ (2023)
+   [arXiv:2303.03358]](https://arxiv.org/abs/2303.03358).
+3. [H. Lane et al., _Kernel Polynomial Method for Linear Spin Wave Theory_
    (2023) [arXiv:2312.08349]](https://arxiv.org/abs/2312.08349).
 """
 struct SpinWaveTheoryKPM
     swt :: SpinWaveTheory
     tol :: Float64
-    lanczos_iters :: Int
+    niters :: Int
+    method :: Symbol
+    bounding_iters :: Int # For :kpm backend, number of Lanczos iterations to bound spectrum
 
-    function SpinWaveTheoryKPM(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, tol, lanczos_iters=15)
-        return new(SpinWaveTheory(sys; measure, regularization), tol, lanczos_iters)
+    function SpinWaveTheoryKPM(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8,
+                               tol=nothing, niters=nothing, method=:lanczos, bounding_iters=14)
+        xor(isnothing(tol), isnothing(niters)) || error("Exactly one of `tol` or `niters` must be specified.")
+        method in (:lanczos, :kpm) || error("The method must be one of :lanczos or :kpm")
+        tol = @something tol Inf
+        niters = @something niters 0
+        return new(SpinWaveTheory(sys; measure, regularization), tol, niters, method, bounding_iters)
+    end
+end
+
+
+function intensities(swt_kry::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
+    qpts = convert(AbstractQPoints, qpts)
+    data = zeros(eltype(swt_kry.swt.measure), length(energies), length(qpts.qs))
+    return intensities!(data, swt_kry, qpts; energies, kernel, kT, verbose)
+end
+
+function intensities!(data, swt_kry::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
+    (; method) = swt_kry
+    if method == :lanczos
+        intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose)
+    else
+        @assert method == :kpm
+        intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
     end
 end
 
@@ -48,12 +94,11 @@ function set_moments!(moments, measure, u, α)
     end
 end
 
-
-function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
-    iszero(kT) || error("KPM does not yet support finite kT")
+function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
+    iszero(kT) || error("The :kpm backend does not support finite kT")
     qpts = convert(AbstractQPoints, qpts)
 
-    (; swt, tol, lanczos_iters) = swt_kpm
+    (; swt, tol, niters, bounding_iters) = swt_kry
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
 
@@ -116,11 +161,17 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
 
         # Bound eigenvalue magnitudes and determine order of polynomial
         # expansion
+        if niters > 0
+            @assert isinf(tol)
+            M = niters
+        else
+            @assert 0.0 < tol < Inf
+            lo, hi = eigbounds(swt, q_reshaped, bounding_iters)
+            γ = 1.1 * max(abs(lo), hi)
+            accuracy_factor = max(-3*log10(tol), 1)
+            M = round(Int, accuracy_factor * max(2γ / kernel.fwhm, 3))
+        end
 
-        lo, hi = eigbounds(swt, q_reshaped, lanczos_iters)
-        γ = 1.1 * max(abs(lo), hi)
-        accuracy_factor = max(-3*log10(tol), 1)
-        M = round(Int, accuracy_factor * max(2γ / kernel.fwhm, 3))
         resize!(moments, Ncorr, M)
 
         if verbose
@@ -174,18 +225,10 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
     return Intensities(cryst, qpts, collect(energies), data)
 end
 
-function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
-    qpts = convert(AbstractQPoints, qpts)
-    data = zeros(eltype(swt_kpm.swt.measure), length(energies), length(qpts.qs))
-    # return intensities!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
-    return intensities2!(data, swt_kpm, qpts; energies, kernel, kT, verbose)
-end
-
-
-function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
+function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose)
     qpts = convert(AbstractQPoints, qpts)
 
-    (; swt, tol, lanczos_iters) = swt_kpm
+    (; swt, tol, niters) = swt_kry
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
 
@@ -258,7 +301,16 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
             return w
         end
 
-        resolution = (kernel.fwhm/2) / max(-log10(tol), 0)
+        # Determine bounds on either the number of iterations or the resolution
+        if niters > 0
+            @assert isinf(tol)
+            min_iters = niters
+            resolution = Inf
+        else
+            @assert 0.0 < tol < Inf
+            min_iters = 2
+            resolution = (kernel.fwhm/2) / max(-log10(tol), 0)
+        end
 
         for ξ in 1:Nobs
             # Don't accumulate observables that are zero
@@ -269,7 +321,7 @@ function intensities2!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel:
             c = sqrt(real(Sv' * v))
             v ./= c
             tridiag, lhs_adj_Q = try
-                lanczos(mulA!, mulS!, v; lhs=u, min_iters=lanczos_iters, resolution, verbose)
+                lanczos(mulA!, mulS!, v; lhs=u, min_iters, resolution, verbose)
             catch e
                 if e.msg == "S is not a positive definite measure"
                     rethrow(ErrorException("Not an energy-minimum; wavevector q = $q unstable."))

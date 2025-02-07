@@ -1,4 +1,4 @@
-@testitem "Lanczos" begin
+@testitem "Lanczos consistency" begin
     using LinearAlgebra
 
     N = 40
@@ -33,7 +33,7 @@
 end
 
 
-@testitem "FCC KPM" begin
+@testitem "Lanczos eigenbounds" begin
     using LinearAlgebra
 
     fcc = Sunny.fcc_crystal()
@@ -63,7 +63,7 @@ end
 end
 
 
-@testitem "AFM KPM" begin
+@testitem "KPM vs Lanczos" begin
     J, D, h = 1.0, 0.54, 0.76
     s, g = 1, -1.5
     a = 1
@@ -92,17 +92,28 @@ end
 
         formfactors = [1 => FormFactor("Fe2")]
         measure = ssf_perp(sys; formfactors)
-        swt = SpinWaveTheory(sys; measure)
-        swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=1e-8)
-
         kernel = lorentzian(fwhm=0.1)
         energies = range(0, 6, 100)
         kT = 0.0
+
+        # Reference calculation
+        swt = SpinWaveTheory(sys; measure)
         res1 = intensities(swt, [q]; energies, kernel, kT)
-        res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
 
         # Note that KPM accuracy is currently limited by Gibbs ringing
         # introduced in the thermal occupancy (Heaviside step) function.
+        swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=1e-8, method=:kpm)
+        res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
         @test isapprox(res1.data, res2.data, rtol=1e-5)
+
+        # Default Lanczos method does this task perfectly
+        swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=0.01)
+        res3 = intensities(swt_kpm, [q]; energies, kernel, kT)
+        @test isapprox(res1.data, res3.data, rtol=1e-8)
+
+        # Only 4 iterations required
+        swt_kpm = SpinWaveTheoryKPM(sys; measure, niters=4)
+        res3 = intensities(swt_kpm, [q]; energies, kernel, kT)
+        @test isapprox(res1.data, res3.data, rtol=1e-8)
     end
 end
