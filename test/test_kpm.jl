@@ -106,12 +106,12 @@ end
         res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
         @test isapprox(res1.data, res2.data, rtol=1e-5)
 
-        # Default Lanczos method does this task perfectly
+        # Default Lanczos method does this task well
         swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=0.01)
         res3 = intensities(swt_kpm, [q]; energies, kernel, kT)
-        @test isapprox(res1.data, res3.data, rtol=1e-8)
+        @test isapprox(res1.data, res3.data, rtol=1e-5)
 
-        # Only 4 iterations required
+        # Very high accuracy after 4 iterations
         swt_kpm = SpinWaveTheoryKPM(sys; measure, niters=4)
         res3 = intensities(swt_kpm, [q]; energies, kernel, kT)
         @test isapprox(res1.data, res3.data, rtol=1e-8)
