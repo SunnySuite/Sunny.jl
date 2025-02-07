@@ -102,18 +102,18 @@ end
 
         # Note that KPM accuracy is currently limited by Gibbs ringing
         # introduced in the thermal occupancy (Heaviside step) function.
-        swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=1e-8, method=:kpm)
-        res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
+        swt_kry = SpinWaveTheoryKPM(sys; measure, tol=1e-8, method=:kpm)
+        res2 = intensities(swt_kry, [q]; energies, kernel, kT)
         @test isapprox(res1.data, res2.data, rtol=1e-5)
 
         # Default Lanczos method does this task well
-        # swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=1e-3)
-        # res3 = intensities(swt_kpm, [q]; energies, kernel, kT)
-        # @test isapprox(res1.data, res3.data, rtol=1e-8)
+        swt_kry = SpinWaveTheoryKPM(sys; measure, tol=1e-2)
+        res3 = intensities(swt_kry, [q]; energies, kernel, kT)
+        @test isapprox(res1.data, res3.data, rtol=1e-8)
 
         # Very high accuracy after 4 iterations
-        swt_kpm = SpinWaveTheoryKPM(sys; measure, niters=4)
-        res3 = intensities(swt_kpm, [q]; energies, kernel, kT)
+        swt_kry = SpinWaveTheoryKPM(sys; measure, niters=4)
+        res3 = intensities(swt_kry, [q]; energies, kernel, kT)
         @test isapprox(res1.data, res3.data, rtol=1e-8)
     end
 end
