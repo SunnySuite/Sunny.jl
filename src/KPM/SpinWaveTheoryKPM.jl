@@ -165,18 +165,13 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
             end
         end
 
-        # Bound eigenvalue magnitudes and determine order of polynomial
-        # expansion
-        if niters > 0
-            @assert isinf(tol)
-            M = niters
-        else
-            @assert 0.0 < tol < Inf
-            lo, hi = eigbounds(swt, q_reshaped, niters_bounds)
-            γ = 1.1 * max(abs(lo), hi)
-            accuracy_factor = max(-3*log10(tol), 1)
-            M = round(Int, accuracy_factor * max(2γ / kernel.fwhm, 3))
-        end
+        # Bound eigenvalue magnitudes
+        lo, hi = eigbounds(swt, q_reshaped, niters_bounds)
+        γ = 1.1 * max(abs(lo), hi)
+        accuracy_factor = max(-3*log10(tol), 1)
+
+        # Determine order of polynomial expansion
+        M = (niters > 0) ? niters : round(Int, accuracy_factor * max(2γ / kernel.fwhm, 3))
 
         resize!(moments, Ncorr, M)
 
@@ -212,10 +207,7 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
             # To mitigate ringing artifacts associated with truncated Chebyshev
             # approximation, introduce smoothing on the energy scale σ. This is
             # the polynomial resolution scale times a prefactor that grows like
-            # sqrt(accuracy) to reduce lingering ringing artifacts. See "AFM
-            # KPM" for a test case where the smoothing degrades accuracy, and
-            # "Disordered system with KPM" for an illustration of how smoothing
-            # affects intensities at small ω.
+            # sqrt(accuracy) to reduce lingering ringing artifacts.
             σ = sqrt(accuracy_factor) * (γ / M)
             thermal_prefactor_zero(x) = (tanh(x / σ) + 1) / 2
             f(x) = kernel(x, ω) * thermal_prefactor_zero(x)
