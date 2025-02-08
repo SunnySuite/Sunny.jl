@@ -52,8 +52,10 @@ struct SpinWaveTheoryKPM
                                tol=nothing, niters=nothing, niters_bounds=10, method=:lanczos)
         xor(isnothing(tol), isnothing(niters)) || error("Exactly one of `tol` or `niters` must be specified.")
         method in (:lanczos, :kpm) || error("The method must be one of :lanczos or :kpm")
-        tol = @something tol Inf
+        tol = @something tol 1.0
         niters = @something niters 0
+        0 < tol <= 1 || error("Require 0 < tol <= 1")
+        niters >= 0 || error("Require niters >= 0")
         return new(SpinWaveTheory(sys; measure, regularization), tol, niters, niters_bounds, method)
     end
 end
@@ -165,13 +167,20 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
             end
         end
 
-        # Bound eigenvalue magnitudes
+        # Find extreme eigenvalues and rescaling factor
         lo, hi = eigbounds(swt, q_reshaped, niters_bounds)
         γ = 1.1 * max(abs(lo), hi)
-        accuracy_factor = max(-3*log10(tol), 1)
+        Δϵ = hi - lo
 
         # Determine order of polynomial expansion
-        M = (niters > 0) ? niters : round(Int, accuracy_factor * max(2γ / kernel.fwhm, 3))
+        if niters > 0
+            @assert tol == 1
+            M = niters
+        else
+            @assert 0 < tol <= 1
+            resolution = (kernel.fwhm/2) / (-log10(tol))
+            M = max(round(Int, Δϵ/resolution), 2)
+        end
 
         resize!(moments, Ncorr, M)
 
@@ -199,16 +208,13 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
         plan = FFTW.plan_r2r!(buf, FFTW.REDFT10)
 
         for (iω, ω) in enumerate(energies)
-            # Ideally we would use thermal_prefactor instead of
-            # thermal_prefactor_zero to allow for finite temperature effects.
-            # Unfortunately, the Bose function's 1/x singularity introduces
-            # divergence of the Chebyshev expansion integrals, and is tricky to
-            # regularize. At kT=0, the occupation is a Heaviside step function.
-            # To mitigate ringing artifacts associated with truncated Chebyshev
-            # approximation, introduce smoothing on the energy scale σ. This is
-            # the polynomial resolution scale times a prefactor that grows like
-            # sqrt(accuracy) to reduce lingering ringing artifacts.
-            σ = sqrt(accuracy_factor) * (γ / M)
+            # Unlike Lanczos, KPM requires a lot of hacks here. Restrict to kT=0
+            # to avoid the 1/x divergence of thermal_prefactor(x). To mitigate
+            # ringing artifacts, introduce a smoothing energy scale σ. This is
+            # the energy resolution (Δϵ / M) times a prefactor that grows slowly
+            # with decreasing error tolerance, to help control artifacts.
+            accuracy_prefactor = 2 * max(sqrt(-log10(tol)), 1)
+            σ = accuracy_prefactor * (Δϵ / M)
             thermal_prefactor_zero(x) = (tanh(x / σ) + 1) / 2
             f(x) = kernel(x, ω) * thermal_prefactor_zero(x)
             coefs = cheb_coefs!(M, f, (-γ, γ); buf, plan)
@@ -301,13 +307,13 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
 
         # Determine bounds on either the number of iterations or the resolution
         if niters > 0
-            @assert isinf(tol)
+            @assert tol == 1
             min_iters = niters
             resolution = Inf
         else
-            @assert 0.0 < tol < Inf
+            @assert 0.0 < tol <= 1
             min_iters = niters_bounds
-            resolution = (kernel.fwhm/2) / max(-log10(tol), 0)
+            resolution = (kernel.fwhm/2) / (-log10(tol))
         end
 
         for ξ in 1:Nobs
