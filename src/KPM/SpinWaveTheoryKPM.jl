@@ -8,25 +8,25 @@ this method reduces computational cost from cubic to linear-scaling in the
 system size ``N``. Iterative methods can be especially useful for models of
 quenched disorder or models with nearly incommensurate ordering wavevectors.
 
-!!! warning "Accuracy considerations"  
-    Energy-space resolution scales inversely with the number ``M`` of
-    iterations. In practice, numerical broadening effects can be well controlled
-    via the tolerance parameter `tol`. A more serious problem is intensity loss
-    at bands with small excitation energy, e.g., in the viscinity of Goldstone
-    modes. This missing intensity may be due to floating point round-off errors,
-    whcih are not fixable by increasing ``M``.
-
 Computational cost scales like ``𝒪(N M + M^2)``. The number of iterations ``M``
 can be specified directly with the `niters` parameter. More commonly an error
 tolerance `tol` will be specified; in this case, `M ≈ -2 log10(tol) Δϵ / fwhm`
 where `Δϵ` is the estimated spectral bandwidth of excitations and `fwhm` is the
-full width at half maximum of the user-supplied broadening `kernel`. Good
-choices for the dimensionless `tol` parameter may be `0.05` (more speed) or
-`0.01` (more accuracy). Exactly one of `tol` or `niters` must be provided. The
+full width at half maximum of the user-supplied broadening `kernel`. Common
+choices for the dimensionless `tol` parameter are `0.05` (more speed) or `0.01`
+(more accuracy). Exactly one of `tol` or `niters` must be provided. The
 parameter `niters_bounds` selects the Krylov subspace dimension to be used for
 estimating spectral bounds.
 
-The default Krylov sub-space method is Lanczos [1], which achieves near-optimal
+!!! warning "Accuracy considerations"  
+    Energy-space resolution scales inversely with the number ``M`` of
+    iterations. Such broadening errors can usually be well controlled via the
+    tolerance parameter `tol`. A more serious problem is intensity loss at bands
+    with small excitation energy, e.g., in the viscinity of Goldstone modes. In
+    certain cases this missing intensity will be due to numerical roundoff error
+    and cannot be fixed by increasing the number of iterations ``M``.
+
+The default Krylov subspace method is Lanczos [1], which achieves near-optimal
 accuracy for a given number of iterations [2]. Alternatively, `method=:kpm` will
 select the historical Kernel Polynomial Method [3], which is expected to be less
 accurate.
