@@ -6,7 +6,7 @@ having a generalized spiral order. This order is described by a single
 propagation wavevector `k`, which may be incommensurate. The `axis` vector
 defines the polarization plane via its surface normal. Typically the spin
 configuration in `sys` and the propagation wavevector `k` will be optimized
-using [`minimize_energy_spiral!`](@ref). In contrast, `axis` will typically be
+using [`minimize_spiral_energy!`](@ref). In contrast, `axis` will typically be
 determined from symmetry considerations.
 
 The resulting object can be used to calculate the spin wave
