@@ -97,7 +97,7 @@ function excitations!(T, tmp, swt::SpinWaveTheory, q)
     try
         return bogoliubov!(T, tmp)
     catch _
-        error("Instability at wavevector q = $q")
+        rethrow(ErrorException("Not an energy-minimum; wavevector q = $q unstable."))
     end
 end
 

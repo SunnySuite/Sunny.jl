@@ -38,7 +38,7 @@ Feature highlights include:
   on [very large magnetic cells](@ref SpinWaveTheoryKPM). The [FeI₂
   example](@ref "3. Multi-flavor spin wave simulations of FeI₂") showcases LSWT
   with multi-flavor bosons. The [disordered system example](@ref "9. Disordered
-  system with KPM") demonstrates acceleration for large system sizes.
+  systems") demonstrates acceleration for large system sizes.
 - [Dipole-dipole interactions](@ref enable_dipole_dipole!) with full Ewald
   summation, as illustrated in the [pyrochlore LSWT example](@ref "7. Long-range
   dipole interactions"). Dipole-dipole interactions in classical dynamics are

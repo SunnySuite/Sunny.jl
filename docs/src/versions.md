@@ -7,6 +7,8 @@
   wave theory. Empty sites are modeled using bosons that do not excite.
 * Fix correctness of [`suggest_magnetic_supercell`](@ref) when multiple
   wavevectors are provided.
+* The default implementation of [`SpinWaveTheoryKPM`](@ref) now uses Lanczos for
+  higher accuracy.
 
 ## v0.7.5
 (Jan 20, 2025)

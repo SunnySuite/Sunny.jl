@@ -1,31 +1,39 @@
-@testitem "Lanczos" begin
+@testitem "Lanczos consistency" begin
     using LinearAlgebra
 
-    N = 200
+    N = 40
     A = hermitianpart(randn(N, N))
-    A = diagm(vcat(ones(N÷2), -ones(N÷2)))
 
     S = randn(N, N)
     S = S' * S
     S = S / eigmax(S)
-    S = S + 0.0I
+    S = S + 1e-2I
 
+    # Check that fast and slow Lanczos implementations match
+
+    lhs = randn(N, 2)
     v = randn(N)
-    ev1 = eigvals(Sunny.lanczos_ref(A*S*A, S, v; niters=10))
+    v /= sqrt(dot(v, S, v))
+    (; Q, T) = Sunny.lanczos_ref(A, S, v; niters=10)
+    ev1 = eigvals(T)
 
-    mulA!(w, v) = (w .= A * S * A * v)
+    mulA!(w, v) = mul!(w, A, v)
     mulS!(w, v) = mul!(w, S, v)
-    ev2 = eigvals(Sunny.lanczos(mulA!, mulS!, copy(v); niters=10))
+    T, lhs_adj_Q = Sunny.lanczos(mulA!, mulS!, copy(v); lhs, min_iters=10)
+    ev2 = eigvals(T)
 
     @test ev1 ≈ ev2
+    @test lhs' * Q ≈ lhs_adj_Q
 
-    ev3 = extrema(eigvals(Sunny.lanczos_ref(A*S*A, S, v; niters=100)))
-    ev4 = extrema(eigvals((A*S)^2))
-    @test isapprox(collect(ev3), collect(ev4); atol=1e-3)
+    # Check that extremal eigenvalues match to reasonable accuracy
+
+    T, _ = Sunny.lanczos(mulA!, mulS!, copy(v); min_iters=20)
+    @test isapprox(eigmin(T), eigmin(A * S); atol=1e-3)
+    @test isapprox(eigmax(T), eigmax(A * S); atol=1e-3)
 end
 
 
-@testitem "FCC KPM" begin
+@testitem "Lanczos eigenbounds" begin
     using LinearAlgebra
 
     fcc = Sunny.fcc_crystal()
@@ -55,7 +63,7 @@ end
 end
 
 
-@testitem "AFM KPM" begin
+@testitem "KPM vs Lanczos" begin
     J, D, h = 1.0, 0.54, 0.76
     s, g = 1, -1.5
     a = 1
@@ -84,17 +92,28 @@ end
 
         formfactors = [1 => FormFactor("Fe2")]
         measure = ssf_perp(sys; formfactors)
-        swt = SpinWaveTheory(sys; measure)
-        swt_kpm = SpinWaveTheoryKPM(sys; measure, tol=1e-8)
-
         kernel = lorentzian(fwhm=0.1)
         energies = range(0, 6, 100)
         kT = 0.0
+
+        # Reference calculation
+        swt = SpinWaveTheory(sys; measure)
         res1 = intensities(swt, [q]; energies, kernel, kT)
-        res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
 
         # Note that KPM accuracy is currently limited by Gibbs ringing
         # introduced in the thermal occupancy (Heaviside step) function.
+        swt_kry = SpinWaveTheoryKPM(sys; measure, tol=1e-8, method=:kpm)
+        res2 = intensities(swt_kry, [q]; energies, kernel, kT)
         @test isapprox(res1.data, res2.data, rtol=1e-5)
+
+        # Default Lanczos method does this task well
+        swt_kry = SpinWaveTheoryKPM(sys; measure, tol=1e-2)
+        res3 = intensities(swt_kry, [q]; energies, kernel, kT)
+        @test isapprox(res1.data, res3.data, rtol=1e-8)
+
+        # Very high accuracy after 4 iterations
+        swt_kry = SpinWaveTheoryKPM(sys; measure, niters=4)
+        res3 = intensities(swt_kry, [q]; energies, kernel, kT)
+        @test isapprox(res1.data, res3.data, rtol=1e-8)
     end
 end
