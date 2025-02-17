@@ -41,28 +41,6 @@ function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., S)
     return rotate_operator(op, R)
 end
 
-# Identify the "special cases" for the propagation wavevector k. Case 1 is all
-# integer k components (i.e., k=[0,0,0] up to periodicity), and Case 2 is all
-# half integer k components, apart from Case 1. The fallback, Case 3, is any
-# other k. For local interactions in real-space, there is no singularity in k,
-# and the fallback case can always be used. But if a Fourier-space interaction
-# J(q) is specified, e.g. long-range dipole-dipole, there may be a true
-# mathematical discontinuity between, say, k = [1/2, 0, 0] and [1/2+ϵ, 0, 0] in
-# the limit ϵ → 0. TODO: Unify code with spiral_energy.
-function spiral_propagation_case(k)
-    # The choice of ϵ is a bit ambiguous. Would a user consider [1/2+ϵ, 0, 0]
-    # morally the same as [1/2, 0, 0]? Optimization of k usually gives at least
-    # 8 digits.
-    ϵ = 1e-8
-    if norm(k - round.(k)) < ϵ
-        return 1
-    elseif norm(2k - round.(2k)) < 2ϵ
-        return 2
-    else
-        return 3
-    end
-end
-
 function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q)
     (; sys, data) = swt
     (; local_rotations) = data
@@ -78,10 +56,10 @@ function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q)
             isculled && break
 
             (; j, n) = bond
-            J_undo = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo the transformation for exchange Matrix
-            J = exp(-2π * im * dot(q, n)) * J_undo
-            J_k[i, j] += J / 2
-            J_k[j, i] += J' / 2
+            J_lab = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo transformation in `swt_data`
+            J = exp(-2π * im * dot(q, n)) * J_lab
+            J_k[i, j] += J
+            J_k[j, i] += J'
         end
     end
 
@@ -89,7 +67,7 @@ function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q)
         A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), -q) * sys.ewald.μ0_μB²
         A = reshape(A, Na, Na)
         for i in 1:Na, j in 1:Na
-            J_k[i, j] += gs[i]' * A[i, j] * gs[j] / 2
+            J_k[i, j] += gs[i]' * A[i, j] * gs[j]
         end
     end
 end
@@ -116,7 +94,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     Rs = local_rotations
 
     q_reshaped = q_reshaped + (branch - 2) .* k
-    
+
     Jq, Jqmk, Jqpk, J0k, J0mk, J0pk = sswt.buffers
     fourier_bilinear_interaction!(Jq  , swt, q_reshaped)
     fourier_bilinear_interaction!(Jqmk, swt, q_reshaped .- k)
@@ -141,14 +119,15 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
         elseif case == 2
             J = R2 * Jq1* R2 + conj(R1) * Jqpk1 * conj(R1) + R1 * Jqmk1 * R1 + R1 * Jqpk1 * conj(R1) + conj(R1) * Jqmk1 * R1
             J0 = R2 * J0k1 * R2 + conj(R1) * J0pk1 * conj(R1) + R1 * J0mk1 * R1 + R1 * J0pk1 * conj(R1) + conj(R1) * J0mk1 * R1
-        else
+        else @assert case == 3
             J = R2 * Jq1* R2 + conj(R1) * Jqpk1 * conj(R1) + R1 * Jqmk1 * R1
             J0 = R2 * J0k1 * R2 + conj(R1) * J0pk1 * conj(R1) + R1 * J0mk1 * R1
         end
+
         # Perform same transformation as appears in usual bilinear exchange.
         # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
-        J = sqrtS[i]*sqrtS[j] * Rs[i]' * J * Rs[j]
-        J0 = sqrtS[i]*sqrtS[j] * Rs[i]' * J0 * Rs[j]
+        J = sqrtS[i] * sqrtS[j] * Rs[i]' * J * Rs[j]
+        J0 = sqrtS[i] * sqrtS[j] * Rs[i]' * J0 * Rs[j]
 
         # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
         Q⁺ = 0.25 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
@@ -175,19 +154,19 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     # Add Zeeman term
     for i in 1:L
         B = sys.extfield[1, 1, 1, i]' * sys.gs[1, 1, 1, i]
-        B′ = - (B * local_rotations[i][:, 3]) / 2
+        B′ = - B * local_rotations[i][:, 3]
         H[i, i]     += B′
         H[i+L, i+L] += conj(B′)
     end
 
     # Add onsite couplings
     for i in 1:L
-        S = sqrtS[i]^2
+        s = sqrtS[i]^2
         (; c2, c4, c6) = stevens_coefs[i]
-        H[i, i]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H[i+L, i+L] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H[i, i+L]   += +im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
-        H[i+L, i]   += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        H[i, i]     += -6s*c2[3] - 80*s^3*c4[5] - 336*s^5*c6[7]
+        H[i+L, i+L] += -6s*c2[3] - 80*s^3*c4[5] - 336*s^5*c6[7]
+        H[i, i+L]   += 2s*(c2[1]+im*c2[5]) + 12s^3*(c4[3]+im*c4[7]) + 32s^5*(c6[5]+im*c6[9])
+        H[i+L, i]   += 2s*(c2[1]-im*c2[5]) + 12s^3*(c4[3]-im*c4[7]) + 32s^5*(c6[5]-im*c6[9])
     end
 
     @assert diffnorm2(H, H') < 1e-12
