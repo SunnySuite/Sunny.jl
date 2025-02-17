@@ -45,7 +45,7 @@ const CMat3 = SMatrix{3, 3, ComplexF64, 9}
 # and the fallback case can always be used. But if a Fourier-space interaction
 # J(q) is specified, e.g. long-range dipole-dipole, there may be a true
 # mathematical discontinuity between, say, k = [1/2, 0, 0] and [1/2+ϵ, 0, 0] in
-# the limit ϵ → 0.
+# the limit ϵ → 0. TODO: Unify code with spiral_energy.
 function spiral_propagation_case(k)
     # The choice of ϵ is a bit ambiguous. Would a user consider [1/2+ϵ, 0, 0]
     # morally the same as [1/2, 0, 0]? Optimization of k usually gives at least
@@ -61,7 +61,7 @@ function spiral_propagation_case(k)
 end
 
 function fourier_bilinear_interaction(swt::SpinWaveTheory, q)
-    (;sys, data) = swt
+    (; sys, data) = swt
     (; local_rotations) = data
     (; gs) = sys
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
