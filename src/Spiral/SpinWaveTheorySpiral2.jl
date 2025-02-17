@@ -1,3 +1,5 @@
+const CMat3 = SMatrix{3, 3, ComplexF64, 9}
+
 """
     SpinWaveTheorySpiral(sys::System; k, axis, measure, regularization=1e-8)
 
@@ -21,9 +23,12 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     swt :: SpinWaveTheory
     k :: Vec3
     axis :: Vec3
+    buffers :: Vector{Array{CMat3, 2}}
 
     function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
-        return new(SpinWaveTheory(sys; measure, regularization), k, axis)
+        L = length(eachsite(sys))
+        buffers = [zeros(CMat3, L, L) for _ in 1:6]
+        return new(SpinWaveTheory(sys; measure, regularization), k, axis, buffers)
     end
 end
 
@@ -35,8 +40,6 @@ function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., S)
     R = rotation_between_vectors(axis, [0, 0, 1])
     return rotate_operator(op, R)
 end
-
-const CMat3 = SMatrix{3, 3, ComplexF64, 9}
 
 # Identify the "special cases" for the propagation wavevector k. Case 1 is all
 # integer k components (i.e., k=[0,0,0] up to periodicity), and Case 2 is all
@@ -60,14 +63,14 @@ function spiral_propagation_case(k)
     end
 end
 
-function fourier_bilinear_interaction(swt::SpinWaveTheory, q)
+function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q)
     (; sys, data) = swt
     (; local_rotations) = data
     (; gs) = sys
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
     Rs = local_rotations
     Na = natoms(sys.crystal)
-    J_k = zeros(CMat3, Na, Na)
+    fill!(J_k, zero(CMat3))
 
     for i in 1:natoms(sys.crystal)
         for coupling in sys.interactions_union[i].pair
@@ -89,7 +92,6 @@ function fourier_bilinear_interaction(swt::SpinWaveTheory, q)
             J_k[i, j] += gs[i]' * A[i, j] * gs[j] / 2
         end
     end
-    return J_k
 end
 
 
@@ -114,13 +116,14 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     Rs = local_rotations
 
     q_reshaped = q_reshaped + (branch - 2) .* k
-
-    Jq   = fourier_bilinear_interaction(swt, q_reshaped)
-    Jqmk = fourier_bilinear_interaction(swt, q_reshaped .- k)
-    Jqpk = fourier_bilinear_interaction(swt, q_reshaped .+ k)
-    J0k  = fourier_bilinear_interaction(swt, zero(Vec3))
-    J0mk = fourier_bilinear_interaction(swt, -k)
-    J0pk = fourier_bilinear_interaction(swt, +k)
+    
+    Jq, Jqmk, Jqpk, J0k, J0mk, J0pk = sswt.buffers
+    fourier_bilinear_interaction!(Jq  , swt, q_reshaped)
+    fourier_bilinear_interaction!(Jqmk, swt, q_reshaped .- k)
+    fourier_bilinear_interaction!(Jqpk, swt, q_reshaped .+ k)
+    fourier_bilinear_interaction!(J0k , swt, zero(Vec3))
+    fourier_bilinear_interaction!(J0mk, swt, -k)
+    fourier_bilinear_interaction!(J0pk, swt, +k)
 
     # Add pairwise bilinear term
 
