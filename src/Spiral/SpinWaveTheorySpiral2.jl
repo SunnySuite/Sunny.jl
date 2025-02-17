@@ -279,12 +279,23 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
             end
         end
 
-        ϵ = 1e-6
+        # A tolerance ϵ for snapping to "special" propagation wavevector k (case
+        # 1: all integer, or case 2: all half integer). For local interactions
+        # in real-space, there is no singularity, and the third (most general)
+        # case can always be used. But for Fourier-space interactions J(q), e.g.
+        # long-range dipole-dipole, the special cases 1 and 2 are required, and
+        # there may be a real discontinuity between, say, k = [1/2, 0, 0] and
+        # [1/2+ϵ, 0, 0]. The same phenomenon appears in `spiral_energy`.
+        ϵ = 1e-8
+
         for band = 1:L
             if norm(k - round.(k)) < ϵ
-                S[:,:,band,1] = S[:,:,band,1]
-                S[:,:,band,2] = S[:,:,band,2]
-                S[:,:,band,3] = S[:,:,band,3] 
+                # The three branches (q-k, q, q+k) are equivalent when k = 0
+                # (modulo 1). Spread 1/3 of the intensity among every branch.
+                S[:,:,band,1] .*= 1/3
+                S[:,:,band,2] .*= 1/3
+                S[:,:,band,3] .*= 1/3
+                @assert S[:,:,band,1] ≈ S[:,:,band, 2] ≈ S[:,:,band,3]
             elseif norm(2k - round.(2k)) < ϵ
                 S[:,:,band,1] = R1 * S[:,:,band,1] * R1 + conj(R1) * S[:,:,band,1] * R1
                 S[:,:,band,2] = R2 * S[:,:,band,2] * R2 
