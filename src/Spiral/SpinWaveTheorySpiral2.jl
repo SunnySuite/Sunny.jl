@@ -17,12 +17,12 @@ The algorithm for this calculation was developed in [Toth and Lake, J. Phys.:
 Condens. Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069) and
 implemented in the [SpinW code](https://spinw.org/).
 """
-struct SpinWaveTheorySpiral <: Sunny.AbstractSpinWaveTheory
+struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     swt :: SpinWaveTheory
-    k :: Sunny.Vec3
-    axis :: Sunny.Vec3
+    k :: Vec3
+    axis :: Vec3
 
-    function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, Sunny.MeasureSpec}, regularization=1e-8)
+    function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
         return new(SpinWaveTheory(sys; measure, regularization), k, axis)
     end
 end
@@ -36,23 +36,23 @@ function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., S)
     return rotate_operator(op, R)
 end
 
-function fourier_bilinear_interaction(swt::SpinWaveTheory,q)
+function fourier_bilinear_interaction(swt::SpinWaveTheory, q)
     (;sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
     (; extfield, gs) = sys
-    L = Sunny.nbands(swt)
+    L = nbands(swt)
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
     Rs = local_rotations
-    Na = Sunny.natoms(sys.crystal)
+    Na = natoms(sys.crystal)
     J_k = zeros(ComplexF64, 3, Na, 3, Na)
 
-    for i in 1:Sunny.natoms(sys.crystal)
+    for i in 1:natoms(sys.crystal)
         for coupling in sys.interactions_union[i].pair
             (; isculled, bond, bilin) = coupling
             isculled && break
 
             (; j, n) = bond
-            J_undo = Rs[i] * Sunny.Mat3(bilin*I) * Rs[j]' # Undo the transformation for exchange Matrix
+            J_undo = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo the transformation for exchange Matrix
             J = exp(-2π * im * dot(q, n)) * J_undo
             J_k[:, i, :, j] += J / 2
             J_k[:, j, :, i] += J' / 2
@@ -60,7 +60,7 @@ function fourier_bilinear_interaction(swt::SpinWaveTheory,q)
     end
 
     if !isnothing(sys.ewald)
-        A = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), -q) * sys.ewald.μ0_μB²
+        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), -q) * sys.ewald.μ0_μB²
         A = reshape(A, Na, Na)
         for i in 1:Na, j in 1:Na
             J_k[:, i, :, j] += gs[i]' * A[i, j] * gs[j] / 2
@@ -69,24 +69,14 @@ function fourier_bilinear_interaction(swt::SpinWaveTheory,q)
     return J_k            
 end
 
-function invariance_J(Jq,n)
-    nx = [0 -n[3] n[2];n[3] 0 -n[1];-n[2] n[1] 0]
-    R1 = (1/2) .* (I - im .* nx - n * Transpose(n))
-    R2 = n*Transpose(n)
-    if (R1 * Jq ≈ Jq * R1) && (R2 * Jq ≈ Jq * R2) && (conj(R1) * Jq ≈ Jq * conj(R1))
-        println("Jq is invariant under arbitrary rotation")
-    else
-        println("Jq is not invariant under arbitrary rotation")
-    end
-end
 
 ## Dispersion and intensities
 
-function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_reshaped;branch)
+function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_reshaped; branch)
     (; swt, k, axis) = sswt
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
-    L = Sunny.nbands(swt)
+    L = nbands(swt)
     @assert size(H) == (2L, 2L)
     H .= 0.0
 
@@ -95,7 +85,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     H12 = view(H, 1:L, L+1:2L)
     H21 = view(H, L+1:2L, 1:L)
     H22 = view(H, L+1:2L, L+1:2L)
-    CMat3 = Sunny.SMatrix{3, 3, ComplexF64, 9}
+    CMat3 = SMatrix{3, 3, ComplexF64, 9}
     nx = CMat3([0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0])
     R2 = CMat3(axis * axis')
     R1 = (1/2) .* CMat3(I - im .* nx - R2)
@@ -103,19 +93,20 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
 
     q_reshaped = q_reshaped + (branch - 2) .* k
 
-    Jq = fourier_bilinear_interaction(swt,q_reshaped)
-    Jqmk = fourier_bilinear_interaction(swt,q_reshaped .- k)
-    Jqpk = fourier_bilinear_interaction(swt,q_reshaped .+ k)
-    J0k = fourier_bilinear_interaction(swt,[0.0,0,0])
+    Jq   = fourier_bilinear_interaction(swt, q_reshaped)
+    Jqmk = fourier_bilinear_interaction(swt, q_reshaped .- k)
+    Jqpk = fourier_bilinear_interaction(swt, q_reshaped .+ k)
+    J0k  = fourier_bilinear_interaction(swt, zero(Vec3))
     J0mk = fourier_bilinear_interaction(swt, -k)
-    J0pk = fourier_bilinear_interaction(swt,k)
+    J0pk = fourier_bilinear_interaction(swt, +k)
     
-    #Add pairwise bilinear term
+    # Add pairwise bilinear term
+
     for i in 1:L, j in 1:L
-        Jq1 = Jq[:,i,:,j]
+        Jq1   = Jq[:,i,:,j]
         Jqmk1 = Jqmk[:,i,:,j]
         Jqpk1 = Jqpk[:,i,:,j]
-        J0k1 = J0k[:,i,:,j]
+        J0k1  = J0k[:,i,:,j]
         J0pk1 = J0pk[:,i,:,j]
         J0mk1 = J0mk[:,i,:,j]
         ϵ = 1e-6
@@ -174,7 +165,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
         H[i+L, i]   += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
     end
 
-    @assert Sunny.diffnorm2(H, H') < 1e-12
+    @assert diffnorm2(H, H') < 1e-12
     hermitianpart!(H)
 
     for i in 1:2L
@@ -183,18 +174,18 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
 end
 
 function excitations!(T, H, sswt::SpinWaveTheorySpiral, q; branch)
-    q_reshaped = Sunny.to_reshaped_rlu(sswt.swt.sys, q)
+    q_reshaped = to_reshaped_rlu(sswt.swt.sys, q)
     swt_hamiltonian_dipole_spiral!(H, sswt, q_reshaped; branch)
 
     return try
-        Sunny.bogoliubov!(T, H)
+        bogoliubov!(T, H)
     catch _
         error("Instability at wavevector q = $q")
     end
 end
 
 function excitations(sswt::SpinWaveTheorySpiral, q; branch)
-    L = Sunny.nbands(sswt.swt)
+    L = nbands(sswt.swt)
     H = zeros(ComplexF64, 2L, 2L)
     T = zeros(ComplexF64, 2L, 2L)
     energies = excitations!(T, H, sswt, q; branch)
@@ -204,8 +195,8 @@ end
 
 function dispersion(sswt::SpinWaveTheorySpiral, qpts)
     (; swt) = sswt
-    L = Sunny.nbands(swt)
-    qpts = convert(Sunny.AbstractQPoints, qpts)
+    L = nbands(swt)
+    qpts = convert(AbstractQPoints, qpts)
     disp = zeros(L, 3, length(qpts.qs))
     for (iq, q) in enumerate(qpts.qs)
         for branch in 1:3
@@ -218,32 +209,6 @@ function dispersion(sswt::SpinWaveTheorySpiral, qpts)
 end
 
 
-# Observables must be dipole moments, with some choice of apply_g. Extract and
-# return this parameter.
-function is_apply_g(swt::SpinWaveTheory, measure::Sunny.MeasureSpec)
-    obs1 = measure.observables
-    for apply_g in (true, false)
-        obs2 = Sunny.all_dipole_observables(swt.sys; apply_g)
-        vec(obs1) ≈ vec(obs2) && return apply_g
-    end
-    error("General measurements not supported for spiral calculation")
-end
-
-function gs_as_scalar(swt::SpinWaveTheory, measure::MeasureSpec)
-    return if is_apply_g(swt, measure)
-        map(swt.sys.gs) do g
-            g = to_float_or_mat3(g; atol=1e-12)
-            g isa Float64 || error("Anisotropic g-tensor not supported for spiral calculation")
-            g
-        end
-    else
-        map(swt.sys.gs) do _
-            1.0
-        end
-    end
-end
-
-
 function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branch=nothing
     (; swt,k, axis) = sswt
     (; sys, data, measure) = swt
@@ -251,21 +216,21 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
     @assert sys.mode in (:dipole, :dipole_large_S)
 
-    qpts = convert(Sunny.AbstractQPoints, qpts)
-    cryst = Sunny.orig_crystal(sys)
+    qpts = convert(AbstractQPoints, qpts)
+    cryst = orig_crystal(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
     Na = length(eachsite(sys))
     # Number of chemical cells in magnetic cell
-    Ncells = Na / Sunny.natoms(cryst) # TODO check invariance
+    Ncells = Na / natoms(cryst) # TODO check invariance
     # Number of quasiparticle modes
-    L = Sunny.nbands(swt)
+    L = nbands(swt)
     # Number of wavevectors
     Nq = length(qpts.qs)
 
     # Rotation matrices associated with `axis`
-    CMat3 = Sunny.SMatrix{3, 3, ComplexF64, 9}
+    CMat3 = SMatrix{3, 3, ComplexF64, 9}
     nx = CMat3([0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0])
     R2 = CMat3(axis * axis')
     R1 = (1/2) .* CMat3(I - im .* nx - R2)
@@ -282,9 +247,6 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
     S = zeros(ComplexF64, 3, 3, L, 3)
     Avec_pref = zeros(ComplexF64, Na)
 
-    # If g-tensors are included in observables, they must be scalar. Precompute.
-    gs = gs_as_scalar(swt, measure)
-
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
         q_reshaped = sys.crystal.recipvecs \ q_global
@@ -296,24 +258,24 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
         end
 
         for i in 1:Na
-            r_global = Sunny.global_position(sys, (1,1,1,i))
+            r_global = global_position(sys, (1,1,1,i))
             ff = get_swt_formfactor(measure, 1, i)
             Avec_pref[i] = exp(- im * dot(q_global, r_global))
-            Avec_pref[i] *= gs[i] * Sunny.compute_form_factor(ff, Sunny.norm2(q_global))
+            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 
         Avec = zeros(ComplexF64, Nobs)
-        for α in 1:3,β in 1:3 
+        for α in 1:3, β in 1:3 
             for branch in 1:3, band in 1:L
                 fill!(Avec, 0)
-                data = swt.data::Sunny.SWTDataDipole
+                data = swt.data::SWTDataDipole
                 v = reshape(view(T,:,band,branch),Na,2)
                 for i in 1:Na, μ in 1:Nobs
                     O = data.observables_localized[μ, i]
-                    displacement_local_frame = Sunny.SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
+                    displacement_local_frame = SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
                     Avec[μ] += Avec_pref[i] * (data.sqrtS[i]/sqrt(2)) * (O' * displacement_local_frame)[1]
                 end
-                S[α,β,band,branch] =   (1/Ncells) * (Avec[α] * conj(Avec[β])) 
+                S[α,β,band,branch] = Avec[α] * conj(Avec[β]) / Ncells
             end
         end
 
@@ -338,7 +300,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
             corrbuf = map(measure.corr_pairs) do (α, β)
                 S[α, β, band, branch]
             end
-            intensity[band, branch, iq] = Sunny.thermal_prefactor(disp[band, branch, iq]; kT) * measure.combiner(q_global, corrbuf)
+            intensity[band, branch, iq] = thermal_prefactor(disp[band, branch, iq]; kT) * measure.combiner(q_global, corrbuf)
         end
 
         # Dispersion in descending order
@@ -349,5 +311,5 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
 
     disp_flat = reshape(disp_flat, 3L, size(qpts.qs)...)
     intensity_flat = reshape(intensity_flat, 3L, size(qpts.qs)...)
-    return Sunny.BandIntensities(cryst, qpts, disp_flat, intensity_flat)
+    return BandIntensities(cryst, qpts, disp_flat, intensity_flat)
 end
