@@ -1,14 +1,14 @@
-# # 9. Disordered system with KPM
+# # 9. Disordered systems
 #
-# This example uses the [kernel polynomial method](@ref SpinWaveTheoryKPM) to
-# efficiently calculate the neutron scattering spectrum of a disordered
-# triangular antiferromagnet. The model is inspired by YbMgGaO4, as studied in
-# [Paddison et al, Nature Phys., **13**, 117–122
-# (2017)](https://doi.org/10.1038/nphys3971) and [Zhu et al, Phys. Rev. Lett.
-# **119**, 157201 (2017)](https://doi.org/10.1103/PhysRevLett.119.157201).
-# Disordered occupancy of non-magnetic Mg/Ga sites can be modeled as a
-# stochastic distribution of exchange constants and ``g``-factors. Including
-# this disorder introduces broadening of the spin wave spectrum.
+# This example uses [`SpinWaveTheoryKPM`](@ref) to efficiently calculate the
+# neutron scattering spectrum of a disordered triangular antiferromagnet. The
+# model is inspired by YbMgGaO4, as studied in [Paddison et al, Nature Phys.,
+# **13**, 117–122 (2017)](https://doi.org/10.1038/nphys3971) and [Zhu et al,
+# Phys. Rev. Lett. **119**, 157201
+# (2017)](https://doi.org/10.1103/PhysRevLett.119.157201). Disordered occupancy
+# of non-magnetic Mg/Ga sites can be modeled as a stochastic distribution of
+# exchange constants and ``g``-factors. Including this disorder introduces
+# broadening of the spin wave spectrum.
 
 using Sunny, GLMakie
 
@@ -61,16 +61,15 @@ end
 minimize_energy!(sys_inhom, maxiters=5_000)
 plot_spins(sys_inhom; color=[S[3] for S in sys_inhom.dipoles], ndims=2)
 
-# Spin wave theory with exact diagonalization becomes impractical for large
-# system sizes. Significant acceleration is possible with an iterative Krylov
-# space solver. With [`SpinWaveTheoryKPM`](@ref), the cost of an
-# [`intensities`](@ref) calculation scales linearly in the system size and
-# inversely with the width of the line broadening `kernel`. Good choices for the
-# dimensionless error tolerance are `tol=0.05` (more speed) or `tol=0.01` (more
-# accuracy).
+# Traditional spin wave theory with exact diagonalization becomes impractical
+# for large system sizes. Using [`SpinWaveTheoryKPM`](@ref), the cost of an
+# [`intensities`](@ref) calculation becomes _linear_ in the system size, with a
+# prefactor that inversely in the width of the line broadening `kernel`. Good
+# choices for the dimensionless error tolerance are `tol=0.05` (more speed) or
+# `tol=0.01` (more accuracy).
 #
-# Observe from the KPM calculation that disorder in the nearest-neighbor
-# exchange serves to broaden the discrete excitation bands into a continuum.
+# Observe that disorder in the nearest-neighbor exchange serves to broaden the
+# discrete excitation bands into a continuum.
 
 swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
 res = intensities(swt, path; energies, kernel)
