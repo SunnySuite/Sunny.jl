@@ -36,15 +36,38 @@ function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., S)
     return rotate_operator(op, R)
 end
 
+const CMat3 = SMatrix{3, 3, ComplexF64, 9}
+
+# Identify the "special cases" for the propagation wavevector k. Case 1 is all
+# integer k components (i.e., k=[0,0,0] up to periodicity), and Case 2 is all
+# half integer k components, apart from Case 1. The fallback, Case 3, is any
+# other k. For local interactions in real-space, there is no singularity in k,
+# and the fallback case can always be used. But if a Fourier-space interaction
+# J(q) is specified, e.g. long-range dipole-dipole, there may be a true
+# mathematical discontinuity between, say, k = [1/2, 0, 0] and [1/2+ϵ, 0, 0] in
+# the limit ϵ → 0.
+function spiral_propagation_case(k)
+    # The choice of ϵ is a bit ambiguous. Would a user consider [1/2+ϵ, 0, 0]
+    # morally the same as [1/2, 0, 0]? Optimization of k usually gives at least
+    # 8 digits.
+    ϵ = 1e-8
+    if norm(k - round.(k)) < ϵ
+        return 1
+    elseif norm(2k - round.(2k)) < 2ϵ
+        return 2
+    else
+        return 3
+    end
+end
+
 function fourier_bilinear_interaction(swt::SpinWaveTheory, q)
     (;sys, data) = swt
-    (; local_rotations, stevens_coefs, sqrtS) = data
-    (; extfield, gs) = sys
-    L = nbands(swt)
+    (; local_rotations) = data
+    (; gs) = sys
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
     Rs = local_rotations
     Na = natoms(sys.crystal)
-    J_k = zeros(ComplexF64, 3, Na, 3, Na)
+    J_k = zeros(CMat3, Na, Na)
 
     for i in 1:natoms(sys.crystal)
         for coupling in sys.interactions_union[i].pair
@@ -54,8 +77,8 @@ function fourier_bilinear_interaction(swt::SpinWaveTheory, q)
             (; j, n) = bond
             J_undo = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo the transformation for exchange Matrix
             J = exp(-2π * im * dot(q, n)) * J_undo
-            J_k[:, i, :, j] += J / 2
-            J_k[:, j, :, i] += J' / 2
+            J_k[i, j] += J / 2
+            J_k[j, i] += J' / 2
         end
     end
 
@@ -63,10 +86,10 @@ function fourier_bilinear_interaction(swt::SpinWaveTheory, q)
         A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), -q) * sys.ewald.μ0_μB²
         A = reshape(A, Na, Na)
         for i in 1:Na, j in 1:Na
-            J_k[:, i, :, j] += gs[i]' * A[i, j] * gs[j] / 2
-        end    
-    end       
-    return J_k            
+            J_k[i, j] += gs[i]' * A[i, j] * gs[j] / 2
+        end
+    end
+    return J_k
 end
 
 
@@ -85,10 +108,9 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     H12 = view(H, 1:L, L+1:2L)
     H21 = view(H, L+1:2L, 1:L)
     H22 = view(H, L+1:2L, L+1:2L)
-    CMat3 = SMatrix{3, 3, ComplexF64, 9}
-    nx = CMat3([0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0])
-    R2 = CMat3(axis * axis')
-    R1 = (1/2) .* CMat3(I - im .* nx - R2)
+    nx = SA[0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0]
+    R2 = axis * axis'
+    R1 = (I - im * nx - R2) / 2
     Rs = local_rotations
 
     q_reshaped = q_reshaped + (branch - 2) .* k
@@ -99,27 +121,27 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     J0k  = fourier_bilinear_interaction(swt, zero(Vec3))
     J0mk = fourier_bilinear_interaction(swt, -k)
     J0pk = fourier_bilinear_interaction(swt, +k)
-    
+
     # Add pairwise bilinear term
 
     for i in 1:L, j in 1:L
-        Jq1   = Jq[:,i,:,j]
-        Jqmk1 = Jqmk[:,i,:,j]
-        Jqpk1 = Jqpk[:,i,:,j]
-        J0k1  = J0k[:,i,:,j]
-        J0pk1 = J0pk[:,i,:,j]
-        J0mk1 = J0mk[:,i,:,j]
-        ϵ = 1e-6
-        if norm(k - round.(k)) < ϵ
+        Jq1   = Jq[i, j]
+        Jqmk1 = Jqmk[i, j]
+        Jqpk1 = Jqpk[i, j]
+        J0k1  = J0k[i, j]
+        J0pk1 = J0pk[i, j]
+        J0mk1 = J0mk[i, j]
+        case = spiral_propagation_case(k)
+        if case == 1
             J = Jq1
             J0 = J0k1
-        elseif norm(2k - round.(2k)) < ϵ
+        elseif case == 2
             J = R2 * Jq1* R2 + conj(R1) * Jqpk1 * conj(R1) + R1 * Jqmk1 * R1 + R1 * Jqpk1 * conj(R1) + conj(R1) * Jqmk1 * R1
             J0 = R2 * J0k1 * R2 + conj(R1) * J0pk1 * conj(R1) + R1 * J0mk1 * R1 + R1 * J0pk1 * conj(R1) + conj(R1) * J0mk1 * R1
         else
             J = R2 * Jq1* R2 + conj(R1) * Jqpk1 * conj(R1) + R1 * Jqmk1 * R1
             J0 = R2 * J0k1 * R2 + conj(R1) * J0pk1 * conj(R1) + R1 * J0mk1 * R1
-        end      
+        end
         # Perform same transformation as appears in usual bilinear exchange.
         # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
         J = sqrtS[i]*sqrtS[j] * Rs[i]' * J * Rs[j]
@@ -265,7 +287,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
         end
 
         Avec = zeros(ComplexF64, Nobs)
-        for α in 1:3, β in 1:3 
+        for α in 1:3, β in 1:3
             for branch in 1:3, band in 1:L
                 fill!(Avec, 0)
                 data = swt.data::SWTDataDipole
@@ -279,33 +301,25 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
             end
         end
 
-        # A tolerance ϵ for snapping to "special" propagation wavevector k (case
-        # 1: all integer, or case 2: all half integer). For local interactions
-        # in real-space, there is no singularity, and the third (most general)
-        # case can always be used. But for Fourier-space interactions J(q), e.g.
-        # long-range dipole-dipole, the special cases 1 and 2 are required, and
-        # there may be a real discontinuity between, say, k = [1/2, 0, 0] and
-        # [1/2+ϵ, 0, 0]. The same phenomenon appears in `spiral_energy`.
-        ϵ = 1e-8
-
         for band = 1:L
-            if norm(k - round.(k)) < ϵ
+            case = spiral_propagation_case(k)
+            if case == 1
                 # The three branches (q-k, q, q+k) are equivalent when k = 0
                 # (modulo 1). Spread 1/3 of the intensity among every branch.
                 S[:,:,band,1] .*= 1/3
                 S[:,:,band,2] .*= 1/3
                 S[:,:,band,3] .*= 1/3
                 @assert S[:,:,band,1] ≈ S[:,:,band, 2] ≈ S[:,:,band,3]
-            elseif norm(2k - round.(2k)) < ϵ
+            elseif case == 2
                 S[:,:,band,1] = R1 * S[:,:,band,1] * R1 + conj(R1) * S[:,:,band,1] * R1
-                S[:,:,band,2] = R2 * S[:,:,band,2] * R2 
-                S[:,:,band,3] = conj(R1) * S[:,:,band,3] * conj(R1) +  R1 * S[:,:,band,3] * conj(R1) 
-            else 
-                S[:,:,band,1] = R1 * S[:,:,band,1] * R1 
-                S[:,:,band,2] = R2 * S[:,:,band,2] * R2 
-                S[:,:,band,3] = conj(R1) * S[:,:,band,3] * conj(R1) 
-            end  
-        end 
+                S[:,:,band,2] = R2 * S[:,:,band,2] * R2
+                S[:,:,band,3] = conj(R1) * S[:,:,band,3] * conj(R1) +  R1 * S[:,:,band,3] * conj(R1)
+            else
+                S[:,:,band,1] = R1 * S[:,:,band,1] * R1
+                S[:,:,band,2] = R2 * S[:,:,band,2] * R2
+                S[:,:,band,3] = conj(R1) * S[:,:,band,3] * conj(R1)
+            end
+        end
 
         for branch in 1:3, band in 1:L
             corrbuf = map(measure.corr_pairs) do (α, β)
