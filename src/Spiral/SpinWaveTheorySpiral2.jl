@@ -1,5 +1,3 @@
-const CMat3 = SMatrix{3, 3, ComplexF64, 9}
-
 """
     SpinWaveTheorySpiral(sys::System; k, axis, measure, regularization=1e-8)
 
@@ -40,6 +38,12 @@ function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., S)
     R = rotation_between_vectors(axis, [0, 0, 1])
     return rotate_operator(op, R)
 end
+
+# Sunny's original implementation followed Toth and Lake, which employed
+# pairwise exchange interactions J in real-space. Fourier-space exchange J(q) is
+# required, for example, to support long-range dipole-dipole interactions. Alin
+# Niraula and Xiaojian Bai developed and implemented the approprate
+# generalization in https://github.com/SunnySuite/Sunny.jl/pull/304.
 
 function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q)
     (; sys, data) = swt
@@ -95,15 +99,15 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
 
     q_reshaped = q_reshaped + (branch - 2) .* k
 
+    # Add pairwise bilinear term
+
     Jq, Jqmk, Jqpk, J0k, J0mk, J0pk = sswt.buffers
-    fourier_bilinear_interaction!(Jq  , swt, q_reshaped)
+    fourier_bilinear_interaction!(Jq,   swt, q_reshaped)
     fourier_bilinear_interaction!(Jqmk, swt, q_reshaped .- k)
     fourier_bilinear_interaction!(Jqpk, swt, q_reshaped .+ k)
-    fourier_bilinear_interaction!(J0k , swt, zero(Vec3))
+    fourier_bilinear_interaction!(J0k,  swt, zero(Vec3))
     fourier_bilinear_interaction!(J0mk, swt, -k)
     fourier_bilinear_interaction!(J0pk, swt, +k)
-
-    # Add pairwise bilinear term
 
     for i in 1:L, j in 1:L
         Jq1   = Jq[i, j]
@@ -260,7 +264,6 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
     Nq = length(qpts.qs)
 
     # Rotation matrices associated with `axis`
-    CMat3 = SMatrix{3, 3, ComplexF64, 9}
     nx = CMat3([0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0])
     R2 = CMat3(axis * axis')
     R1 = (1/2) .* CMat3(I - im .* nx - R2)
