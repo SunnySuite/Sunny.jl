@@ -1,12 +1,10 @@
 # Identify the "special cases" for the propagation wavevector k. Case 1 is all
 # integer k components (i.e., k=[0,0,0] up to periodicity), and Case 2 is all
 # half integer k components, apart from Case 1. The fallback, Case 3, is any
-# other k. For local interactions in real-space, there is no singularity in k,
-# and the fallback case can always be used. But if a Fourier-space interaction
-# J(q) is specified, e.g. long-range dipole-dipole, there may be a true
-# mathematical discontinuity between, say, k = [1/2, 0, 0] and [1/2+ϵ, 0, 0] in
-# the limit ϵ → 0. Select some empirical cutoff ϵ = 1e-8 for special-k check.
-# empirical.
+# other k. For example, there could be a discontinuity between the spiral
+# energies for ordering wavevectors k = [1/2, 0, 0] and [1/2+ϵ, 0, 0], even in
+# the limit ϵ → 0. To account for some floating point roundoff, we select an
+# empirical and somewhat arbitrary tolerance ϵ = 1e-8 for the case check.
 function spiral_propagation_case(k)
     ϵ = 1e-8
     if norm(k - round.(k)) < ϵ

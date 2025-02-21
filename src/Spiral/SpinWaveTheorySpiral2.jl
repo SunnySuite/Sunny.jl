@@ -244,7 +244,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
 
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
-    @assert sys.mode in (:dipole, :dipole_large_S)
+    @assert sys.mode in (:dipole, :dipole_uncorrected)
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)

@@ -51,46 +51,47 @@ end
 @testitem "Canted AFM" begin
     s = 3/2
     J, D, h = 1.0, 0.54, 0.76
-    rcs = Sunny.rcs_factors(s)[2]
     a = 1
     latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
     positions = [[0, 0, 0]]
     cryst = Crystal(latvecs, positions)
-    
-    sys = System(cryst, [1 => Moment(; s, g=-1)], :dipole)
+
+    sys = System(cryst, [1 => Moment(; s, g=-1)], :dipole_uncorrected)
     set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
-    set_onsite_coupling!(sys, S -> (D/rcs)*S[3]^2, 1)
+    set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
     set_field!(sys, [0, 0, h])
-    
+
     k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
     @test k[1:2] ≈ [0.5, 0.5]
-    
+
     axis = [0, 0, 1]
     randomize_spins!(sys)
     k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
     @test k[1:2] ≈ [0.5, 0.5]
     @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
-    
+
     q = [0.12, 0.23, 0.34]
     swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys), k, axis)
     res = intensities_bands(swt, [q])
-    
+
     # Analytical check on dispersion
-    
+
     θ = acos(h / (2s*(4J+D)))
     Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
     disp_ref = real(√Complex(4J*s*(4J*s+2D*s*sin(θ)^2) + cos(2θ)*(Jq*s)^2 + 2s*Jq*(4J*s*cos(θ)^2 + D*s*sin(θ)^2)))
     @test res.disp[1] ≈ res.disp[2] ≈ disp_ref
-    
+
     # Same calculation with supercell
-    
+
     sys2 = repeat_periodically_as_spiral(sys, (2, 2, 1); k, axis)
+    @test energy_per_site(sys2) ≈ Sunny.spiral_energy_per_site(sys; k, axis)
+
     swt2 = SpinWaveTheory(sys2; measure=ssf_trace(sys2))
     res2 = intensities_bands(swt2, [q])
     @test res.disp[1] ≈ res.disp[2] ≈ res2.disp[2]
     @test res.data[1] + res.data[2] ≈ res2.data[2]
     @test res.disp[end] ≈ res2.disp[end]
-    @test res.data[end] ≈ res2.data[end]    
+    @test res.data[end] ≈ res2.data[end]
 end
 
 
@@ -153,25 +154,25 @@ end
     bond5 = Bond(1, 2, [0, 0, 0])
     bond6 = Bond(1, 3, [1, 0, 0])
     bond7 = Bond(1, 3, [-1, 0, 0])
-    
+
     ka = 0.4413
     kc = 0.1851
     k_ref = [ka, 0, kc]
     k_ref_alt = [1-ka, 0, 1-kc]
-    
+
     J1 = 0.4442
     J3 = 0.07762
     J4 = -0.00775
     J5 = 0.00100
     J7 = -0.00461
-    
+
     # Constrain J6 and J2 to make k_ref exact
     J6 = (sin((-2*ka+kc)*pi)*J7+sin(kc*pi)*J4)/(-sin((2*ka+kc)*pi))
     J2 = (2*sin((2*ka+kc)*pi)*J6-sin(ka*pi)*(J1+J5)-3*sin(3*ka*pi)*J3-(sin(2*pi*(ka-kc/2+1/2))-sin(2*pi*(-ka+kc/2+1/2)))*J7)/(-2*sin(2*ka*pi))
-    
+
     # Exact energy reference
     E_ref = (-((J1+J5)*cos(pi*ka))+J2*cos(2*pi*ka)-J3*cos(3*pi*ka)+J4*cos(pi*kc)+J6*cos(pi*(2*ka+kc))+J7*cos(pi*(2*ka-kc)))*5/2*(5/2)*4
-    
+
     sys = System(cryst, [1 => Moment(s=5/2, g=2)], :dipole, seed=0)
     set_exchange!(sys, J1, bond1)
     set_exchange!(sys, J2, bond2)
@@ -180,7 +181,7 @@ end
     set_exchange!(sys, J5, bond5)
     set_exchange!(sys, J6, bond6)
     set_exchange!(sys, J7, bond7)
-    
+
     # Unfortunately, randomizing the initial guess will lead to occasional
     # optimization failures. TODO: Use ForwardDiff to improve accuracy.
     k_guess = [0.2, 0.4, 0.8]
@@ -188,11 +189,57 @@ end
     E = Sunny.luttinger_tisza_exchange(sys; k)
     @test isapprox(E, E_ref; atol=1e-12)
     @test isapprox(k, k_ref; atol=1e-5) || isapprox(k, k_ref_alt; atol=1e-5)
-    
+
     axis = [0, 0, 1]
     randomize_spins!(sys)
     k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
     E = Sunny.luttinger_tisza_exchange(sys; k)
     @test isapprox(E, E_ref; atol=1e-12)
-    @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)    
+    @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
+end
+
+
+@testitem "DM Spiral" begin
+    using LinearAlgebra
+
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0, 0, 0], [0, 0.1, 0]]; types=["a", "b"])
+    cryst = subcrystal(cryst, "a")
+    sys = System(cryst, [1 => Moment(s=1, g=-1)], :dipole)
+    print_bond(cryst, Bond(1, 1, [1, 0, 0]))
+
+    D = 1
+    axis = [1, 0, 0]
+    set_exchange!(sys, diagm(0.8 * axis) + dmvec(D * axis), Bond(1, 1, [0, 0, 1]))
+
+    # TODO: Get to the bottom of this Optim.jl failure case
+    #=
+        sys.dipoles .= [[-0.7849258507107553, -0.39367187538995435, 0.4784494366314514]]
+        k = minimize_spiral_energy!(sys, axis; k_guess=[0.2, 0.4, 0.8])
+    =#
+
+    # TODO: Replace with randomize_spins! and k_guess=randn(3) when Optim.jl fixed
+    set_dipole!(sys, [-0.2, 0.4, 1.1], (1, 1, 1, 1))
+    k_guess = [0.2, 0.4, 0.8] # See failure below
+    k = minimize_spiral_energy!(sys, axis; k_guess)
+    @assert k[3] ≈ 3/4
+
+    # Enlarge system and check energy
+
+    sys2 = repeat_periodically_as_spiral(sys, (1, 1, 4); k, axis)
+    @assert spiral_energy_per_site(sys; axis, k) ≈ energy_per_site(sys2) ≈ -1.0
+
+    # Compare SWT calculated both ways
+
+    qs = [[0, 0, -1/2], [0, 0, 1/3]]
+    swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys; apply_g=false), k, axis)
+    res = intensities_bands(swt, qs)
+    swt2 = SpinWaveTheory(sys2; measure=ssf_trace(sys2; apply_g=false))
+    res2 = intensities_bands(swt2, qs)
+
+    @test res.disp[1:3, 1] ≈ res2.disp[1:3, 1]
+    @test res.disp[1:3, 2] ≈ res2.disp[[1, 3, 4], 2]
+
+    @test res.data[1:3, 1] ≈ res2.data[1:3, 1]
+    @test res.data[1:3, 2] ≈ res2.data[[1, 3, 4], 2]
 end
