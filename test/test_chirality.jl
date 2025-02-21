@@ -54,7 +54,7 @@ end
     swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys; apply_g=false), k=[0,0,0], axis=[0,0,1])
     res = intensities_bands(swt, qs)
     @test res.disp[1, :] ≈ res.disp[2, :] ≈ res.disp[3, :] ≈ [B + 2D*sin(2π*q[3]) for q in qs]
-    @test res.data ≈ [1 1; 0 0; 0 0]
+    @test res.data ≈ [1 1; 1 1; 1 1] / 3
 
     # Below the saturation field, the ground state is a canted spiral
 
@@ -79,6 +79,8 @@ end
     # Check supercell equivalent
 
     sys_enlarged = repeat_periodically_as_spiral(sys, (1, 1, 4); k, axis)
+    @test energy_per_site(sys_enlarged) ≈ -5/4
+
     swt = SpinWaveTheory(sys_enlarged; measure=ssf_trace(sys_enlarged; apply_g=false, formfactors))
     res = intensities_bands(swt, qs)
     disp2_ref = [3.013324931405024 3.0133249314050277; 2.5980762315553148 2.598076231555316; 1.3228756763031237 1.3228756763031235; 0.647976093500838 0.6479760935008375]

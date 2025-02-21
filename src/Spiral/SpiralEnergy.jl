@@ -1,3 +1,22 @@
+# Identify the "special cases" for the propagation wavevector k. Case 1 is all
+# integer k components (i.e., k=[0,0,0] up to periodicity), and Case 2 is all
+# half integer k components, apart from Case 1. The fallback, Case 3, is any
+# other k. For example, there could be a discontinuity between the spiral
+# energies for ordering wavevectors k = [1/2, 0, 0] and [1/2+ϵ, 0, 0], even in
+# the limit ϵ → 0. To account for some floating point roundoff, we select an
+# empirical and somewhat arbitrary tolerance ϵ = 1e-8 for the case check.
+function spiral_propagation_case(k)
+    ϵ = 1e-8
+    if norm(k - round.(k)) < ϵ
+        return 1
+    elseif norm(2k - round.(2k)) < 2ϵ
+        return 2
+    else
+        return 3
+    end
+end
+
+
 """
     spiral_energy(sys::System; k, axis)
 
@@ -112,17 +131,14 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         Ak = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB²
         Ak = reshape(Ak, Na, Na)
 
-        ϵ = 1e-8
-        if norm(k - round.(k)) < ϵ
-            for i in 1:Na, j in 1:Na
+        case = spiral_propagation_case(k)
+
+        for i in 1:Na, j in 1:Na
+            if case == 1
                 E += real(μ[i]' * A0[i, j] * μ[j]) / 2
-            end
-        elseif norm(2k - round.(2k)) < ϵ
-            for i in 1:Na, j in 1:Na
+            elseif case == 2
                 E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + K²*Ak[i, j]*K²) * μ[j]) / 2
-            end
-        else
-            for i in 1:Na, j in 1:Na
+            else @assert case == 3
                 E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + (im*K+K²)*Ak[i, j]*(im*K+K²)/2) * μ[j]) / 2
             end
         end
