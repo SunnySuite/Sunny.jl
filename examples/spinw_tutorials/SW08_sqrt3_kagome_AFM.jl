@@ -67,4 +67,4 @@ kernel = gaussian(fwhm=0.05)
 res = powder_average(cryst, radii, 200) do qs
     intensities(swt, qs; energies, kernel)
 end
-plot_intensities(res; units, colorrange=(0,20))
+plot_intensities(res; units, colorrange=(0, 20))

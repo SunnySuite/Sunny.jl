@@ -3,6 +3,7 @@ const Vec3 = SVector{3, Float64}
 const Vec5 = SVector{5, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const Mat5 = SMatrix{5, 5, Float64, 25}
+const CMat3 = SMatrix{3, 3, ComplexF64, 9}
 const CVec{N} = SVector{N, ComplexF64}
 const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
 
