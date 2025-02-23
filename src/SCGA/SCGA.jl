@@ -1,22 +1,44 @@
-"""
-    SCGA(sys::System; measure, quantum_sum_rule=true)
+# The default value `sublattice_resolved=true` is generally preferred, and imposes
+# one global sum-rule constraint per spin-sublattice. Selecting instead
+# `sublattice_resolved=false` will employ only a _single_ constraint that is
+# averaged over sublattices. This will be faster, but risks producing incorrect
+# results when the sublattices are symmetry-distinct.
 
-Constructs an object to perform the self consistent gaussian approximation.
-Enables the use of `intensities_static`](@ref) with an SCGA type to calculate
-the static structure factor in the paramagnetic phase. If the temperature is
-below the ordering temperature, the intensities will be negative.
+"""
+    SCGA(sys::System; measure, Nq, quantum_sum_rule=false)
+
+Constructs an object to calculate [`intensities_static`](@ref) within the self
+consistent gaussian approximation (SCGA). This approximation assumes a classical
+Boltzmann distribution, and is expected to be meangingful above the ordering
+temperature, where fluctuations are approximately Gaussian. If the temperature
+is not sufficiently high, then `intensities_static` may report negative
+energies, which would indicate an instability to magnetic ordering.
+
+Currently only `:dipole` and `:dipole_uncorrected` system modes are supported.
+
+The theory of SCGA approximates local spin magnitude constraints with a _weaker_
+global constraint condition. This global constraint is implemented as a sum
+rule, expressed as an integral over Fourier modes. This integral is approximated
+as a discrete sum over `Nq^3` wavevectors for the provided integer `Nq`.
+
+By default, each classical spin dipole is assumed to have magnitude ``s`` that
+matches the [`Moment`](@ref) specification. Selecting `quantum_sum_rule=true`
+will modify this magnitude to ``√s(s+1)``.
 """
 struct SCGA
     sys :: System
     measure :: MeasureSpec
+    Nq :: Int
     quantum_sum_rule :: Bool
+    sublattice_resolved :: Bool
 
-    function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, quantum_sum_rule)
+    function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, Nq::Int, quantum_sum_rule=false, sublattice_resolved=true)
         measure = @something measure empty_measurespec(sys)
+        # FIXME: Copy logic from Spiral SWT
         if length(eachsite(sys)) != prod(size(measure.observables)[2:5])
             error("Size mismatch. Check that measure is built using consistent system.")
         end
-        return new(sys, measure, quantum_sum_rule)
+        return new(sys, measure, Nq, quantum_sum_rule, sublattice_resolved)
     end
 end
 
@@ -53,6 +75,7 @@ function fourier_transform_interaction_matrix(sys::System; k)
     for i in 1:Na
         onsite_coupling = sys.interactions_union[i].onsite
         (; c2, c4, c6) = onsite_coupling
+        iszero(c4) && iszero(c6) || error("Single-ion anisotropy beyond quadratic order not supported")
         anisotropy = [c2[1]-c2[3]        c2[5] 0.5c2[2];
                             c2[5] -c2[1]-c2[3] 0.5c2[4];
                          0.5c2[2]     0.5c2[4]   2c2[3]]
@@ -71,17 +94,20 @@ end
 # and "Newton's Method" which is a fast converging root finding algorithm.
 # SumRule specifices the sum rule that the Lagrange multipliers are chosen to
 # satisfy, either the Classical or Quantum sum rules.
-function find_lagrange_multiplier(scga::SCGA, kT; starting_offset=0.2, maxiters=1_000, tol=1e-10, Nq=20)
-    (; sys, quantum_sum_rule) = scga
+function find_lagrange_multiplier(scga::SCGA, kT)
+    starting_offset = 0.2
+    maxiters = 500
+    tol = 1e-10
+
+    (; sys, quantum_sum_rule, Nq) = scga
     dq = 1/Nq;
     Na = natoms(sys.crystal)
     bond_counter = zeros(Float64,3)
     for i in 1:Na
         for coupling in sys.interactions_union[i].pair
-            (; isculled, bond, bilin) = coupling
+            (; isculled, bond) = coupling
             isculled && break
-            (; j, n) = bond
-            bond_counter += abs.(n)
+            bond_counter += abs.(bond.n)
         end
     end
     qarray = -0.5: dq : 0.5-dq
@@ -103,8 +129,8 @@ function find_lagrange_multiplier(scga::SCGA, kT; starting_offset=0.2, maxiters=
     end
 
     eig_vals = zeros(3Na, length(Jq_array))
-    for j in 1:length(Jq_array)
-         eig_vals[:,j] .= eigvals(Jq_array[j])
+    for j in eachindex(Jq_array)
+         eig_vals[:, j] .= eigvals(Jq_array[j])
     end
 
     function f(λ)
@@ -133,19 +159,19 @@ end
 # Computes the static structure factor in the standard SCGA approach, with a
 # single Lagrange multiplier, over the qpts specified.
 
-function intensities_static_single(scga::SCGA, qpts; kT=0.0, starting_offset=0.2, maxiters=1_000, tol=1e-7, Nq=50)
+function intensities_static_single(scga::SCGA, qpts; kT=0.0)
     kT == 0.0 && error("kT must be non-zero")
     qpts = convert(AbstractQPoints, qpts)
     (; sys, measure) = scga
     Na = natoms(sys.crystal)
     Nobs = num_observables(measure)
-    λ = find_lagrange_multiplier(scga, kT; tol, maxiters, starting_offset, Nq)
+    λ = find_lagrange_multiplier(scga, kT)
     intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
     for (iq, q) in enumerate(qpts.qs)
         pref = zeros(ComplexF64, Nobs, Na)
         corrbuf = zeros(ComplexF64, Ncorr)
-        intensitybuf = zeros(eltype(measure),3,3)
+        intensitybuf = zeros(eltype(measure), 3, 3)
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = sys.crystal.recipvecs * q
         for i in 1:Na
@@ -178,14 +204,14 @@ end
 # Computes the static structure factor in the sublattice resolved SCGA method,
 # over the qpts specified.
 
-function intensities_static_sublattice(scga::SCGA, qpts; kT=0.0, maxiters=500, tol=1e-10, λs_init, Nq=20)
+function intensities_static_sublattice(scga::SCGA, qpts; kT=0.0, λs_init)
     iszero(kT) && error("kT must be non-zero")
 
     qpts = convert(AbstractQPoints, qpts)
     (; sys, measure) = scga
     Na = natoms(sys.crystal)
     Nobs = num_observables(measure)
-    λs = find_lagrange_multiplier_opt_sublattice(scga, λs_init, kT; maxiters,tol,Nq)
+    λs = find_lagrange_multiplier_opt_sublattice(scga, λs_init, kT)
     intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
     for (iq, q) in enumerate(qpts.qs)
@@ -220,24 +246,21 @@ function intensities_static_sublattice(scga::SCGA, qpts; kT=0.0, maxiters=500, t
     return StaticIntensities(sys.crystal, qpts, reshape(intensity,size(qpts.qs)))
 end
 
-"""
-     intensities_static(scga::SCGA, qpts; kT=0.0, maxiters=500, tol=1e-10, λs_init=nothing, sublattice_resolved=false)
-
-Computes the static structure factor. The sublattice resolved method can be
-chosen by selecting sublattice_resolved = true.
-"""
-function intensities_static(scga::SCGA, qpts; kT=0.0, maxiters=500, tol=1e-10, λs_init=nothing, sublattice_resolved=false, Nq=20)
-    if sublattice_resolved == true
-        return intensities_static_sublattice(scga::SCGA, qpts; kT, maxiters, tol, λs_init, Nq)
+function intensities_static(scga::SCGA, qpts; kT=0.0, λs_init=nothing)
+    if scga.sublattice_resolved == true
+        return intensities_static_sublattice(scga::SCGA, qpts; kT, λs_init)
     else
-        return intensities_static_single(scga::SCGA, qpts; kT, starting_offset=0.2, maxiters, tol, Nq)
+        return intensities_static_single(scga::SCGA, qpts; kT)
     end
 end
 
 # Computes the Lagrange multiplier for the sublattice resolved SCGA method.
 
-function find_lagrange_multiplier_opt_sublattice(scga, λs, kT; maxiters=500, tol=1e-10, Nq=20)
-    (; sys, quantum_sum_rule) = scga
+function find_lagrange_multiplier_opt_sublattice(scga, λs, kT)
+    tol = 1e-6
+    maxiters = 500
+
+    (; sys, quantum_sum_rule, Nq) = scga
 
     if quantum_sum_rule
         S_sq =vec(sys.κs .* (sys.κs .+ 1))
@@ -321,7 +344,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, kT; maxiters=500, to
 
     if isnothing(λs)
         println("No user provided initial guess for the Lagrange multipliers. Determining a sensible starting point from the interaction matrix.")
-        A_array = [fourier_transform_interaction_matrix(sys; k=q_in)  for q_in in q]
+        A_array = [fourier_transform_interaction_matrix(sys; k=q_in) for q_in in q]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in 1:length(A_array)
@@ -356,51 +379,10 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, kT; maxiters=500, to
             end
         end
     end
-    println(λs)
     upper = Inf
     lower = -Inf
-    options = Optim.Options(; iterations=maxiters, show_trace=true,g_tol=tol)
+    options = Optim.Options(; iterations=maxiters, show_trace=true, g_tol=tol)
     result = Optim.optimize(Optim.only_fg!(fg!), λs, Optim.ConjugateGradient(), options)
     min = Optim.minimizer(result)
     return real.(min)
 end
-
-
-function free_energy_and_gradient(scga, λs, kT)
-    (; sys, quantum_sum_rule) = scga
-    if quantum_sum_rule
-        S_sq = vec(sys.κs .* (sys.κs .+ 1))
-    else
-        S_sq = vec(sys.κs.^2)
-    end
-    Na = natoms(sys.crystal)
-    Nq = 8
-    dq = 1/Nq;
-    qarray = -0.5: dq : 0.5-dq
-    N = length(qarray)
-    q = [[qx, qy, qz] for qx in qarray, qy in qarray, qz in qarray]
-    Λ =  diagm(repeat(λs, inner=3))
-    A_array = [kT*fourier_transform_interaction_matrix(sys; k=q_in) .+  kT*Λ for q_in in q]
-    eig_vals = zeros(3Na,length(A_array))
-    for j in 1:length(A_array)
-         eig_vals[:,j] .= eigvals(A_array[j])
-    end
-    if minimum(eig_vals) < 0
-        F =  -Inf
-    else
-        F =  0.5*kT*sum(log.(eig_vals))
-    end
-    G = F - 0.5*N*sum(λs.*S_sq)
-    # gradient
-    gradF = zeros(ComplexF64,Na)
-    for i in 1:Na
-        gradλ =diagm(zeros(ComplexF64,3Na))
-        gradλ[3i-2:3i,3i-2:3i] =diagm([1,1,1])
-        # gradF[i] =0.5kT*sum([tr(inv(A) * gradλ) for A in A_array])
-        gradF[i] =0.5sum([tr(diagm(1 ./eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in 1:length(A_array)])
-        # replace this -> we want to use eigenvalues determined above and invariance of trace under change of basis Tr(A (dΛ/dλ) )= Tr(U'A⁻¹UU'(dΛ/dλ)U) = Tr(D⁻¹U'(dΛ/dλ)U)
-    end
-    gradG = gradF -0.5*N*S_sq
-    return G, gradG
-end
-
