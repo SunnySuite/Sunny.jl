@@ -97,6 +97,8 @@ include("SpinWaveTheory/LSWTCorrections.jl")
 export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands,
     intensities_static
 
+include("SCGA/SCGA.jl")
+
 include("Spiral/LuttingerTisza.jl")
 include("Spiral/SpiralEnergy.jl")
 include("Spiral/SpinWaveTheorySpiral.jl")
