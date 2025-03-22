@@ -11,7 +11,7 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
     if sys.mode == :SUN
         return Hermitian(matrep)
     elseif sys.mode == :dipole
-        s = spin_label(sys, to_atom(site))
+        s = spin_label_sublattice(sys, to_atom(site))
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
         return StevensExpansion(rcs_factors(s) .* c)
     elseif sys.mode == :dipole_uncorrected
@@ -138,13 +138,14 @@ function set_onsite_coupling!(sys::System, op, i::Int)
         return
     end
 
+    @assert isnothing(sys.origin)
     (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
 
     if !iszero(ints[i].onsite)
         warn_coupling_override("Overriding anisotropy for atom $i.")
     end
 
-    onsite = onsite_coupling(sys, CartesianIndex(1,1,1,i), op)
+    onsite = onsite_coupling(sys, CartesianIndex(1, 1, 1, i), op)
 
     if !is_anisotropy_valid(sys.crystal, i, onsite)
         error("""Symmetry-violating anisotropy: $op.
@@ -195,7 +196,7 @@ function set_onsite_coupling_at!(sys::System, op, site::Site)
 end
 
 function set_onsite_coupling_at!(sys::System, fn::Function, site::Site)
-    S = spin_matrices(spin_label(sys, to_atom(site)))
+    S = spin_matrices(spin_label_sublattice(sys, to_atom(site)))
     set_onsite_coupling_at!(sys, fn(S), site)
 end
 
