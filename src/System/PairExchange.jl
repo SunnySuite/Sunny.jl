@@ -244,8 +244,8 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
 
     # Renormalize biquadratic interactions
     if sys.mode == :dipole
-        si = spin_label(sys, bond.i)
-        sj = spin_label(sys, bond.j)
+        si = spin_label_sublattice(sys, bond.i)
+        sj = spin_label_sublattice(sys, bond.j)
         biquad *= rcs_factors(si)[2] *  rcs_factors(sj)[2]
     end
 
@@ -328,8 +328,8 @@ function adapt_for_biquad(scalar, bilin, biquad, sys, site1, site2)
 
     if !iszero(biquad)
         if sys.mode in (:SUN, :dipole)
-            s1 = spin_label(sys, to_atom(site1))
-            s2 = spin_label(sys, to_atom(site2))
+            s1 = spin_label_sublattice(sys, to_atom(site1))
+            s2 = spin_label_sublattice(sys, to_atom(site2))
             bilin -= (bilin isa Number) ? biquad/2 : (biquad/2)*I
             scalar += biquad * s1*(s1+1) * s2*(s2+1) / 3
         else
@@ -378,7 +378,8 @@ set_exchange!(sys, J, bond)
 """
 function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.0) where N
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
-    scalar, bilin, biquad = adapt_for_biquad(0.0, J, biquad, sys, (1, 1, 1, bond.i), (1, 1, 1, bond.j))
+    sys_orig = something(sys.origin, sys)
+    scalar, bilin, biquad = adapt_for_biquad(0.0, J, biquad, sys_orig, (1, 1, 1, bond.i), (1, 1, 1, bond.j))
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, zero(TensorDecomposition), bond)
     return
 end
@@ -437,8 +438,8 @@ function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Fl
 
     # Renormalize biquadratic interactions
     if sys.mode == :dipole
-        s1 = spin_label(sys, to_atom(site1))
-        s2 = spin_label(sys, to_atom(site2))
+        s1 = spin_label_sublattice(sys, to_atom(site1))
+        s2 = spin_label_sublattice(sys, to_atom(site2))
         biquad *= rcs_factors(s1)[2] *  rcs_factors(s2)[2]
     end
 
@@ -496,8 +497,8 @@ function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, 
         error("Symbolic operators required for mode `:dipole_uncorrected`.")
     end
 
-    N1 = Int(2spin_label(sys, to_atom(site1))+1)
-    N2 = Int(2spin_label(sys, to_atom(site2))+1)
+    N1 = Int(2spin_label_sublattice(sys, to_atom(site1))+1)
+    N2 = Int(2spin_label_sublattice(sys, to_atom(site2))+1)
     scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts=true)
 
     set_pair_coupling_at_aux!(sys, scalar, bilin, biquad, tensordec, site1, site2, offset)
@@ -509,8 +510,8 @@ function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2:
         error("General couplings not yet supported for mode `:dipole_uncorrected`.")
     end
 
-    s1 = spin_label(sys, to_atom(site1))
-    s2 = spin_label(sys, to_atom(site2))
+    s1 = spin_label_sublattice(sys, to_atom(site1))
+    s2 = spin_label_sublattice(sys, to_atom(site2))
     S1, S2 = to_product_space(spin_matrices.([s1, s2])...)
     set_pair_coupling_at!(sys, fn(S1, S2), site1, site2; offset)
     return

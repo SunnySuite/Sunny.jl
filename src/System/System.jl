@@ -206,32 +206,35 @@ end
     CartesianIndex(altmod1.(to_cell(site) .+ bond.n, dims)..., bond.j)
 end
 
-"""
-    spin_label(sys::System, i::Int)
-
-If atom `i` carries a single spin-``s`` moment, then returns the half-integer
-label ``s``. Otherwise, throws an error.
-"""
-function spin_label(sys::System, i::Int)
+# Interprets i as a sublattice of sys, regardless of reshaping
+function spin_label_sublattice(sys::System, i::Int)
     if sys.mode == :dipole_uncorrected
         return Inf
     else
         @assert sys.mode in (:dipole, :SUN)
-        allequal(sys.Ns[:,:,:,i]) || error("Spin varies between chemical cells")
-        return (sys.Ns[1,1,1,i]-1)/2
+        allequal(view(sys.Ns, :, :, :, i)) || error("Spin varies between chemical cells")
+        return (sys.Ns[1, 1, 1, i] - 1) / 2
     end
+end
+
+"""
+    spin_label(sys::System, i::Int)
+
+If atom `i` (referenced from the original crystal) carries a single spin-``s``
+moment, then returns the half-integer label ``s``. Otherwise, throws an error.
+"""
+function spin_label(sys::System, i::Int)
+    return spin_label_sublattice(something(sys.origin, sys), i)
 end
 
 
 """
     eachsite(sys::System)
-    eachsite(sys::System, i)
 
-An iterator over all [`Site`](@ref)s in the system. Restrict to one sublattice
-`i` with an optional second argument.
+An iterator over all [`Site`](@ref)s in the system.
 """
 @inline eachsite(sys::System) = CartesianIndices(size(sys.dipoles))
-@inline eachsite(sys::System, i) = CartesianIndices((sys.dims..., i:i))
+@inline eachsite_sublattice(sys::System, i) = CartesianIndices((sys.dims..., i:i))
 
 """
 nsites(sys::System) = length(eachsite(sys))
@@ -386,7 +389,7 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
             new_bond = map_bond_to_other_crystal(orig_crystal(sys), bond′, sys.crystal, new_i)
 
             # loop over all new crystal cells and push site pairs
-            for site_i in eachsite(sys, new_bond.i)
+            for site_i in eachsite_sublattice(sys, new_bond.i)
                 site_j = bonded_site(site_i, new_bond, sys.dims)
                 site_i < site_j && push!(ret, (site_i, site_j, new_bond.n))
             end

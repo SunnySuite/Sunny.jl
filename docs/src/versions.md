@@ -9,6 +9,8 @@
   wavevectors are provided.
 * The default implementation of [`SpinWaveTheoryKPM`](@ref) now uses Lanczos for
   higher accuracy.
+* Fix atom indexing when setting interactions for a reshaped system ([PR
+  #359](https://github.com/SunnySuite/Sunny.jl/pull/359)).
 
 ## v0.7.5
 (Jan 20, 2025)
