@@ -12,11 +12,11 @@
     set_exchange!(sys, -1/s^2, Bond(1, 3, [0, 0, 0]))
     set_exchange!(sys, 1/(2s)^2, Bond(1, 2, [0, 0, 0]))
     measure = ssf_perp(sys)
-    scga = Sunny.SCGA(sys; measure, Nq=8, sublattice_resolved=false)
     kT = 15*meV_per_K
+    scga = Sunny.SCGA(sys; measure, kT, Nq=8)
     γ = s^2 * Sunny.natoms(cryst)
     grid = q_space_grid(cryst, [1, 0, 0], 0:0.9:4, [0, 1, 0], 0:0.9:4; orthogonalize=true)
-    res = intensities_static(scga, grid; kT)
+    res = intensities_static(scga, grid)
     @test isapprox(vec(res.data)/γ, dia; rtol=1e-8)
 end
 
@@ -38,10 +38,10 @@ end
     set_exchange!(sys, 0.5, Bond(1, 1, [1,1,0]))
     set_exchange!(sys, 0.25, Bond(1, 1, [2,0,0]))
     measure = ssf_perp(sys)
-    scga = Sunny.SCGA(sys; measure, Nq=8, sublattice_resolved=false)
     kT = 27.5*meV_per_K
+    scga = Sunny.SCGA(sys; measure, kT, Nq=8)
     grid = q_space_grid(cryst, [1, 0, 0], -1:0.12:0, [0, 1, 0], -1:0.12:0; orthogonalize=true)
-    res = Sunny.intensities_static(scga, grid; kT)
+    res = Sunny.intensities_static(scga, grid)
     @test isapprox(vec(res.data)/2, sq; rtol=1e-5)
 end
 
@@ -61,10 +61,10 @@ end
     # values from Conlon + Chalker
     MgCrO = [ 5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02]
     measure = ssf_custom((q, ssf) -> real(sum(ssf)), sys)
-    scga = Sunny.SCGA(sys; measure, Nq=4, quantum_sum_rule=true, sublattice_resolved=false)
     kT = 20*meV_per_K
+    scga = Sunny.SCGA(sys; measure, kT, Nq=4, quantum_sum_rule=true)
     grid = q_space_grid(cryst, [1, 0, 0], range(-4, 4, 17), [0, 1, 0], range(-4, 4, 17); orthogonalize=true)
-    res = Sunny.intensities_static(scga, grid; kT)
+    res = Sunny.intensities_static(scga, grid)
     S = 3/2
     γ = S*(S+1)*length(cryst.positions)
     @test isapprox(vec(res.data)/γ, (3/4)*vec(MgCrO); rtol=1e-3)
@@ -95,10 +95,10 @@ end
     set_onsite_coupling!(sys, S -> S'*anis*S, 1)
     k_grid = [0.125:0.125:1;]
     measure = ssf_perp(sys)
-    scga = Sunny.SCGA(sys; measure, Nq=8, sublattice_resolved=false)
     kT = 55*meV_per_K
+    scga = Sunny.SCGA(sys; measure, kT, Nq=8)
     grid = q_space_grid(cryst, [1, 0, 0], 0.125:0.125:1, [0, 1, 0], 0.125:0.125:1; orthogonalize=true)
-    res = Sunny.intensities_static(scga, grid; kT)
+    res = Sunny.intensities_static(scga, grid)
     @test isapprox(vec(res.data), arb; rtol=1e-6)
 end
 
@@ -116,11 +116,11 @@ end
     J1 = 1
     set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
     measure = ssf_trace(sys; apply_g=false)
-    scga = Sunny.SCGA(sys; measure, sublattice_resolved=true, Nq=60)
     kT = 22.5*meV_per_K
+    scga = Sunny.SCGA(sys; measure, kT, Nq=60)
     qarray = range(0,2,60)
     qs1 = [[qx, 0, 0] for qx in qarray]
-    res = Sunny.intensities_static(scga, qs1; kT)
+    res = Sunny.intensities_static(scga, qs1)
     sum_rule = s1^2 + s2^2
     @test abs(sum(res.data)/length(qs1)-sum_rule )/sum_rule < tol
 end
@@ -136,10 +136,10 @@ end
     J1 = 1
     set_exchange!(sys, J1, Bond(1, 2, [0, 0, 0]))
     measure = ssf_trace(sys; apply_g=false)
-    scga = Sunny.SCGA(sys; measure, sublattice_resolved=true, Nq=40)
-    qs = q_space_path(cryst,[[0, 0, 0], [2, 0,0 ]], 17)
     kT = 17.5 * meV_per_K
-    res_SCGA = Sunny.intensities_static(scga, qs; kT)
+    scga = Sunny.SCGA(sys; measure, kT, Nq=40)
+    qs = q_space_path(cryst,[[0, 0, 0], [2, 0,0 ]], 17)
+    res_SCGA = Sunny.intensities_static(scga, qs)
     golden_data = [5.290737305656931, 4.7748982402676265, 4.08328246178467, 4.042960776695628, 4.590499089153959, 6.013520972997832, 8.995831669892262, 13.95353903683679, 17.263753113653635, 13.95353903683679, 8.995831669892262, 6.013520972997832, 4.590499089153959, 4.042960776695629, 4.0832824617846715, 4.7748982402676265, 5.290737305656931]
     @test sum(abs.(golden_data - res_SCGA.data)./ golden_data)/length(golden_data) < tol
 end
@@ -175,11 +175,11 @@ end
     set_exchange!(sys,J8,Bond(7, 7, [1, 0, 0])) # Mn in-plane XYZ + DMI [G H I]
     set_onsite_coupling!(sys, S -> D1*S[3]^2, 1)
     set_onsite_coupling!(sys, S -> D2*S[3]^2, 7)
+    measure = ssf_perp(sys)
     kT = 80.5*meV_per_K
-    measure = ssf_perp(sys;)
-    scga = Sunny.SCGA(sys; measure, sublattice_resolved=true, Nq=3)
+    scga = Sunny.SCGA(sys; measure, kT, Nq=3)
     qs = [[0, 0, 0], [0, 1/2, 1/2], [0.06, 0.49, 0.59]]
-    res = Sunny.intensities_static(scga, qs; kT)
+    res = Sunny.intensities_static(scga, qs)
     golden_data = [31.054341345978518, 21.5871931021382, 21.588723556553013]
     @test isapprox(res.data, golden_data; atol=1e-5)
 end
