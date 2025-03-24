@@ -42,17 +42,12 @@ struct SCGA
 end
 
 
-# Computes the Lagrange multiplier for the standard SCGA approach with a common
-# Lagrange multiplier for all sublattices.
-function find_lagrange_multiplier(scga::SCGA, β)
-    starting_offset = 0.2
-    maxiters = 500
-    tol = 1e-10
+function make_q_grid(scga)
+    (; sys, Nq) = scga
 
-    (; sys, quantum_sum_rule, Nq) = scga
-    dq = 1/Nq;
     Na = natoms(sys.crystal)
-    bond_counter = zeros(Float64,3)
+    dq = 1/Nq;
+    bond_counter = zeros(Float64, 3)
     for i in 1:Na
         for coupling in sys.interactions_union[i].pair
             (; isculled, bond) = coupling
@@ -64,12 +59,27 @@ function find_lagrange_multiplier(scga::SCGA, β)
     qarrays = []
     for i in 1:3
         if bond_counter[i] == 0
-            push!(qarrays,[0])
+            push!(qarrays, [0])
         else
-            push!(qarrays,qarray)
+            push!(qarrays, qarray)
         end
     end
-    q = [[qx, qy, qz] for qx in qarrays[1], qy in qarrays[2], qz in qarrays[3]]
+    return [[qx, qy, qz] for qx in qarrays[1], qy in qarrays[2], qz in qarrays[3]]
+end
+
+# Computes the Lagrange multiplier for the standard SCGA approach with a common
+# Lagrange multiplier for all sublattices.
+function find_lagrange_multiplier(scga::SCGA, β)
+    starting_offset = 0.2
+    maxiters = 500
+    tol = 1e-10
+
+    (; sys, quantum_sum_rule) = scga
+    Na = natoms(sys.crystal)
+
+    q = make_q_grid(scga)
+    N = length(q)
+
     Jq_array = [fourier_exchange_matrix(sys; k=q_in) for q_in in q]
     #TODO throw error if spins different
     if quantum_sum_rule
@@ -78,18 +88,18 @@ function find_lagrange_multiplier(scga::SCGA, β)
         S_sq = sum(sys.κs.^2) / Na
     end
 
-    eig_vals = zeros(3Na, length(Jq_array))
+    eig_vals = zeros(3Na, N)
     for j in eachindex(Jq_array)
          eig_vals[:, j] .= eigvals(Jq_array[j])
     end
 
     function f(λ)
         sum_term = sum(1 ./ (λ .+ β * eig_vals ))
-        return (1/(Na*length(q))) * sum_term
+        return (1/(Na*N)) * sum_term
     end
     function J(λ)
         sum_term = sum((1 ./ (λ .+ β * eig_vals)).^2)
-        return -(1/(Na*length(q))) * sum_term
+        return -(1/(Na*N)) * sum_term
     end
 
     lower = - β * minimum(eig_vals)
@@ -201,13 +211,14 @@ function intensities_static(scga::SCGA, qpts; kT, λs_init=nothing)
     end
 end
 
+
 # Computes the Lagrange multiplier for the sublattice resolved SCGA method.
 
 function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
     tol = 1e-6
     maxiters = 500
 
-    (; sys, quantum_sum_rule, Nq) = scga
+    (; sys, quantum_sum_rule) = scga
 
     if quantum_sum_rule
         S_sq =vec(sys.κs .* (sys.κs .+ 1))
@@ -215,51 +226,12 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
         S_sq = vec(sys.κs.^2)
     end
     Na = natoms(sys.crystal)
-    dq = 1/Nq;
 
-    bond_counter = zeros(Float64,3)
-    for i in 1:Na
-        for coupling in sys.interactions_union[i].pair
-            (; isculled, bond) = coupling
-            isculled && break
-            bond_counter += abs.(bond.n)
-        end
-    end
+    q = make_q_grid(scga)
+    Nq = length(q)
 
-    qarray = -0.5: dq : 0.5-dq
-    qarrays = []
-    for i in 1:3
-        if bond_counter[i] == 0
-            push!(qarrays, [0])
-        else
-            push!(qarrays, qarray)
-        end
-    end
-
-    q = [[qx, qy, qz] for qx in qarrays[1], qy in qarray[2], qz in qarray[3]]
-    N = length(q)
-
-    function f(λs)
-        Λ =  diagm(repeat(λs, inner=3))
-        A_array = [β*Sunny.fourier_exchange_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
-        eig_vals = zeros(3Na,length(A_array))
-        Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-        for j in 1:length(A_array)
-            T = eigen(A_array[j])
-            eig_vals[:,j] .= T.values
-            Us[:,:,j] .= T.vectors
-        end
-        if minimum(eig_vals) < 0
-            F =  -Inf
-        else
-            F =  (1/2β) * sum(log.(eig_vals))
-        end
-        G = F - (1/2β) * N * sum(λs .* S_sq)
-        return -G
-    end
-
-    function fg!(fbuffer,gbuffer,λs)
-        Λ =  diagm(repeat(λs, inner=3))
+    function fg!(fbuffer, gbuffer, λs)
+        Λ = diagm(repeat(λs, inner=3))
         A_array = [β*fourier_exchange_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
@@ -268,14 +240,14 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
             eig_vals[:,j] .= T.values
             Us[:,:,j] .= T.vectors
         end
-        if gbuffer !== nothing
+        if !isnothing(gbuffer)
             gradF = zeros(ComplexF64,Na)
             for i in 1:Na
                 gradλ = diagm(zeros(ComplexF64,3Na))
                 gradλ[3i-2:3i, 3i-2:3i] = diagm([1,1,1])
-                gradF[i] =0.5sum([tr(diagm(1 ./ eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in 1:length(A_array)])
+                gradF[i] = 0.5sum([tr(diagm(1 ./ eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in 1:length(A_array)])
             end
-            gradG = gradF - 0.5*N*S_sq
+            gradG = gradF - 0.5*Nq*S_sq
             gbuffer .= -real(gradG)
         end
         if !isnothing(fbuffer)
@@ -284,10 +256,12 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
             else
                 F = (1/2β) * sum(log.(eig_vals))
             end
-            G = F - (N/2) * sum(λs .* S_sq)
-            fbuffer= -G
+            G = F - (Nq/2) * sum(λs .* S_sq)
+            return -G # Target is to maximize free energy G
         end
     end
+
+    f(λs) = fg!(NaN, nothing, λs)
 
     if isnothing(λs)
         println("No user provided initial guess for the Lagrange multipliers. Determining a sensible starting point from the interaction matrix.")
@@ -306,7 +280,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
             pos_shift = 0
         end
         λ_init = pos_shift + (extreme_eigvals[2]-extreme_eigvals[1])/2
-        λs = λ_init*ones(Float64,Na)
+        λs = λ_init*ones(Float64, Na)
     else
         println("Using user provided initial starting point for the optimization of the Lagrange multipliers.")
         if f(λs) > 1e7
