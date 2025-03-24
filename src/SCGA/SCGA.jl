@@ -165,7 +165,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, β)
     tol = 1e-6
     maxiters = 500
 
-    (; sys, quantum_sum_rule, qs, Js, eigvals) = scga
+    (; sys, quantum_sum_rule, Js, eigvals) = scga
     eigvals = Iterators.flatten(eigvals)
 
     if quantum_sum_rule
@@ -188,8 +188,8 @@ function find_lagrange_multiplier_opt_sublattice(scga, β)
             T = eigen(A)
             eig_vals = T.values
             U = T.vectors
-            Ainv = U * Diagonal(inv.(eig_vals)) * U'
-            Ainv = reshape(Ainv, 3, Na, 3, Na)
+            A⁻¹ = U * Diagonal(inv.(eig_vals)) * U'
+            A⁻¹ = reshape(A⁻¹, 3, Na, 3, Na)
 
             if minimum(eig_vals) < 0
                 F = -Inf
@@ -201,7 +201,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, β)
 
             if !isnothing(gbuffer)
                 for i in 1:Na
-                    gbuffer[i] += s²[i] / 2 - real(tr(view(Ainv, :, i, :, i))) / 2
+                    gbuffer[i] += s²[i] / 2 - real(tr(view(A⁻¹, :, i, :, i))) / 2
                 end
             end
         end
