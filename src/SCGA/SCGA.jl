@@ -108,15 +108,11 @@ end
 
 const CMat3 = SMatrix{3, 3, ComplexF64, 9}
 
-# Computes the static structure factor in the standard SCGA approach, with a
-# single Lagrange multiplier, over the qpts specified.
-
-function intensities_static_single(scga::SCGA, qpts; β)
+function intensities_static_aux(scga::SCGA, qpts; β, Λ)
     qpts = convert(AbstractQPoints, qpts)
     (; sys, measure) = scga
     Na = natoms(sys.crystal)
     Nobs = num_observables(measure)
-    λ = find_lagrange_multiplier(scga, β)
     intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
     r = sys.crystal.positions
@@ -132,9 +128,7 @@ function intensities_static_single(scga::SCGA, qpts; β)
             pref[μ, i] = exp(-2π * im * dot(q_reshaped, r[i])) * compute_form_factor(ff, norm2(q_global))
         end
         Jq = fourier_exchange_matrix(sys; k=q_reshaped)         # FIXME: q not q_reshaped
-        # Jq = reshape(Jq, 3, Na, 3, Na)
-
-        inverted_matrix = inv(I(3Na)*λ + β*Jq) # this is [(Iλ+J(q))^-1]^αβ_μν
+        inverted_matrix = inv(β*Λ + β*Jq) # this is [(Iλ+J(q))^-1]^αβ_μν
         inverted_matrix = reshape(inverted_matrix, 3, Na, 3, Na)
 
         for i in 1:Na, j in 1:Na
@@ -146,63 +140,26 @@ function intensities_static_single(scga::SCGA, qpts; β)
         intensity[iq] = measure.combiner(q_global, corrbuf)
     end
     if extrema(intensity)[1] < -1e-2
-        @warn "Warning: negative intensities! kT is probably below the ordering temperature."
-        # TODO Throw an error. This is for diagnostic purposes.
+        error("Negative intensity indicates that kT is below ordering")
     end
     return StaticIntensities(sys.crystal, qpts, reshape(intensity,size(qpts.qs)))
 end
 
-# Computes the static structure factor in the sublattice resolved SCGA method,
-# over the qpts specified.
-
-function intensities_static_sublattice(scga::SCGA, qpts; β, λs_init)
-    qpts = convert(AbstractQPoints, qpts)
-    (; sys, measure) = scga
-    Na = natoms(sys.crystal)
-    Nobs = num_observables(measure)
-    λs = find_lagrange_multiplier_opt_sublattice(scga, λs_init, β)
-    intensity = zeros(eltype(measure),length(qpts.qs))
-    Ncorr = length(measure.corr_pairs)
-    r = sys.crystal.positions
-
-    for (iq, q) in enumerate(qpts.qs)
-        pref = zeros(ComplexF64, Nobs, Na)
-        corrbuf = zeros(ComplexF64, Ncorr)
-        intensitybuf = zeros(eltype(measure),3,3)
-        q_reshaped = to_reshaped_rlu(sys, q)
-        q_global = sys.crystal.recipvecs * q
-        for i in 1:Na, μ in 1:3
-            ff = get_swt_formfactor(measure, μ, i)
-            pref[μ, i] = exp(-2π * im * dot(q_reshaped, r[i])) * compute_form_factor(ff, norm2(q_global))
-        end
-        J_mat = fourier_exchange_matrix(sys; k=q_reshaped)
-        Λ =  diagm(repeat(λs, inner=3))
-        inverted_matrix = (inv(β*Λ + β*J_mat)) # this is [(Iλ+J(q))^-1]^αβ_μν
-        for i in 1:Na, j in 1:Na
-            intensitybuf += pref[1,i]*conj(pref[1,j])*inverted_matrix[1+3(i-1):3+3(i-1),1+3(j-1):3+3(j-1)]
-            # TODO allow different form factor for each observable
-        end
-        map!(corrbuf, measure.corr_pairs) do (α, β)
-            intensitybuf[α,β]
-        end
-        intensity[iq] = measure.combiner(q_global, corrbuf)
-    end
-    if extrema(intensity)[1] < -1e-2
-        @warn "Warning: negative intensities! kT is probably below the ordering temperature."
-        # TODO Throw an error. This is for diagnostic purposes.
-    end
-    println("Optimized Lagrange multipliers: $λs")
-    return StaticIntensities(sys.crystal, qpts, reshape(intensity,size(qpts.qs)))
-end
 
 function intensities_static(scga::SCGA, qpts; kT, λs_init=nothing)
     kT > 0 || error("Temperature kT must be positive")
     β = 1 / kT
     if scga.sublattice_resolved == true
-        return intensities_static_sublattice(scga::SCGA, qpts; β, λs_init)
+        λs = find_lagrange_multiplier_opt_sublattice(scga, λs_init, β)
+        # println("Optimized Lagrange multipliers: $λs")
+        Λ = Diagonal(repeat(λs, inner=3))
     else
-        return intensities_static_single(scga::SCGA, qpts; β)
+        Na = natoms(scga.sys.crystal)
+        λ = find_lagrange_multiplier(scga, β)
+        Λ = Diagonal(fill(λ / β, 3Na))
     end
+
+    return intensities_static_aux(scga::SCGA, qpts; β, Λ)
 end
 
 
@@ -212,7 +169,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
     tol = 1e-6
     maxiters = 500
 
-    (; sys, quantum_sum_rule, qs) = scga
+    (; sys, quantum_sum_rule, qs, Js) = scga
 
     if quantum_sum_rule
         S_sq = vec(sys.κs .* (sys.κs .+ 1))
@@ -225,7 +182,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
 
     function fg!(fbuffer, gbuffer, λs)
         Λ = diagm(repeat(λs, inner=3))
-        A_array = [β*fourier_exchange_matrix(sys; k=q_in) .+  β*Λ for q_in in qs]
+        A_array = [β*J .+  β*Λ for J in Js]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in eachindex(A_array)
@@ -258,7 +215,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
 
     if isnothing(λs)
         println("No user provided initial guess for the Lagrange multipliers. Determining a sensible starting point from the interaction matrix.")
-        A_array = [fourier_exchange_matrix(sys; k=q_in) for q_in in qs]
+        A_array = Js
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in eachindex(A_array)
@@ -278,7 +235,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
         println("Using user provided initial starting point for the optimization of the Lagrange multipliers.")
         if f(λs) > 1e7
             println("Matrix is not positive definite. Shifting Lagrange multipliers to find a better starting point.")
-            A_array = [fourier_exchange_matrix(sys; k=q_in)  for q_in in qs]
+            A_array = Js
             eig_vals = zeros(3Na,length(A_array))
             Us = zeros(ComplexF64,3Na,3Na,length(A_array))
             for j in eachindex(A_array)
