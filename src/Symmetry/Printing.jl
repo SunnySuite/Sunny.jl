@@ -218,7 +218,7 @@ allowed anisotropy operator.  An optional symmetry-equivalent reference atom
 optional rotation matrix `R` can map to a new Cartesian reference frame for
 expression of the allowed anisotropy.
 """
-function print_site(cryst, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
+function print_site(cryst::Crystal, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
     R_global = convert(Mat3, R)
     r = cryst.positions[i]
     class_i = cryst.classes[i]

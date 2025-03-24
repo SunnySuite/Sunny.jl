@@ -128,9 +128,9 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
     # https://github.com/JuliaNLSolvers/Optim.jl/issues/1120 for discussion of
     # settings required to find the minimizer `x` to high-accuracy. Note that
     # `x` contains normalized spin variables, while gradient `g` has dimensions
-    # of energy, so we elect to set `x_tol` as the dimensionless convergence
+    # of energy, so we elect to set `x_abstol` as the dimensionless convergence
     # tolerance.
-    options = Optim.Options(; iterations=subiters, x_tol=1e-12, g_tol=0, f_reltol=NaN, f_abstol=NaN, kwargs...)
+    options = Optim.Options(; iterations=subiters, x_abstol=1e-12, g_abstol=0, f_reltol=NaN, f_abstol=NaN, kwargs...)
     local output
     for iter in 1 : div(maxiters, subiters, RoundUp)
         output = Optim.optimize(f, g!, αs, method, options)

@@ -27,8 +27,8 @@ propose_flip(sys::System{N}, site) where N = flip(getspin(sys, site))
 
 Generate a proposal function that adds a Gaussian perturbation to the existing
 spin state. In `:dipole` mode, the procedure is to first introduce a random
-three-vector perturbation ``𝐒′ = 𝐒 + |𝐒| ξ`` and then return the properly
-normalized spin ``|𝐒| (𝐒′/|𝐒′|)``. Each component of the random vector ``ξ``
+three-vector perturbation ``𝐒' = 𝐒 + |𝐒| ξ`` and then return the properly
+normalized spin ``|𝐒| (𝐒'/|𝐒'|)``. Each component of the random vector ``ξ``
 is Gaussian distributed with a standard deviation of `magnitude`; the latter is
 dimensionless and typically smaller than one. 
 
