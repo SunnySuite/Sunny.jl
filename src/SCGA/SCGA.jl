@@ -86,15 +86,13 @@ function find_lagrange_multiplier(scga::SCGA, β)
     end
 
     function f(λ)
-        return sum(1 / (λ + β * ev) for ev in eigvals) / (Na * Nq)
+        return sum(1 / (λ + ev) for ev in eigvals) / (β * Na * Nq)
     end
     function J(λ)
-        return -sum(1 / (λ + β * ev)^2 for ev in eigvals) / (Na * Nq)
+        return -sum(1 / (λ + ev)^2 for ev in eigvals) / (β * Na * Nq)
     end
 
-    lower = - β * minimum(eigvals)
-    λn = starting_offset*0.1 + lower # Make more robust - regularized! Check optim.jl
-
+    λn = starting_offset*0.1/β - minimum(eigvals)
     for n in 1:maxiters
         λ = λn + (1/J(λn))*(S_sq-f(λn))
         if abs(λ-λn) < tol
@@ -156,7 +154,7 @@ function intensities_static(scga::SCGA, qpts; kT, λs_init=nothing)
     else
         Na = natoms(scga.sys.crystal)
         λ = find_lagrange_multiplier(scga, β)
-        Λ = Diagonal(fill(λ / β, 3Na))
+        Λ = Diagonal(fill(λ, 3Na))
     end
 
     return intensities_static_aux(scga::SCGA, qpts; β, Λ)
