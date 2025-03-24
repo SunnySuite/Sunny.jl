@@ -4,6 +4,7 @@
 # averaged over sublattices. This will be faster, but risks producing incorrect
 # results when the sublattices are symmetry-distinct.
 
+
 """
     SCGA(sys::System; measure, Nq, quantum_sum_rule=false)
 
@@ -28,23 +29,30 @@ will modify this magnitude to ``√s(s+1)``.
 struct SCGA
     sys :: System
     measure :: MeasureSpec
-    Nq :: Int
     quantum_sum_rule :: Bool
     sublattice_resolved :: Bool
+
+    qs :: Vector{Vec3}
+    Js :: Vector{HermitianC64}
+    eigvals :: Vector{Vector{Float64}}
+    eigvecs :: Vector{Matrix{ComplexF64}}
 
     function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, Nq::Int, quantum_sum_rule=false, sublattice_resolved=true)
         measure = @something measure empty_measurespec(sys)
         if size(eachsite(sys)) != size(measure.observables)[2:5]
             error("Size mismatch. Check that measure is built using consistent system.")
         end
-        return new(sys, measure, Nq, quantum_sum_rule, sublattice_resolved)
+
+        qs = make_q_grid(sys, Nq)
+        Js = [fourier_exchange_matrix(sys; k) for k in qs]
+        eigs = map(eigen, Js)
+        eigvals = [e.values for e in eigs]
+        eigvecs = [e.vectors for e in eigs]
+        return new(sys, measure, quantum_sum_rule, sublattice_resolved, qs, Js, eigvals, eigvecs)
     end
 end
 
-
-function make_q_grid(scga)
-    (; sys, Nq) = scga
-
+function make_q_grid(sys, Nq)
     Na = natoms(sys.crystal)
     dq = 1/Nq;
     wraps = [false, false, false]
@@ -56,7 +64,7 @@ function make_q_grid(scga)
         end
     end
     qarrays = [w ? (-1/2 : dq : 1/2-dq) : [0] for w in wraps]
-    return collect(Iterators.product(qarrays...))
+    return vec(Vec3.(Iterators.product(qarrays...)))
 end
 
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
@@ -66,35 +74,25 @@ function find_lagrange_multiplier(scga::SCGA, β)
     maxiters = 500
     tol = 1e-10
 
-    (; sys, quantum_sum_rule) = scga
+    (; sys, quantum_sum_rule, qs, eigvals) = scga
+    eigvals = Iterators.flatten(eigvals)
     Na = natoms(sys.crystal)
+    Nq = length(qs)
 
-    q = make_q_grid(scga)
-    Nq = length(q)
-
-    Jq_array = [fourier_exchange_matrix(sys; k=q_in) for q_in in q]
-    #TODO throw error if spins different
     if quantum_sum_rule
-        S_sq = sum(sys.κs .* (sys.κs.+1)) / Na
+        S_sq = sum(κ * (κ + 1) for κ in sys.κs) / Na
     else
-        S_sq = sum(sys.κs.^2) / Na
-    end
-
-    eig_vals = zeros(3Na, Nq)
-    for j in eachindex(Jq_array)
-         eig_vals[:, j] .= eigvals(Jq_array[j])
+        S_sq = norm2(sys.κs) / Na
     end
 
     function f(λ)
-        sum_term = sum(1 ./ (λ .+ β * eig_vals ))
-        return (1/(Na*Nq)) * sum_term
+        return sum(1 / (λ + β * ev) for ev in eigvals) / (Na * Nq)
     end
     function J(λ)
-        sum_term = sum((1 ./ (λ .+ β * eig_vals)).^2)
-        return -(1/(Na*Nq)) * sum_term
+        return -sum(1 / (λ + β * ev)^2 for ev in eigvals) / (Na * Nq)
     end
 
-    lower = - β * minimum(eig_vals)
+    lower = - β * minimum(eigvals)
     λn = starting_offset*0.1 + lower # Make more robust - regularized! Check optim.jl
 
     for n in 1:maxiters
@@ -107,6 +105,8 @@ function find_lagrange_multiplier(scga::SCGA, β)
         end
     end
 end
+
+const CMat3 = SMatrix{3, 3, ComplexF64, 9}
 
 # Computes the static structure factor in the standard SCGA approach, with a
 # single Lagrange multiplier, over the qpts specified.
@@ -131,12 +131,14 @@ function intensities_static_single(scga::SCGA, qpts; β)
             ff = get_swt_formfactor(measure, μ, i)
             pref[μ, i] = exp(-2π * im * dot(q_reshaped, r[i])) * compute_form_factor(ff, norm2(q_global))
         end
-        J_mat = fourier_exchange_matrix(sys; k=q_reshaped)
-        inverted_matrix = inv(I(3*Na)*λ[1] + β*J_mat) # this is [(Iλ+J(q))^-1]^αβ_μν
-        # inverted_matrix = diagm(1 ./ (λ[1] .+ β .* eigvals(J_mat)))
+        Jq = fourier_exchange_matrix(sys; k=q_reshaped)         # FIXME: q not q_reshaped
+        # Jq = reshape(Jq, 3, Na, 3, Na)
+
+        inverted_matrix = inv(I(3Na)*λ + β*Jq) # this is [(Iλ+J(q))^-1]^αβ_μν
+        inverted_matrix = reshape(inverted_matrix, 3, Na, 3, Na)
+
         for i in 1:Na, j in 1:Na
-            intensitybuf += pref[1,i]*conj(pref[1,j])*inverted_matrix[1+3(i-1):3+3(i-1),1+3(j-1):3+3(j-1)]
-            # TODO allow different form factor for each observable
+            intensitybuf += pref[1,i]*conj(pref[1,j])*view(inverted_matrix, :, i, :, j)
         end
         map!(corrbuf, measure.corr_pairs) do (α, β)
             intensitybuf[α,β]
@@ -210,7 +212,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
     tol = 1e-6
     maxiters = 500
 
-    (; sys, quantum_sum_rule) = scga
+    (; sys, quantum_sum_rule, qs) = scga
 
     if quantum_sum_rule
         S_sq = vec(sys.κs .* (sys.κs .+ 1))
@@ -219,12 +221,11 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
     end
     Na = natoms(sys.crystal)
 
-    q = make_q_grid(scga)
-    Nq = length(q)
+    Nq = length(qs)
 
     function fg!(fbuffer, gbuffer, λs)
         Λ = diagm(repeat(λs, inner=3))
-        A_array = [β*fourier_exchange_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
+        A_array = [β*fourier_exchange_matrix(sys; k=q_in) .+  β*Λ for q_in in qs]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in eachindex(A_array)
@@ -257,7 +258,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
 
     if isnothing(λs)
         println("No user provided initial guess for the Lagrange multipliers. Determining a sensible starting point from the interaction matrix.")
-        A_array = [fourier_exchange_matrix(sys; k=q_in) for q_in in q]
+        A_array = [fourier_exchange_matrix(sys; k=q_in) for q_in in qs]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in eachindex(A_array)
@@ -277,7 +278,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
         println("Using user provided initial starting point for the optimization of the Lagrange multipliers.")
         if f(λs) > 1e7
             println("Matrix is not positive definite. Shifting Lagrange multipliers to find a better starting point.")
-            A_array = [fourier_exchange_matrix(sys; k=q_in)  for q_in in q]
+            A_array = [fourier_exchange_matrix(sys; k=q_in)  for q_in in qs]
             eig_vals = zeros(3Na,length(A_array))
             Us = zeros(ComplexF64,3Na,3Na,length(A_array))
             for j in eachindex(A_array)

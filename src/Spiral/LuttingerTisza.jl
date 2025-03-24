@@ -1,4 +1,4 @@
-function fourier_exchange_matrix(sys::System; k)
+function fourier_exchange_matrix(sys::System; k) # FIXME: expect k in RLU and create k_reshaped
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
 
