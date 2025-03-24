@@ -120,7 +120,7 @@ end
     kT = 22.5*meV_per_K
     qarray = range(0,2,60)
     qs1 = [[qx, 0, 0] for qx in qarray]
-    res = Sunny.intensities_static(scga, qs1; kT, λs_init=[7.67033234814451, 1.2272531757030904])
+    res = Sunny.intensities_static(scga, qs1; kT)
     sum_rule = s1^2 + s2^2
     @test abs(sum(res.data)/length(qs1)-sum_rule )/sum_rule < tol
 end
@@ -139,7 +139,7 @@ end
     scga = Sunny.SCGA(sys; measure, sublattice_resolved=true, Nq=40)
     qs = q_space_path(cryst,[[0, 0, 0], [2, 0,0 ]], 17)
     kT = 17.5 * meV_per_K
-    res_SCGA = Sunny.intensities_static(scga, qs; kT, λs_init = [6.742957842952556, 1.078873254872408])
+    res_SCGA = Sunny.intensities_static(scga, qs; kT)
     golden_data = [5.290737305656931, 4.7748982402676265, 4.08328246178467, 4.042960776695628, 4.590499089153959, 6.013520972997832, 8.995831669892262, 13.95353903683679, 17.263753113653635, 13.95353903683679, 8.995831669892262, 6.013520972997832, 4.590499089153959, 4.042960776695629, 4.0832824617846715, 4.7748982402676265, 5.290737305656931]
     @test sum(abs.(golden_data - res_SCGA.data)./ golden_data)/length(golden_data) < tol
 end
@@ -179,8 +179,7 @@ end
     measure = ssf_perp(sys;)
     scga = Sunny.SCGA(sys; measure, sublattice_resolved=true, Nq=3)
     qs = [[0, 0, 0], [0, 1/2, 1/2], [0.06, 0.49, 0.59]]
-    λs_init = vcat(fill(22.47960976417936, 6), fill(5.706769019158553, 6))
-    res = Sunny.intensities_static(scga, qs; kT, λs_init)
+    res = Sunny.intensities_static(scga, qs; kT)
     golden_data = [31.054341345978518, 21.5871931021382, 21.588723556553013]
     @test isapprox(res.data, golden_data; atol=1e-5)
 end

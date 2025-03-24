@@ -142,11 +142,11 @@ function intensities_static_aux(scga::SCGA, qpts; β, Λ)
 end
 
 
-function intensities_static(scga::SCGA, qpts; kT, λs_init=nothing)
+function intensities_static(scga::SCGA, qpts; kT)
     kT > 0 || error("Temperature kT must be positive")
     β = 1 / kT
     if scga.sublattice_resolved == true
-        λs = find_lagrange_multiplier_opt_sublattice(scga, λs_init, β)
+        λs = find_lagrange_multiplier_opt_sublattice(scga, β)
         # println("Optimized Lagrange multipliers: $λs")
         Λ = Diagonal(repeat(λs, inner=3))
     else
@@ -161,11 +161,12 @@ end
 
 # Computes the Lagrange multiplier for the sublattice resolved SCGA method.
 
-function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
+function find_lagrange_multiplier_opt_sublattice(scga, β)
     tol = 1e-6
     maxiters = 500
 
-    (; sys, quantum_sum_rule, qs, Js) = scga
+    (; sys, quantum_sum_rule, qs, Js, eigvals) = scga
+    eigvals = Iterators.flatten(eigvals)
 
     if quantum_sum_rule
         S_sq = vec(sys.κs .* (sys.κs .+ 1))
@@ -206,45 +207,11 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
         end
     end
 
-    f(λs) = fg!(NaN, nothing, λs)
+    # f(λs) = fg!(NaN, nothing, λs)
 
-    if isnothing(λs)
-        println("No user provided initial guess for the Lagrange multipliers. Determining a sensible starting point from the interaction matrix.")
-        A_array = Js
-        eig_vals = zeros(3Na,length(A_array))
-        Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-        for j in eachindex(A_array)
-            T = eigen(A_array[j])
-            eig_vals[:,j] .= T.values
-            Us[:,:,j] .= T.vectors
-        end
-        extreme_eigvals = extrema(eig_vals)
-        if extreme_eigvals[1] < 0
-            pos_shift = -extreme_eigvals[1]
-        else
-            pos_shift = 0
-        end
-        λ_init = pos_shift + (extreme_eigvals[2]-extreme_eigvals[1])/2
-        λs = λ_init*ones(Float64, Na)
-    else
-        println("Using user provided initial starting point for the optimization of the Lagrange multipliers.")
-        if f(λs) > 1e7
-            println("Matrix is not positive definite. Shifting Lagrange multipliers to find a better starting point.")
-            A_array = Js
-            eig_vals = zeros(3Na,length(A_array))
-            Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-            for j in eachindex(A_array)
-                T = eigen(A_array[j])
-                eig_vals[:,j] .= T.values
-                Us[:,:,j] .= T.vectors
-            end
-            extreme_eigvals = extrema(eig_vals)
-            shift = (extreme_eigvals[2] - extreme_eigvals[1])/2
-            while f(λs) > 1e7
-                λs += shift*ones(Float64,Na)
-            end
-        end
-    end
+    λ_min, λ_max = extrema(eigvals)
+    λ_init = -λ_min + (λ_max - λ_min) / 2
+    λs = λ_init*ones(Float64, Na)
 
     options = Optim.Options(; iterations=maxiters, show_trace=true, g_tol=tol)
     result = Optim.optimize(Optim.only_fg!(fg!), λs, Optim.ConjugateGradient(), options)
