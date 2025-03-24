@@ -36,7 +36,7 @@ struct SCGA
         β = 1 / kT
 
         qs = make_q_grid(sys, Nq)
-        Js = [fourier_exchange_matrix(sys; k) for k in qs]
+        Js = [fourier_exchange_matrix(sys; q) for q in qs]
 
         sublattice_resolved = !allequal(sys.crystal.classes)
         if sublattice_resolved
@@ -184,7 +184,7 @@ function intensities_static(scga::SCGA, qpts)
             ff = get_swt_formfactor(measure, μ, i)
             pref[μ, i] = exp(-2π * im * dot(q_reshaped, r[i])) * compute_form_factor(ff, norm2(q_global))
         end
-        Jq = fourier_exchange_matrix(sys; k=q_reshaped)         # FIXME: q not q_reshaped
+        Jq = fourier_exchange_matrix(sys; q)
         inverted_matrix = inv(β*Λ + β*Jq) # this is [(Iλ+J(q))^-1]^αβ_μν
         inverted_matrix = reshape(inverted_matrix, 3, Na, 3, Na)
 
