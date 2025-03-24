@@ -34,8 +34,7 @@ struct SCGA
 
     function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, Nq::Int, quantum_sum_rule=false, sublattice_resolved=true)
         measure = @something measure empty_measurespec(sys)
-        # FIXME: Copy logic from Spiral SWT
-        if length(eachsite(sys)) != prod(size(measure.observables)[2:5])
+        if size(eachsite(sys)) != size(measure.observables)[2:5]
             error("Size mismatch. Check that measure is built using consistent system.")
         end
         return new(sys, measure, Nq, quantum_sum_rule, sublattice_resolved)
@@ -43,14 +42,14 @@ struct SCGA
 end
 
 
-# Fourier transforms the interaaction matrix for a System and evaluatues it at
-# q=k. This function is adapted from `luttinger_tisza_exchange`](@ref) to
-# include the correct prefactors and local anisotropies.
+# Calculate the Fourier transformed interaction matrix for wavevector k. Adapted
+# from `luttinger_tisza_exchange`.
 function fourier_transform_interaction_matrix(sys::System; k)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
     Na = natoms(sys.crystal)
     J_k = zeros(ComplexF64, 3, Na, 3, Na)
+    r = sys.crystal.positions
 
     for i in 1:Na
         for coupling in sys.interactions_union[i].pair
@@ -58,7 +57,7 @@ function fourier_transform_interaction_matrix(sys::System; k)
             isculled && break
 
             (; j, n) = bond
-            J = exp(2π * im * dot(k, n+sys.crystal.positions[j]-sys.crystal.positions[i])) * Mat3(bilin*I)
+            J = exp(2π * im * dot(k, n + r[j] - r[i])) * Mat3(bilin*I)
             J_k[:, i, :, j] += J
             J_k[:, j, :, i] += J'
         end
@@ -123,9 +122,9 @@ function find_lagrange_multiplier(scga::SCGA, kT)
     Jq_array = [fourier_transform_interaction_matrix(sys; k=q_in) for q_in in q]
     #TODO throw error if spins different
     if quantum_sum_rule
-        S_sq = sum(sys.κs .*(sys.κs.+1))/Na
+        S_sq = sum(sys.κs .* (sys.κs.+1)) / Na
     else
-        S_sq = sum(sys.κs.^2)/Na
+        S_sq = sum(sys.κs.^2) / Na
     end
 
     eig_vals = zeros(3Na, length(Jq_array))

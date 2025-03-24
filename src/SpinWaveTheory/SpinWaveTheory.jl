@@ -43,7 +43,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     measure = @something measure empty_measurespec(sys)
-    if nsites(sys) != prod(size(measure.observables)[2:5])
+    if size(eachsite(sys)) != size(measure.observables)[2:5]
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
