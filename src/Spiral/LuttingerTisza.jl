@@ -19,10 +19,10 @@ function fourier_exchange_matrix(sys::System; k)
     end
 
     if !isnothing(sys.ewald)
-        A = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB²
-        A = reshape(A, Na, Na)
+        A_k = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB²
+        A_k = reshape(A_k, Na, Na)
         for i in 1:Na, j in 1:Na
-            J_k[:, i, :, j] += sys.gs[i]' * A[i, j] * sys.gs[j]
+            J_k[:, i, :, j] += sys.gs[i]' * A_k[i, j] * sys.gs[j]
         end
     end
 

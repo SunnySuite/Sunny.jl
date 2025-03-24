@@ -56,7 +56,7 @@ function make_q_grid(scga)
         end
     end
     qarrays = [w ? (-1/2 : dq : 1/2-dq) : [0] for w in wraps]
-    return Iterators.product(qarrays...)
+    return collect(Iterators.product(qarrays...))
 end
 
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
@@ -227,7 +227,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
         A_array = [β*fourier_exchange_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-        for j in 1:length(A_array)
+        for j in eachindex(A_array)
             T = eigen(A_array[j])
             eig_vals[:,j] .= T.values
             Us[:,:,j] .= T.vectors
@@ -237,7 +237,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
             for i in 1:Na
                 gradλ = diagm(zeros(ComplexF64,3Na))
                 gradλ[3i-2:3i, 3i-2:3i] = diagm([1,1,1])
-                gradF[i] = 0.5sum([tr(diagm(1 ./ eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in 1:length(A_array)])
+                gradF[i] = 0.5sum([tr(diagm(1 ./ eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in eachindex(A_array)])
             end
             gradG = gradF - 0.5*Nq*S_sq
             gbuffer .= -real(gradG)
@@ -260,7 +260,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
         A_array = [fourier_exchange_matrix(sys; k=q_in) for q_in in q]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-        for j in 1:length(A_array)
+        for j in eachindex(A_array)
             T = eigen(A_array[j])
             eig_vals[:,j] .= T.values
             Us[:,:,j] .= T.vectors
@@ -280,7 +280,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
             A_array = [fourier_exchange_matrix(sys; k=q_in)  for q_in in q]
             eig_vals = zeros(3Na,length(A_array))
             Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-            for j in 1:length(A_array)
+            for j in eachindex(A_array)
                 T = eigen(A_array[j])
                 eig_vals[:,j] .= T.values
                 Us[:,:,j] .= T.vectors
