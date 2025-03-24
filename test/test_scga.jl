@@ -8,7 +8,7 @@
     cryst = Crystal(latvecs, [[0, 0, 0]], 227; choice="1")
     s = 3/2
     sys = System(cryst, [1 => Moment(; s, g=1)], :dipole; seed=0)
-    # sys = reshape_supercell(sys, primitive_cell(cryst)) FIXME
+    sys = reshape_supercell(sys, primitive_cell(cryst))
     set_exchange!(sys, -1/s^2, Bond(1, 3, [0, 0, 0]))
     set_exchange!(sys, 1/(2s)^2, Bond(1, 2, [0, 0, 0]))
     measure = ssf_perp(sys)
@@ -52,6 +52,7 @@ end
     positions  = [[1/2, 1/2, 1/2]]
     cryst = Crystal(latvecs, positions, 227)
     sys = System(cryst, [1 => Moment(; s=3/2, g=1)], :dipole)
+    sys = reshape_supercell(sys, primitive_cell(cryst))
     J1 = 3.27                                            # in meV, from Bai's PRL
     J_mgcro = [1.0, 0.0815, 0.1050, 0.0085] * J1;        # further neighbor pyrochlore relevant for MgCr2O4
     set_exchange!(sys, J_mgcro[1], Bond(1, 2, [0,0,0]))  # J1
@@ -155,6 +156,7 @@ end
     cryst = Crystal(latvecs, positions, 148; types)
     moments = [1 => Moment(; s=1, g=3.4), 7 => Moment(; s=2, g=2)]
     sys = System(cryst, moments, :dipole; seed=2)
+    sys = reshape_supercell(sys, primitive_cell(cryst))
     J1 = -2.0*diagm([1.,1.,1.2])
     J2 = 5.25*[1 0.05 0; 0.05 1 0; 0 0 0]
     J3 = 0.75*diagm([1.,0.25,1.23]) + 0.23dmvec([0.23,0.87,0.43])
