@@ -82,7 +82,7 @@ end
 
     q = [0.12, 0.23, 0.34]
     swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys), k, axis)
-    res = dispersion(swt, [q])
+    res = intensities_bands(swt, [q])
 
     # Analytical check on dispersion
 

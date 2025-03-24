@@ -104,8 +104,6 @@ function find_lagrange_multiplier(scga::SCGA, β)
     end
 end
 
-const CMat3 = SMatrix{3, 3, ComplexF64, 9}
-
 function intensities_static_aux(scga::SCGA, qpts; β, Λ)
     qpts = convert(AbstractQPoints, qpts)
     (; sys, measure) = scga
@@ -175,7 +173,6 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
         S_sq = vec(sys.κs.^2)
     end
     Na = natoms(sys.crystal)
-
     Nq = length(qs)
 
     function fg!(fbuffer, gbuffer, λs)
