@@ -85,7 +85,7 @@ end
     0.7586033244771694, 0.7392096662818042, 0.7256714709772182, 0.7586014794304904, 0.7324922896074505, 0.7074913262740532, 0.7368083541302771, 0.768006438327862, 0.7387669446218719, 0.7113287543280766]
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]],1)
-    sys = System(cryst, [1 => Moment(; s=1, g=1)], :dipole_uncorrected; seed=0)
+    sys = System(cryst, [1 => Moment(; s=1, g=1)], :dipole; seed=0)
     set_exchange!(sys, -1, Bond(1, 1, [1,0,0]))
     set_exchange!(sys, -1, Bond(1, 1, [0,1,0]))
     set_exchange!(sys, 0.5, Bond(1, 1, [1,1,0]))
@@ -94,8 +94,8 @@ end
     set_exchange!(sys, 0.25, Bond(1, 1, [0,2,0]))
     to_inhomogeneous(sys)
     anis = [0.23 0.56 0.34;
-        0.56 0.12 0.45;
-        0.34 0.45 0.67]
+            0.56 0.12 0.45;
+            0.34 0.45 0.67]
     anis = 0.5.*(anis + anis')
     set_onsite_coupling!(sys, S -> S'*anis*S, 1)
     k_grid = [0.125:0.125:1;]
@@ -186,6 +186,6 @@ end
     qs =  [[0, 0, 0], [0, 1/2, 1/2], [0.06, 0.49, 0.59]]
     λs_init = vcat(fill(22.47960976417936, 6), fill(5.706769019158553, 6))
     res = Sunny.intensities_static(scga, qs; kT, λs_init)
-    golden_data = [38.110787325820155, 23.968895376107383, 23.961229974225233]
+    golden_data = [37.87398338375552, 23.916275650938417, 23.911706638987532]
     @test isapprox(res.data, golden_data; atol=1e-5)
 end
