@@ -47,24 +47,16 @@ function make_q_grid(scga)
 
     Na = natoms(sys.crystal)
     dq = 1/Nq;
-    bond_counter = zeros(Float64, 3)
+    wraps = [false, false, false]
     for i in 1:Na
         for coupling in sys.interactions_union[i].pair
             (; isculled, bond) = coupling
             isculled && break
-            bond_counter += abs.(bond.n)
+            @. wraps = wraps || !iszero(bond.n)
         end
     end
-    qarray = -0.5: dq : 0.5-dq
-    qarrays = []
-    for i in 1:3
-        if bond_counter[i] == 0
-            push!(qarrays, [0])
-        else
-            push!(qarrays, qarray)
-        end
-    end
-    return [[qx, qy, qz] for qx in qarrays[1], qy in qarrays[2], qz in qarrays[3]]
+    qarrays = [w ? (-1/2 : dq : 1/2-dq) : [0] for w in wraps]
+    return Iterators.product(qarrays...)
 end
 
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
@@ -78,7 +70,7 @@ function find_lagrange_multiplier(scga::SCGA, β)
     Na = natoms(sys.crystal)
 
     q = make_q_grid(scga)
-    N = length(q)
+    Nq = length(q)
 
     Jq_array = [fourier_exchange_matrix(sys; k=q_in) for q_in in q]
     #TODO throw error if spins different
@@ -88,18 +80,18 @@ function find_lagrange_multiplier(scga::SCGA, β)
         S_sq = sum(sys.κs.^2) / Na
     end
 
-    eig_vals = zeros(3Na, N)
+    eig_vals = zeros(3Na, Nq)
     for j in eachindex(Jq_array)
          eig_vals[:, j] .= eigvals(Jq_array[j])
     end
 
     function f(λ)
         sum_term = sum(1 ./ (λ .+ β * eig_vals ))
-        return (1/(Na*N)) * sum_term
+        return (1/(Na*Nq)) * sum_term
     end
     function J(λ)
         sum_term = sum((1 ./ (λ .+ β * eig_vals)).^2)
-        return -(1/(Na*N)) * sum_term
+        return -(1/(Na*Nq)) * sum_term
     end
 
     lower = - β * minimum(eig_vals)
@@ -221,7 +213,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
     (; sys, quantum_sum_rule) = scga
 
     if quantum_sum_rule
-        S_sq =vec(sys.κs .* (sys.κs .+ 1))
+        S_sq = vec(sys.κs .* (sys.κs .+ 1))
     else
         S_sq = vec(sys.κs.^2)
     end
@@ -300,8 +292,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
             end
         end
     end
-    upper = Inf
-    lower = -Inf
+
     options = Optim.Options(; iterations=maxiters, show_trace=true, g_tol=tol)
     result = Optim.optimize(Optim.only_fg!(fg!), λs, Optim.ConjugateGradient(), options)
     min = Optim.minimizer(result)
