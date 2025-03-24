@@ -11,7 +11,7 @@ struct SCGA
     measure :: MeasureSpec
     quantum_sum_rule :: Bool
 
-    function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, quantum_sum_rule=true)
+    function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, quantum_sum_rule)
         measure = @something measure empty_measurespec(sys)
         if length(eachsite(sys)) != prod(size(measure.observables)[2:5])
             error("Size mismatch. Check that measure is built using consistent system.")
@@ -25,7 +25,7 @@ end
 # q=k. This function is adapted from `luttinger_tisza_exchange`](@ref) to
 # include the correct prefactors and local anisotropies.
 function fourier_transform_interaction_matrix(sys::System; k)
-    @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
+    @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
     Na = natoms(sys.crystal)
     J_k = zeros(ComplexF64, 3, Na, 3, Na)
@@ -56,7 +56,7 @@ function fourier_transform_interaction_matrix(sys::System; k)
         anisotropy = [c2[1]-c2[3]        c2[5] 0.5c2[2];
                             c2[5] -c2[1]-c2[3] 0.5c2[4];
                          0.5c2[2]     0.5c2[4]   2c2[3]]
-        J_k[:, i, :, i] += 2anisotropy # FIXME: Understand this factor of 2
+        J_k[:, i, :, i] += anisotropy
     end
 
     J_k = reshape(J_k, 3*Na, 3*Na)
@@ -365,128 +365,6 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, kT; maxiters=500, to
     return real.(min)
 end
 
-#=
-function find_lagrange_multiplier_opt_WORKING(scga, λs, kT; method="ConjugateGradient", maxiters=500, tol=1e-10)
-    (; sys, quantum_sum_rule) = scga
-    if quantum_sum_rule
-        S_sq = vec(sys.κs .* (sys.κs .+ 1))
-    else
-        S_sq = vec(sys.κs.^2)
-    end
-    Na = natoms(sys.crystal)
-    Nq = 8
-    dq = 1/Nq;
-    qarray = -0.5: dq : 0.5-dq
-    q = [[qx, qy, qz] for qx in qarray, qy in qarray, qz in qarray]
-    N = length(q)
-    if method == "ConjugateGradient"
-        function f(λs)
-            Λ =  diagm(repeat(λs, inner=3))
-            A_array = [(1/kT)*fourier_transform_interaction_matrix(sys; k=q_in) .+  (1/kT)*Λ for q_in in q]
-            eig_vals = zeros(3Na,length(A_array))
-            Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-            for j in 1:length(A_array)
-                T = eigen(A_array[j])
-                eig_vals[:,j] .= T.values
-                Us[:,:,j] .= T.vectors
-            end
-            if minimum(eig_vals) < 0
-                F =  -Inf
-            else
-                F =  0.5*kT*sum(log.(eig_vals))
-            end
-            G = F - 0.5*N*sum(λs.*S_sq)
-            return -G
-        end
-        function g!(storage,λs)
-        # gradient
-            Λ =  diagm(repeat(λs, inner=3))
-            A_array = [(1/kT)*fourier_transform_interaction_matrix(sys; k=q_in) .+  (1/kT)*Λ for q_in in q]
-            eig_vals = zeros(3Na,length(A_array))
-            Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-            for j in 1:length(A_array)
-                T = eigen(A_array[j])
-                eig_vals[:,j] .= T.values
-                Us[:,:,j] .= T.vectors
-            end
-            gradF = zeros(ComplexF64,Na)
-            for i in 1:Na
-                gradλ =diagm(zeros(ComplexF64,3Na))
-                gradλ[3i-2:3i,3i-2:3i] =diagm([1,1,1])
-                # gradF[i] =0.5kT*sum([tr(inv(A) * gradλ) for A in A_array])
-                gradF[i] =0.5sum([tr(diagm(1 ./eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in 1:length(A_array)])
-                # replace this -> we want to use eigenvalues determined above and invariance of trace under change of basis Tr(A (dΛ/dλ) )= Tr(U'A⁻¹UU'(dΛ/dλ)U) = Tr(D⁻¹U'(dΛ/dλ)U)
-            end
-            gradG = gradF -0.5*N*S_sq
-            storage .= -real(gradG)
-        end
-        upper = Inf
-        lower = -Inf
-        options = Optim.Options(; iterations=maxiters, show_trace=true,g_tol=1e-8)
-        result = optimize(f, g!,λs , Optim.ConjugateGradient(),options)
-        min = Optim.minimizer(result)
-    elseif method == "Newton's Method"
-        function precalculate_matrices(λs)
-            Λ =  diagm(repeat(λs, inner=3))
-            A_array = [(1/kT)*fourier_transform_interaction_matrix(sys; k=q_in) +  (1/kT)*Λ for q_in in q]
-            eig_vals = zeros(Float64,3Na,length(A_array))
-            Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-            for j in 1:length(A_array)
-                T = eigen(A_array[j])
-                eig_vals[:, j] .= T.values
-                Us[:, :, j] .= T.vectors
-            end
-            return eig_vals, Us, A_array
-        end
-        function G(λs,eig_vals)
-            if minimum(eig_vals) < 0
-                F =  -10^9
-            else
-                F =  0.5*kT*sum(log.(eig_vals))
-            end
-            Gout = F - 0.5*N*sum(λs.*S_sq)
-            return -real.(Gout)
-        end
-        function Gp(eig_vals, Us)
-            gradF = zeros(ComplexF64,Na)
-            for i in 1:Na
-                gradλ =diagm(zeros(ComplexF64,3Na))
-                gradλ[3i-2:3i,3i-2:3i] =diagm([1,1,1])
-                gradF[i] =0.5sum([tr(diagm(1 ./eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in 1:size(eig_vals,2)])
-            end
-            gradG = gradF -0.5*N*S_sq
-            return -real.(gradG)
-        end
-        function Gpp(eig_vals, Us, A_array)
-            Gppmat = zeros(ComplexF64,Na,Na)
-            for i in 1:Na, j in 1:Na
-                P1 =diagm(zeros(ComplexF64,3Na))
-                P1[3i-2:3i,3i-2:3i] =diagm([1,1,1])
-                P2 =diagm(zeros(ComplexF64,3Na))
-                P2[3j-2:3j,3j-2:3j] =diagm([1,1,1])
-                # Gppmat[i,j] = -0.5*sum([tr(diagm(1 ./eig_vals[:,q]) * Us[:,:,q]' * P2 * Us[:,:,q] * diagm(1 ./eig_vals[:,q]) *  Us[:,:,q]' * P1 * Us[:,:,q] ) for q in 1:size(eig_vals,2)])
-                Gppmat[i,j] = -0.5*sum([tr(inv(A_array[qi])  * P2  * inv(A_array[qi]) * P1  ) for qi in 1:size(eig_vals,2)])
-            end
-            return -real.(Gppmat)
-        end
-        λn = λs
-        for n in 1:maxiters
-            eig_vals, Us, A_array =  precalculate_matrices(λn)
-            λ = λn -inv(Gpp(eig_vals, Us,A_array)) * Gp(eig_vals,Us)
-            if sum(abs.(real.(λ-λn))) < tol
-                println("Newton's method converged to within tolerance, $tol, after $n steps.")
-                min=λ
-                break
-            else
-            λn = λ
-            end
-        end
-    else
-        throw("Please provide a valid method.")
-    end
-    return real.(min)
-end
-=#
 
 function free_energy_and_gradient(scga, λs, kT)
     (; sys, quantum_sum_rule) = scga
