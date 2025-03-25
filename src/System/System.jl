@@ -525,9 +525,11 @@ end
 """
     set_spin_rescaling!(sys, α)
 
-In dipole mode, rescale all spin magnitudes ``S → α S``. In SU(N) mode, rescale
-all SU(N) coherent states ``Z → √α Z`` such that every expectation value
-rescales like ``⟨A⟩ → α ⟨A⟩``.
+Sets an internal rescaling parameter ``α``. In dipole mode, this fixes each spin
+magnitude ``|S| = α s``, where ``s`` is the [`spin_label`](@ref) of the relevant
+magnetic moment. In SU(N) mode, this fixes each coherent state magnitude, ``|Z|
+= √α``, which leads to an effective renormalization of all local expectation
+values, ``⟨A⟩ → α ⟨A⟩``. By default ``α = 1``.
 """
 function set_spin_rescaling!(sys::System{0}, α)
     for site in eachsite(sys)
@@ -540,6 +542,22 @@ function set_spin_rescaling!(sys::System{N}, κ) where N
     sys.κs .= κ
     for site in eachsite(sys)
         set_coherent!(sys, sys.coherents[site], site)
+    end
+end
+
+"""
+    enable_quantum_dipole_amplification!(sys)
+
+Sets the classical dipole magnitude to ``√(s * (s+1))`` rather than the default
+value of ``s``, the [`spin_label`](@ref) of the magnetic moment. Requires dipole
+mode.
+"""
+function enable_quantum_dipole_amplification!(sys::System{N}) where N
+    iszero(N) || error("Quantum dipole amplification requires :dipole or :dipole_uncorrected mode")
+    for site in eachsite(sys)
+        s = sys.κs[site]
+        sys.κs[site] = sqrt(s*(s+1))
+        set_dipole!(sys, sys.dipoles[site], site)
     end
 end
 
