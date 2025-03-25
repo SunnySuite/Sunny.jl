@@ -98,8 +98,8 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     qs_reshaped = [to_reshaped_rlu(sc, q) for q in qpts.qs]
 
     # Check that form factors are uniform for each observable.
-    for row in eachrow(sc.measure.formfactors)
-        @assert allequal(row) "Observable-dependent form factors not yet supported."
+    for col in eachcol(sc.measure.formfactors)
+        @assert allequal(col) "Observable-dependent form factors not yet supported."
     end
     ffs = sc.measure.formfactors[1,:]
 
