@@ -101,7 +101,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     for col in eachcol(sc.measure.formfactors)
         @assert allequal(col) "Observable-dependent form factors not yet supported."
     end
-    ffs = sc.measure.formfactors[1,:]
+    ffs = sc.measure.formfactors[1, :]
 
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
     q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
