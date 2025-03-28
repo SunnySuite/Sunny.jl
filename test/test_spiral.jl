@@ -217,7 +217,6 @@ end
     cryst = Crystal(latvecs, [[0, 0, 0], [0, 0.1, 0]]; types=["a", "b"])
     cryst = subcrystal(cryst, "a")
     sys = System(cryst, [1 => Moment(s=1, g=-1)], :dipole)
-    print_bond(cryst, Bond(1, 1, [1, 0, 0]))
 
     D = 1
     axis = [1, 0, 0]
