@@ -548,15 +548,15 @@ end
 """
     enable_spin_rescaling_for_static_sum_rule!(sys)
 
-Sets the classical dipole magnitude squared to ``s(s+1)`` rather than ``s^2``
-for each quantum spin-``s`` moment. Valid only for systems in dipole mode.
+Sets the classical dipole magnitude to ``\\sqrt{s(s+1)}`` rather than ``s`` for
+each quantum spin-``s`` moment. Valid only for systems in dipole mode.
 
 This dipole rescaling convention may be helpful in combination with
 [`SampledCorrelationsStatic`](@ref) or [`StaticCorrelationsSCGA`](@ref)
 calculators, which sample spins from the classical Boltzmann distribution. The
 estimated [`intensities_static`](@ref) ``\\mathcal{S}(𝐪)``, when integrated
 over all ``𝐪``, will be exactly consistent with the quantum-mechanical identity
-``⟨Ŝ^2⟩ = s(s+1)`` for dipole operator ``Ŝ``.
+``⟨\\hat{S}^2⟩ = s(s+1)`` for dipole operator ``\\hat{S}``.
 
 At high temperatures, this dipole rescaling may also be useful in combination
 with the [`SampledCorrelations`](@ref) calculator, which estimates structure
