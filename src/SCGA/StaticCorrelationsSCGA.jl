@@ -1,5 +1,5 @@
 """
-    SCGA(sys::System; measure, kT, dq)
+    StaticCorrelationsSCGA(sys::System; measure, kT, dq)
 
 Constructs an object to calculate [`intensities_static`](@ref) within the self
 consistent gaussian approximation (SCGA). This theory assumes a classical
@@ -21,13 +21,13 @@ calculations can be accelerated. Construct a smaller system with
 discretized ``𝐪``-point grid runs over the full Brillouin zone associated with
 the primitive cell of the crystal.
 """
-struct SCGA
+struct StaticCorrelationsSCGA
     sys :: System
     measure :: MeasureSpec
     β :: Float64
     λs :: Vector{Float64}
 
-    function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, kT::Float64, dq::Float64)
+    function StaticCorrelationsSCGA(sys::System; measure::Union{Nothing, MeasureSpec}, kT::Float64, dq::Float64)
         measure = @something measure empty_measurespec(sys)
         if size(eachsite(sys)) != size(measure.observables)[2:5]
             error("Size mismatch. Check that measure is built using consistent system.")
@@ -151,7 +151,7 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
 end
 
 
-function intensities_static(scga::SCGA, qpts)
+function intensities_static(scga::StaticCorrelationsSCGA, qpts)
     (; sys, measure, λs, β) = scga
     Λ = Diagonal(repeat(λs, inner=3))
 
