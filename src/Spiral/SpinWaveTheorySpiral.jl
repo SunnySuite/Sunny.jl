@@ -79,7 +79,7 @@ end
 
 ## Dispersion and intensities
 
-function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_reshaped; branch)
+function dynamical_matrix!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_reshaped; branch)
     (; swt, k, axis) = sswt
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
@@ -183,7 +183,7 @@ end
 
 function excitations!(T, H, sswt::SpinWaveTheorySpiral, q; branch)
     q_reshaped = to_reshaped_rlu(sswt.swt.sys, q)
-    swt_hamiltonian_dipole_spiral!(H, sswt, q_reshaped; branch)
+    dynamical_matrix!(H, sswt, q_reshaped; branch)
 
     return try
         bogoliubov!(T, H)
