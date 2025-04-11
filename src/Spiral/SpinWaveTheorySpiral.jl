@@ -26,7 +26,7 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
         L = length(eachsite(sys))
         buffers = [zeros(CMat3, L, L) for _ in 1:6]
-        return new(SpinWaveTheory(sys; measure, regularization), k, axis, buffers)
+        return new(SpinWaveTheory(sys; measure, regularization), k, normalize(axis), buffers)
     end
 end
 
