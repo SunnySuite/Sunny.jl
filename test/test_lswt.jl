@@ -3,13 +3,9 @@
 
     # Pyrochlore with nonstandard, primitive lattice vectors
     latvecs = [[1, 1, 0] [1, 0, 1] [0, 1, 1]] / 2
-    positions = [
-        [5, 5, 1]/8,
-        [5, 1, 5]/8,
-        [1, 5, 5]/8,
-        [5, 5, 5]/8,
-    ]
-    cryst = @test_warn "Lattice vectors are not right-handed." Crystal(latvecs, positions)
+    positions = [[5, 5, 1], [5, 1, 5], [1, 5, 5], [5, 5, 5]] / 8
+
+    cryst = @test_logs (:warn, "Lattice vectors are not right-handed.") Crystal(latvecs, positions)
     natoms = Sunny.natoms(cryst)
 
     moments = [1 => Moment(s=5/2, g=7.2)]
