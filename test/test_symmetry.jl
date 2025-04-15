@@ -244,7 +244,7 @@ end
     test_standardize(cryst)
 
     msg = "Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`."
-    @test_warn msg cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
+    @test_logs (:warn, msg) cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
     test_standardize(cryst)
 end
 
@@ -277,8 +277,8 @@ end
 
         latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
 
-        warnstr = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`"
-        cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])
+        msg = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`."
+        cryst = @test_logs (:warn, msg) Crystal(latvecs, [[0, 0, 0]])
 
         # print_site(cryst, i)
         Λ = randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,2]+(16/5)*O[6,4]+(11/5)*O[6,6])
@@ -500,8 +500,8 @@ end
 
 @testitem "Renormalization" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-    warnstr = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`"
-    cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])
+    msg = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`."
+    cryst = @test_logs (:warn, msg) Crystal(latvecs, [[0, 0, 0]])
 
     # Dipole system with renormalized anisotropy
     sys0 = System(cryst, [1 => Moment(s=3, g=2)], :dipole)
