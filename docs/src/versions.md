@@ -12,6 +12,8 @@
 * Fix atom indexing when setting interactions for a reshaped system ([PR
   #359](https://github.com/SunnySuite/Sunny.jl/pull/359)).
 * Normalize `axis` argument to `SpinWaveTheorySpiral` for correctness.
+* Fix thermal prefactor `kT` in spin wave theory ([Issue
+  370](https://github.com/SunnySuite/Sunny.jl/issues/370)).
 
 ## v0.7.5
 (Jan 20, 2025)

@@ -216,7 +216,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
             map!(corrbuf, measure.corr_pairs) do (α, β)
                 Avec[α] * conj(Avec[β]) / Ncells
             end
-            intensity[band, iq] = thermal_prefactor(disp[band]; kT) * measure.combiner(q_global, corrbuf)
+            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbuf)
         end
     end
 
