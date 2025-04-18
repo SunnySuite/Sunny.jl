@@ -116,7 +116,7 @@ end
 @testitem "Ferrimagnetic chain" begin
     latvecs = lattice_vectors(3, 5, 8, 90, 90, 90)
     positions = [[0, 0, 0], [0.5, 0, 0]]
-    types = ["Ni2","Fe3"]
+    types = ["Ni2", "Fe3"]
     cryst = Crystal(latvecs, positions; types)
     moments = [1 => Moment(; s=1, g=1),2 => Moment(; s=5/2, g=1)]
     sys = System(cryst, moments, :dipole)
