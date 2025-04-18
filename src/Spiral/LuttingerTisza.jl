@@ -1,9 +1,10 @@
-function fourier_exchange_matrix(sys::System; k) # FIXME: expect k in RLU and create k_reshaped
+function fourier_exchange_matrix(sys::System; q)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
+    q_reshaped = to_reshaped_rlu(sys, q)
 
     Na = natoms(sys.crystal)
-    J_k = zeros(ComplexF64, 3, Na, 3, Na)
+    J_q = zeros(ComplexF64, 3, Na, 3, Na)
 
     for i in 1:Na
         for coupling in sys.interactions_union[i].pair
@@ -12,17 +13,17 @@ function fourier_exchange_matrix(sys::System; k) # FIXME: expect k in RLU and cr
             iszero(biquad) || error("Biquadratic interactions not supported")
 
             (; j, n) = bond
-            J = exp(2π * im * dot(k, n)) * Mat3(bilin*I)
-            J_k[:, i, :, j] += J
-            J_k[:, j, :, i] += J'
+            J = exp(2π * im * dot(q_reshaped, n)) * Mat3(bilin*I)
+            J_q[:, i, :, j] += J
+            J_q[:, j, :, i] += J'
         end
     end
 
     if !isnothing(sys.ewald)
-        A_k = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB²
-        A_k = reshape(A_k, Na, Na)
+        A_q = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
+        A_q = reshape(A_q, Na, Na)
         for i in 1:Na, j in 1:Na
-            J_k[:, i, :, j] += sys.gs[i]' * A_k[i, j] * sys.gs[j]
+            J_q[:, i, :, j] += sys.gs[i]' * A_q[i, j] * sys.gs[j]
         end
     end
 
@@ -33,12 +34,12 @@ function fourier_exchange_matrix(sys::System; k) # FIXME: expect k in RLU and cr
         anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
                               c2[5] -c2[1]-c2[3] 0.5c2[4];
                            0.5c2[2]     0.5c2[4]   2c2[3]]
-        J_k[:, i, :, i] += 2 * anisotropy
+        J_q[:, i, :, i] += 2 * anisotropy
     end
 
-    J_k = reshape(J_k, 3Na, 3Na)
-    @assert diffnorm2(J_k, J_k') < 1e-15
-    return hermitianpart(J_k)
+    J_q = reshape(J_q, 3Na, 3Na)
+    @assert diffnorm2(J_q, J_q') < 1e-15
+    return hermitianpart(J_q)
 end
 
 
@@ -54,7 +55,7 @@ end
 # energy is only a lower-bound on the exchange energy. Conditions for
 # correctness are given by Xiong and Wen (2013), arXiv:1208.1512.
 function luttinger_tisza_exchange(sys::System; k, ϵ=0)
-    J_k = fourier_exchange_matrix(sys; k)
+    J_k = fourier_exchange_matrix(sys; q=k)
 
     E = if iszero(ϵ)
         eigmin(J_k) / 2
