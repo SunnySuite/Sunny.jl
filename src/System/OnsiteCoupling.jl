@@ -156,7 +156,7 @@ function set_onsite_coupling!(sys::System, op, i::Int)
     for j in all_symmetry_related_atoms(cryst, i)
         # Find some symop s that transforms i into j
         s = first(symmetries_between_atoms(cryst, j, i))
-        
+
         # R is orthogonal, and may include rotation and reflection
         R = cryst.latvecs * s.R * inv(cryst.latvecs)
 

@@ -51,18 +51,18 @@ struct SCGA
 end
 
 function make_q_grid(sys, Nq)
-    Na = natoms(sys.crystal)
     dq = 1/Nq;
     wraps = [false, false, false]
-    for i in 1:Na
+    for i in 1:natoms(sys.crystal)
         for coupling in sys.interactions_union[i].pair
             (; isculled, bond) = coupling
             isculled && break
             @. wraps = wraps || !iszero(bond.n)
         end
     end
-    qarrays = [w ? (-1/2 : dq : 1/2-dq) : [0] for w in wraps]
-    return vec(Vec3.(Iterators.product(qarrays...)))
+
+    qα = [w ? (-1/2 : dq : 1/2-dq) : [0] for w in wraps]
+    return vec([to_standard_rlu(sys, Vec3(q_reshaped)) for q_reshaped in Iterators.product(qα...)])
 end
 
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
@@ -74,20 +74,19 @@ function find_lagrange_multiplier(sys, quantum_sum_rule, Js, β)
 
     evals = Iterators.flatten(eigvals(J) for J in Js)
 
-    Na = natoms(sys.crystal)
     Nq = length(Js)
 
     if quantum_sum_rule
-        s² = sum(κ * (κ + 1) for κ in sys.κs) / Na
+        s² = sum(κ * (κ + 1) for κ in sys.κs)
     else
-        s² = norm2(sys.κs) / Na
+        s² = norm2(sys.κs)
     end
 
     function f(λ)
-        return sum(1 / (λ + ev) for ev in evals) / (β * Na * Nq)
+        return sum(1 / (λ + ev) for ev in evals) / (β * Nq)
     end
     function J(λ)
-        return -sum(1 / (λ + ev)^2 for ev in evals) / (β * Na * Nq)
+        return -sum(1 / (λ + ev)^2 for ev in evals) / (β * Nq)
     end
 
     λn = starting_offset*0.1/β - minimum(evals)
@@ -163,20 +162,26 @@ end
 
 
 function intensities_static(scga::SCGA, qpts)
-    (; λs, β) = scga
+    (; sys, measure, λs, β) = scga
     Λ = Diagonal(repeat(λs, inner=3))
 
     qpts = convert(AbstractQPoints, qpts)
-    (; sys, measure) = scga
-    Na = natoms(sys.crystal)
+    cryst = orig_crystal(scga.sys)
+
+    Na = nsites(sys)
+    Ncells = Na / natoms(cryst)
+    Nq = length(qpts.qs)
+
     Nobs = num_observables(measure)
-    intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
+    corrbuf = zeros(ComplexF64, Ncorr)
+
+    intensity = zeros(eltype(measure), Nq)
+
     r = sys.crystal.positions
 
     for (iq, q) in enumerate(qpts.qs)
         pref = zeros(ComplexF64, Nobs, Na)
-        corrbuf = zeros(ComplexF64, Ncorr)
         intensitybuf = zeros(eltype(measure), 3, 3)
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = sys.crystal.recipvecs * q
@@ -192,12 +197,12 @@ function intensities_static(scga::SCGA, qpts)
             intensitybuf += pref[1,i]*conj(pref[1,j])*view(inverted_matrix, :, i, :, j)
         end
         map!(corrbuf, measure.corr_pairs) do (α, β)
-            intensitybuf[α,β]
+            intensitybuf[α, β] / Ncells
         end
         intensity[iq] = measure.combiner(q_global, corrbuf)
     end
     if extrema(intensity)[1] < -1e-2
         error("Negative intensity indicates that kT is below ordering")
     end
-    return StaticIntensities(sys.crystal, qpts, reshape(intensity,size(qpts.qs)))
+    return StaticIntensities(sys.crystal, qpts, reshape(intensity, size(qpts.qs)))
 end
