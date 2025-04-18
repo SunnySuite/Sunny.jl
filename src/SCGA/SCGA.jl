@@ -5,9 +5,6 @@ Constructs an object to calculate [`intensities_static`](@ref) within the self
 consistent gaussian approximation (SCGA). This theory assumes a classical
 Boltzmann distribution with temperature `kT`. It is expected to be meangingful
 above the ordering temperature, where fluctuations are approximately Gaussian.
-If the temperature is not sufficiently high, then `intensities_static` may
-report negative energies, which would indicate an instability to magnetic
-ordering.
 
 Only `:dipole` and `:dipole_uncorrected` system modes are supported.
 
@@ -191,7 +188,7 @@ function intensities_static(scga::SCGA, qpts)
         end
 
         @assert ssf ≈ ssf'
-        real(tr(ssf)) < 0 && error("Negative intensity indicates that kT is below ordering")
+        @assert all(>=(0), real(diag(ssf)))
 
         map!(corrbuf, measure.corr_pairs) do (α, β)
             ssf[α, β] / Ncells
