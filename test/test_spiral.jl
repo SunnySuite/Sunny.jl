@@ -200,7 +200,7 @@ end
 
 
 @testitem "DM Spiral" begin
-    using LinearAlgebra
+    import LinearAlgebra: diagm
 
     latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
     cryst = Crystal(latvecs, [[0, 0, 0], [0, 0.1, 0]]; types=["a", "b"])
@@ -221,12 +221,12 @@ end
     set_dipole!(sys, [-0.2, 0.4, 1.1], (1, 1, 1, 1))
     k_guess = [0.2, 0.4, 0.8] # See failure below
     k = minimize_spiral_energy!(sys, axis; k_guess)
-    @assert k[3] ≈ 3/4
+    @test k[3] ≈ 3/4
 
     # Enlarge system and check energy
 
     sys2 = repeat_periodically_as_spiral(sys, (1, 1, 4); k, axis)
-    @assert spiral_energy_per_site(sys; axis, k) ≈ energy_per_site(sys2) ≈ -1.0
+    @test spiral_energy_per_site(sys; axis, k) ≈ energy_per_site(sys2) ≈ -1.0
 
     # Compare SWT calculated both ways
 
