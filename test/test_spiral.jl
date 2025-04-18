@@ -115,6 +115,7 @@ end
     k_ref = [0, 0, 0.14264604656200577]
     k_ref_alt = [0, 0, 1] - k_ref
 
+    # FIXME: Periodic failures
     k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
 
