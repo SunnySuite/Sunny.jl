@@ -3,12 +3,18 @@
 ## v0.7.6
 (In development)
 
+* Add module [`StaticCorrelationsSCGA`](@ref) for calculating
+  [`intensities_static`](@ref) within the self-consistent Gaussian
+  approximation.
+* Add [`enable_spin_rescaling_for_static_sum_rule!`](@ref) which sets the
+  classical dipole magnitude to ``\sqrt{s (s + 1)}`` for each quantum spin-``s``
+  moment.
 * Vacancies defined by [`set_vacancy_at!`](@ref) are supported in linear spin
   wave theory. Empty sites are modeled using bosons that do not excite.
-* Fix correctness of [`suggest_magnetic_supercell`](@ref) when multiple
-  wavevectors are provided.
 * The default implementation of [`SpinWaveTheoryKPM`](@ref) now uses Lanczos for
   higher accuracy.
+* Fix correctness of [`suggest_magnetic_supercell`](@ref) when multiple
+  wavevectors are provided.
 * Fix atom indexing when setting interactions for a reshaped system ([PR
   #359](https://github.com/SunnySuite/Sunny.jl/pull/359)).
 * Normalize `axis` argument to `SpinWaveTheorySpiral` for correctness.

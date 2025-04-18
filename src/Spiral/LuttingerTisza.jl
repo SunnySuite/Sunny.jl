@@ -1,47 +1,71 @@
-# Returns the minimum eigenvalue of the Luttinger-Tisza exchange matrix. It is a
-# lower-bound on the exchange energy for magnetic order that has propagation
-# wavevector k between Bravais lattice cells. This analysis ignores local
-# normalization constraints for the spins within the cell.
-function luttinger_tisza_exchange(sys::System; k, ϵ=0)
+function fourier_exchange_matrix(sys::System; q)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
+    q_reshaped = to_reshaped_rlu(sys, q)
 
     Na = natoms(sys.crystal)
-    J_k = zeros(ComplexF64, 3, Na, 3, Na)
+    J_q = zeros(ComplexF64, 3, Na, 3, Na)
 
-    for i in 1:natoms(sys.crystal)
+    for i in 1:Na
         for coupling in sys.interactions_union[i].pair
-            (; isculled, bond, bilin) = coupling
+            (; isculled, bond, bilin, biquad) = coupling
             isculled && break
+            iszero(biquad) || error("Biquadratic interactions not supported")
 
             (; j, n) = bond
-            J = exp(2π * im * dot(k, n)) * Mat3(bilin*I)
-            J_k[:, i, :, j] += J / 2
-            J_k[:, j, :, i] += J' / 2
+            J = exp(2π * im * dot(q_reshaped, n)) * Mat3(bilin*I)
+            J_q[:, i, :, j] += J
+            J_q[:, j, :, i] += J'
         end
     end
 
     if !isnothing(sys.ewald)
-        A = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB²
-        A = reshape(A, Na, Na)
+        A_q = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
+        A_q = reshape(A_q, Na, Na)
         for i in 1:Na, j in 1:Na
-            J_k[:, i, :, j] += sys.gs[i]' * A[i, j] * sys.gs[j] / 2
+            J_q[:, i, :, j] += sys.gs[i]' * A_q[i, j] * sys.gs[j]
         end
     end
 
-    J_k = reshape(J_k, 3*Na, 3*Na)
-    @assert diffnorm2(J_k, J_k') < 1e-15
-    J_k = hermitianpart(J_k)
+    for i in 1:Na
+        onsite_coupling = sys.interactions_union[i].onsite
+        (; c2, c4, c6) = onsite_coupling
+        iszero(c4) && iszero(c6) || error("Single-ion anisotropy beyond quadratic order not supported")
+        anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
+                              c2[5] -c2[1]-c2[3] 0.5c2[4];
+                           0.5c2[2]     0.5c2[4]   2c2[3]]
+        J_q[:, i, :, i] += 2 * anisotropy
+    end
+
+    J_q = reshape(J_q, 3Na, 3Na)
+    @assert diffnorm2(J_q, J_q') < 1e-15
+    return hermitianpart(J_q)
+end
+
+
+# Returns the Luttinger-Tisza predicted exchange energy associated with the
+# propagation wavevector k between chemical cells. The LT analysis minimizes
+# energy E = (1/2) Sₖ† Jₖ Sₖ, where Sₖ is some length-3Nₐ vector and Jₖ is the
+# 3Nₐ×3Nₐ exchange matrix. Given a minimum energy eigenpair (λₖ, Sₖ) the
+# LT-predicted energy is |Sₖ|^2 λₖ/2 with normalization |Sₖ|^2 = ∑ᵢ|Sᵢ|^2, where
+# i denotes spin sublattice of the chemical cell. If the components of Sₖ
+# satisfy local spin normalization constraints, then the LT energy minimized
+# over k is physically correct for the spiral ground state. In practice, the
+# eigenvector Sₖ may violate local spin normalization and the LT-predicted
+# energy is only a lower-bound on the exchange energy. Conditions for
+# correctness are given by Xiong and Wen (2013), arXiv:1208.1512.
+function luttinger_tisza_exchange(sys::System; k, ϵ=0)
+    J_k = fourier_exchange_matrix(sys; q=k)
 
     E = if iszero(ϵ)
-        eigmin(J_k)
+        eigmin(J_k) / 2
     else
         # Estimate the minimum eigenvalue E as a weighted average of all small
         # eigenvalues, E = tr [exp(-β J) J] / tr exp(-β J), where β = 1/ϵ.
         # Finite but small ϵ will regularize the potential energy surface in the
         # viscinity of degenerate eigenvalues. Imposing this smoothness may aid
         # optimization of k with gradient-based methods.
-        λs = eigvals(J_k)
+        λs = eigvals(J_k) / 2
         λmin = minimum(λs)
         # Scale all weights exp(-λ/ϵ) by the factor exp(λmin/ϵ). Scaling of
         # weights has no mathematical effect, but avoids numerical overflow.
@@ -49,8 +73,8 @@ function luttinger_tisza_exchange(sys::System; k, ϵ=0)
         sum(ws .* λs) / sum(ws)
     end
 
-    # Scale minimum eigenvalue E by ∑ᵢSᵢ², which is valid under the L.T.
-    # assumption that each spin is locally normalized.
+    # Rescale by ∑ᵢSᵢ², which would be valid if the minimum-energy eigenvector
+    # respects the local spin normalization constraints.
     return E * norm2(sys.κs)
 end
 
