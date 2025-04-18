@@ -6,18 +6,17 @@
     a = 8.5031 # (Å)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     cryst = Crystal(latvecs, [[0, 0, 0]], 227; choice="1")
-    # FIXME: Make this work for any s
-    sys = System(cryst, [1 => Moment(; s=1, g=1)], :dipole; seed=0)
-    set_exchange!(sys, -1, Bond(1, 3, [0, 0, 0]))
-    set_exchange!(sys, 0.25, Bond(1, 2, [0, 0, 0]))
-    measure = ssf_perp(sys;)
+    s = 3/2
+    sys = System(cryst, [1 => Moment(; s, g=1)], :dipole; seed=0)
+    # sys = reshape_supercell(sys, primitive_cell(cryst)) FIXME
+    set_exchange!(sys, -1/s^2, Bond(1, 3, [0, 0, 0]))
+    set_exchange!(sys, 1/(2s)^2, Bond(1, 2, [0, 0, 0]))
+    measure = ssf_perp(sys)
     scga = Sunny.SCGA(sys; measure, Nq=8, sublattice_resolved=false)
     kT = 15*meV_per_K
-    γ = length(cryst.positions)
+    γ = s^2 * Sunny.natoms(cryst)
     grid = q_space_grid(cryst, [1, 0, 0], 0:0.9:4, [0, 1, 0], 0:0.9:4; orthogonalize=true)
     res = intensities_static(scga, grid; kT)
-    # Gao had 2 basis sites
-    # FIXME: Reshape to primitive
     @test isapprox(vec(res.data)/γ, dia; rtol=1e-8)
 end
 
