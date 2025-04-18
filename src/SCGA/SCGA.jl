@@ -1,8 +1,8 @@
 """
-    SCGA(sys::System; measure, kT, Nq, quantum_sum_rule=false)
+    SCGA(sys::System; measure, kT, dq)
 
 Constructs an object to calculate [`intensities_static`](@ref) within the self
-consistent gaussian approximation (SCGA). This approximation assumes a classical
+consistent gaussian approximation (SCGA). This theory assumes a classical
 Boltzmann distribution with temperature `kT`. It is expected to be meangingful
 above the ordering temperature, where fluctuations are approximately Gaussian.
 If the temperature is not sufficiently high, then `intensities_static` may
@@ -12,13 +12,17 @@ ordering.
 Only `:dipole` and `:dipole_uncorrected` system modes are supported.
 
 The theory of SCGA approximates local spin magnitude constraints with a _weaker_
-global constraint condition. This global constraint is implemented as a sum
-rule, expressed as an integral over Fourier modes. This integral is approximated
-as a discrete sum over `Nq^3` wavevectors for the provided integer `Nq`.
+global constraint condition. For each spin sublattice, the global spin sum rule
+can be expressed as an integral over the unit cube ``𝐪 ∈ [0,1]^3`` for
+wavevectors ``𝐪`` in reciprocal lattice units (RLU). Each such integral will be
+approximated as a discrete sum over a regular grid of `floor(1/dq)^3`
+wavevectors for the provided `dq` value.
 
-By default, each classical spin dipole is assumed to have magnitude ``s`` that
-matches the [`Moment`](@ref) specification. Selecting `quantum_sum_rule=true`
-will modify this magnitude to ``√s(s+1)``.
+If the conventional crystal cell admits a smaller primitive cell, then the SCGA
+calculations can be accelerated. Construct a smaller system with
+[`reshape_supercell`](@ref) and [`primitive_cell`](@ref). In this case, the
+discretized ``𝐪``-point grid runs over the full Brillouin zone associated with
+the primitive cell of the crystal.
 """
 struct SCGA
     sys :: System
@@ -26,7 +30,7 @@ struct SCGA
     β :: Float64
     λs :: Vector{Float64}
 
-    function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, kT::Float64, Nq::Int, quantum_sum_rule=false)
+    function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, kT::Float64, dq::Float64)
         measure = @something measure empty_measurespec(sys)
         if size(eachsite(sys)) != size(measure.observables)[2:5]
             error("Size mismatch. Check that measure is built using consistent system.")
@@ -35,14 +39,14 @@ struct SCGA
         kT > 0 || error("Temperature kT must be positive")
         β = 1 / kT
 
-        qs = make_q_grid(sys, Nq)
+        qs = make_q_grid(sys, dq)
         Js = [fourier_exchange_matrix(sys; q) for q in qs]
 
         sublattice_resolved = !allequal(sys.crystal.classes)
         if sublattice_resolved
-            λs = find_lagrange_multiplier_opt_sublattice(sys, quantum_sum_rule, Js, β)
+            λs = find_lagrange_multiplier_opt_sublattice(sys, Js, β)
         else
-            λ = find_lagrange_multiplier(sys, quantum_sum_rule, Js, β)
+            λ = find_lagrange_multiplier(sys, Js, β)
             λs = fill(λ, natoms(sys.crystal))
         end
 
@@ -50,8 +54,7 @@ struct SCGA
     end
 end
 
-function make_q_grid(sys, Nq)
-    dq = 1/Nq;
+function make_q_grid(sys, dq)
     wraps = [false, false, false]
     for i in 1:natoms(sys.crystal)
         for coupling in sys.interactions_union[i].pair
@@ -67,7 +70,7 @@ end
 
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
 # Lagrange multiplier for all sublattices.
-function find_lagrange_multiplier(sys, quantum_sum_rule, Js, β)
+function find_lagrange_multiplier(sys, Js, β)
     starting_offset = 0.2
     maxiters = 500
     tol = 1e-10
@@ -75,12 +78,7 @@ function find_lagrange_multiplier(sys, quantum_sum_rule, Js, β)
     evals = Iterators.flatten(eigvals(J) for J in Js)
 
     Nq = length(Js)
-
-    if quantum_sum_rule
-        s² = sum(κ * (κ + 1) for κ in sys.κs)
-    else
-        s² = norm2(sys.κs)
-    end
+    s² = norm2(sys.κs)
 
     function f(λ)
         return sum(1 / (λ + ev) for ev in evals) / (β * Nq)
@@ -102,7 +100,7 @@ function find_lagrange_multiplier(sys, quantum_sum_rule, Js, β)
 end
 
 
-function find_lagrange_multiplier_opt_sublattice(sys, quantum_sum_rule, Js, β)
+function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
     tol = 1e-6
     maxiters = 500
 
@@ -111,12 +109,7 @@ function find_lagrange_multiplier_opt_sublattice(sys, quantum_sum_rule, Js, β)
     λ_min, λ_max = extrema(evals)
     λ_init = -λ_min + (λ_max - λ_min) / 2
     λs = λ_init*ones(Float64, Na)
-
-    if quantum_sum_rule
-        s² = vec(sys.κs .* (sys.κs .+ 1))
-    else
-        s² = vec(sys.κs.^2)
-    end
+    s² = vec(sys.κs .^ 2)
 
     function fg!(_, gbuffer, λs)
         fbuffer = 0.0
