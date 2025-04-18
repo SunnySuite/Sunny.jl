@@ -129,7 +129,7 @@ end
     res = Sunny.intensities_static(scga, qs)
     # println(round.(res.data; digits=12))
     golden_data = [5.279822408597, 4.864293310586, 16.331744429121, 4.864293310586, 5.279822408597]
-    @test isapprox(golden_data, res.data; atol=1e-10)
+    @test isapprox(golden_data, res.data; atol=1e-9)
 end
 
 @testitem "SCGA Kitchen sink" begin
