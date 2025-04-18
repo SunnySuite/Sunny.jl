@@ -70,9 +70,14 @@ end
     @test k[1:2] ≈ [0.5, 0.5]
     @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
 
+    lt_exch = Sunny.luttinger_tisza_exchange(sys; k)
+    zeeman = sys.dipoles[1]' * sys.gs[1] * sys.extfield[1]
+    constant_shift = sys.interactions_union[1].onsite.c0[1]
+    @test spiral_energy(sys; k, axis) ≈ lt_exch + constant_shift + zeeman/2
+
     q = [0.12, 0.23, 0.34]
     swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys), k, axis)
-    res = intensities_bands(swt, [q])
+    res = dispersion(swt, [q])
 
     # Analytical check on dispersion
 

@@ -75,10 +75,10 @@ function fourier_transform_interaction_matrix(sys::System; k)
         onsite_coupling = sys.interactions_union[i].onsite
         (; c2, c4, c6) = onsite_coupling
         iszero(c4) && iszero(c6) || error("Single-ion anisotropy beyond quadratic order not supported")
-        anisotropy = [c2[1]-c2[3]        c2[5] 0.5c2[2];
-                            c2[5] -c2[1]-c2[3] 0.5c2[4];
-                         0.5c2[2]     0.5c2[4]   2c2[3]]
-        J_k[:, i, :, i] += anisotropy
+        anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
+                              c2[5] -c2[1]-c2[3] 0.5c2[4];
+                           0.5c2[2]     0.5c2[4]   2c2[3]]
+        J_k[:, i, :, i] += 2 * anisotropy
     end
 
     J_k = reshape(J_k, 3*Na, 3*Na)
@@ -88,11 +88,7 @@ function fourier_transform_interaction_matrix(sys::System; k)
 end
 
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
-# Lagrange multiplier for all sublattices. Two optimization methods can be
-# chosen, "Nelder Mead" which takes advantage of the implementation in Optim.jl
-# and "Newton's Method" which is a fast converging root finding algorithm.
-# SumRule specifices the sum rule that the Lagrange multipliers are chosen to
-# satisfy, either the Classical or Quantum sum rules.
+# Lagrange multiplier for all sublattices.
 function find_lagrange_multiplier(scga::SCGA, β)
     starting_offset = 0.2
     maxiters = 500

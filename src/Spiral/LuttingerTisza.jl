@@ -16,10 +16,11 @@ function luttinger_tisza_exchange(sys::System; k, ϵ=0)
     Na = natoms(sys.crystal)
     J_k = zeros(ComplexF64, 3, Na, 3, Na)
 
-    for i in 1:natoms(sys.crystal)
+    for i in 1:Na
         for coupling in sys.interactions_union[i].pair
-            (; isculled, bond, bilin) = coupling
+            (; isculled, bond, bilin, biquad) = coupling
             isculled && break
+            iszero(biquad) || error("Biquadratic interactions not supported")
 
             (; j, n) = bond
             J = exp(2π * im * dot(k, n)) * Mat3(bilin*I)
@@ -34,6 +35,16 @@ function luttinger_tisza_exchange(sys::System; k, ϵ=0)
         for i in 1:Na, j in 1:Na
             J_k[:, i, :, j] += sys.gs[i]' * A[i, j] * sys.gs[j]
         end
+    end
+
+    for i in 1:Na
+        onsite_coupling = sys.interactions_union[i].onsite
+        (; c2, c4, c6) = onsite_coupling
+        iszero(c4) && iszero(c6) || error("Single-ion anisotropy beyond quadratic order not supported")
+        anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
+                              c2[5] -c2[1]-c2[3] 0.5c2[4];
+                           0.5c2[2]     0.5c2[4]   2c2[3]]
+        J_k[:, i, :, i] += 2 * anisotropy
     end
 
     J_k = reshape(J_k, 3*Na, 3*Na)
