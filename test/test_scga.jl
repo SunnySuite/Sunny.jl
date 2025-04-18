@@ -155,7 +155,7 @@ end
     types = ["Fe", "Mn"]
     cryst = Crystal(latvecs, positions, 148; types)
     moments = [1 => Moment(; s=1, g=3.4), 7 => Moment(; s=2, g=2)]
-    sys = System(cryst, moments, :dipole; seed=2)
+    sys = System(cryst, moments, :dipole)
     sys = reshape_supercell(sys, primitive_cell(cryst))
     J1 = -2.0*diagm([1.,1.,1.2])
     J2 = 5.25*[1 0.05 0; 0.05 1 0; 0 0 0]
@@ -169,12 +169,12 @@ end
     J10 = -0.265diagm([1,1.,0.45])
     D1 = -0.27
     D2 = 0.12
-    set_exchange!(sys,J1,Bond(7, 8, [0, 0, 0])) # Mn dimer XXZ
-    set_exchange!(sys,J2,Bond(1, 2, [0, 0, 0])) # Fe HC 1nn XYZ + PsD
-    set_exchange!(sys,J3,Bond(1, 7, [0, 0, 0])) # Mn-Fe  XYZ + DMI [GHI]
-    set_exchange!(sys,J4,Bond(1, 8, [0, 0, 0])) # Mn-Fe  XYZ + DMI [GHI]
-    set_exchange!(sys,J7,Bond(1, 1, [1, 0, 0])) # Fe HC 2nn XYZ + DMI [G H I]
-    set_exchange!(sys,J8,Bond(7, 7, [1, 0, 0])) # Mn in-plane XYZ + DMI [G H I]
+    set_exchange!(sys, J1, Bond(7, 8, [0, 0, 0])) # Mn dimer XXZ
+    set_exchange!(sys, J2, Bond(1, 2, [0, 0, 0])) # Fe HC 1nn XYZ + PsD
+    set_exchange!(sys, J3, Bond(1, 7, [0, 0, 0])) # Mn-Fe  XYZ + DMI [GHI]
+    set_exchange!(sys, J4, Bond(1, 8, [0, 0, 0])) # Mn-Fe  XYZ + DMI [GHI]
+    set_exchange!(sys, J7, Bond(1, 1, [1, 0, 0])) # Fe HC 2nn XYZ + DMI [G H I]
+    set_exchange!(sys, J8, Bond(7, 7, [1, 0, 0])) # Mn in-plane XYZ + DMI [G H I]
     set_onsite_coupling!(sys, S -> D1*S[3]^2, 1)
     set_onsite_coupling!(sys, S -> D2*S[3]^2, 7)
     measure = ssf_perp(sys)
