@@ -93,7 +93,7 @@ end
 # and "Newton's Method" which is a fast converging root finding algorithm.
 # SumRule specifices the sum rule that the Lagrange multipliers are chosen to
 # satisfy, either the Classical or Quantum sum rules.
-function find_lagrange_multiplier(scga::SCGA, kT)
+function find_lagrange_multiplier(scga::SCGA, β)
     starting_offset = 0.2
     maxiters = 500
     tol = 1e-10
@@ -133,15 +133,15 @@ function find_lagrange_multiplier(scga::SCGA, kT)
     end
 
     function f(λ)
-        sum_term = sum(1 ./ (λ .+ (1/(kT)).*eig_vals ))
+        sum_term = sum(1 ./ (λ .+ β * eig_vals ))
         return (1/(Na*length(q))) * sum_term
     end
     function J(λ)
-        sum_term = sum((1 ./ (λ .+ (1/(kT)).*eig_vals )).^2)
+        sum_term = sum((1 ./ (λ .+ β * eig_vals)).^2)
         return -(1/(Na*length(q))) * sum_term
     end
 
-    lower = -minimum(eig_vals)/kT
+    lower = - β * minimum(eig_vals)
     λn = starting_offset*0.1 + lower # Make more robust - regularized! Check optim.jl
 
     for n in 1:maxiters
@@ -158,13 +158,12 @@ end
 # Computes the static structure factor in the standard SCGA approach, with a
 # single Lagrange multiplier, over the qpts specified.
 
-function intensities_static_single(scga::SCGA, qpts; kT=0.0)
-    kT == 0.0 && error("kT must be non-zero")
+function intensities_static_single(scga::SCGA, qpts; β)
     qpts = convert(AbstractQPoints, qpts)
     (; sys, measure) = scga
     Na = natoms(sys.crystal)
     Nobs = num_observables(measure)
-    λ = find_lagrange_multiplier(scga, kT)
+    λ = find_lagrange_multiplier(scga, β)
     intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
     for (iq, q) in enumerate(qpts.qs)
@@ -180,8 +179,8 @@ function intensities_static_single(scga::SCGA, qpts; kT=0.0)
             end
         end
         J_mat = fourier_transform_interaction_matrix(sys; k=q_reshaped)
-        inverted_matrix = (inv(I(3*Na)*λ[1] + (1/kT)*J_mat)) # this is [(Iλ+J(q))^-1]^αβ_μν
-        # inverted_matrix = diagm(1 ./ (λ[1] .+ (1/(kT)).*eigvals(J_mat)))
+        inverted_matrix = (inv(I(3*Na)*λ[1] + β*J_mat)) # this is [(Iλ+J(q))^-1]^αβ_μν
+        # inverted_matrix = diagm(1 ./ (λ[1] .+ β .* eigvals(J_mat)))
         for i in 1:Na
             for j in 1:Na
                 intensitybuf += pref[1,i]*conj(pref[1,j])*inverted_matrix[1+3(i-1):3+3(i-1),1+3(j-1):3+3(j-1)]
@@ -203,14 +202,12 @@ end
 # Computes the static structure factor in the sublattice resolved SCGA method,
 # over the qpts specified.
 
-function intensities_static_sublattice(scga::SCGA, qpts; kT=0.0, λs_init)
-    iszero(kT) && error("kT must be non-zero")
-
+function intensities_static_sublattice(scga::SCGA, qpts; β, λs_init)
     qpts = convert(AbstractQPoints, qpts)
     (; sys, measure) = scga
     Na = natoms(sys.crystal)
     Nobs = num_observables(measure)
-    λs = find_lagrange_multiplier_opt_sublattice(scga, λs_init, kT)
+    λs = find_lagrange_multiplier_opt_sublattice(scga, λs_init, β)
     intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
     for (iq, q) in enumerate(qpts.qs)
@@ -227,7 +224,7 @@ function intensities_static_sublattice(scga::SCGA, qpts; kT=0.0, λs_init)
         end
         J_mat = fourier_transform_interaction_matrix(sys; k=q_reshaped)
         Λ =  diagm(repeat(λs, inner=3))
-        inverted_matrix = (inv((1/kT)*Λ + (1/kT)*J_mat)) # this is [(Iλ+J(q))^-1]^αβ_μν
+        inverted_matrix = (inv(β*Λ + β*J_mat)) # this is [(Iλ+J(q))^-1]^αβ_μν
         for i in 1:Na, j in 1:Na
             intensitybuf += pref[1,i]*conj(pref[1,j])*inverted_matrix[1+3(i-1):3+3(i-1),1+3(j-1):3+3(j-1)]
             # TODO allow different form factor for each observable
@@ -245,17 +242,19 @@ function intensities_static_sublattice(scga::SCGA, qpts; kT=0.0, λs_init)
     return StaticIntensities(sys.crystal, qpts, reshape(intensity,size(qpts.qs)))
 end
 
-function intensities_static(scga::SCGA, qpts; kT=0.0, λs_init=nothing)
+function intensities_static(scga::SCGA, qpts; kT, λs_init=nothing)
+    kT > 0 || error("Temperature kT must be positive")
+    β = 1 / kT
     if scga.sublattice_resolved == true
-        return intensities_static_sublattice(scga::SCGA, qpts; kT, λs_init)
+        return intensities_static_sublattice(scga::SCGA, qpts; β, λs_init)
     else
-        return intensities_static_single(scga::SCGA, qpts; kT)
+        return intensities_static_single(scga::SCGA, qpts; β)
     end
 end
 
 # Computes the Lagrange multiplier for the sublattice resolved SCGA method.
 
-function find_lagrange_multiplier_opt_sublattice(scga, λs, kT)
+function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
     tol = 1e-6
     maxiters = 500
 
@@ -293,7 +292,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, kT)
 
     function f(λs)
         Λ =  diagm(repeat(λs, inner=3))
-        A_array = [(1/kT)*Sunny.fourier_transform_interaction_matrix(sys; k=q_in) .+  (1/kT)*Λ for q_in in q]
+        A_array = [β*Sunny.fourier_transform_interaction_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in 1:length(A_array)
@@ -304,15 +303,15 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, kT)
         if minimum(eig_vals) < 0
             F =  -Inf
         else
-            F =  0.5*kT*sum(log.(eig_vals))
+            F =  (1/2β) * sum(log.(eig_vals))
         end
-        G = F - 0.5*N*sum(λs.*S_sq)
+        G = F - (1/2β) * N * sum(λs .* S_sq)
         return -G
     end
 
     function fg!(fbuffer,gbuffer,λs)
         Λ =  diagm(repeat(λs, inner=3))
-        A_array = [(1/kT)*fourier_transform_interaction_matrix(sys; k=q_in) .+  (1/kT)*Λ for q_in in q]
+        A_array = [β*fourier_transform_interaction_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in 1:length(A_array)
@@ -332,11 +331,11 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, kT)
         end
         if !isnothing(fbuffer)
             if minimum(eig_vals) < 0
-                F =  -Inf
+                F = -Inf
             else
-                F =  0.5*kT*sum(log.(eig_vals))
+                F = (1/2β) * sum(log.(eig_vals))
             end
-            G = F - 0.5*N*sum(λs.*S_sq)
+            G = F - (N/2) * sum(λs .* S_sq)
             fbuffer= -G
         end
     end
