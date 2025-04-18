@@ -169,42 +169,44 @@ function find_lagrange_multiplier_opt_sublattice(scga, β)
     eigvals = Iterators.flatten(eigvals)
 
     if quantum_sum_rule
-        S_sq = vec(sys.κs .* (sys.κs .+ 1))
+        s² = vec(sys.κs .* (sys.κs .+ 1))
     else
-        S_sq = vec(sys.κs.^2)
+        s² = vec(sys.κs.^2)
     end
     Na = natoms(sys.crystal)
-    Nq = length(qs)
 
-    function fg!(fbuffer, gbuffer, λs)
-        Λ = diagm(repeat(λs, inner=3))
-        A_array = [β*J .+  β*Λ for J in Js]
-        eig_vals = zeros(3Na,length(A_array))
-        Us = zeros(ComplexF64,3Na,3Na,length(A_array))
-        for j in eachindex(A_array)
-            T = eigen(A_array[j])
-            eig_vals[:,j] .= T.values
-            Us[:,:,j] .= T.vectors
-        end
+    function fg!(_, gbuffer, λs)
+        fbuffer = 0.0
         if !isnothing(gbuffer)
-            gradF = zeros(ComplexF64,Na)
-            for i in 1:Na
-                gradλ = diagm(zeros(ComplexF64,3Na))
-                gradλ[3i-2:3i, 3i-2:3i] = diagm([1,1,1])
-                gradF[i] = 0.5sum([tr(diagm(1 ./ eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in eachindex(A_array)])
-            end
-            gradG = gradF - 0.5*Nq*S_sq
-            gbuffer .= -real(gradG)
+            gbuffer .= 0
         end
-        if !isnothing(fbuffer)
+
+        Λ = diagm(repeat(λs, inner=3))
+
+        for J in Js
+            A = β * (J + Λ)
+            T = eigen(A)
+            eig_vals = T.values
+            U = T.vectors
+            Ainv = U * Diagonal(inv.(eig_vals)) * U'
+            Ainv = reshape(Ainv, 3, Na, 3, Na)
+
             if minimum(eig_vals) < 0
                 F = -Inf
             else
                 F = (1/2β) * sum(log.(eig_vals))
             end
-            G = F - (Nq/2) * sum(λs .* S_sq)
-            return -G # Target is to maximize free energy G
+            # To maximize free energy G = F - λᵢ sᵢ² we should minimize f = -G
+            fbuffer += λs' * s² / 2 - F
+
+            if !isnothing(gbuffer)
+                for i in 1:Na
+                    gbuffer[i] += s²[i] / 2 - real(tr(view(Ainv, :, i, :, i))) / 2
+                end
+            end
         end
+
+        return fbuffer
     end
 
     # f(λs) = fg!(NaN, nothing, λs)
