@@ -154,7 +154,7 @@ function find_lagrange_multiplier_opt_sublattice(sys, quantum_sum_rule, Js, β)
 
     # f(λs) = fg!(NaN, nothing, λs)
 
-    options = Optim.Options(; iterations=maxiters, show_trace=true, g_tol=tol)
+    options = Optim.Options(; iterations=maxiters, show_trace=false, g_tol=tol)
     result = Optim.optimize(Optim.only_fg!(fg!), λs, Optim.ConjugateGradient(), options)
     min = Optim.minimizer(result)
     return real.(min)
@@ -182,9 +182,8 @@ function intensities_static(scga::SCGA, qpts)
 
     for (iq, q) in enumerate(qpts.qs)
         pref = zeros(ComplexF64, Nobs, Na)
-        intensitybuf = zeros(eltype(measure), 3, 3)
         q_reshaped = to_reshaped_rlu(sys, q)
-        q_global = sys.crystal.recipvecs * q
+        q_global = cryst.recipvecs * q
         for i in 1:Na, μ in 1:3
             ff = get_swt_formfactor(measure, μ, i)
             pref[μ, i] = exp(-2π * im * dot(q_reshaped, r[i])) * compute_form_factor(ff, norm2(q_global))
@@ -193,16 +192,19 @@ function intensities_static(scga::SCGA, qpts)
         inverted_matrix = inv(β*Λ + β*Jq) # this is [(Iλ+J(q))^-1]^αβ_μν
         inverted_matrix = reshape(inverted_matrix, 3, Na, 3, Na)
 
+        ssf = zero(CMat3)
         for i in 1:Na, j in 1:Na
-            intensitybuf += pref[1,i]*conj(pref[1,j])*view(inverted_matrix, :, i, :, j)
+            ssf += pref[1, i] * conj(pref[1, j]) * view(inverted_matrix, :, i, :, j)
         end
+
+        @assert ssf ≈ ssf'
+        real(tr(ssf)) < 0 && error("Negative intensity indicates that kT is below ordering")
+
         map!(corrbuf, measure.corr_pairs) do (α, β)
-            intensitybuf[α, β] / Ncells
+            ssf[α, β] / Ncells
         end
         intensity[iq] = measure.combiner(q_global, corrbuf)
     end
-    if extrema(intensity)[1] < -1e-2
-        error("Negative intensity indicates that kT is below ordering")
-    end
+
     return StaticIntensities(sys.crystal, qpts, reshape(intensity, size(qpts.qs)))
 end

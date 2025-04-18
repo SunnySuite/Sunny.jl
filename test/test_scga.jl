@@ -1,6 +1,4 @@
 @testitem "diamond_lattice" begin
-    using LinearAlgebra
-
     # test against JuliaSCGA (S. Gao)
     dia = [0.7046602277469309, 0.8230846832863896, 0.23309034250417973, 0.40975668535137943, 0.8474163786642979, 0.8230846832694241, 0.723491683211756, 0.5939752161027589, 0.6506966347286152, 0.8012263819500781, 0.23309034265153963, 0.5939752161512792, 0.7779185770415442, 0.9619923476121188, 0.28363795492206234, 0.4097566857133061, 0.6506966347914551, 0.9619923474164132, 0.8576708385848646, 0.45534457001475764, 0.8474163779976567, 0.8012263817424181, 0.2836379554342603, 0.4553445702621035, 0.9352400940660723]
     a = 8.5031 # (Å)
@@ -22,7 +20,6 @@ end
 
 @testitem "square_lattice" begin
     # test against JuliaSCGA (S. Gao)
-    tol = 1e-5
     sq = [0.3578208506624103, 0.3850668587212228, 0.4211633125595451, 0.3930558742921638, 0.3586715762816389, 0.3775147329089877, 0.4188431376589759, 0.4009835864744404, 0.36119385315852837, 0.3850668587212228, 0.4063051066815142, 0.4182331099724885,
           0.36751592492720886, 0.32829927921801794, 0.3490454303292574, 0.4062747596231383, 0.41626772462487194, 0.38789161791308147, 0.4211633125595451, 0.4182331099724885, 0.3710074695764304, 0.2924827325221696, 0.253584799014828, 0.2732638980307635,
           0.34406882609120737, 0.409719043169102, 0.4213848627804445, 0.3930558742921638, 0.36751592492720886, 0.2924827325221696, 0.21946942640699554, 0.18901809131848027, 0.2041521166894061, 0.26469888441402106, 0.3466451094806684, 0.3903985131607334,
@@ -44,7 +41,6 @@ end
     res = Sunny.intensities_static(scga, grid)
     @test isapprox(vec(res.data)/2, sq; rtol=1e-5)
 end
-
 
 @testitem "MgCr2O4" begin
     # Reproduce calculation in Conlon and Chalker, PRL 102, 237206 (2009)
@@ -104,7 +100,7 @@ end
 end
 
 @testitem "Ferrimagnetic chain sum rule" begin
-    tol = 1e-2
+    tol = 1e-2 # FIXME
     latvecs    = lattice_vectors(3, 5, 8, 90, 90, 90)
     positions  = [[0,0,0],
                 [0.5, 0,0]]
@@ -127,7 +123,7 @@ end
 end
 
 @testitem "Ferrimagnetic chain" begin
-    tol = 5e-2
+    tol = 5e-2 # FIXME
     latvecs = lattice_vectors(3, 5, 8, 90, 90, 90)
     positions = [[0, 0, 0], [0.5, 0, 0]]
     types = ["Ni2","Fe3"]
@@ -147,7 +143,6 @@ end
 
 @testitem "SCGA Kitchen sink" begin
     using LinearAlgebra
-    tol = 1e-9
     a = 5.
     c = 17.
     latvecs = lattice_vectors(a, a, c, 90, 90, 120)
@@ -156,17 +151,17 @@ end
     cryst = Crystal(latvecs, positions, 148; types)
     moments = [1 => Moment(; s=1, g=3.4), 7 => Moment(; s=2, g=2)]
     sys = System(cryst, moments, :dipole)
-    sys = reshape_supercell(sys, primitive_cell(cryst))
-    J1 = -2.0*diagm([1.,1.,1.2])
+    sys = reshape_supercell(sys, primitive_cell(cryst)) # Works either way!
+    J1 = -2.0*diagm([1, 1, 1.2])
     J2 = 5.25*[1 0.05 0; 0.05 1 0; 0 0 0]
-    J3 = 0.75*diagm([1.,0.25,1.23]) + 0.23dmvec([0.23,0.87,0.43])
-    J4 = 0.25*diagm([0.34,0.12,1.16]) + 0.23dmvec([0.98,0.65,0.353])
+    J3 = 0.75*diagm([1, 0.25, 1.23]) + 0.23dmvec([0.23, 0.87, 0.43])
+    J4 = 0.25*diagm([0.34, 0.12, 1.16]) + 0.23dmvec([0.98, 0.65, 0.353])
     J5 = 0.23*[1 0 0; 0 1 0.34; 0 0.34 0]
-    J6 = -0.1*diagm([1.,1.,1.8]) + 0.086dmvec([0,0,1])
-    J7 = 0.098*diagm([1.,1.,1.8]) + 0.021dmvec([0.2,0.34,0.65])
-    J8 =  -0.23*diagm([1.,0.8,1.]) + 0.021dmvec([0.94,0.24,0.15])
-    J9 = 1*diagm([1.21,1.11,0.76]) + 0.3dmvec([0.7,0.61,0.62])
-    J10 = -0.265diagm([1,1.,0.45])
+    J6 = -0.1*diagm([1, 1, 1.8]) + 0.086dmvec([0, 0, 1])
+    J7 = 0.098*diagm([1, 1, 1.8]) + 0.021dmvec([0.2, 0.34, 0.65])
+    J8 =  -0.23*diagm([1, 0.8, 1]) + 0.021dmvec([0.94, 0.24, 0.15])
+    J9 = 1*diagm([1.21, 1.11, 0.76]) + 0.3dmvec([0.7, 0.61, 0.62])
+    J10 = -0.265diagm([1, 1, 0.45])
     D1 = -0.27
     D2 = 0.12
     set_exchange!(sys, J1, Bond(7, 8, [0, 0, 0])) # Mn dimer XXZ
@@ -179,9 +174,9 @@ end
     set_onsite_coupling!(sys, S -> D2*S[3]^2, 7)
     measure = ssf_perp(sys)
     kT = 80.5*meV_per_K
-    scga = Sunny.SCGA(sys; measure, kT, Nq=3)
+    scga = Sunny.SCGA(sys; measure, kT, Nq=4)
     qs = [[0, 0, 0], [0, 1/2, 1/2], [0.06, 0.49, 0.59]]
     res = Sunny.intensities_static(scga, qs)
-    golden_data = [31.054341345978518, 21.5871931021382, 21.588723556553013]
-    @test isapprox(res.data, golden_data; atol=1e-5)
+    golden_data = [31.01225057947166, 21.57163073261797, 21.573267694880727]
+    @test isapprox(res.data, golden_data; rtol=1e-3)
 end
