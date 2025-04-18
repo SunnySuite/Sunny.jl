@@ -1,15 +1,4 @@
-# Returns the Luttinger-Tisza predicted exchange energy associated with the
-# propagation wavevector k between chemical cells. The LT analysis minimizes
-# energy E = (1/2) Sₖ† Jₖ Sₖ, where Sₖ is some length-3Nₐ vector and Jₖ is the
-# 3Nₐ×3Nₐ exchange matrix. Given a minimum energy eigenpair (λₖ, Sₖ) the
-# LT-predicted energy is |Sₖ|^2 λₖ/2 with normalization |Sₖ|^2 = ∑ᵢ|Sᵢ|^2, where
-# i denotes spin sublattice of the chemical cell. If the components of Sₖ
-# satisfy local spin normalization constraints, then the LT energy minimized
-# over k is physically correct for the spiral ground state. In practice, the
-# eigenvector Sₖ may violate local spin normalization and the LT-predicted
-# energy is only a lower-bound on the exchange energy. Conditions for
-# correctness are given by Xiong and Wen (2013), arXiv:1208.1512.
-function luttinger_tisza_exchange(sys::System; k, ϵ=0)
+function fourier_exchange_matrix(sys::System; k)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
 
@@ -47,9 +36,25 @@ function luttinger_tisza_exchange(sys::System; k, ϵ=0)
         J_k[:, i, :, i] += 2 * anisotropy
     end
 
-    J_k = reshape(J_k, 3*Na, 3*Na)
+    J_k = reshape(J_k, 3Na, 3Na)
     @assert diffnorm2(J_k, J_k') < 1e-15
-    J_k = hermitianpart(J_k)
+    return hermitianpart(J_k)
+end
+
+
+# Returns the Luttinger-Tisza predicted exchange energy associated with the
+# propagation wavevector k between chemical cells. The LT analysis minimizes
+# energy E = (1/2) Sₖ† Jₖ Sₖ, where Sₖ is some length-3Nₐ vector and Jₖ is the
+# 3Nₐ×3Nₐ exchange matrix. Given a minimum energy eigenpair (λₖ, Sₖ) the
+# LT-predicted energy is |Sₖ|^2 λₖ/2 with normalization |Sₖ|^2 = ∑ᵢ|Sᵢ|^2, where
+# i denotes spin sublattice of the chemical cell. If the components of Sₖ
+# satisfy local spin normalization constraints, then the LT energy minimized
+# over k is physically correct for the spiral ground state. In practice, the
+# eigenvector Sₖ may violate local spin normalization and the LT-predicted
+# energy is only a lower-bound on the exchange energy. Conditions for
+# correctness are given by Xiong and Wen (2013), arXiv:1208.1512.
+function luttinger_tisza_exchange(sys::System; k, ϵ=0)
+    J_k = fourier_exchange_matrix(sys; k)
 
     E = if iszero(ϵ)
         eigmin(J_k) / 2

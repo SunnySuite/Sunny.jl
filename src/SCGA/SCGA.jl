@@ -42,51 +42,6 @@ struct SCGA
 end
 
 
-# Calculate the Fourier transformed interaction matrix for wavevector k. Adapted
-# from `luttinger_tisza_exchange`.
-function fourier_transform_interaction_matrix(sys::System; k)
-    @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
-    @assert sys.dims == (1, 1, 1) "System must have only a single cell"
-    Na = natoms(sys.crystal)
-    J_k = zeros(ComplexF64, 3, Na, 3, Na)
-    r = sys.crystal.positions
-
-    for i in 1:Na
-        for coupling in sys.interactions_union[i].pair
-            (; isculled, bond, bilin) = coupling
-            isculled && break
-
-            (; j, n) = bond
-            J = exp(2π * im * dot(k, n + r[j] - r[i])) * Mat3(bilin*I)
-            J_k[:, i, :, j] += J
-            J_k[:, j, :, i] += J'
-        end
-    end
-
-    if !isnothing(sys.ewald)
-        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB² # FIXME: check this is in the right coordinate system
-        A = reshape(A, Na, Na)
-        for i in 1:Na, j in 1:Na
-            J_k[:, i, :, j] += sys.gs[i]' * A[i, j] * sys.gs[j] # FIXME: Need a test
-        end
-    end
-
-    for i in 1:Na
-        onsite_coupling = sys.interactions_union[i].onsite
-        (; c2, c4, c6) = onsite_coupling
-        iszero(c4) && iszero(c6) || error("Single-ion anisotropy beyond quadratic order not supported")
-        anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
-                              c2[5] -c2[1]-c2[3] 0.5c2[4];
-                           0.5c2[2]     0.5c2[4]   2c2[3]]
-        J_k[:, i, :, i] += 2 * anisotropy
-    end
-
-    J_k = reshape(J_k, 3*Na, 3*Na)
-    @assert diffnorm2(J_k, J_k') < 1e-15
-    J_k = hermitianpart(J_k)
-    return J_k
-end
-
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
 # Lagrange multiplier for all sublattices.
 function find_lagrange_multiplier(scga::SCGA, β)
@@ -115,7 +70,7 @@ function find_lagrange_multiplier(scga::SCGA, β)
         end
     end
     q = [[qx, qy, qz] for qx in qarrays[1], qy in qarrays[2], qz in qarrays[3]]
-    Jq_array = [fourier_transform_interaction_matrix(sys; k=q_in) for q_in in q]
+    Jq_array = [fourier_exchange_matrix(sys; k=q_in) for q_in in q]
     #TODO throw error if spins different
     if quantum_sum_rule
         S_sq = sum(sys.κs .* (sys.κs.+1)) / Na
@@ -162,26 +117,24 @@ function intensities_static_single(scga::SCGA, qpts; β)
     λ = find_lagrange_multiplier(scga, β)
     intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
+    r = sys.crystal.positions
+
     for (iq, q) in enumerate(qpts.qs)
         pref = zeros(ComplexF64, Nobs, Na)
         corrbuf = zeros(ComplexF64, Ncorr)
         intensitybuf = zeros(eltype(measure), 3, 3)
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = sys.crystal.recipvecs * q
-        for i in 1:Na
-            for μ in 1:3
-                ff = get_swt_formfactor(measure, μ, i)
-                pref[μ, i] = compute_form_factor(ff, norm2(q_global))
-            end
+        for i in 1:Na, μ in 1:3
+            ff = get_swt_formfactor(measure, μ, i)
+            pref[μ, i] = exp(-2π * im * dot(q_reshaped, r[i])) * compute_form_factor(ff, norm2(q_global))
         end
-        J_mat = fourier_transform_interaction_matrix(sys; k=q_reshaped)
-        inverted_matrix = (inv(I(3*Na)*λ[1] + β*J_mat)) # this is [(Iλ+J(q))^-1]^αβ_μν
+        J_mat = fourier_exchange_matrix(sys; k=q_reshaped)
+        inverted_matrix = inv(I(3*Na)*λ[1] + β*J_mat) # this is [(Iλ+J(q))^-1]^αβ_μν
         # inverted_matrix = diagm(1 ./ (λ[1] .+ β .* eigvals(J_mat)))
-        for i in 1:Na
-            for j in 1:Na
-                intensitybuf += pref[1,i]*conj(pref[1,j])*inverted_matrix[1+3(i-1):3+3(i-1),1+3(j-1):3+3(j-1)]
-                # TODO allow different form factor for each observable
-            end
+        for i in 1:Na, j in 1:Na
+            intensitybuf += pref[1,i]*conj(pref[1,j])*inverted_matrix[1+3(i-1):3+3(i-1),1+3(j-1):3+3(j-1)]
+            # TODO allow different form factor for each observable
         end
         map!(corrbuf, measure.corr_pairs) do (α, β)
             intensitybuf[α,β]
@@ -206,19 +159,19 @@ function intensities_static_sublattice(scga::SCGA, qpts; β, λs_init)
     λs = find_lagrange_multiplier_opt_sublattice(scga, λs_init, β)
     intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
+    r = sys.crystal.positions
+
     for (iq, q) in enumerate(qpts.qs)
         pref = zeros(ComplexF64, Nobs, Na)
         corrbuf = zeros(ComplexF64, Ncorr)
         intensitybuf = zeros(eltype(measure),3,3)
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = sys.crystal.recipvecs * q
-        for i in 1:Na
-            for μ in 1:3
-                ff = get_swt_formfactor(measure, μ, i)
-                pref[μ, i] = compute_form_factor(ff, norm2(q_global))
-            end
+        for i in 1:Na, μ in 1:3
+            ff = get_swt_formfactor(measure, μ, i)
+            pref[μ, i] = exp(-2π * im * dot(q_reshaped, r[i])) * compute_form_factor(ff, norm2(q_global))
         end
-        J_mat = fourier_transform_interaction_matrix(sys; k=q_reshaped)
+        J_mat = fourier_exchange_matrix(sys; k=q_reshaped)
         Λ =  diagm(repeat(λs, inner=3))
         inverted_matrix = (inv(β*Λ + β*J_mat)) # this is [(Iλ+J(q))^-1]^αβ_μν
         for i in 1:Na, j in 1:Na
@@ -288,7 +241,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
 
     function f(λs)
         Λ =  diagm(repeat(λs, inner=3))
-        A_array = [β*Sunny.fourier_transform_interaction_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
+        A_array = [β*Sunny.fourier_exchange_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in 1:length(A_array)
@@ -307,7 +260,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
 
     function fg!(fbuffer,gbuffer,λs)
         Λ =  diagm(repeat(λs, inner=3))
-        A_array = [β*fourier_transform_interaction_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
+        A_array = [β*fourier_exchange_matrix(sys; k=q_in) .+  β*Λ for q_in in q]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in 1:length(A_array)
@@ -318,11 +271,11 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
         if gbuffer !== nothing
             gradF = zeros(ComplexF64,Na)
             for i in 1:Na
-                gradλ =diagm(zeros(ComplexF64,3Na))
-                gradλ[3i-2:3i,3i-2:3i] =diagm([1,1,1])
-                gradF[i] =0.5sum([tr(diagm(1 ./eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in 1:length(A_array)])
+                gradλ = diagm(zeros(ComplexF64,3Na))
+                gradλ[3i-2:3i, 3i-2:3i] = diagm([1,1,1])
+                gradF[i] =0.5sum([tr(diagm(1 ./ eig_vals[:,j]) * Us[:,:,j]'*gradλ*Us[:,:,j]) for j in 1:length(A_array)])
             end
-            gradG = gradF -0.5*N*S_sq
+            gradG = gradF - 0.5*N*S_sq
             gbuffer .= -real(gradG)
         end
         if !isnothing(fbuffer)
@@ -338,7 +291,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
 
     if isnothing(λs)
         println("No user provided initial guess for the Lagrange multipliers. Determining a sensible starting point from the interaction matrix.")
-        A_array = [fourier_transform_interaction_matrix(sys; k=q_in) for q_in in q]
+        A_array = [fourier_exchange_matrix(sys; k=q_in) for q_in in q]
         eig_vals = zeros(3Na,length(A_array))
         Us = zeros(ComplexF64,3Na,3Na,length(A_array))
         for j in 1:length(A_array)
@@ -358,7 +311,7 @@ function find_lagrange_multiplier_opt_sublattice(scga, λs, β)
         println("Using user provided initial starting point for the optimization of the Lagrange multipliers.")
         if f(λs) > 1e7
             println("Matrix is not positive definite. Shifting Lagrange multipliers to find a better starting point.")
-            A_array = [fourier_transform_interaction_matrix(sys; k=q_in)  for q_in in q]
+            A_array = [fourier_exchange_matrix(sys; k=q_in)  for q_in in q]
             eig_vals = zeros(3Na,length(A_array))
             Us = zeros(ComplexF64,3Na,3Na,length(A_array))
             for j in 1:length(A_array)
