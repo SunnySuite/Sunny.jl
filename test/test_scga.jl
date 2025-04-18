@@ -48,8 +48,8 @@ end
     sys = System(cryst, [1 => Moment(; s, g=1)], :dipole)
     sys = reshape_supercell(sys, primitive_cell(cryst))
     enable_spin_rescaling_for_static_sum_rule!(sys)
-    J1 = 3.27                                            # in meV, from Bai's PRL
-    J_mgcro = [1.0, 0.0815, 0.1050, 0.0085] * J1         # further neighbor pyrochlore relevant for MgCr2O4
+    J1 = 3.27                                              # In meV, from Bai's PRL
+    J_mgcro = [1.0, 0.0815, 0.1050, 0.0085] * J1           # Further exchanges for MgCr2O4
     set_exchange!(sys, J_mgcro[1], Bond(1, 2, [0, 0, 0]))  # J1
     set_exchange!(sys, J_mgcro[2], Bond(1, 7, [0, 0, 0]))  # J2
     set_exchange!(sys, J_mgcro[3], Bond(1, 3, [1, 0, 0]))  # J3a

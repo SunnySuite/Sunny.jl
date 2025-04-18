@@ -98,7 +98,7 @@ end
 
 
 function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
-    tol = 1e-6
+    g_tol = 1e-12
     maxiters = 500
 
     Na = natoms(sys.crystal)
@@ -108,10 +108,13 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
     λs = λ_init*ones(Float64, Na)
     s² = vec(sys.κs .^ 2)
 
-    function fg!(_, gbuffer, λs)
+    function fgh!(_, gbuffer, hbuffer, λs)
         fbuffer = 0.0
         if !isnothing(gbuffer)
             gbuffer .= 0
+        end
+        if !isnothing(hbuffer)
+            hbuffer .= 0
         end
 
         Λ = diagm(repeat(λs, inner=3))
@@ -124,17 +127,28 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
             A⁻¹ = U * Diagonal(inv.(eig_vals)) * U'
             A⁻¹ = reshape(A⁻¹, 3, Na, 3, Na)
 
+            # Determine Lagrange multipliers λ by minimizing f, the negative of
+            # the "grand" free energy G(λ), involving Legendre transform into
+            # the λ variables. Physical eigenvalues of each (J + Λ) matrix must
+            # be positive, otherwise we apply an infinite penalty to the
+            # objective function.
             if minimum(eig_vals) < 0
-                F = -Inf
+                fbuffer = Inf
             else
-                F = (1/2β) * sum(log.(eig_vals))
+                fbuffer += λs' * s² / 2 - (1/2β) * sum(log.(eig_vals))
             end
-            # To maximize free energy G = F - λᵢ sᵢ² we should minimize f = -G
-            fbuffer += λs' * s² / 2 - F
 
+            # Gradient of f
             if !isnothing(gbuffer)
                 for i in 1:Na
                     gbuffer[i] += s²[i] / 2 - real(tr(view(A⁻¹, :, i, :, i))) / 2
+                end
+            end
+
+            # Hessian of f
+            if !isnothing(hbuffer)
+                for i in 1:Na, j in 1:Na
+                    hbuffer[i, j] += + (β/2) * norm(view(A⁻¹, :, i, :, j))^2
                 end
             end
         end
@@ -142,12 +156,9 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
         return fbuffer
     end
 
-    # f(λs) = fg!(NaN, nothing, λs)
-
-    options = Optim.Options(; iterations=maxiters, show_trace=false, g_tol=tol)
-    result = Optim.optimize(Optim.only_fg!(fg!), λs, Optim.ConjugateGradient(), options)
-    min = Optim.minimizer(result)
-    return real.(min)
+    options = Optim.Options(; iterations=maxiters, show_trace=false, g_tol)
+    result = Optim.optimize(Optim.only_fgh!(fgh!), λs, Optim.Newton(), options)
+    return real.(Optim.minimizer(result))
 end
 
 
