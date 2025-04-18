@@ -70,6 +70,11 @@ end
     @test k[1:2] ≈ [0.5, 0.5]
     @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
 
+    # Luttinger Tisza exchange gives almost the right energy but: (1) The
+    # "constant shift" associated with the anisotropy needs to be included,
+    # and (2) It does not account for canting, which is a q=0 contribution
+    # to the S(q). For this problem, the canting effect can be counteracted
+    # by a halving of the Zeeman energy.
     lt_exch = Sunny.luttinger_tisza_exchange(sys; k)
     zeeman = sys.dipoles[1]' * sys.gs[1] * sys.extfield[1]
     constant_shift = sys.interactions_union[1].onsite.c0[1]

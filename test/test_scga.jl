@@ -47,7 +47,7 @@ end
 
 
 @testitem "MgCr2O4" begin
-    # test against Conlon and Chalker
+    # Reproduce calculation in Conlon and Chalker, PRL 102, 237206 (2009)
     latvecs    = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
     positions  = [[1/2, 1/2, 1/2]]
     cryst = Crystal(latvecs, positions, 227)
