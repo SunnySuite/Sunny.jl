@@ -97,7 +97,12 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     qpts = Base.convert(AbstractQPoints, qpts)
     qs_reshaped = [to_reshaped_rlu(sc, q) for q in qpts.qs]
 
-    ffs = sc.measure.formfactors[1, :] # FIXME
+    # Check that form factors are uniform for each observable.
+    for col in eachcol(sc.measure.formfactors)
+        @assert allequal(col) "Observable-dependent form factors not yet supported."
+    end
+    ffs = sc.measure.formfactors[1, :]
+
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
     q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
     crystal = @something sc.origin_crystal sc.crystal
