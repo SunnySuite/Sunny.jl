@@ -56,10 +56,11 @@ end
 
 
 # Returns |1 + nB(ω)| where nB(ω) = 1 / (exp(βω) - 1) is the Bose function.
+# Equivalent to |1 / expm1(-βω)| where expm1(x) = e^x-1.
 function thermal_prefactor(ω; kT)
     @assert kT >= 0
     iszero(ω) && return Inf
-    return abs(1 / (1 - exp(-ω/kT)))
+    return abs(1 / expm1(-ω/kT))
 end
 
 
