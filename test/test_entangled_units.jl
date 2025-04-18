@@ -26,11 +26,7 @@ end
     import LinearAlgebra: norm
     J = 1.0
     J′ = 0.1
-    latvecs = [
-        1  0  0
-        0  1  0
-        0  0  2
-    ]
+    latvecs = [1 0 0; 0 1 0; 0 0 2]
     positions = [[0, 0, 0], [0.0, 0.5, 0.0]] 
 
     crystal = Crystal(latvecs, positions, 1; types = ["A", "B"])
@@ -77,7 +73,7 @@ end
 
     set_field!(esys, [0, 0, 0])
     randomize_spins!(esys)
-    minimize_energy!(esys; g_tol=1e-14)
+    minimize_energy!(esys; g_abstol=1e-14)
     @test norm(esys.sys_origin.dipoles[1]) < 1e-14
     @test norm(esys.sys_origin.dipoles[2]) < 1e-14
 
@@ -91,7 +87,6 @@ end
     end
     bond_ref = J′*((Sl2' * Sl1) .+ (Su2' * Su1))
     @test bond_operator ≈ bond_ref
-
 
     # Test dispersion against analytical formula for antisymmetric channel.
     qs = [[0.2, 0.3, 0]]
@@ -108,7 +103,6 @@ end
     ωs_numerical = disp[1,:]
 
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
-
 
     # Test classical dynamics and perform golden test.
     esys = repeat_periodically(esys, (8, 1, 1))
