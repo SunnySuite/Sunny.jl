@@ -4,19 +4,19 @@
     dia = [0.7046602277469309, 0.8230846832863896, 0.23309034250417973, 0.40975668535137943, 0.8474163786642979, 0.8230846832694241, 0.723491683211756, 0.5939752161027589, 0.6506966347286152, 0.8012263819500781, 0.23309034265153963, 0.5939752161512792, 0.7779185770415442, 0.9619923476121188, 0.28363795492206234, 0.4097566857133061, 0.6506966347914551, 0.9619923474164132, 0.8576708385848646, 0.45534457001475764, 0.8474163779976567, 0.8012263817424181, 0.2836379554342603, 0.4553445702621035, 0.9352400940660723]
     a = 8.5031 # (Å)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+    cryst = Crystal(latvecs, [[0,0,0]], 227; choice="1")
     dims = (1, 1, 1)
     spininfos = [1 => Moment(; s=1, g=1)]
     sys = System(cryst, spininfos, :dipole;dims, seed=0)
     set_exchange!(sys, -1, Bond(1, 3, [0,0,0]))
     set_exchange!(sys, 0.25, Bond(1, 2, [0,0,0]))
     measure = ssf_perp(sys;)
-    scga = Sunny.SCGA(sys;measure)
+    scga = Sunny.SCGA(sys; measure, quantum_sum_rule=false)
     kT = 15*meV_per_K
     S=1
     γ=S*(S+1)*length(cryst.positions)
     grid = q_space_grid(cryst, [1, 0, 0], 0:0.9:4, [0, 1, 0], 0:0.9:4; orthogonalize=true)
-    res = Sunny.intensities_static(scga, grid; kT, SumRule="Classical",sublattice_resolved=false,Nq = 8)
+    res = Sunny.intensities_static(scga, grid; kT, sublattice_resolved=false, Nq=8)
     # Gao had 2 basis sites
     @test abs(sum(reshape(res.data,size(dia))/γ -dia/2))/length(grid.qs)< tol
 end
@@ -41,12 +41,12 @@ end
     set_exchange!(sys, 0.5, Bond(1, 1, [1,1,0]))
     set_exchange!(sys, 0.25, Bond(1, 1, [2,0,0]))
     measure = ssf_perp(sys)
-    scga = Sunny.SCGA(sys;measure, regularization=1e-8)
+    scga = Sunny.SCGA(sys; measure, quantum_sum_rule=false)
     kT = 27.5*meV_per_K
     S=1
     γ=S*(S+1)
     grid = q_space_grid(cryst, [1, 0, 0], -1:0.12:0, [0, 1, 0], -1:0.12:0; orthogonalize=true)
-    res = Sunny.intensities_static(scga, grid; kT, SumRule="Classical",Nq = 8,sublattice_resolved = false)
+    res = Sunny.intensities_static(scga, grid; kT, Nq=8, sublattice_resolved=false)
     @test abs(sum(reshape(res.data,size(sq))/γ-sq))/length(grid.qs) <tol
 end
 
@@ -61,8 +61,7 @@ end
                 [0.2607, 0.2607, 0.2607]]
     types      = ["Mg","Cr","O"]
     spacegroup = 227 # Space Group Number
-    setting    = "2" # Space Group setting
-    xtal_mgcro = Crystal(latvecs, positions, spacegroup; types, setting)
+    xtal_mgcro = Crystal(latvecs, positions, spacegroup; types)
     cryst = subcrystal(xtal_mgcro,"Cr")
     dims = (1, 1, 1)  # Supercell dimensions
     spininfos = [1 => Moment(; s=3/2, g=1)]  # Specify spin information, note that all sites are symmetry equivalent
@@ -76,10 +75,10 @@ end
     # values from Conlon + Chalker
     MgCrO=[ 5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   1.8741195e+00   3.2690074e+00   1.8741195e+00   1.3136038e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.2377330e+00   2.8136620e+00   2.4168819e+00   1.8741195e+00   2.4168819e+00   2.8136620e+00   1.2377330e+00   5.5634087e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   6.1505984e-01   1.7143609e+00   2.8136620e+00   3.2690074e+00   2.8136620e+00   1.7143609e+00   6.1505984e-01   1.5971443e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   1.6242284e-01   6.1505984e-01   1.2377330e+00   1.8741195e+00   1.2377330e+00   6.1505984e-01   1.6242284e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02   7.4075451e-02   1.5971443e-01   5.5634087e-01   1.3136038e+00   5.5634087e-01   1.5971443e-01   7.4075451e-02   5.7767400e-02]
     measure = ssf_custom((q, ssf) -> real(sum(ssf)), sys)
-    scga = Sunny.SCGA(sys;measure, regularization=1e-8)
+    scga = Sunny.SCGA(sys; measure, quantum_sum_rule=true)
     kT = 20*meV_per_K
     grid = q_space_grid(cryst, [1, 0, 0], range(-4, 4, 17), [0, 1, 0], range(-4, 4, 17); orthogonalize=true)
-    res = Sunny.intensities_static(scga, grid; kT, SumRule="Quantum",sublattice_resolved = false,Nq = 8)
+    res = Sunny.intensities_static(scga, grid; kT, sublattice_resolved=false, Nq=8)
     S = 3/2
     γ=S*(S+1)*length(cryst.positions) 
     @test abs(sum(reshape(res.data,size(MgCrO))/γ - (3/4)*MgCrO)/length(grid.qs))/length(MgCrO) < tol
@@ -114,10 +113,10 @@ end
     set_onsite_coupling!(sys, S -> S'*anis*S, 1)
     k_grid = [0.125:0.125:1;]
     measure = ssf_perp(sys)
-    scga = Sunny.SCGA(sys;measure, regularization=1e-8)
+    scga = Sunny.SCGA(sys; measure, quantum_sum_rule=false)
     kT = 55*meV_per_K
     grid = q_space_grid(cryst, [1, 0, 0], 0.125:0.125:1, [0, 1, 0], 0.125:0.125:1; orthogonalize=true)
-    res = Sunny.intensities_static(scga, grid; kT, SumRule="Classical",sublattice_resolved = false,Nq = 8)
+    res = Sunny.intensities_static(scga, grid; kT, sublattice_resolved=false, Nq=8)
     S = 1
     γ=S*(S+1)*length(cryst.positions) 
     @test abs(sum(reshape(res.data,size(arb))-arb))/length(grid.qs) <tol # matches without the S(S+1)Nₐ scaling
@@ -137,11 +136,11 @@ end
     J1 = 1
     set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))  
     measure = ssf_trace(sys;apply_g = false)
-    scga = Sunny.SCGA(sys;measure)
+    scga = Sunny.SCGA(sys; measure, quantum_sum_rule=false)
     kT = 22.5*meV_per_K
     qarray = range(0,2,60)
     qs1 = [[qx, 0, 0] for qx in qarray]
-    res = Sunny.intensities_static(scga, qs1; kT, SumRule="Classical",sublattice_resolved = true,tol = 1e-6,Nq = 60,λs_init = [7.67033234814451, 1.2272531757030904] )
+    res = Sunny.intensities_static(scga, qs1; kT, sublattice_resolved=true, tol=1e-6, Nq=60, λs_init = [7.67033234814451, 1.2272531757030904] )
     sum_rule = S1^2 + S2^2
     @test abs(sum(res.data)/length(qs1)-sum_rule )/sum_rule < tol
 end
@@ -159,11 +158,11 @@ end
     sys = System(cryst, spininfos, :dipole;); 
     J1 = 1
     set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))  
-    measure = ssf_trace(sys;apply_g = false)
-    scga = Sunny.SCGA(sys;measure)
+    measure = ssf_trace(sys; apply_g=false)
+    scga = Sunny.SCGA(sys; measure, quantum_sum_rule=false)
     qs = q_space_path(cryst,[[0,0,0],[2,0,0]],17)
     kT  = 17.5*meV_per_K
-    res_SCGA = Sunny.intensities_static(scga, qs; kT, SumRule="Classical",sublattice_resolved = true,tol = 1e-11,Nq = 40,λs_init = [6.742957842952556, 1.078873254872408])
+    res_SCGA = Sunny.intensities_static(scga, qs; kT, sublattice_resolved = true, tol=1e-11, Nq=40, λs_init = [6.742957842952556, 1.078873254872408])
     golden_data = [5.290737305656931, 4.7748982402676265, 4.08328246178467, 4.042960776695628, 4.590499089153959, 6.013520972997832, 8.995831669892262, 13.95353903683679, 17.263753113653635, 13.95353903683679, 8.995831669892262, 6.013520972997832, 4.590499089153959, 4.042960776695629, 4.0832824617846715, 4.7748982402676265, 5.290737305656931]
     @test sum(abs.(golden_data - res_SCGA.data)./ golden_data)/length(golden_data) < tol
 end
@@ -205,9 +204,9 @@ end
     set_onsite_coupling!(sys, S -> D2*S[3]^2, 7)
     kT = 80.5*meV_per_K
     measure = ssf_perp(sys;)
-    scga = Sunny.SCGA(sys;measure)
+    scga = Sunny.SCGA(sys; measure, quantum_sum_rule=false)
     q_vals =  [[0.06, 0.49, 0.59],[0.47, 0.58, 0.84],[0.71, 0.92, 0.02],[0.13, 0.05, 0.45],[0.81, 0.15, 0.26],[0.19, 0.56, 0.44],[0.57, 0.92, 0.07],[0.71, 0.95, 0.86],[0.3, 0.13, 0.77],[1.0, 0.1, 0.19]]
-    res = Sunny.intensities_static(scga, q_vals; kT, SumRule="Classical",sublattice_resolved = true,tol = 1e-10,Nq = 10,λs_init = [22.47960976417936, 22.479609764179354, 22.479609764179383, 22.47960976417936, 22.479609764179358, 22.479609764179365, 5.706769019158553, 5.706769019158554, 5.706769019158549, 5.70676901915855, 5.706769019158553, 5.706769019158554])
+    res = Sunny.intensities_static(scga, q_vals; kT, sublattice_resolved=true, tol=1e-10, Nq=10, λs_init = [22.47960976417936, 22.479609764179354, 22.479609764179383, 22.47960976417936, 22.479609764179358, 22.479609764179365, 5.706769019158553, 5.706769019158554, 5.706769019158549, 5.70676901915855, 5.706769019158553, 5.706769019158554])
     golden_data =  [23.91170663898754,26.23603943782467,24.927302064839658,30.925830013455293,44.18723874237649,28.009379286498838,23.87201763264413,22.986516195913886,22.342746975584234,51.13113544108942];
     @test norm(res.data-golden_data) < tol
 end

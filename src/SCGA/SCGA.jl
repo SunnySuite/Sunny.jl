@@ -1,5 +1,5 @@
 """
-    SCGA(sys::System; measure, regularization=1e-8)
+    SCGA(sys::System; measure, quantum_sum_rule=true)
 
 Constructs an object to perform the self consistent gaussian approximation.
 Enables the use of `intensities_static`](@ref) with an SCGA type to calculate
@@ -9,14 +9,14 @@ below the ordering temperature, the intensities will be negative.
 struct SCGA
     sys :: System
     measure :: MeasureSpec
-    regularization :: Float64
+    quantum_sum_rule :: Bool
 
-    function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
+    function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, quantum_sum_rule=true)
         measure = @something measure empty_measurespec(sys)
         if length(eachsite(sys)) != prod(size(measure.observables)[2:5])
             error("Size mismatch. Check that measure is built using consistent system.")
         end
-        return new(sys, measure, regularization)
+        return new(sys, measure, quantum_sum_rule)
     end
 end
 
@@ -71,7 +71,8 @@ end
 # and "Newton's Method" which is a fast converging root finding algorithm.
 # SumRule specifices the sum rule that the Lagrange multipliers are chosen to
 # satisfy, either the Classical or Quantum sum rules.
-function find_lagrange_multiplier(sys::System,kT; ϵ=0, SumRule = "Classical",starting_offset = 0.2, maxiters=1_000,tol = 1e-10,method = "Nelder Mead",Nq = 20)
+function find_lagrange_multiplier(scga::SCGA, kT; starting_offset=0.2, maxiters=1_000, tol=1e-10, Nq=20)
+    (; sys, quantum_sum_rule) = scga
     dq = 1/Nq;
     Na = natoms(sys.crystal)
     bond_counter = zeros(Float64,3)
@@ -95,67 +96,50 @@ function find_lagrange_multiplier(sys::System,kT; ϵ=0, SumRule = "Classical",st
     q = [[qx, qy, qz] for qx in qarrays[1], qy in qarrays[2], qz in qarrays[3]]
     Jq_array = [fourier_transform_interaction_matrix(sys; k=q_in) for q_in in q]
     #TODO throw error if spins different
-    if SumRule == "Classical"
-        S_sq = sum(sys.κs.^2)/Na
-    elseif SumRule == "Quantum"
+    if quantum_sum_rule
         S_sq = sum(sys.κs .*(sys.κs.+1))/Na
     else
-        error("Unsupported SumRule: $SumRule. Expected 'Classical' or 'Quantum'.")
+        S_sq = sum(sys.κs.^2)/Na
     end
-    println("Sum rule: $SumRule")
+
     eig_vals = zeros(3Na, length(Jq_array))
     for j in 1:length(Jq_array)
          eig_vals[:,j] .= eigvals(Jq_array[j])
     end
-    if method == "Nelder Mead"
-        function loss(λ)
-            sum_term = sum(1 ./ (λ .+ (1/(kT)).*eig_vals ))
-            return ((1/(Na*length(q))) * sum_term - S_sq)^2
-        end
-        lower = -minimum(eig_vals)/kT
-        upper = Inf
-        p = [lower+starting_offset] # some offset from the lower bound.
-        options = Optim.Options(; iterations=maxiters, show_trace=false,g_tol=tol)
-        result = optimize(loss, lower, upper, p,NelderMead(), options)
-        min = Optim.minimizer(result)[1]
-    elseif method == "Newton's Method" #Newton's method
-        function f(λ)
-            sum_term = sum(1 ./ (λ .+ (1/(kT)).*eig_vals ))
-            return (1/(Na*length(q))) * sum_term
-        end
-        function J(λ)
-            sum_term = sum((1 ./ (λ .+ (1/(kT)).*eig_vals )).^2)
-            return -(1/(Na*length(q))) * sum_term
-        end
-        lower = -minimum(eig_vals)/kT
-        λn = starting_offset*0.1+ lower # Make more robust - regularized! Check optim.jl
-        for n in 1:maxiters
-          λ = λn + (1/J(λn))*(S_sq-f(λn))
-          if abs(λ-λn) < tol
-              println("Newton's method converged to within tolerance, $tol, after $n steps.")
-              min=λ
-              break
-          else
-          λn = λ
-          end
-        end
-    else
-        throw("Please provide valid method for the λ optimization.")
+
+    function f(λ)
+        sum_term = sum(1 ./ (λ .+ (1/(kT)).*eig_vals ))
+        return (1/(Na*length(q))) * sum_term
     end
-    println("Lagrange multiplier: $min")
-    return min
+    function J(λ)
+        sum_term = sum((1 ./ (λ .+ (1/(kT)).*eig_vals )).^2)
+        return -(1/(Na*length(q))) * sum_term
+    end
+
+    lower = -minimum(eig_vals)/kT
+    λn = starting_offset*0.1 + lower # Make more robust - regularized! Check optim.jl
+
+    for n in 1:maxiters
+        λ = λn + (1/J(λn))*(S_sq-f(λn))
+        if abs(λ-λn) < tol
+            println("Newton's method converged to within tolerance, $tol, after $n steps.")
+            return λ
+        else
+            λn = λ
+        end
+    end
 end
 
 # Computes the static structure factor in the standard SCGA approach, with a
 # single Lagrange multiplier, over the qpts specified.
 
-function intensities_static_single(scga::SCGA, qpts; kT=0.0, SumRule = "Quantum", starting_offset = 0.2, maxiters=1_000, method="Nelder Mead", tol=1e-7, Nq=50)
+function intensities_static_single(scga::SCGA, qpts; kT=0.0, starting_offset=0.2, maxiters=1_000, tol=1e-7, Nq=50)
     kT == 0.0 && error("kT must be non-zero")
     qpts = convert(AbstractQPoints, qpts)
-    (; sys, measure, regularization) = scga
+    (; sys, measure) = scga
     Na = natoms(sys.crystal)
     Nobs = num_observables(measure)
-    λ = find_lagrange_multiplier(sys,kT;SumRule,method,tol,maxiters,starting_offset,Nq)
+    λ = find_lagrange_multiplier(scga, kT; tol, maxiters, starting_offset, Nq)
     intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
     for (iq, q) in enumerate(qpts.qs)
@@ -194,14 +178,14 @@ end
 # Computes the static structure factor in the sublattice resolved SCGA method,
 # over the qpts specified.
 
-function intensities_static_sublattice(scga::SCGA, qpts; kT=0.0, SumRule = "Quantum", maxiters=500,tol=1e-10,λs_init,Nq = 20)
-    kT == 0.0 && error("kT must be non-zero")
-    println("Sublattice resolved SCGA currently only supports Conjugate Gradient optimization.")
+function intensities_static_sublattice(scga::SCGA, qpts; kT=0.0, maxiters=500, tol=1e-10, λs_init, Nq=20)
+    iszero(kT) && error("kT must be non-zero")
+
     qpts = convert(AbstractQPoints, qpts)
-    (; sys, measure, regularization) = scga
+    (; sys, measure) = scga
     Na = natoms(sys.crystal)
     Nobs = num_observables(measure)
-    λs = find_lagrange_multiplier_opt_sublattice(sys,λs_init,kT;SumRule,maxiters,tol,Nq)
+    λs = find_lagrange_multiplier_opt_sublattice(scga, λs_init, kT; maxiters,tol,Nq)
     intensity = zeros(eltype(measure),length(qpts.qs))
     Ncorr = length(measure.corr_pairs)
     for (iq, q) in enumerate(qpts.qs)
@@ -237,29 +221,28 @@ function intensities_static_sublattice(scga::SCGA, qpts; kT=0.0, SumRule = "Quan
 end
 
 """
-     intensities_static(scga::SCGA, qpts; kT=0.0, SumRule = "Quantum", maxiters=500, tol=1e-10,method="Newton's Method", λs_init=nothing, sublattice_resolved=false)
+     intensities_static(scga::SCGA, qpts; kT=0.0, maxiters=500, tol=1e-10, λs_init=nothing, sublattice_resolved=false)
 
 Computes the static structure factor. The sublattice resolved method can be
 chosen by selecting sublattice_resolved = true.
 """
-function intensities_static(scga::SCGA, qpts; kT=0.0, SumRule="Quantum", maxiters=500,tol=1e-10,method="Newton's Method", λs_init=nothing, sublattice_resolved=false, Nq=20)
+function intensities_static(scga::SCGA, qpts; kT=0.0, maxiters=500, tol=1e-10, λs_init=nothing, sublattice_resolved=false, Nq=20)
     if sublattice_resolved == true
-        return intensities_static_sublattice(scga::SCGA, qpts; kT, SumRule , maxiters,tol,λs_init,Nq)
+        return intensities_static_sublattice(scga::SCGA, qpts; kT, maxiters, tol, λs_init, Nq)
     else
-        return intensities_static_single(scga::SCGA, qpts; kT, SumRule ,starting_offset = 0.2, maxiters,method,tol,Nq)
+        return intensities_static_single(scga::SCGA, qpts; kT, starting_offset=0.2, maxiters, tol, Nq)
     end
 end
 
-# Computes the Lagrange multiplier for the sublattice resolved SCGA method. The
-# optimization is performed using the Conjugate Gradient method as implemented
-# in Optim.jl.
-function find_lagrange_multiplier_opt_sublattice(sys,λs,kT;SumRule = "Quantum",maxiters=500,tol=1e-10,Nq = 20)
-    if SumRule == "Classical"
-        S_sq = vec(sys.κs.^2)
-    elseif SumRule == "Quantum"
-        S_sq =vec( sys.κs .* (sys.κs .+ 1))
+# Computes the Lagrange multiplier for the sublattice resolved SCGA method.
+
+function find_lagrange_multiplier_opt_sublattice(scga, λs, kT; maxiters=500, tol=1e-10, Nq=20)
+    (; sys, quantum_sum_rule) = scga
+
+    if quantum_sum_rule
+        S_sq =vec(sys.κs .* (sys.κs .+ 1))
     else
-        error("Unsupported SumRule: $SumRule. Expected 'Classical' or 'Quantum'.")
+        S_sq = vec(sys.κs.^2)
     end
     Na = natoms(sys.crystal)
     dq = 1/Nq;
@@ -267,10 +250,9 @@ function find_lagrange_multiplier_opt_sublattice(sys,λs,kT;SumRule = "Quantum",
     bond_counter = zeros(Float64,3)
     for i in 1:Na
         for coupling in sys.interactions_union[i].pair
-            (; isculled, bond, bilin) = coupling
+            (; isculled, bond) = coupling
             isculled && break
-            (; j, n) = bond
-            bond_counter += abs.(n)
+            bond_counter += abs.(bond.n)
         end
     end
 
@@ -378,18 +360,18 @@ function find_lagrange_multiplier_opt_sublattice(sys,λs,kT;SumRule = "Quantum",
     upper = Inf
     lower = -Inf
     options = Optim.Options(; iterations=maxiters, show_trace=true,g_tol=tol)
-    result = Optim.optimize(Optim.only_fg!(fg!), λs, Optim.ConjugateGradient(),options)
+    result = Optim.optimize(Optim.only_fg!(fg!), λs, Optim.ConjugateGradient(), options)
     min = Optim.minimizer(result)
     return real.(min)
 end
 
-function find_lagrange_multiplier_opt_WORKING(sys, λs, kT; SumRule="Quantum", method="ConjugateGradient", maxiters=500, tol=1e-10)
-    if SumRule == "Classical"
-        S_sq = vec(sys.κs.^2)
-    elseif SumRule == "Quantum"
-        S_sq =vec( sys.κs .* (sys.κs .+ 1))
+#=
+function find_lagrange_multiplier_opt_WORKING(scga, λs, kT; method="ConjugateGradient", maxiters=500, tol=1e-10)
+    (; sys, quantum_sum_rule) = scga
+    if quantum_sum_rule
+        S_sq = vec(sys.κs .* (sys.κs .+ 1))
     else
-        error("Unsupported SumRule: $SumRule. Expected 'Classical' or 'Quantum'.")
+        S_sq = vec(sys.κs.^2)
     end
     Na = natoms(sys.crystal)
     Nq = 8
@@ -504,14 +486,14 @@ function find_lagrange_multiplier_opt_WORKING(sys, λs, kT; SumRule="Quantum", m
     end
     return real.(min)
 end
+=#
 
-function free_energy_and_gradient(sys,λs,kT;SumRule = "Quantum")
-    if SumRule == "Classical"
-        S_sq = vec(sys.κs.^2)
-    elseif SumRule == "Quantum"
-        S_sq =vec( sys.κs .* (sys.κs .+ 1))
+function free_energy_and_gradient(scga, λs, kT)
+    (; sys, quantum_sum_rule) = scga
+    if quantum_sum_rule
+        S_sq = vec(sys.κs .* (sys.κs .+ 1))
     else
-        error("Unsupported SumRule: $SumRule. Expected 'Classical' or 'Quantum'.")
+        S_sq = vec(sys.κs.^2)
     end
     Na = natoms(sys.crystal)
     Nq = 8
