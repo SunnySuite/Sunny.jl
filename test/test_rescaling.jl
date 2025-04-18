@@ -4,7 +4,7 @@
     cryst = Sunny.diamond_crystal()
     damping = 0.1
     dt = 0.005
-    
+
     # Check that magnitude of coherent (SUN=true) or dipole (SUN=false) is
     # invariant under the dynamics
     let
@@ -71,7 +71,7 @@
             end
             return first(sys.dipoles)
         end
-    
+
         κ = 2.0
         for mode in (:SUN, :dipole)
             s1 = gen_trajectory(1, dt, add_linear_interactions!, mode)
@@ -95,7 +95,7 @@ end
     cryst = Crystal(latvecs, [[0,0,0]], "P1")
     s = 3
     λ = Sunny.rcs_factors(s)
-    
+
     for k in (2, 4, 6)
         c = randn(2k+1)
         E1, E2 = map([:dipole, :dipole_uncorrected]) do mode
@@ -106,6 +106,34 @@ end
         end
         @test E1 ≈ λ[k] * E2
     end
+end
+
+@testitem "Anisotropy SU(N) equivalence" begin
+    latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
+    warnstr = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`"
+    cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])
+
+    # Dipole system with renormalized anisotropy
+    sys0 = System(cryst, [1 => Moment(s=3, g=2)], :dipole)
+    randomize_spins!(sys0)
+
+    i = 1
+    O = stevens_matrices(spin_label(sys0, i))
+    Λ = randn()*(O[2,0]+3O[2,2]) +
+        randn()*(O[4,0]-5O[4,2]) + randn()*(O[4,0]+5O[4,4]) +
+        randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,0]+(105/16)O[6,2]+(231/16)O[6,6])
+    set_onsite_coupling!(sys0, Λ, i)
+    E0 = energy(sys0)
+
+    # Corresponding SU(N) system
+    sys = System(cryst, [1 => Moment(s=3, g=2)], :SUN)
+    for site in eachsite(sys)
+        set_dipole!(sys, sys0.dipoles[site], site)
+    end
+    set_onsite_coupling!(sys, Λ, i)
+    E = energy(sys)
+
+    @test E ≈ E0
 end
 
 
