@@ -546,13 +546,42 @@ function set_spin_rescaling!(sys::System{N}, κ) where N
 end
 
 """
-    enable_quantum_dipole_amplification!(sys)
+    enable_spin_rescaling_for_static_sum_rule!(sys)
 
-Sets the classical dipole magnitude to ``√(s * (s+1))`` rather than the default
-value of ``s``, the [`spin_label`](@ref) of the magnetic moment. Requires dipole
-mode.
+Sets the classical dipole magnitude squared to ``s(s+1)`` rather than ``s^2``
+for each quantum spin-``s`` moment. Valid only for systems in dipole mode.
+
+This dipole rescaling convention may be helpful in combination with
+[`SampledCorrelationsStatic`](@ref) or [`StaticCorrelationsSCGA`](@ref)
+calculators, which sample spins from the classical Boltzmann distribution. The
+estimated [`intensities_static`](@ref) ``\\mathcal{S}(𝐪)``, when integrated
+over all ``𝐪``, will be exactly consistent with the quantum-mechanical identity
+``⟨Ŝ^2⟩ = s(s+1)`` for dipole operator ``Ŝ``.
+
+At high temperatures, this dipole rescaling may also be useful in combination
+with the [`SampledCorrelations`](@ref) calculator, which estimates structure
+factor intensities using classical spin dynamics [1]. Note, however, that this
+dipole rescaling is **not** appropriate for `SampledCorrelations` measurements
+at low temperatures; a better `kT`-dependent classical-to-quantum correction
+factor is already provided in [`intensities`](@ref) and
+[`intensities_static`](@ref). Obtaining good structure factor estimates at
+intermediate temperatures is an ongoing research topic. One strategy is to
+employ the more general and expensive "κ rescaling" procedure, which dynamically
+rescales spins according to running quantum sum rule estimates [2]. See
+[`set_spin_rescaling!`](@ref), which allows fine-grained control over the dipole
+rescaling.
+
+## References
+
+1. [T. Huberman et al., _A study of the quantum classical crossover in the spin
+   dynamics of the 2D S=5/2 antiferromagnet Rb₂MnF₄: neutron scattering,
+   computer simulations and analytic theories_, J. Stat. Mech. **P05017**
+   (2008)](https://doi.org/10.1088/1742-5468/2008/05/P05017).
+2. [D. Dahlbom et al., _Quantum-to-classical crossover in generalized spin
+   systems: Temperature-dependent spin dynamics of FeI₂_, Phys. Rev. B **109**,
+   014427 (2024)](https://doi.org/10.1103/PhysRevB.109.014427).
 """
-function enable_quantum_dipole_amplification!(sys::System{N}) where N
+function enable_spin_rescaling_for_static_sum_rule!(sys::System{N}) where N
     iszero(N) || error("Quantum dipole amplification requires :dipole or :dipole_uncorrected mode")
     for site in eachsite(sys)
         s = sys.κs[site]
