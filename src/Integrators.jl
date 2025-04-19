@@ -25,7 +25,7 @@ stochastic Landau-Lifshitz equation,
 where ``𝐁 = -dE/d𝐒`` is the effective field felt by the expected spin dipole
 ``𝐒``. The components of ``ξ`` are Gaussian white noise, with magnitude ``√(2
 k_B T λ)`` set by a fluctuation-dissipation theorem. The parameter `damping`
-sets the phenomenological coupling ``λ`` to the thermal bath. 
+sets the phenomenological coupling ``λ`` to the thermal bath.
 
 If the `System` has `mode = :SUN`, then this dynamics generalizes [1] to a
 stochastic nonlinear Schrödinger equation for SU(_N_) coherent states ``𝐙``,
@@ -58,7 +58,7 @@ mutable struct Langevin <: AbstractIntegrator
     damping :: Float64
     kT      :: Float64
 
-    function Langevin(dt; λ=nothing, damping=nothing, kT)
+    function Langevin(dt=NaN; λ=nothing, damping=nothing, kT)
         if !isnothing(λ)
             @warn "`λ` argument is deprecated! Use `damping` instead."
             damping = @something damping λ
@@ -71,10 +71,6 @@ mutable struct Langevin <: AbstractIntegrator
         damping <= 0    && error("Select positive damping")
         return new(dt, damping, kT)
     end
-end
-
-function Langevin(; λ=nothing, damping=nothing, kT)
-    Langevin(NaN; λ, damping, kT)
 end
 
 function Base.copy(dyn::Langevin)
@@ -114,7 +110,7 @@ mutable struct ImplicitMidpoint <: AbstractIntegrator
     kT      :: Float64
     atol    :: Float64
 
-    function ImplicitMidpoint(dt; damping=0, kT=0, atol=1e-12)
+    function ImplicitMidpoint(dt=NaN; damping=0, kT=0, atol=1e-12)
         dt <= 0      && error("Select positive dt")
         kT < 0       && error("Select nonnegative kT")
         damping < 0  && error("Select nonnegative damping")
@@ -126,14 +122,12 @@ mutable struct ImplicitMidpoint <: AbstractIntegrator
         iszero(kT) || error("ImplicitMidpoint with a Langevin thermostat is not currently supported.")
 
         return new(dt, damping, kT, atol)
-    end    
+    end
 end
-ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
 
 function Base.copy(dyn::ImplicitMidpoint)
     ImplicitMidpoint(dyn.dt; dyn.damping, dyn.kT, dyn.atol)
 end
-
 
 
 function check_timestep_available(integrator)
@@ -390,7 +384,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
     (ΔS, Ŝ, S′, S″, ξ, ∇E) = get_dipole_buffers(sys, 6)
 
     fill_noise!(sys.rng, ξ, integrator)
-    
+
     @. S′ = S
     @. S″ = S
 
@@ -429,12 +423,12 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
 
     Z = sys.coherents
     atol = integrator.atol * √length(Z)
-    
+
     (ΔZ, Z̄, Z′, Z″, ζ, HZ) = get_coherent_buffers(sys, 6)
     fill_noise!(sys.rng, ζ, integrator)
 
-    @. Z′ = Z 
-    @. Z″ = Z 
+    @. Z′ = Z
+    @. Z″ = Z
 
     for _ in 1:max_iters
         @. Z̄ = (Z + Z′)/2

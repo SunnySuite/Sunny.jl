@@ -133,7 +133,7 @@ can can then be extracted as pair-correlation [`intensities`](@ref) with
 appropriate classical-to-quantum correction factors. See also
 [`intensities_static`](@ref), which integrates over energy.
 """
-function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, positions=nothing, integrator=nothing)
+function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, positions=nothing, integrator=ImplicitMidpoint())
     if isnothing(energies)
         n_all_ω = 1
         measperiod = 1
@@ -150,7 +150,7 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
         Δω = ωmax/(nω-1)
     end
 
-    integrator = @something integrator ImplicitMidpoint(dt)
+    isnan(integrator.dt) || error("Timestep of `integrator` must be uninitialized.")
     integrator.dt = dt
 
     # Determine the positions of the observables in the MeasureSpec. By default,
