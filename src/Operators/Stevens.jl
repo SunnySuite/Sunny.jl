@@ -139,8 +139,8 @@ const stevens_αinv = map(inv, stevens_α)
 # OffsetArray c[k] with indices k = 0..6. Elements of c[k][:] are the Stevens
 # coefficients in descending order q = k..-k.
 function matrix_to_stevens_coefficients(A::HermitianC64)
-    N = size(A,1)
-    @assert N == size(A,2)
+    N = size(A, 1)
+    @assert N == size(A, 2)
 
     return map(OffsetArray(0:6, 0:6)) do k
         if k >= N

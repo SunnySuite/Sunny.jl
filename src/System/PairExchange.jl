@@ -78,7 +78,7 @@ function replace_coupling!(list, coupling::PairCoupling; accum=false)
     # slow, we could swap two PairCouplings instead of performing a full sort.
     push!(list, coupling)
     sort!(list, by=c->c.isculled)
-    
+
     return
 end
 
@@ -106,7 +106,7 @@ function decompose_general_coupling(op, N1, N2; extract_parts)
     # Remove scalar part
     scalar = real(tr(op) / size(op, 1))
     op = op - scalar*I
-    
+
     if extract_parts
         # Remove bilinear part
         bilin = zeros(3, 3)
@@ -199,7 +199,7 @@ function check_allowable_dipole_coupling(tensordec, mode)
         error("""
         Invalid pair coupling. In dipole mode, the most general allowed form is
             (Si, Sj) -> Si'*J*Sj + [(Si'*K1*Si)*(Sj'*K2*Sj) + ...]
-        where J is any 3×3 matrix, while K1, K2 must be Hermitian and traceless. 
+        where J is any 3×3 matrix, while K1, K2 must be Hermitian and traceless.
         The (...) denote any number of additional biquadratic couplings.
         """)
     end
@@ -403,7 +403,7 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
                      $n_ref for a system with dimensions $dims.""")
         end
     end
-    
+
     # Otherwise, search over all possible wrappings of the bond
     ns = view([n0 .+ dims .* (i,j,k) for i in -1:1, j in -1:1, k in -1:1], :)
     bonds = map(ns) do n
@@ -515,6 +515,36 @@ function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2:
     S1, S2 = to_product_space(spin_matrices.([s1, s2])...)
     set_pair_coupling_at!(sys, fn(S1, S2), site1, site2; offset)
     return
+end
+
+# Find the PairCoupling object for bond `b`
+function search_pair_couplings_for_bond(pairs::Vector{PairCoupling}, b::Bond)
+    indices = findall(pc -> pc.bond == b, pairs)
+    isempty(indices) ? nothing : pairs[only(indices)]
+end
+
+function get_exchange_from_interactions(inter::Interactions, bond::Bond)
+    coupling = search_pair_couplings_for_bond(inter.pair, bond)
+    return isnothing(coupling) ? zero(Mat3) : coupling.bilin * Mat3(I)
+end
+
+function get_exchange(sys::System, bond::Bond)
+    is_homogeneous(sys) || error("Use `get_exchange_at` for inhomogeneous system.")
+
+    return if !isnothing(sys.origin)
+        get_exchange(sys.origin, bond)
+    else
+        get_exchange_from_interactions(interactions_homog(sys)[bond.i], bond)
+    end
+end
+
+function get_exchange_at(sys::System, site1::Site, site2::Site; offset=nothing)
+    is_homogeneous(sys) && error("Use `get_exchange` for homogeneous system.")
+    site1, site2 = to_cartesian.((site1, site2))
+
+    bond = sites_to_internal_bond(sys, site1, site2, offset)
+    inter = interactions_inhomog(sys)[site1]
+    return get_exchange_from_interactions(inter, bond)
 end
 
 

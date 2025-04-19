@@ -71,7 +71,7 @@ function rotate_operator(stvexp::StevensExpansion, R)
     return StevensExpansion(stvexp.kmax, stvexp.c0, c2′, c4′, c6′)
 end
 
-function operator_to_matrix(stvexp::StevensExpansion; N) 
+function operator_to_matrix(stvexp::StevensExpansion; N)
     acc = zeros(ComplexF64, N, N)
     for (k, c) in zip((0,2,4,6), (stvexp.c0, stvexp.c2, stvexp.c4, stvexp.c6))
         acc += c' * stevens_matrices_of_dim(k; N)
@@ -156,7 +156,7 @@ function set_onsite_coupling!(sys::System, op, i::Int)
     for j in all_symmetry_related_atoms(cryst, i)
         # Find some symop s that transforms i into j
         s = first(symmetries_between_atoms(cryst, j, i))
-        
+
         # R is orthogonal, and may include rotation and reflection
         R = cryst.latvecs * s.R * inv(cryst.latvecs)
 
@@ -198,6 +198,79 @@ end
 function set_onsite_coupling_at!(sys::System, fn::Function, site::Site)
     S = spin_matrices(spin_label_sublattice(sys, to_atom(site)))
     set_onsite_coupling_at!(sys, fn(S), site)
+end
+
+
+function get_stevens_expansion_at(sys::System, site::Site)
+    site = to_cartesian(site)
+    inter = if is_homogeneous(sys)
+        interactions_homog(sys)[to_atom(site)]
+    else
+        interactions_inhomog(sys)[site]
+    end
+
+    (; onsite) = inter
+    if onsite isa HermitianC64
+        return StevensExpansion(matrix_to_stevens_coefficients(inter.onsite))
+    else
+        @assert onsite isa StevensExpansion
+        return onsite
+    end
+end
+
+function get_stevens_expansion(sys::System, i::Int)
+    @assert is_homogeneous(sys)
+    sys = @something sys.origin sys
+    return get_stevens_expansion_at(sys, (1, 1, 1, i))
+end
+
+function unrenormalize_quadratic_anisotropy(stvexp::StevensExpansion, sys::System, site::Site)
+    site = to_cartesian(site)
+    (; c0, c2) = stvexp
+
+    # Undo RCS renormalization for quadrupolar anisotropy for spin-s
+    if sys.mode == :dipole
+        s = (sys.Ns[site] - 1) / 2
+        c2 = c2 / Sunny.rcs_factors(s)[2] # Don't mutate c2 in-place!
+    end
+
+    # Stevens quadrupole operators expressed as 3×3 spin bilinears
+    quadrupole_basis = [
+        [1 0 0; 0 -1 0; 0 0 0],    # 𝒪₂₂  = SˣSˣ - SʸSʸ
+        [0 0 1; 0 0 0; 1 0 0] / 2, # 𝒪₂₁  = (SˣSᶻ + SᶻSˣ)/2
+        [-1 0 0; 0 -1 0; 0 0 2],   # 𝒪₂₀  = 2SᶻSᶻ - SˣSˣ - SʸSʸ
+        [0 0 0; 0 0 1; 0 1 0] / 2, # 𝒪₂₋₁ = (SʸSᶻ + SᶻSʸ)/2
+        [0 1 0; 1 0 0; 0 0 0],     # 𝒪₂₋₂ = SˣSʸ + SʸSˣ
+    ]
+
+    # The c0 coefficient incorporates a factor of S². For quantum spin
+    # operators, S² = s(s+1) I. For the large-s classical limit, S² = s² is a
+    # scalar.
+    S² = if sys.mode == :dipole_uncorrected
+        # Undoes extraction in `operator_to_stevens_coefficients`. Note that
+        # spin magnitude s² is set to κ², as originates from `onsite_coupling`
+        # for p::AbstractPolynomialLike.
+        sys.κs[site]^2
+    else
+        # Undoes extraction in `matrix_to_stevens_coefficients` where 𝒪₀₀ = I.
+        s = (sys.Ns[site]-1) / 2
+        s * (s+1)
+    end
+
+    return c2' * quadrupole_basis + only(c0) * I / S²
+end
+
+function get_quadratic_anisotropy(sys::System, i::Int)
+    is_homogeneous(sys) || error("Use `get_quadratic_anisotropy_at` for inhomogeneous system.")
+    sys = @something sys.origin sys
+    onsite = get_stevens_expansion(sys, i)
+    return unrenormalize_quadratic_anisotropy(onsite, sys, (1, 1, 1, i))
+end
+
+function get_quadratic_anisotropy_at(sys::System, site::Site)
+    is_homogeneous(sys) && error("Use `get_quadratic_anisotropy` for homogeneous system.")
+    onsite = get_stevens_expansion_at(sys, site)
+    return unrenormalize_quadratic_anisotropy(onsite, sys, site)
 end
 
 

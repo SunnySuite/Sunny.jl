@@ -497,7 +497,6 @@ end
     @test Sunny.is_anisotropy_valid(cryst, 2, rotate_operator(𝒪[6,2], R))
 end
 
-
 @testitem "Renormalization" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
     msg = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`."
