@@ -1,3 +1,5 @@
+abstract type AbstractIntegrator end
+
 """
     Langevin(dt::Float64; damping::Float64, kT::Float64)
 
@@ -51,7 +53,7 @@ the `damping` parameter varies subtly between `:dipole` and `:SUN` modes.
    states_, Phys. Rev. B **106**, 235154
    (2022)](https://doi.org/10.1103/PhysRevB.106.235154).
 """
-mutable struct Langevin
+mutable struct Langevin <: AbstractIntegrator
     dt      :: Float64
     damping :: Float64
     kT      :: Float64
@@ -106,7 +108,7 @@ arbitrarily long simulation trajectories.
    states_, Phys. Rev. B **104**, 104409
    (2021)](https://doi.org/10.1103/PhysRevB.104.104409).
 """
-mutable struct ImplicitMidpoint
+mutable struct ImplicitMidpoint <: AbstractIntegrator
     dt      :: Float64
     damping :: Float64
     kT      :: Float64
@@ -332,6 +334,7 @@ function step!(sys::System{0}, integrator::Langevin)
 
     return
 end
+
 
 function step!(sys::System{N}, integrator::Langevin) where N
     check_timestep_available(integrator)

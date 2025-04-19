@@ -14,7 +14,7 @@ mutable struct SampledCorrelations
     const corr_pairs   :: Vector{NTuple{2, Int}}                 # (ncorr)
 
     # Trajectory specs
-    const integrator   :: Union{ImplicitMidpoint, Langevin}      # Integrator for calculating sample trajectories.
+    const integrator   :: AbstractIntegrator                     # Integrator for calculating sample trajectories.
     const measperiod   :: Int                                    # Steps to skip between saving observables (i.e., downsampling factor for trajectories)
     nsamples           :: Int64                                  # Number of accumulated samples (single number saved as array for mutability)
 
