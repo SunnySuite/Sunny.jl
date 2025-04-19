@@ -79,9 +79,10 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     new_dipole_buffers   = Array{Vec3, 4}[]
     new_coherent_buffers = Array{CVec{N}, 4}[]
 
-    # Preserve origin for repeated reshapings. In other words, ensure that
-    # new_sys.origin === sys.origin
-    orig_sys = @something sys.origin sys
+    # The `origin` system always has dims=(1, 1, 1) and uses the original
+    # crystal. Perform a clone because mutable updates to interactions in the
+    # reshaped system will also update interactions in its `origin` system.
+    orig_sys = clone_system(@something sys.origin sys)
 
     new_sys = System(orig_sys, sys.mode, new_cryst, new_dims, new_Ns, new_κs, new_gs, new_ints, new_ewald,
         new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
