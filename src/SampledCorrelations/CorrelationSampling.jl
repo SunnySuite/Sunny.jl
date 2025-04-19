@@ -18,9 +18,8 @@ function observable_values!(buf, sys::System{N}, observables, atom_idcs) where N
     return nothing
 end
 
-function trajectory!(buf, sys, dt, nsnaps, observables, atom_idcs; measperiod = 1)
+function trajectory!(buf, sys, integrator, nsnaps, observables, atom_idcs; measperiod = 1)
     @assert size(observables, 1) == size(buf, 1)
-    integrator = ImplicitMidpoint(dt)
     observable_values!(@view(buf[:,:,:,:,:,1]), sys, observables, atom_idcs)
     for n in 2:nsnaps
         for _ in 1:measperiod
@@ -32,7 +31,7 @@ function trajectory!(buf, sys, dt, nsnaps, observables, atom_idcs; measperiod = 
 end
 
 function new_sample!(sc::SampledCorrelations, sys::System)
-    (; dt, samplebuf, measperiod, observables, atom_idcs) = sc
+    (; integrator, samplebuf, measperiod, observables, atom_idcs) = sc
 
     # Only fill the sample buffer half way; the rest is zero-padding
     buf_size = size(samplebuf, 6)
@@ -41,7 +40,7 @@ function new_sample!(sc::SampledCorrelations, sys::System)
 
     # @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
 
-    trajectory!(samplebuf, sys, dt, nsnaps, observables, atom_idcs; measperiod)
+    trajectory!(samplebuf, sys, integrator, nsnaps, observables, atom_idcs; measperiod)
 
     return nothing
 end

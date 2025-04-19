@@ -128,6 +128,11 @@ mutable struct ImplicitMidpoint
 end
 ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
 
+function Base.copy(dyn::ImplicitMidpoint)
+    ImplicitMidpoint(dyn.dt; dyn.damping, dyn.kT, dyn.atol)
+end
+
+
 
 function check_timestep_available(integrator)
     isnan(integrator.dt) && error("Set integration timestep `dt`.")
