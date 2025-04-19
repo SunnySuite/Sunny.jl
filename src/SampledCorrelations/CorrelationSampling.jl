@@ -18,9 +18,8 @@ function observable_values!(buf, sys::System{N}, observables, atom_idcs) where N
     return nothing
 end
 
-function trajectory!(buf, sys, dt, nsnaps, observables, atom_idcs; measperiod = 1)
+function trajectory!(buf, sys, integrator, nsnaps, observables, atom_idcs; measperiod=1)
     @assert size(observables, 1) == size(buf, 1)
-    integrator = ImplicitMidpoint(dt)
     observable_values!(@view(buf[:,:,:,:,:,1]), sys, observables, atom_idcs)
     for n in 2:nsnaps
         for _ in 1:measperiod
@@ -32,7 +31,7 @@ function trajectory!(buf, sys, dt, nsnaps, observables, atom_idcs; measperiod = 
 end
 
 function new_sample!(sc::SampledCorrelations, sys::System)
-    (; dt, samplebuf, measperiod, observables, atom_idcs) = sc
+    (; integrator, samplebuf, measperiod, observables, atom_idcs) = sc
 
     # Only fill the sample buffer half way; the rest is zero-padding
     buf_size = size(samplebuf, 6)
@@ -41,7 +40,7 @@ function new_sample!(sc::SampledCorrelations, sys::System)
 
     # @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
 
-    trajectory!(samplebuf, sys, dt, nsnaps, observables, atom_idcs; measperiod)
+    trajectory!(samplebuf, sys, integrator, nsnaps, observables, atom_idcs; measperiod)
 
     return nothing
 end
@@ -54,7 +53,7 @@ function accum_sample!(sc::SampledCorrelations; window)
 
     # Time offsets (in samples) Δt = [0,1,...,(T-1),-(T-1),...,-1] produced by 
     # the cross-correlation between two length-T signals
-    time_offsets = FFTW.fftfreq(num_time_offsets,num_time_offsets)
+    time_offsets = FFTW.fftfreq(num_time_offsets, num_time_offsets)
 
     # Transform A(q) = ∑ exp(iqr) A(r).
     # This is opposite to the FFTW convention, so we must conjugate
@@ -95,12 +94,16 @@ function accum_sample!(sc::SampledCorrelations; window)
         corr_ifft! * corrbuf
         corrbuf ./= n_contrib
 
+        @assert window in (:cosine, :rectangular)
         if window == :cosine
-          # Apply a cosine windowing to force the correlation at Δt=±(T-1) to be zero
-          # to force periodicity. In terms of the spectrum S(ω), this applys a smoothing
-          # with a characteristic lengthscale of O(1) frequency bins.
-          window_func = cos.(range(0,π,length = num_time_offsets + 1)[1:end-1]).^2
-          corrbuf .*= reshape(window_func,1,1,1,num_time_offsets)
+            # Multiply the real-time correlation data by a cosine window that
+            # smoothly goes to zero at offsets approaching the trajectory
+            # length, Δt → T. This smooth windowing mitigates ringing artifacts
+            # that appear when imposing periodicity on the real-space
+            # trajectory. Note, however, that windowing also broadens the signal
+            # S(ω) on the characteristic scale of one frequency bin Δω = 2π/T.
+            window_func = cos.(range(0, π, length=num_time_offsets+1)[1:end-1]).^2
+            corrbuf .*= reshape(window_func, 1, 1, 1, num_time_offsets)
         end
 
         corr_fft! * corrbuf
@@ -165,13 +168,8 @@ function add_sample!(sc::SampledCorrelations, sys::System; window=:cosine)
     # artifacts. See https://github.com/SunnySuite/Sunny.jl/pull/246 for more
     # discussion about the calculation of intensities from classical dynamics. 
     # 
-    # The `window` parameter to this function is *not* part of Sunny's public
-    # API, and is subject to change at any time. Passing an alternative value
-    # for `window` will replace the smooth cosine window with a rectangular
-    # window (sharp truncation at |t| = T). This experimental feature is
-    # provided so that expert users have the ability to extract real-time
-    # dynamical correlations. In the future, a public API will be designed to
-    # give more direct access to the real-time correlations.
+    # The hidden option `window=:rectangular` will disable smooth windowing.
+    # This may be of interest for extracting real-time dynamical correlations.
 
     new_sample!(sc, sys)
     accum_sample!(sc; window)

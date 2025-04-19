@@ -262,8 +262,8 @@ end
 
 The total system [`energy`](@ref) divided by the number of sites.
 """
-function energy_per_site(sys::System{N}) where N
-    return energy(sys) / nsites(sys)
+function energy_per_site(sys::System{N}; check_normalization=true) where N
+    return energy(sys; check_normalization) / nsites(sys)
 end
 
 """
@@ -271,8 +271,10 @@ end
 
 The total system energy. See also [`energy_per_site`](@ref).
 """
-function energy(sys::System{N}) where N
-    validate_normalization(sys)
+function energy(sys::System{N}; check_normalization=true) where N
+    if check_normalization 
+        validate_normalization(sys)
+    end
     E = 0.0
 
     # Zeeman coupling to external field
