@@ -262,8 +262,8 @@ end
 
 The total system [`energy`](@ref) divided by the number of sites.
 """
-function energy_per_site(sys::System{N}) where N
-    return energy(sys) / nsites(sys)
+function energy_per_site(sys::System{N}; check_normalization=true) where N
+    return energy(sys; check_normalization) / nsites(sys)
 end
 
 """
