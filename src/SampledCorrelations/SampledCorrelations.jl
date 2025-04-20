@@ -14,8 +14,8 @@ mutable struct SampledCorrelations
     const corr_pairs   :: Vector{NTuple{2, Int}}                 # (ncorr)
 
     # Trajectory specs
+    const integrator   :: AbstractIntegrator                     # Integrator for calculating sample trajectories.
     const measperiod   :: Int                                    # Steps to skip between saving observables (i.e., downsampling factor for trajectories)
-    const dt           :: Float64                                # Step size for trajectory integration 
     nsamples           :: Int64                                  # Number of accumulated samples (single number saved as array for mutability)
 
     # Buffers and precomputed data 
@@ -57,7 +57,7 @@ function clone_correlations(sc::SampledCorrelations)
     return SampledCorrelations(
         copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
         deepcopy(sc.measure), copy(sc.observables), copy(sc.positions), copy(sc.atom_idcs), copy(sc.corr_pairs),
-        sc.measperiod, sc.dt, sc.nsamples,
+        copy(sc.integrator), sc.measperiod, sc.nsamples,
         copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
     )
 end
@@ -133,7 +133,7 @@ can can then be extracted as pair-correlation [`intensities`](@ref) with
 appropriate classical-to-quantum correction factors. See also
 [`intensities_static`](@ref), which integrates over energy.
 """
-function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, positions=nothing)
+function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, positions=nothing, integrator=ImplicitMidpoint())
     if isnothing(energies)
         n_all_ω = 1
         measperiod = 1
@@ -149,6 +149,9 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
         dt, measperiod = adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
         Δω = ωmax/(nω-1)
     end
+
+    isnan(integrator.dt) || error("Timestep of `integrator` must be uninitialized.")
+    integrator.dt = dt
 
     # Determine the positions of the observables in the MeasureSpec. By default,
     # these will just be the atom indices. 
@@ -196,7 +199,7 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
     sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω,
                              measure, copy(measure.observables), positions, atom_idcs, copy(measure.corr_pairs),
-                             measperiod, dt, nsamples,
+                             integrator, measperiod, nsamples,
                              samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
     return sc

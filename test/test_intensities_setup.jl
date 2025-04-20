@@ -55,7 +55,7 @@ end
     sc = SampledCorrelations(sys; dt, energies=range(0.0, 10.0, 100), measure=ssf_perp(sys))
 
     ωs = Sunny.available_energies(sc; negative_energies=true)
-    dts = 0:(sc.dt * sc.measperiod):3
+    dts = 0:(sc.integrator.dt * sc.measperiod):3
     vals = sum(exp.(im .* ωs .* dts'), dims=1)[:]
 
     # Verify it made a delta function
