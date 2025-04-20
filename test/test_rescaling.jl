@@ -110,8 +110,8 @@ end
 
 @testitem "Anisotropy SU(N) equivalence" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-    warnstr = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`"
-    cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])
+    msg = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`."
+    cryst = @test_logs (:warn, msg) Crystal(latvecs, [[0, 0, 0]])
 
     # Dipole system with renormalized anisotropy
     sys0 = System(cryst, [1 => Moment(s=3, g=2)], :dipole)
