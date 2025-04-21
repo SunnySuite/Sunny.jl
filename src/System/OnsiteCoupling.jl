@@ -231,7 +231,7 @@ function unrenormalize_quadratic_anisotropy(stvexp::StevensExpansion, sys::Syste
     # Undo RCS renormalization for quadrupolar anisotropy for spin-s
     if sys.mode == :dipole
         s = (sys.Ns[site] - 1) / 2
-        c2 = c2 / Sunny.rcs_factors(s)[2] # Don't mutate c2 in-place!
+        c2 = c2 / rcs_factors(s)[2] # Don't mutate c2 in-place!
     end
 
     # Stevens quadrupole operators expressed as 3×3 spin bilinears
