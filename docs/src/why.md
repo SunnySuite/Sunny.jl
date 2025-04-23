@@ -68,8 +68,8 @@ temperatures](https://doi.org/10.1103/PhysRevB.109.014427) when used in
 conjunction with appropriate renormalization schemes. The SU(_N_) picture also
 suggests new geometric interpretations of quantum spin. This leads to a [deeper
 understanding](https://arxiv.org/abs/2304.03874) of existing renormalization
-schemes for traditional spin wave theory, and suggests a whole landscape in
-which to search for [novel topological
+schemes for traditional spin wave theory, and suggests an enlarged space to
+search for [novel topological
 states](https://doi.org/10.1038/s41467-023-39232-8). Ongoing Sunny research aims
 to incorporate more quantum entanglement into the classical picture. Local units
 of strongly entangled spins will soon be supported and show great promise for

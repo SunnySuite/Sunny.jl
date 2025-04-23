@@ -5,7 +5,7 @@
 # and Sandor Toth. It calculates the spin wave spectrum of the antiferromagnetic
 # Heisenberg nearest-neighbor spin chain.
 
-# Load Sunny and the GLMakie plotting package
+# Load Sunny and the GLMakie plotting package.
 
 using Sunny, GLMakie
 
@@ -22,7 +22,7 @@ view_crystal(cryst; ndims=2, ghost_radius=8)
 
 sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(2, 1, 1))
 
-# Set a nearest neighbor interaction of ``J = +1`` meV along the chain, and find
+# Set a nearest neighbor interaction of ``J = +1`` meV along the chain and find
 # the energy-minimizing Néel order. As before, a global rotation in spin-space
 # is arbitrary.
 

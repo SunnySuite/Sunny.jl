@@ -95,7 +95,7 @@ plot_spins(sys; color=[S'*S0 for S in sys.dipoles])
 formfactors = [1 => FormFactor("Co2")]
 measure = ssf_perp(sys; formfactors)
 sc = SampledCorrelationsStatic(sys; measure)
-add_sample!(sc, sys)    # Accumulate the newly sampled structure factor into `sf`
+add_sample!(sc, sys)
 
 # Collect 20 additional samples. Perform 100 Langevin time-steps between
 # measurements to approximately decorrelate the sample in thermal equilibrium.
@@ -114,12 +114,12 @@ end
 grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 
 # Calculate and plot the instantaneous structure factor on the slice. Selecting
-# `saturation = 1.0` sets the color saturation point to the maximum intensity
-# value. This is reasonable because we are above the ordering temperature, and
+# `saturation=1.0` sets the color saturation point to the maximum intensity
+# value. This is reasonable because we are above the ordering temperature and
 # do not have sharp Bragg peaks.
 
 res = intensities_static(sc, grid)
-plot_intensities(res; saturation=1.0, title="Static Intensities at T = 16 K")
+plot_intensities(res; saturation=1.0, title="Static Intensities at T=16K")
 
 # ### Dynamical structure factor
 

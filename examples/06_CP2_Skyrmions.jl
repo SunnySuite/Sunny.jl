@@ -66,7 +66,7 @@ set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 # We will study a temperature quench process using a generalized
 # [`Langevin`](@ref) spin dynamics. In this SU(3) treatment of quantum spin-1,
 # the dynamics include coupled dipoles and quadrupoles. Select a relatively
-# small damping magnitude to overcome local minima, and disable thermal
+# small damping magnitude to overcome local minima and disable thermal
 # fluctuations.
 
 damping = 0.05
@@ -125,6 +125,6 @@ plot_triangular_plaquettes(sun_berry_curvature, frames; size=(600, 200),
 # The times are given in ``\hbar/|J_1|``. The white background corresponds to a
 # quantum paramagnetic state, where the local spin exhibits a strong quadrupole
 # moment and little or no dipole moment. At late times, there are well-formed
-# skyrmions of positive (red) and negative (blue) charge, and various metastable
+# skyrmions of positive (red) and negative (blue) charge, and other metastable
 # spin configurations. A full-sized version of this figure is available in
 # [Dahlbom et al.](https://doi.org/10.1103/PhysRevB.106.235154).

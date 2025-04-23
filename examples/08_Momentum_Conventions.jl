@@ -52,7 +52,7 @@ end
 
 # The Zeeman coupling polarizes the magnetic moments in the ``𝐁 ∝ ẑ``
 # direction. The spin dipoles, however, are anti-aligned with the magnetic
-# moments, and therefore point towards ``-ẑ``. This is shown below.
+# moments and therefore point towards ``-ẑ``. This is shown below.
 
 plot_spins(sys)
 

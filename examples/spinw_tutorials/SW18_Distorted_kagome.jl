@@ -3,7 +3,7 @@
 # This is a Sunny port of [SpinW Tutorial
 # 18](https://spinw.org/tutorials/18tutorial), originally authored by Goran
 # Nilsen and Sandor Toth. This tutorial illustrates spin wave calculations for
-# KCu₃As₂O₇(OD)₃. The Cu ions are arranged in a distorted kagome lattice, and
+# KCu₃As₂O₇(OD)₃. The Cu ions are arranged in a distorted kagome lattice and
 # exhibit an incommensurate helical magnetic order, as described in [G. J.
 # Nilsen, et al., Phys. Rev. B **89**, 140412
 # (2014)](https://doi.org/10.1103/PhysRevB.89.140412). The model follows [Toth
@@ -38,10 +38,10 @@ set_exchange!(sys, Jab, Bond(1, 2, [0, 0, 0]))
 set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 
 # Use [`minimize_spiral_energy!`](@ref) to optimize the generalized spiral
-# order. This determines the propagation wavevector `k`, and fits the spin
-# values within the unit cell. One must provide a fixed `axis` perpendicular to
-# the polarization plane. For this system, all interactions are rotationally
-# invariant, and the `axis` vector is arbitrary. In other cases, a good `axis`
+# order. This determines the propagation wavevector `k` and fits the spin values
+# within the unit cell. One must provide a fixed `axis` perpendicular to the
+# polarization plane. For this system, all interactions are rotationally
+# invariant and the `axis` vector is arbitrary. In other cases, a good `axis`
 # will frequently be determined from symmetry considerations.
 
 axis = [0, 0, 1]
@@ -64,7 +64,7 @@ k_ref_alt = [1, 0, 1] - k_ref
 
 suggest_magnetic_supercell([k_ref]; tol=1e-3)
 
-# Resize the system as suggested, and perform a real-space calculation. Working
+# Resize the system as suggested and perform a real-space calculation. Working
 # with a commensurate wavevector increases the energy slightly. The precise
 # value might vary from run-to-run due to trapping in a local energy minimum.
 
