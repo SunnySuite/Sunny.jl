@@ -42,6 +42,15 @@ struct PowderIntensities{T} <: AbstractIntensities
     data :: Array{T, 2} # (nω × nradii)
 end
 
+struct PowderStaticIntensities{T} <: AbstractIntensities
+    # Original chemical cell
+    crystal :: Crystal
+    # q magnitudes in inverse length
+    radii :: Vector{Float64}
+    # Intensity data averaged over shells
+    data :: Vector{T} # (nradii)
+end
+
 function Base.show(io::IO, res::AbstractIntensities)
     sz = string(size(res.data, 1)) * "×" * sizestr(res.qpts)
     print(io, string(typeof(res)) * " ($sz elements)")
@@ -52,7 +61,7 @@ function Base.show(io::IO, res::StaticIntensities)
     print(io, string(typeof(res)) * " ($sz elements)")
 end
 
-function Base.show(io::IO, res::PowderIntensities)
+function Base.show(io::IO, res::Union{PowderIntensities, PowderStaticIntensities})
     sz = join(size(res.data), "×")
     print(io, string(typeof(res)) * " ($sz elements)")
 end

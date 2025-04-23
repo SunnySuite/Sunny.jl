@@ -109,7 +109,7 @@ units of inverse length, define spherical shells in reciprocal space. The
 sphere, with quasi-uniformity. Sample points on different shells are
 decorrelated through random rotations. A consistent random number `seed` will
 yield reproducible results. The function `f` should accept a list of q-points
-and call [`intensities`](@ref).
+and call [`intensities`](@ref) or [`intensities_static`](@ref).
 
 # Example
 ```julia
@@ -121,18 +121,31 @@ plot_intensities(res)
 ```
 """
 function powder_average(f, cryst, radii, n::Int; seed=0)
-    (; energies) = f([Vec3(0,0,0)])
+    res = f([Vec3(0,0,0)]) # Dummy call to learn types
+    if res isa Intensities
+        data = zeros(length(energies), length(radii))
+        ret = PowderIntensities(cryst, collect(radii), energies, data)
+    elseif res isa StaticIntensities
+        data = zeros(length(radii))
+        ret = PowderStaticIntensities(cryst, collect(radii), data)
+    else
+        error("Provided function must call `intensities` or `intensities_static`.")
+    end
+
     rng = Random.Xoshiro(seed)
-    data = zeros(length(energies), length(radii))
     sphpts = sphere_points(n)
     to_rlu = inv(cryst.recipvecs)
     for (i, radius) in enumerate(radii)
         R = Mat3(random_orthogonal(rng, 3))
         res = f(Ref(to_rlu * R * radius) .* sphpts)
-        data[:, i] = Statistics.mean(res.data; dims=2)
+        if res isa Intensities
+            data[:, i] .= Statistics.mean(res.data; dims=2)
+        else
+            data[i] = Statistics.mean(res.data)
+        end
     end
 
-    return PowderIntensities(cryst, collect(radii), energies, data)
+    return ret
 end
 
 #

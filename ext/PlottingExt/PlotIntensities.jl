@@ -10,8 +10,10 @@ function get_unit_energy(units, into)
 end
 
 function colorrange_from_data(; data, saturation, sensitivity, allpositive)
-    cmax = Statistics.quantile(filter(!isnan, vec(maximum(data; dims=1))), saturation)
-    cmin = Statistics.quantile(filter(!isnan, vec(minimum(data; dims=1))), 1 - saturation)
+    max_data = ndims(data) == 1 ? data : vec(maximum(data; dims=1))
+    min_data = ndims(data) == 1 ? data : vec(minimum(data; dims=1))
+    cmax = Statistics.quantile(filter(!isnan, max_data), saturation)
+    cmin = Statistics.quantile(filter(!isnan, min_data), 1 - saturation)
 
     # The returned pair (lo, hi) should be strictly ordered, lo < hi, for use in
     # Makie.Colorbar
@@ -125,7 +127,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
     colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
     colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
     colorrange = @something colorrange colorrange_suggest
-    
+
     if qpts isa Sunny.QPath
         unit_energy, ylabel = get_unit_energy(units, into)
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
@@ -154,9 +156,9 @@ function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; c
     axisopts = (; title, axisopts...)
     (; crystal, qpts, data) = res
 
-    colorrange_suggest = colorrange_from_data(; data=reshape(data, 1, size(data)...), saturation, sensitivity=0, allpositive)
+    colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
     colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
-    colorrange = @something colorrange colorrange_suggest
+    colorrange = @something colorrange (colorrange_suggest .* 1.1)
 
     if qpts isa Sunny.QGrid{2}
         aspect = grid_aspect_ratio(crystal, qpts)
@@ -189,6 +191,20 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; c
     ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, axisopts...)
     hm = Makie.heatmap!(ax, res.radii, collect(res.energies/unit_energy), res.data'; colormap, colorrange)
     Makie.Colorbar(panel[1, 2], hm)
+    return ax
+end
+
+function Sunny.plot_intensities!(panel, res::Sunny.PowderStaticIntensities{Float64}; colorrange=nothing, saturation=1.0, allpositive=true, units=nothing, title="", axisopts=NamedTuple())
+    axisopts = (; title, axisopts...)
+    xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
+    ylabel = "Intensity"
+ 
+    colorrange_suggest = colorrange_from_data(; res.data, saturation, sensitivity=0, allpositive)
+    colorrange = @something colorrange (colorrange_suggest .* 1.1)
+
+    ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, axisopts...)
+    Makie.lines!(ax, res.radii, res.data)
+    Makie.ylims!(ax, colorrange)
     return ax
 end
 
@@ -256,7 +272,8 @@ end
                      saturation=0.9, units=nothing, into=nothing, title="")
     plot_intensities(res::PowderIntensities; colormap=nothing, colorrange=nothing, allpositive=true, 
                      saturation=0.9, units=nothing, into=nothing, title="")
-
+    plot_intensities(res::PowderStaticIntensities; colorrange=nothing, allpositive=true, 
+                     saturation=1.0, units=nothing, into=nothing, title="")
 Keyword arguments:
 
   * `colormap`: Color palette for plotting broadened intensities. See Makie docs
@@ -277,8 +294,8 @@ Keyword arguments:
   * `ylims`: Limits of the y-axis.
   * `units`: A [`Units`](@ref) instance for labeling axes and performing
     conversions.
-  * `into`: A symbol for conversion into a new base energy unit (e.g. `:meV`,
-    `:K`, etc.)
+  * `into`: A symbol for conversion into a new base energy unit (`:meV`, `:K`,
+    etc.)
   * `title`: An optional title for the plot.
 """
 function Sunny.plot_intensities(res::Sunny.AbstractIntensities; opts...)
