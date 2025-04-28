@@ -223,8 +223,8 @@ function unit_resolution_binning_parameters(sc::SampledCorrelations; negative_en
     params
 end
 
-function Sunny.unit_resolution_binning_parameters(isc::SampledCorrelationsStatic; kwargs...)
-    params = Sunny.unit_resolution_binning_parameters(isc.parent; kwargs...)
+function unit_resolution_binning_parameters(isc::SampledCorrelationsStatic; kwargs...)
+    params = unit_resolution_binning_parameters(isc.parent; kwargs...)
     # Integrate over all energies
     params.binstart[4] = -Inf
     params.binwidth[4] = Inf

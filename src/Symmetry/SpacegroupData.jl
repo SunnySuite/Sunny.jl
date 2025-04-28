@@ -135,7 +135,7 @@ end
 
 # Map a Hall number to the standard setting as a Hall number
 function standard_setting_for_hall_number(hall_number)
-    Sunny.standard_setting[Sunny.all_spacegroup_types[hall_number].number]
+    standard_setting[all_spacegroup_types[hall_number].number]
 end
 
 # For each Hall number 1..530, a string representation of the affine

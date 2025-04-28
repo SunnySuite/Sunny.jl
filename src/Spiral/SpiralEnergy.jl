@@ -67,7 +67,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
     Na = natoms(sys.crystal)
 
     x, y, z = normalize(axis)
-    K = Sunny.Mat3([0 -z y; z 0 -x; -y x 0])
+    K = Mat3([0 -z y; z 0 -x; -y x 0])
     K² = K*K
 
     for i in 1:Na
@@ -128,7 +128,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         A0 = sys.ewald.A
         A0 = reshape(A0, Na, Na)
 
-        Ak = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB²
+        Ak = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB²
         Ak = reshape(Ak, Na, Na)
 
         case = spiral_propagation_case(k)

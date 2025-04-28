@@ -338,7 +338,7 @@ function is_spacegroup_type_consistent(sgt, latvecs)
     cell = cell_type(latvecs)
     hall_cell = cell_type(Int(sgt.hall_number))
 
-    if hall_cell == Sunny.monoclinic
+    if hall_cell == monoclinic
         # Special handling of monoclinic space groups. There are three possible
         # conventions for the unit cell, depending on which of α, β, or γ is
         # special.

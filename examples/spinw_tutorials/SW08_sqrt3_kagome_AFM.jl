@@ -5,7 +5,7 @@
 # and Sandor Toth. It calculates the linear spin wave theory spectrum for the
 # ``\sqrt{3} \times \sqrt{3}`` order of a kagome antiferromagnet.
 
-# Load Sunny and the GLMakie plotting package
+# Load Sunny and the GLMakie plotting package.
 
 using Sunny, GLMakie
 

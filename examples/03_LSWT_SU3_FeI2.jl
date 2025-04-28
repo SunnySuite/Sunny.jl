@@ -240,7 +240,7 @@ plot_intensities(res; units, colormap=:viridis, title="Domain Averaged Intensiti
 # wave vectors.)
 # 
 # To get this agreement, the theory of SU(3) coherent states is essential. The
-# lower band has large quadrupolar character, and arises from the strong
+# lower band has large quadrupolar character and arises from the strong
 # easy-axis anisotropy of FeI₂.
 #
 # An interesting exercise is to repeat the same study, but using `:dipole` mode

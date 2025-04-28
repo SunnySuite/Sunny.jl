@@ -178,7 +178,7 @@ function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, sys, contracted
     op .+= Si' * J * Sj
 
     # Add biquadratic part
-    K = biquad isa Float64 ? diagm(biquad * Sunny.scalar_biquad_metric) : biquad
+    K = biquad isa Float64 ? diagm(biquad * scalar_biquad_metric) : biquad
     Oi = [local_op_to_product_space(Oa, i_unit, Ns_unit) for Oa in stevens_matrices_of_dim(2; N=Ni)]
     Oj = [local_op_to_product_space(Ob, j_unit, Ns_unit) for Ob in stevens_matrices_of_dim(2; N=Nj)]
     op .+= Oi' * K * Oj
@@ -218,7 +218,7 @@ function pair_coupling_into_bond_operator_between_units(pc, sys, contraction_inf
     bond_operator += Si' * J * Sj
 
     # Add biquadratic part
-    K = biquad isa Float64 ? diagm(biquad * Sunny.scalar_biquad_metric) : biquad
+    K = biquad isa Float64 ? diagm(biquad * scalar_biquad_metric) : biquad
     Oi = [kron(local_op_to_product_space(Oa, unitsub1, Ns1), I(Ns_contracted[unit1])) for Oa in stevens_matrices_of_dim(2; N=N1)]
     Oj = [kron(I(Ns_contracted[unit2]), local_op_to_product_space(Ob, unitsub2, Ns2)) for Ob in stevens_matrices_of_dim(2; N=N2)]
     bond_operator += Oi' * K * Oj

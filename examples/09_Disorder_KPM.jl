@@ -43,7 +43,7 @@ plot_intensities(res)
 
 # Use [`repeat_periodically`](@ref) to enlarge the system by a factor of 10 in
 # each dimension. Use [`to_inhomogeneous`](@ref) to disable symmetry
-# constraints, and allow for the addition of disordered interactions.
+# constraints and allow for the addition of disordered interactions.
 
 sys_inhom = to_inhomogeneous(repeat_periodically(sys, (10, 10, 1)))
 
@@ -92,8 +92,8 @@ plot_intensities(res)
 # Add disorder to the ``z``-component of each magnetic moment ``g``-tensor. This
 # further broadens intensities, now across the entire path. Some intensity
 # modulation within the continuum is also apparent. This modulation is a
-# finite-size effect, and would be mitigated by enlarging the system beyond
-# 30×30 chemical cells.
+# finite-size effect and would be mitigated by enlarging the system beyond 30×30
+# chemical cells.
 
 for site in eachsite(sys_inhom)
     noise = randn()/6

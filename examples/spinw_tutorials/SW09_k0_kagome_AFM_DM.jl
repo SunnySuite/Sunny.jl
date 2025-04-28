@@ -4,9 +4,9 @@
 # 9](https://spinw.org/tutorials/09tutorial), originally authored by Bjorn Fak
 # and Sandor Toth. It calculates the spin wave spectrum of the kagome lattice
 # with antiferromagnetic and DM interactions, with ordering wavevector of ``𝐤 =
-# 0``, and relative rotation 120° between sublattices
+# 0`` and relative rotation of 120° between sublattices.
 
-# Load Sunny and the GLMakie plotting package
+# Load Sunny and the GLMakie plotting package.
 
 using Sunny, GLMakie, LinearAlgebra
 
@@ -19,11 +19,11 @@ view_crystal(cryst; ndims=2)
 
 # Construct a spin system with antiferromagnetic exchange and a
 # Dzyaloshinskii-Moriya interaction along the first neighbor bond. The symbol
-# `I` comes from Julia's LinearAlgebra package, and is used to promote the
-# scalar exchange strength 1 meV to a 3×3 exchange matrix. The function
-# [`dmvec`](@ref) promotes the DM interaction vector ``[0, 0, -0.08]`` meV to a
-# 3×3 antisymmetric matrix with nonzero ``(x,y)`` components, defined with
-# respect to the global Cartesian coordinate system.
+# `I` comes from Julia's LinearAlgebra package and is used to promote the scalar
+# exchange strength 1 meV to a 3×3 exchange matrix. The function [`dmvec`](@ref)
+# promotes the DM interaction vector ``[0, 0, -0.08]`` meV to a 3×3
+# antisymmetric matrix with nonzero ``(x,y)`` components, defined with respect
+# to the global Cartesian coordinate system.
 
 sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
 J = 1.0*I + dmvec([0, 0, -0.08])

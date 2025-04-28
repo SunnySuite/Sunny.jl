@@ -6,7 +6,7 @@
 # with antiferromagnetic interactions, with ordering wavevector of ``𝐤 = 0``,
 # and relative rotation 120° between sublattices
 
-# Load Sunny and the GLMakie plotting package
+# Load Sunny and the GLMakie plotting package.
 
 using Sunny, GLMakie
 

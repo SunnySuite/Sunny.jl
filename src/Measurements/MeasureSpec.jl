@@ -122,7 +122,7 @@ With specific choices of `f`, one can obtain measurements such as defined in
 
 By default, the g-factor or tensor is applied at each site, such that the
 structure factor components are correlations between the magnetic moment
-operators. Set `apply_g = false` to measure correlations between the bare spin
+operators. Set `apply_g=false` to measure correlations between the bare spin
 operators.
 
 The optional `formfactors` comprise a list of pairs `[i1 => FormFactor(...), i2
@@ -136,11 +136,11 @@ Intended for use with [`SpinWaveTheory`](@ref) and instances of
 # Examples
 
 ```julia
-# Measure all 3×3 structure factor components Sᵅᵝ
+# Measure all structure factor components Sᵅᵝ as a 3×3 matrix
 measure = ssf_custom((q, ssf) -> ssf, sys)
 
 # Measure the structure factor trace Sᵅᵅ
-measure = ssf_custom((q, ssf) -> real(sum(ssf)), sys)
+measure = ssf_custom((q, ssf) -> real(ssf[1, 1] + ssf[2, 2] + ssf[3, 3]), sys)
 ```
 
 See also the Sunny documentation on [Structure Factor Conventions](@ref).

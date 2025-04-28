@@ -260,7 +260,7 @@ function excitations(swt::EntangledSpinWaveTheory, q)
     L = nbands(swt)
     T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
-    energies = excitations!(T, copy(H), swt, q)
+    energies = excitations!(T, H, swt, q)
     return (energies, T)
 end
 
