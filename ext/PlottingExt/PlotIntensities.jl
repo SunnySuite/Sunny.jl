@@ -69,10 +69,11 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
 
         colorrange_suggest = colorrange_from_data(; broadened.data, saturation, sensitivity, allpositive)
         colormap = @something colormap (allpositive ? Makie.Reverse(:thermal) : :bwr)
-        colorrange = @something colorrange (colorrange_suggest .* 1.1)
+        colorrange = @something colorrange colorrange_suggest
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), res.qpts.xticks, xticklabelrotation, axisopts...)
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, axisopts...)
+        Makie.ylims!(ax, ylims ./ unit_energy)
         Makie.heatmap!(ax, axes(res.data, 2), collect(energies / unit_energy), broadened.data'; colorrange, colormap, lowclip=:white)
         for i in axes(res.disp, 1)
             Makie.lines!(ax, res.disp[i,:] / unit_energy; color=:lightskyblue3)
@@ -169,11 +170,11 @@ function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; c
         Makie.Colorbar(panel[1, 2], hm)
         return ax
     elseif qpts isa Sunny.QPath
-        colorrange = @something colorrange (colorrange_suggest .* 1.1)
+        ylims = @something colorrange (colorrange_suggest .* 1.1)
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel="Intensity", qpts.xticks, xticklabelrotation, axisopts...)
+        Makie.ylims!(ax, ylims)
         Makie.lines!(ax, data)
-        Makie.ylims!(ax, colorrange)
         return ax
     else
         error("Cannot yet plot $(typeof(res))")
@@ -201,11 +202,11 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderStaticIntensities{Float
     ylabel = "Intensity"
  
     colorrange_suggest = colorrange_from_data(; res.data, saturation, sensitivity=0, allpositive)
-    colorrange = @something colorrange (colorrange_suggest .* 1.1)
+    ylims = @something colorrange (colorrange_suggest .* 1.1)
 
     ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, axisopts...)
+    Makie.ylims!(ax, ylims)
     Makie.lines!(ax, res.radii, res.data)
-    Makie.ylims!(ax, colorrange)
     return ax
 end
 
