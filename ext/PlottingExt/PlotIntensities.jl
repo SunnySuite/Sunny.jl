@@ -69,7 +69,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
 
         colorrange_suggest = colorrange_from_data(; broadened.data, saturation, sensitivity, allpositive)
         colormap = @something colormap (allpositive ? Makie.Reverse(:thermal) : :bwr)
-        colorrange = @something colorrange colorrange_suggest
+        colorrange = @something colorrange (colorrange_suggest .* 1.1)
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), res.qpts.xticks, xticklabelrotation, axisopts...)
@@ -158,9 +158,9 @@ function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; c
 
     colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
     colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
-    colorrange = @something colorrange (colorrange_suggest .* 1.1)
 
     if qpts isa Sunny.QGrid{2}
+        colorrange = @something colorrange colorrange_suggest
         aspect = grid_aspect_ratio(crystal, qpts)
         xlabel, ylabel = suggest_labels_for_grid(qpts)
         (xs, ys) = map(range, qpts.coefs_lo, qpts.coefs_hi, size(qpts.qs))
@@ -169,6 +169,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; c
         Makie.Colorbar(panel[1, 2], hm)
         return ax
     elseif qpts isa Sunny.QPath
+        colorrange = @something colorrange (colorrange_suggest .* 1.1)
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel="Intensity", qpts.xticks, xticklabelrotation, axisopts...)
         Makie.lines!(ax, data)
