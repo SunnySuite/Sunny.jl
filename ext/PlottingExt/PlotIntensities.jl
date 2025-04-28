@@ -60,7 +60,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
  
     if res.qpts isa Sunny.QPath 
         mindisp, maxdisp = extrema(res.disp)
-        ylims = @something ylims (min(0, mindisp), 1.2*maxdisp)
+        ylims = @something ylims (min(0, mindisp), 1.1*maxdisp)
         energies = range(ylims[1], ylims[2], 512)
         fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
         σ = fwhm/2√(2log(2))
