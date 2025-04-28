@@ -301,7 +301,9 @@ function allowed_anisotropy_string(cryst::Crystal, i_ref::Int; R_global::Mat3, R
                 push!(terms, "c" * int_to_underscore_string(cnt) * "*" * ops)
                 cnt += 1
             end
-            push!(lines, prefix * join(terms, " + "))
+            if !isempty(terms)
+                push!(lines, prefix * join(terms, " + "))
+            end
         end
     end
 
