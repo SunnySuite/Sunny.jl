@@ -5,7 +5,7 @@
 # and Sandor Toth. It calculates the spin wave spectrum of the kagome lattice
 # with a nearest-neighbor ferromagnetic coupling.
 
-# Load Sunny and the GLMakie plotting package
+# Load Sunny and the GLMakie plotting package.
 
 using Sunny, GLMakie
 
@@ -19,7 +19,7 @@ positions = [[1/2, 0, 0]]
 cryst = Crystal(latvecs, positions, 147)
 
 # Another way to construct the kagome lattice is to provide all three site
-# positions of the chemical cell, and allow Sunny to infer the largest possible
+# positions of the chemical cell and allow Sunny to infer the largest possible
 # group of symmetry operations. In this case, Sunny infers spacegroup 191
 # (P6/mmm). Because 191 has more symmetry operations than 147, it will impose
 # more constraints on the allowed 3×3 exchange matrices. Isotropic Heisenberg

@@ -5,7 +5,7 @@
 # and Sandor Toth. It calculates the spin wave spectrum of the frustrated J1-J2
 # chain.
 
-# Load Sunny and the GLMakie plotting package
+# Load Sunny and the GLMakie plotting package.
 
 using Sunny, GLMakie
 

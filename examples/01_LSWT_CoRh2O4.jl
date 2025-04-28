@@ -37,7 +37,7 @@ units = Units(:meV, :angstrom);
 # atom positions and types.
 #
 # Start by defining the shape of the conventional chemical cell. CoRh₂O₄ has
-# cubic spacegroup 227 (Fd-3m). Its lattice constants are 8.5 Å, and the cell
+# cubic spacegroup 227 (Fd-3m). Its lattice constants are 8.5 Å and the cell
 # angles are 90°. With this information, [`lattice_vectors`](@ref) constructs a
 # 3×3 matrix `latvecs`. Columns of `latvecs` define the lattice vectors ``(𝐚_1,
 # 𝐚_2, 𝐚_3)`` in the global Cartesian coordinate system. Conversely, columns
@@ -158,7 +158,7 @@ plot_intensities(res; units, title="CoRh₂O₄ LSWT")
 # Sometimes experimental data is only available as a powder average, i.e., as an
 # average over all possible crystal orientations. Use [`powder_average`](@ref)
 # to simulate these intensities. Each ``𝐪``-magnitude defines a spherical shell
-# in reciprocal space. Consider 200 radii from 0 to 3 inverse angstroms, and
+# in reciprocal space. Consider 200 radii from 0 to 3 inverse angstroms and
 # collect 2000 random samples per spherical shell. As configured, this
 # calculation completes in about two seconds. Had we used the conventional cubic
 # cell, the calculation would be an order of magnitude slower.
@@ -182,8 +182,8 @@ plot_intensities(res; units, saturation=1.0, title="CoRh₂O₄ Powder Average")
 #   ported to Sunny](@ref "SW01 - FM Heisenberg chain").
 # * Spin wave theory neglects thermal fluctuations of the magnetic order. The
 #   [next CoRh₂O₄ tutorial](@ref "2. Landau-Lifshitz dynamics of CoRh₂O₄ at
-#   finite *T*") demonstrates how to sample spins in thermal equilibrium, and
-#   measure dynamical correlations from the classical spin dynamics.
+#   finite *T*") demonstrates how to sample spins in thermal equilibrium and
+#   measure correlations from the classical spin dynamics.
 # * Sunny also offers features that go beyond the dipole approximation of a
 #   quantum spin via the theory of SU(_N_) coherent states. This can be
 #   especially useful for systems with strong single-ion anisotropy, as
