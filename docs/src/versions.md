@@ -14,6 +14,10 @@
 * Normalize `axis` argument to `SpinWaveTheorySpiral` for correctness.
 * Fix thermal prefactor `kT` in spin wave theory ([Issue
   370](https://github.com/SunnySuite/Sunny.jl/issues/370)).
+* In `:dipole` or `:SUN` mode, functions `set_onsite_coupling!` and
+  `set_pair_coupling!` throw an error when used with quantum spin 1/2. Prefer
+  `:dipole_uncorrected` mode for such models ([Issue
+  376](https://github.com/SunnySuite/Sunny.jl/issues/376)).
 
 ## v0.7.5
 (Jan 20, 2025)

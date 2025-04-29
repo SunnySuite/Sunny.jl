@@ -3,9 +3,12 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
     size(matrep) == (N, N) || error("Invalid matrix size.")
     matrep ≈ matrep' || error("Operator is not Hermitian")
 
-    if N == 2 && isapprox(matrep, matrep[1, 1] * I; atol=1e-8)
-        suggest = sys.mode == :dipole ? " (use :dipole_uncorrected for legacy calculations)" : ""
-        @warn "Onsite coupling is always trivial for quantum spin s=1/2" * suggest
+    if N == 2
+        if sys.mode == :dipole
+            error("Consider mode :dipole_uncorrected. Onsite coupling is trivial for quantum spin 1/2.")
+        elseif sys.mode == :SUN
+            error("Onsite coupling is trivial for quantum spin 1/2.")
+        end
     end
 
     if sys.mode == :SUN
@@ -15,13 +18,13 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
         return StevensExpansion(rcs_factors(s) .* c)
     elseif sys.mode == :dipole_uncorrected
-        error("System with mode `:dipole_uncorrected` requires a symbolic operator.")
+        error("System with mode :dipole_uncorrected requires a symbolic operator.")
     end
 end
 
 function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
     if sys.mode != :dipole_uncorrected
-        error("Symbolic operator only valid for system with mode `:dipole_uncorrected`.")
+        error("Symbolic operator only valid for system with mode :dipole_uncorrected.")
     end
 
     S² = sys.κs[site]^2
