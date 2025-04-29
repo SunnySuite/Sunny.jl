@@ -155,7 +155,7 @@ end
 # statistical noise could be reduced by averaging over more thermal samples.
 
 res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, langevin.kT)
-fig = lines(res.energies, res.data[:, 1]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
+fig = lines(res.energies, res.data[:, 1]; axis=(xlabel="Energy (meV)", ylabel="Intensity"), label="(0,0,0)")
 lines!(res.energies, res.data[:, 2]; label="(π,π,π)")
 axislegend()
 fig
@@ -174,7 +174,7 @@ qs = [[0,   0, 0],  # List of wave vectors that define a path
       [0,   0, 0]] 
 qpath = q_space_path(cryst, qs, 500)
 res = intensities(sc, qpath; energies, langevin.kT)
-plot_intensities(res; colorrange=(0.0, 1.0), title="Intensities at T = 2.3 K")
+plot_intensities(res; units, colorrange=(0.0, 1.0), title="Intensities at T = 2.3 K")
 
 # One can also view the intensity along a [`q_space_grid`](@ref) for a fixed
 # energy value. Alternatively, use [`intensities_static`](@ref) to integrate
