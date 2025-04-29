@@ -1,7 +1,7 @@
 # Version History
 
 ## v0.7.6
-(In development)
+(May 1, 2025)
 
 * Extend [`powder_average`](@ref) to support static intensities.
 * Vacancies defined by [`set_vacancy_at!`](@ref) are supported in linear spin
@@ -12,13 +12,13 @@
   wavevectors are provided.
 * Fix atom indexing when setting interactions for a reshaped system ([PR
   #359](https://github.com/SunnySuite/Sunny.jl/pull/359)).
-* Normalize `axis` argument to `SpinWaveTheorySpiral` for correctness.
+* Normalize `axis` argument to [`SpinWaveTheorySpiral`](@ref) for correctness.
 * Fix thermal prefactor `kT` in spin wave theory ([Issue
   370](https://github.com/SunnySuite/Sunny.jl/issues/370)).
-* In `:dipole` or `:SUN` mode, functions `set_onsite_coupling!` and
-  `set_pair_coupling!` throw an error when used with quantum spin 1/2. Prefer
-  `:dipole_uncorrected` mode for such models ([Issue
-  376](https://github.com/SunnySuite/Sunny.jl/issues/376)).
+* In `:dipole` or `:SUN` mode, functions [`set_onsite_coupling!`](@ref) and
+  [`set_pair_coupling!`](@ref) throw an error when used with quantum spin 1/2.
+  Construct [`System`](@ref) using mode `:dipole_uncorrected` for such models
+  ([Issue 376](https://github.com/SunnySuite/Sunny.jl/issues/376)).
 
 ## v0.7.5
 (Jan 20, 2025)
