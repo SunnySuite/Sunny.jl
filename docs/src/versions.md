@@ -3,12 +3,13 @@
 ## v0.7.6
 (In development)
 
+* Extend [`powder_average`](@ref) to support static intensities.
 * Vacancies defined by [`set_vacancy_at!`](@ref) are supported in linear spin
   wave theory. Empty sites are modeled using bosons that do not excite.
-* Fix correctness of [`suggest_magnetic_supercell`](@ref) when multiple
-  wavevectors are provided.
 * The default implementation of [`SpinWaveTheoryKPM`](@ref) now uses Lanczos for
   higher accuracy.
+* Fix correctness of [`suggest_magnetic_supercell`](@ref) when multiple
+  wavevectors are provided.
 * Fix atom indexing when setting interactions for a reshaped system ([PR
   #359](https://github.com/SunnySuite/Sunny.jl/pull/359)).
 * Normalize `axis` argument to `SpinWaveTheorySpiral` for correctness.

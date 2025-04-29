@@ -49,5 +49,5 @@ isapprox(res.disp[1, :], res.disp[2, :])
 # `lines` function](https://docs.makie.org/stable/reference/plots/lines).
 
 xs = [q[1] for q in path.qs]
-ys = log10.(res.data[1, :] + res.data[2, :])
-lines(xs, ys; axis=(; xlabel="[H, 0, 0]", ylabel="Log intensity (dimensionless)"))
+ys = res.data[1, :] + res.data[2, :]
+lines(xs, ys; axis=(; xlabel="[H, 0, 0]", ylabel="Intensity", yscale=log10))

@@ -91,7 +91,7 @@ plot_intensities(res; units)
 # Plot the powder-averaged intensities
 
 radii = range(0, 2, 100) # (1/Å)
-energies = range(0, 6, 200)
+energies = range(0, 5, 200)
 kernel = gaussian(fwhm=0.05)
 res = powder_average(cryst, radii, 400) do qs
     intensities(swt, qs; energies, kernel)

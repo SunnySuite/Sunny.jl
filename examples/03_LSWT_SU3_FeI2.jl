@@ -209,7 +209,7 @@ swt = SpinWaveTheory(sys_min; measure=ssf_perp(sys_min))
 qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
 path = q_space_path(cryst, qs, 500)
 res = intensities_bands(swt, path)
-plot_intensities(res; units, title="Single Crystal Bands")
+plot_intensities(res; units, ylims=(0, 10), title="Single Crystal Bands")
 
 # To make direct comparison with inelastic neutron scattering (INS) data, we
 # must account for empirical broadening of the data. Model this using a
