@@ -10,15 +10,15 @@ struct QPath <: AbstractQPoints
     xticks :: Tuple{Vector{Int64}, Vector{String}}
 end
 
-struct QGrid{N} <: AbstractQPoints
-    qs :: Array{Vec3, N}
+struct QGrid{D} <: AbstractQPoints
+    qs :: Array{Vec3, D}
 
     ### Next three fields contain equivalent information:
     # Directions in RLU aligned with parallelpiped
-    axes :: NTuple{N, Vec3}
+    axes :: NTuple{D, Vec3}
     # Low and high coefficient values that scale axes
-    coefs_lo :: Vector{Float64}
-    coefs_hi :: Vector{Float64}
+    coefs_lo :: NTuple{D, Float64}
+    coefs_hi :: NTuple{D, Float64}
     # Overall parallelpiped offset in RLU
     offset :: Vec3
 end
@@ -155,8 +155,8 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(
     end
 
     axes = hcat(axis1, axis2)
-    coefs_lo = axes \ (q_lo - offset)
-    coefs_hi = axes \ (q_hi - offset)
+    coefs_lo = NTuple{2}(axes \ (q_lo - offset))
+    coefs_hi = NTuple{2}(axes \ (q_hi - offset))
     coefs_sz = (length1, length2)
     range1, range2 = map(range, coefs_lo, coefs_hi, coefs_sz)
     qs = [axes * [c1, c2] + offset for c1 in range1, c2 in range2]

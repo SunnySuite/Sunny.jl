@@ -86,6 +86,6 @@ res2 = intensities_bands(swt, path)
 # elastic peak at ``𝐪 = [0,0,0]``, reflecting the ferromagnetic ground state.
 
 fig = Figure(size=(768, 300))
-plot_intensities!(fig[1, 1], res1; title="Classical dynamics")
-plot_intensities!(fig[1, 2], res2; title="Spin wave theory")
+plot_intensities!(fig[1, 1], res1; ylims=(0, 15D), title="Classical dynamics")
+plot_intensities!(fig[1, 2], res2; ylims=(0, 15D), title="Spin wave theory")
 fig
