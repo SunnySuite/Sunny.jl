@@ -296,6 +296,16 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_pa
 
     Ni = Int(2spin_label(sys, bond.i)+1)
     Nj = Int(2spin_label(sys, bond.j)+1)
+
+    if Ni == Nj == 2
+        if sys.mode == :dipole
+            error("Use set_exchange! instead. Quantum spin 1/2 allows only bilinear coupling. \
+                   Switch to mode :dipole_uncorrected for effective scalar biquadratic.")
+        elseif sys.mode == :SUN
+            error("Use set_exchange! instead. Quantum spin 1/2 allows only bilinear coupling.")
+        end
+    end
+
     scalar, bilin, biquad, tensordec = decompose_general_coupling(op, Ni, Nj; extract_parts)
 
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond)
@@ -304,7 +314,8 @@ end
 
 function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=true) where N
     if sys.mode == :dipole_uncorrected
-        error("General couplings not supported for mode `:dipole_uncorrected`.")
+        error("General coupling not currently supported for mode :dipole_uncorrected. \
+               Use set_exchange! with option `biquad` for scalar biquadratic.")
     end
 
     si = spin_label(sys, bond.i)
@@ -499,6 +510,16 @@ function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, 
 
     N1 = Int(2spin_label_sublattice(sys, to_atom(site1))+1)
     N2 = Int(2spin_label_sublattice(sys, to_atom(site2))+1)
+
+    if N1 == N2 == 2
+        if sys.mode == :dipole
+            error("Use set_exchange_at! instead. Quantum spin 1/2 allows only bilinear coupling. \
+                   Consider mode :dipole_uncorrected for effective scalar biquadratic.")
+        elseif sys.mode == :SUN
+            error("Use set_exchange_at! instead. Quantum spin 1/2 allows only bilinear coupling.")
+        end
+    end
+
     scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts=true)
 
     set_pair_coupling_at_aux!(sys, scalar, bilin, biquad, tensordec, site1, site2, offset)
@@ -507,7 +528,8 @@ end
 
 function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2::Site; offset=nothing) where N
     if sys.mode == :dipole_uncorrected
-        error("General couplings not yet supported for mode `:dipole_uncorrected`.")
+        error("General coupling not currently supported for mode :dipole_uncorrected. \
+               Use set_exchange_at! with option `biquad` for scalar biquadratic.")
     end
 
     s1 = spin_label_sublattice(sys, to_atom(site1))
