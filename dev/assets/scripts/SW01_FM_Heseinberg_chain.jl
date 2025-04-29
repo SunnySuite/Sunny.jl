@@ -33,7 +33,7 @@ res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
 radii = range(0, 2.5, 200) # 1/Å
-energies = range(0, 5, 200) # meV
+energies = range(0, 4.5, 200) # meV
 kernel = gaussian(fwhm=0.1)
 res = powder_average(cryst, radii, 1000) do qs
     intensities(swt, qs; energies, kernel)

@@ -78,7 +78,7 @@ swt = SpinWaveTheory(sys_min; measure=ssf_perp(sys_min))
 qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
 path = q_space_path(cryst, qs, 500)
 res = intensities_bands(swt, path)
-plot_intensities(res; units, title="Single Crystal Bands")
+plot_intensities(res; units, ylims=(0, 10), title="Single Crystal Bands")
 
 kernel = lorentzian(fwhm=0.3)
 energies = range(0, 10, 300);  # 0 < ω < 10 (meV)

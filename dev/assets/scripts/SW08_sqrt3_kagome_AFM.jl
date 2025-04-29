@@ -34,7 +34,7 @@ plot_intensities!(fig[1, 2], res; units, saturation=0.5, title="Spiral method")
 fig
 
 radii = range(0, 2.5, 200)
-energies = range(0, 3, 200)
+energies = range(0, 2.5, 200)
 kernel = gaussian(fwhm=0.05)
 res = powder_average(cryst, radii, 200) do qs
     intensities(swt, qs; energies, kernel)

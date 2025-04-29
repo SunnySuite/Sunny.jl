@@ -43,6 +43,6 @@ swt = SpinWaveTheory(sys_small; measure=ssf_trace(sys_small))
 res2 = intensities_bands(swt, path)
 
 fig = Figure(size=(768, 300))
-plot_intensities!(fig[1, 1], res1; title="Classical dynamics")
-plot_intensities!(fig[1, 2], res2; title="Spin wave theory")
+plot_intensities!(fig[1, 1], res1; ylims=(0, 15D), title="Classical dynamics")
+plot_intensities!(fig[1, 2], res2; ylims=(0, 15D), title="Spin wave theory")
 fig
