@@ -38,7 +38,7 @@ plot_spins(sys; color=[S'*S0 for S in sys.dipoles])
 formfactors = [1 => FormFactor("Co2")]
 measure = ssf_perp(sys; formfactors)
 sc = SampledCorrelationsStatic(sys; measure)
-add_sample!(sc, sys)    # Accumulate the newly sampled structure factor into `sf`
+add_sample!(sc, sys)
 
 for _ in 1:20
     for _ in 1:100
@@ -50,7 +50,7 @@ end
 grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 
 res = intensities_static(sc, grid)
-plot_intensities(res; saturation=1.0, title="Static Intensities at T = 16 K")
+plot_intensities(res; saturation=1.0, title="Static Intensities at T=16K")
 
 dt = 2*langevin.dt
 energies = range(0, 6, 50)

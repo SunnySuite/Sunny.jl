@@ -2,11 +2,11 @@ using Sunny, GLMakie
 @assert pkgversion(Sunny) >= v"0.7.6"
 
 units = Units(:meV, :angstrom)
-latvecs = lattice_vectors(1, 1, 10, 90, 90, 90)
+latvecs = lattice_vectors(3.85, 3.85, 12.25, 90, 90, 90)
 positions = [[0, 0, 0]]
 types = ["Cu"]
 cryst = Crystal(latvecs, positions, 139; types)
-view_crystal(cryst; ndims=2)
+view_crystal(cryst)
 
 sys = System(cryst, [1 => Moment(s=1/2, g=2)], :dipole; dims=(2, 2, 1))
 J   = 138.3
@@ -19,7 +19,7 @@ set_exchange!(sys, Jpp, Bond(1, 1, [2, 0, 0]))
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; ndims=2)
+plot_spins(sys)
 
 qs = [[3/4,1/4,0], [1/2, 1/2, 0], [1/2, 0, 0], [3/4, 1/4, 0], [1,0,0], [1/2 0 0]]
 labels = ["P", "M", "X", "P", "Γ", "X"]
@@ -31,4 +31,4 @@ res.energies .*= 1.18
 plot_intensities(res; units)
 
 res = intensities_static(swt, path)
-plot_intensities(res; colorrange=(0,20), units)
+plot_intensities(res; ylims=(0, 20), units)
