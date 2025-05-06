@@ -1,4 +1,4 @@
-function newton_with_backtracking(fgh!, x0; f_reltol=NaN, x_reltol=NaN, g_abstol=NaN, maxiters=20, armijo_c=1e-2, armijo_backoff=0.1, armijo_α_min=1e-4, show_trace=false)
+function newton_with_backtracking(fgh!, x0; f_reltol=NaN, x_reltol=NaN, g_abstol=NaN, maxiters=20, armijo_c=1e-4, armijo_backoff=0.5, armijo_α_min=1e-4, show_trace=false)
     # Make a copy of the initial guess.
     x = copy(x0)
 
@@ -45,7 +45,7 @@ function newton_with_backtracking(fgh!, x0; f_reltol=NaN, x_reltol=NaN, g_abstol
         end
 
         if show_trace
-            println("Iter $k: f(x)=$candidate_f, x=$candidate_x, α=$α, |g|=$(norm(g))")
+            println("Iter $k: α=$α, |g|=$(norm(g)), f(x)=$candidate_f, x=$candidate_x")
         end
         has_converged(x, candidate_x, f, candidate_f, g) && return candidate_x
 
