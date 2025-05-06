@@ -25,7 +25,7 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
 
     function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
         if !(sys.mode in (:dipole, :dipole_uncorrected))
-            error("SCGA requires :dipole or :dipole_uncorrected mode.")
+            error("SpinWaveTheorySpiral requires :dipole or :dipole_uncorrected mode.")
         end
 
         L = length(eachsite(sys))

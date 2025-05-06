@@ -53,8 +53,8 @@ end
 # propagation wavevector k between chemical cells. The LT analysis minimizes
 # energy E = (1/2) Sₖ† Jₖ Sₖ, where Sₖ is some length-3Nₐ vector and Jₖ is the
 # 3Nₐ×3Nₐ exchange matrix. Given a minimum energy eigenpair (λₖ, Sₖ) the
-# LT-predicted energy is |Sₖ|^2 λₖ/2 with normalization |Sₖ|^2 = ∑ᵢ|Sᵢ|^2, where
-# i denotes spin sublattice of the chemical cell. If the components of Sₖ
+# LT-predicted energy is |Sₖ|^2 λₖ/2 with normalization |Sₖ|² = ∑ᵢ|Sᵢ|², where
+# index i denotes spin sublattice of the chemical cell. If the components of Sₖ
 # satisfy local spin normalization constraints, then the LT energy minimized
 # over k is physically correct for the spiral ground state. In practice, the
 # eigenvector Sₖ may violate local spin normalization and the LT-predicted

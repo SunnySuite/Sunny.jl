@@ -1,9 +1,9 @@
 """
     SCGA(sys::System; measure, kT, dq)
 
-Constructs an object to calculate [`intensities_static`](@ref) within the self
-consistent gaussian approximation (SCGA). This theory assumes a classical
-Boltzmann distribution with temperature `kT`. It is expected to be meangingful
+Constructs an object to calculate [`intensities_static`](@ref) within the
+self-consistent Gaussian approximation (SCGA). This theory assumes a classical
+Boltzmann distribution with temperature `kT`. It is expected to be meaningful
 above the ordering temperature, where fluctuations are approximately Gaussian.
 
 Only `:dipole` and `:dipole_uncorrected` system modes are supported.
