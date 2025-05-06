@@ -128,7 +128,7 @@ end
     qs = q_space_path(cryst, [[0, 0, 0], [2, 0, 0]], 5)
     res = Sunny.intensities_static(scga, qs)
     # println(round.(res.data; digits=12))
-    golden_data = [5.279822408597, 4.864293310586, 16.331744429121, 4.864293310586, 5.279822408597]
+    golden_data = [5.279823931604, 4.864293896132, 16.331751863295, 4.864293896132, 5.279823931604]
     @test isapprox(golden_data, res.data; atol=1e-9)
 end
 
@@ -168,6 +168,7 @@ end
     scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/4)
     qs = [[0, 0, 0], [0, 1/2, 1/2], [0.06, 0.49, 0.59]]
     res = Sunny.intensities_static(scga, qs)
-    golden_data = [31.01225057947166, 21.57163073261797, 21.573267694880727]
-    @test isapprox(res.data, golden_data; rtol=1e-3)
+    # println(round.(res.data; digits=12))
+    golden_data = [30.9994728142, 21.567001306416, 21.568681851738]
+    @test isapprox(res.data, golden_data; rtol=1e-9)
 end

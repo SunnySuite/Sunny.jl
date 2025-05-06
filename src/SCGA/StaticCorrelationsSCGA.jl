@@ -97,15 +97,8 @@ function find_lagrange_multiplier(sys, Js, β)
 end
 
 
-function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
-    g_tol = 1e-12
-    maxiters = 500
-
+function find_lagrange_multiplier_opt_sublattice(sys, Js, β; rtol=1e-10)
     Na = natoms(sys.crystal)
-    evals = Iterators.flatten(eigvals(J) for J in Js)
-    λ_min, λ_max = extrema(evals)
-    λ_init = -λ_min + (λ_max - λ_min) / 2
-    λs = λ_init*ones(Float64, Na)
     s² = vec(sys.κs .^ 2)
 
     function fgh!(_, gbuffer, hbuffer, λs)
@@ -156,9 +149,20 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
         return fbuffer
     end
 
+    # Get initial guess for the Lagrange multipliers
+    eigmin, eigmax = extrema(Iterators.flatten(eigvals(J) for J in Js))
+    λ_init = -eigmin + (eigmax - eigmin) / 2
+    λs = λ_init*ones(Float64, Na)
+
+    return newton_with_backtracking(fgh!, λs; f_reltol=1e-12, maxiters=20, show_trace=false)
+
+#=
     options = Optim.Options(; iterations=maxiters, show_trace=false, g_tol)
     result = Optim.optimize(Optim.only_fgh!(fgh!), λs, Optim.Newton(), options)
+    println(result)
     return real.(Optim.minimizer(result))
+=#
+
 end
 
 
