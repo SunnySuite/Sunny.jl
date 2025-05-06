@@ -88,7 +88,6 @@ function find_lagrange_multiplier(sys, Js, β)
     for n in 1:maxiters
         λ = λn + (1/J(λn))*(s²-f(λn))
         if abs(λ-λn) < tol
-            println("Newton's method converged to within tolerance, $tol, after $n steps.")
             return λ
         else
             λn = λ
@@ -97,7 +96,7 @@ function find_lagrange_multiplier(sys, Js, β)
 end
 
 
-function find_lagrange_multiplier_opt_sublattice(sys, Js, β; rtol=1e-10)
+function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
     Na = natoms(sys.crystal)
     s² = vec(sys.κs .^ 2)
 
@@ -110,38 +109,41 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β; rtol=1e-10)
             hbuffer .= 0
         end
 
-        Λ = diagm(repeat(λs, inner=3))
+        Λ = Diagonal(repeat(λs, inner=3))
+        A = zeros(ComplexF64, 3Na, 3Na)
+        A⁻¹ = zeros(ComplexF64, 3, Na, 3, Na)
 
+        # Determine the Lagrange multipliers λ by maximizing the "grand" free
+        # energy G(λ) = log det A / 2β - ∑ᵢ λᵢ s²ᵢ, where A = J + Λ. Implement
+        # this numerically as minimization of the objective function f = -G.
         for J in Js
-            A = β * (J + Λ)
-            T = eigen(A)
-            eig_vals = T.values
-            U = T.vectors
-            A⁻¹ = U * Diagonal(inv.(eig_vals)) * U'
-            A⁻¹ = reshape(A⁻¹, 3, Na, 3, Na)
-
-            # Determine Lagrange multipliers λ by minimizing f, the negative of
-            # the "grand" free energy G(λ), involving Legendre transform into
-            # the λ variables. Physical eigenvalues of each (J + Λ) matrix must
-            # be positive, otherwise we apply an infinite penalty to the
-            # objective function.
-            if minimum(eig_vals) < 0
-                fbuffer = Inf
-            else
-                fbuffer += λs' * s² / 2 - (1/2β) * sum(log.(eig_vals))
+            # Cholesky decomposition fails if the matrix A is not positive
+            # definite. This implies unphysical λ values, which we penalize by
+            # making the objective function infinite.
+            @. A = J + Λ
+            A_chol = cholesky!(A, RowMaximum(); check=false)
+            if !issuccess(A_chol)
+                gbuffer .= NaN
+                hbuffer .= NaN
+                return Inf
             end
+
+            ldiv!(reshape(A⁻¹, 3Na, 3Na), A_chol, I(3Na))
+
+            # The finite-valued objective function f
+            fbuffer += (λs' * s²) / 2 - logdet(A_chol) / 2β
 
             # Gradient of f
             if !isnothing(gbuffer)
                 for i in 1:Na
-                    gbuffer[i] += s²[i] / 2 - real(tr(view(A⁻¹, :, i, :, i))) / 2
+                    gbuffer[i] += s²[i] / 2 - real(tr(view(A⁻¹, :, i, :, i))) / 2β
                 end
             end
 
             # Hessian of f
             if !isnothing(hbuffer)
                 for i in 1:Na, j in 1:Na
-                    hbuffer[i, j] += + (β/2) * norm(view(A⁻¹, :, i, :, j))^2
+                    hbuffer[i, j] += + norm(view(A⁻¹, :, i, :, j))^2 / 2β
                 end
             end
         end
@@ -149,20 +151,13 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β; rtol=1e-10)
         return fbuffer
     end
 
-    # Get initial guess for the Lagrange multipliers
-    eigmin, eigmax = extrema(Iterators.flatten(eigvals(J) for J in Js))
-    λ_init = -eigmin + (eigmax - eigmin) / 2
-    λs = λ_init*ones(Float64, Na)
+    # Get initial guess for the Lagrange multipliers. If `eigmin` becomes the
+    # bottleneck, it can be replaced with bounds using Gershgorin's circle
+    # theorem: https://en.wikipedia.org/wiki/Gershgorin_circle_theorem.
+    λ_init = -minimum(eigmin(J) for J in Js) + 1/β
+    λs = fill(λ_init, Na)
 
-    return newton_with_backtracking(fgh!, λs; f_reltol=1e-12, maxiters=20, show_trace=false)
-
-#=
-    options = Optim.Options(; iterations=maxiters, show_trace=false, g_tol)
-    result = Optim.optimize(Optim.only_fgh!(fgh!), λs, Optim.Newton(), options)
-    println(result)
-    return real.(Optim.minimizer(result))
-=#
-
+    return newton_with_backtracking(fgh!, λs; x_reltol=1e-10, maxiters=20, show_trace=false)
 end
 
 

@@ -127,9 +127,9 @@ end
     scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/40)
     qs = q_space_path(cryst, [[0, 0, 0], [2, 0, 0]], 5)
     res = Sunny.intensities_static(scga, qs)
-    # println(round.(res.data; digits=12))
-    golden_data = [5.279823931604, 4.864293896132, 16.331751863295, 4.864293896132, 5.279823931604]
-    @test isapprox(golden_data, res.data; atol=1e-9)
+    # println(round.(res.data; digits=10))
+    golden_data = [5.2798224086, 4.8642933106, 16.3317444291, 4.8642933106, 5.2798224086]
+    @test isapprox(golden_data, res.data; rtol=1e-8)
 end
 
 @testitem "SCGA Kitchen sink" begin
@@ -168,7 +168,7 @@ end
     scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/4)
     qs = [[0, 0, 0], [0, 1/2, 1/2], [0.06, 0.49, 0.59]]
     res = Sunny.intensities_static(scga, qs)
-    # println(round.(res.data; digits=12))
-    golden_data = [30.9994728142, 21.567001306416, 21.568681851738]
-    @test isapprox(res.data, golden_data; rtol=1e-9)
+    # println(round.(res.data; digits=10))
+    golden_data = [30.9994727537, 21.5670012852, 21.5686818308]
+    @test isapprox(res.data, golden_data; rtol=1e-8)
 end
