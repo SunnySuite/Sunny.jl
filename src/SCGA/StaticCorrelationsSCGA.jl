@@ -184,30 +184,44 @@ function intensities_static(scga::StaticCorrelationsSCGA, qpts)
     corrbuf = zeros(ComplexF64, Ncorr)
 
     # Preallocation
-    O = reshape(measure.observables, (Nobs, Na))
-    pref = zeros(ComplexF64, Nobs, Na)
+    O = view(measure.observables::Array{Vec3, 5}, :, 1, 1, 1, :)
+    X = zeros(ComplexF64, 3Na, Nobs) # Partial contraction
+    pref = zeros(ComplexF64, 3Na, Nobs)
+    pref_reshaped = reshape(pref, 3, Na, Nobs)
     intensity = zeros(eltype(measure), Nq)
 
-    r = sys.crystal.positions
-
     for (iq, q) in enumerate(qpts.qs)
-        q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
-        for i in 1:Na, μ in 1:3
-            ff = get_swt_formfactor(measure, μ, i)
-            pref[μ, i] = exp(-2π * im * dot(q_reshaped, r[i])) * compute_form_factor(ff, norm2(q_global))
-        end
-        Jq = fourier_exchange_matrix(sys; q)
-        inverted_matrix = inv(β*Λ + β*Jq) # this is [(Iλ+J(q))^-1]^αβ_μν
-        inverted_matrix = reshape(inverted_matrix, 3, Na, 3, Na)
 
+        for i in 1:Na, μ in 1:Nobs
+            r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
+            ff = get_swt_formfactor(measure, μ, i)
+            c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
+            for α in 1:3
+                pref_reshaped[α, i, μ] = c * O[μ, i][α]
+            end
+        end
+
+        A = fourier_exchange_matrix(sys; q)
+        A.data .+= Λ
+        A.data .*= β
+        A = cholesky!(A)
+        ldiv!(X, A, pref)
+        map!(corrbuf, measure.corr_pairs) do (μ, ν)
+            return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
+        end
+
+        #=
+        A⁻¹ = reshape(inv(β*Λ + β*Jq), 3, Na, 3, Na)
         map!(corrbuf, measure.corr_pairs) do (μ, ν)
             acc = zero(ComplexF64)
             for α in 1:3, β in 1:3, i in 1:Na, j in 1:Na
-                acc += pref[μ, i] * conj(pref[ν, j]) * inverted_matrix[α, i, β, j] * O[μ, i][α] * O[ν, j][β]
+                acc += conj(pref[α, i, μ]) * A⁻¹[α, i, β, j] * pref[β, j, ν]
             end
             return acc / Ncells
         end
+        =#
+
         intensity[iq] = measure.combiner(q_global, corrbuf)
     end
 

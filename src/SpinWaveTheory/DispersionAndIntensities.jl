@@ -177,7 +177,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:Na, μ in 1:Nobs
-            r_global = global_position(sys, (1,1,1,i)) # + offsets[μ,i]
+            r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
             ff = get_swt_formfactor(measure, μ, i)
             Avec_pref[μ, i] = exp(- im * dot(q_global, r_global))
             Avec_pref[μ, i] *= compute_form_factor(ff, norm2(q_global))
