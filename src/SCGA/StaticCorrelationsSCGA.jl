@@ -27,7 +27,7 @@ struct StaticCorrelationsSCGA
     β :: Float64
     λs :: Vector{Float64}
 
-    function StaticCorrelationsSCGA(sys::System; measure::Union{Nothing, MeasureSpec}, kT::Float64, dq::Float64)
+    function StaticCorrelationsSCGA(sys::System; measure::Union{Nothing, MeasureSpec}, kT::Real, dq::Float64)
         sys.dims == (1, 1, 1) || error("System dims must be (1, 1, 1).")
 
         measure = @something measure empty_measurespec(sys)
