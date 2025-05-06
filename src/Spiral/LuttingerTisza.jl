@@ -14,16 +14,16 @@ function fourier_exchange_matrix(sys::System; q)
 
             (; j, n) = bond
             J = exp(2π * im * dot(q_reshaped, n)) * Mat3(bilin*I)
-            J_q[:, i, :, j] += J
-            J_q[:, j, :, i] += J'
+            J_q[:, i, :, j] .+= J
+            J_q[:, j, :, i] .+= J'
         end
     end
 
     if !isnothing(sys.ewald)
-        A_q = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
+        A_q = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
         A_q = reshape(A_q, Na, Na)
         for i in 1:Na, j in 1:Na
-            J_q[:, i, :, j] += sys.gs[i]' * A_q[i, j] * sys.gs[j]
+            J_q[:, i, :, j] .+= sys.gs[i]' * A_q[i, j] * sys.gs[j]
         end
     end
 
@@ -34,12 +34,12 @@ function fourier_exchange_matrix(sys::System; q)
         anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
                               c2[5] -c2[1]-c2[3] 0.5c2[4];
                            0.5c2[2]     0.5c2[4]   2c2[3]]
-        J_q[:, i, :, i] += 2 * anisotropy
+        J_q[:, i, :, i] .+= 2 * anisotropy
     end
 
     J_q = reshape(J_q, 3Na, 3Na)
     @assert diffnorm2(J_q, J_q') < 1e-15
-    return hermitianpart(J_q)
+    return hermitianpart!(J_q)
 end
 
 
