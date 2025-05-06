@@ -1,10 +1,11 @@
-function fourier_exchange_matrix(sys::System; q)
+function fourier_exchange_matrix!(J_q::Matrix{ComplexF64}, sys::System; q)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
     q_reshaped = to_reshaped_rlu(sys, q)
 
     Na = natoms(sys.crystal)
-    J_q = zeros(ComplexF64, 3, Na, 3, Na)
+    J_q .= 0
+    J_q = reshape(J_q, 3, Na, 3, Na)
 
     for i in 1:Na
         for coupling in sys.interactions_union[i].pair
@@ -14,8 +15,8 @@ function fourier_exchange_matrix(sys::System; q)
 
             (; j, n) = bond
             J = exp(2π * im * dot(q_reshaped, n)) * Mat3(bilin*I)
-            J_q[:, i, :, j] .+= J
-            J_q[:, j, :, i] .+= J'
+            view(J_q, :, i, :, j) .+= J
+            view(J_q, :, j, :, i) .+= J'
         end
     end
 
@@ -23,7 +24,7 @@ function fourier_exchange_matrix(sys::System; q)
         A_q = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
         A_q = reshape(A_q, Na, Na)
         for i in 1:Na, j in 1:Na
-            J_q[:, i, :, j] .+= sys.gs[i]' * A_q[i, j] * sys.gs[j]
+            view(J_q, :, i, :, j) .+= sys.gs[i]' * A_q[i, j] * sys.gs[j]
         end
     end
 
@@ -34,7 +35,7 @@ function fourier_exchange_matrix(sys::System; q)
         anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
                               c2[5] -c2[1]-c2[3] 0.5c2[4];
                            0.5c2[2]     0.5c2[4]   2c2[3]]
-        J_q[:, i, :, i] .+= 2 * anisotropy
+        view(J_q, :, i, :, i) .+= 2 * anisotropy
     end
 
     J_q = reshape(J_q, 3Na, 3Na)
@@ -42,6 +43,11 @@ function fourier_exchange_matrix(sys::System; q)
     return hermitianpart!(J_q)
 end
 
+function fourier_exchange_matrix(sys::System; q)
+    Na = natoms(sys.crystal)
+    J_q = zeros(ComplexF64, 3Na, 3Na)
+    return fourier_exchange_matrix!(J_q, sys; q)
+end
 
 # Returns the Luttinger-Tisza predicted exchange energy associated with the
 # propagation wavevector k between chemical cells. The LT analysis minimizes

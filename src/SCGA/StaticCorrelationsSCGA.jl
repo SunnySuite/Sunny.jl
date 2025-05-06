@@ -123,10 +123,10 @@ function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
         A = zeros(ComplexF64, 3Na, 3Na)
         A⁻¹ = zeros(ComplexF64, 3, Na, 3, Na)
 
-        # Determine the Lagrange multipliers λ by maximizing the "grand" free
-        # energy G(λ) = log det A / 2β - ∑ᵢ λᵢ s²ᵢ / 2, where A = J + Λ.
-        # Implement this numerically as minimization of the objective function f
-        # = -G.
+        # Determine the Lagrange multipliers λ by maximizing (not minimizing!)
+        # the "grand" free energy G(λ) = log det A / 2β - ∑ᵢ λᵢ s²ᵢ / 2, where A
+        # = J + Λ. Implement this numerically as minimization of the objective
+        # function f = -G.
         for J in Js
             # Cholesky decomposition fails if the matrix A is not positive
             # definite. This implies unphysical λ values, which we penalize by
@@ -184,8 +184,9 @@ function intensities_static(scga::StaticCorrelationsSCGA, qpts)
     corrbuf = zeros(ComplexF64, Ncorr)
 
     # Preallocation
+    A = zeros(ComplexF64, 3Na, 3Na)
     O = view(measure.observables::Array{Vec3, 5}, :, 1, 1, 1, :)
-    X = zeros(ComplexF64, 3Na, Nobs) # Partial contraction
+    X = zeros(ComplexF64, 3Na, Nobs)
     pref = zeros(ComplexF64, 3Na, Nobs)
     pref_reshaped = reshape(pref, 3, Na, Nobs)
     intensity = zeros(eltype(measure), Nq)
@@ -202,11 +203,10 @@ function intensities_static(scga::StaticCorrelationsSCGA, qpts)
             end
         end
 
-        A = fourier_exchange_matrix(sys; q)
-        A.data .+= Λ
-        A.data .*= β
-        A = cholesky!(A)
-        ldiv!(X, A, pref)
+        fourier_exchange_matrix!(A, sys; q)
+        A .+= Λ
+        A .*= β
+        ldiv!(X, cholesky!(A), pref)
         map!(corrbuf, measure.corr_pairs) do (μ, ν)
             return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
         end
