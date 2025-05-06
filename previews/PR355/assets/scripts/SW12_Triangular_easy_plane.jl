@@ -1,5 +1,5 @@
 using Sunny, GLMakie
-@assert pkgversion(Sunny) >= v"0.7.6"
+@assert pkgversion(Sunny) >= v"0.7.7"
 
 latvecs = lattice_vectors(3, 3, 4, 90, 90, 120)
 cryst = Crystal(latvecs, [[0, 0, 0]])

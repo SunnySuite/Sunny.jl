@@ -1,5 +1,5 @@
 using Sunny, GLMakie
-@assert pkgversion(Sunny) >= v"0.7.6"
+@assert pkgversion(Sunny) >= v"0.7.7"
 
 units = Units(:meV, :angstrom)
 a = b = 4.05012  # Lattice constants for triangular lattice (Å)
