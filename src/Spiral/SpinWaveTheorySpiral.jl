@@ -24,6 +24,10 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     buffers :: Vector{Array{CMat3, 2}}
 
     function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
+        if !(sys.mode in (:dipole, :dipole_uncorrected))
+            error("SCGA requires :dipole or :dipole_uncorrected mode.")
+        end
+
         L = length(eachsite(sys))
         buffers = [zeros(CMat3, L, L) for _ in 1:6]
         return new(SpinWaveTheory(sys; measure, regularization), k, normalize(axis), buffers)
@@ -246,11 +250,9 @@ end
 function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branch=nothing
     (; swt, k, axis) = sswt
     (; sys, data, measure) = swt
-    (; local_rotations, observables_localized, sqrtS) = data
+    (; local_rotations, sqrtS) = data
 
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
-    sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
-    @assert sys.mode in (:dipole, :dipole_uncorrected)
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)

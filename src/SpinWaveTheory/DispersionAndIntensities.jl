@@ -172,7 +172,6 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     disp = zeros(Float64, L, Nq)
     intensity = zeros(eltype(measure), L, Nq)
 
-
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
@@ -214,8 +213,8 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
                 end
             end
 
-            map!(corrbuf, measure.corr_pairs) do (α, β)
-                Avec[α] * conj(Avec[β]) / Ncells
+            map!(corrbuf, measure.corr_pairs) do (μ, ν)
+                Avec[μ] * conj(Avec[ν]) / Ncells
             end
             intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbuf)
         end

@@ -169,6 +169,6 @@ end
     qs = [[0, 0, 0], [0, 1/2, 1/2], [0.06, 0.49, 0.59]]
     res = Sunny.intensities_static(scga, qs)
     # println(round.(res.data; digits=10))
-    golden_data = [30.9994727537, 21.5670012852, 21.5686818308]
+    golden_data = [129.5389081127, 111.0369328807, 112.1694261822]
     @test isapprox(res.data, golden_data; rtol=1e-8)
 end

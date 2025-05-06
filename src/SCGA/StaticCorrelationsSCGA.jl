@@ -28,14 +28,21 @@ struct StaticCorrelationsSCGA
     λs :: Vector{Float64}
 
     function StaticCorrelationsSCGA(sys::System; measure::Union{Nothing, MeasureSpec}, kT::Float64, dq::Float64)
+        sys.dims == (1, 1, 1) || error("System dims must be (1, 1, 1).")
+
         measure = @something measure empty_measurespec(sys)
         if size(eachsite(sys)) != size(measure.observables)[2:5]
             error("Size mismatch. Check that measure is built using consistent system.")
         end
 
+        if !(sys.mode in (:dipole, :dipole_uncorrected))
+            error("SCGA requires :dipole or :dipole_uncorrected mode.")
+        end
+
         kT > 0 || error("Temperature kT must be positive")
         β = 1 / kT
 
+        0 < dq < 1 || error("Select q-space resolution 0 < dq < 1.")
         qs = make_q_grid(sys, dq)
         Js = [fourier_exchange_matrix(sys; q) for q in qs]
 
@@ -171,16 +178,19 @@ function intensities_static(scga::StaticCorrelationsSCGA, qpts)
     Ncells = Na / natoms(cryst)
     Nq = length(qpts.qs)
 
+    # Temporary storage for pair correlations
     Nobs = num_observables(measure)
-    Ncorr = length(measure.corr_pairs)
+    Ncorr = num_correlations(measure)
     corrbuf = zeros(ComplexF64, Ncorr)
 
+    # Preallocation
+    O = reshape(measure.observables, (Nobs, Na))
+    pref = zeros(ComplexF64, Nobs, Na)
     intensity = zeros(eltype(measure), Nq)
 
     r = sys.crystal.positions
 
     for (iq, q) in enumerate(qpts.qs)
-        pref = zeros(ComplexF64, Nobs, Na)
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
         for i in 1:Na, μ in 1:3
@@ -191,16 +201,12 @@ function intensities_static(scga::StaticCorrelationsSCGA, qpts)
         inverted_matrix = inv(β*Λ + β*Jq) # this is [(Iλ+J(q))^-1]^αβ_μν
         inverted_matrix = reshape(inverted_matrix, 3, Na, 3, Na)
 
-        ssf = zero(CMat3)
-        for i in 1:Na, j in 1:Na
-            ssf += pref[1, i] * conj(pref[1, j]) * view(inverted_matrix, :, i, :, j)
-        end
-
-        @assert ssf ≈ ssf'
-        @assert all(>=(0), real(diag(ssf)))
-
-        map!(corrbuf, measure.corr_pairs) do (α, β)
-            ssf[α, β] / Ncells
+        map!(corrbuf, measure.corr_pairs) do (μ, ν)
+            acc = zero(ComplexF64)
+            for α in 1:3, β in 1:3, i in 1:Na, j in 1:Na
+                acc += pref[μ, i] * conj(pref[ν, j]) * inverted_matrix[α, i, β, j] * O[μ, i][α] * O[ν, j][β]
+            end
+            return acc / Ncells
         end
         intensity[iq] = measure.combiner(q_global, corrbuf)
     end
