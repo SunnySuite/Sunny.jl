@@ -52,31 +52,31 @@ end
 # Returns the Luttinger-Tisza predicted exchange energy associated with the
 # propagation wavevector k between chemical cells. The LT analysis minimizes
 # energy E = (1/2) Sₖ† Jₖ Sₖ, where Sₖ is some length-3Nₐ vector and Jₖ is the
-# 3Nₐ×3Nₐ exchange matrix. Given a minimum energy eigenpair (λₖ, Sₖ) the
-# LT-predicted energy is |Sₖ|^2 λₖ/2 with normalization |Sₖ|² = ∑ᵢ|Sᵢ|², where
+# 3Nₐ×3Nₐ exchange matrix. Given a minimum energy eigenpair (ϵₖ, Sₖ) the
+# LT-predicted energy is |Sₖ|² ϵₖ / 2 with normalization |Sₖ|² = ∑ᵢ|Sᵢ|², where
 # index i denotes spin sublattice of the chemical cell. If the components of Sₖ
 # satisfy local spin normalization constraints, then the LT energy minimized
 # over k is physically correct for the spiral ground state. In practice, the
 # eigenvector Sₖ may violate local spin normalization and the LT-predicted
 # energy is only a lower-bound on the exchange energy. Conditions for
 # correctness are given by Xiong and Wen (2013), arXiv:1208.1512.
-function luttinger_tisza_exchange(sys::System; k, ϵ=0)
+function luttinger_tisza_exchange(sys::System; k, η=0)
     J_k = fourier_exchange_matrix(sys; q=k)
 
-    E = if iszero(ϵ)
+    E = if iszero(η)
         eigmin(J_k) / 2
     else
         # Estimate the minimum eigenvalue E as a weighted average of all small
-        # eigenvalues, E = tr [exp(-β J) J] / tr exp(-β J), where β = 1/ϵ.
-        # Finite but small ϵ will regularize the potential energy surface in the
+        # eigenvalues, E = tr [exp(-β J) J] / tr exp(-β J), where β = 1/η.
+        # Finite but small η will regularize the potential energy surface in the
         # viscinity of degenerate eigenvalues. Imposing this smoothness may aid
         # optimization of k with gradient-based methods.
-        λs = eigvals(J_k) / 2
-        λmin = minimum(λs)
-        # Scale all weights exp(-λ/ϵ) by the factor exp(λmin/ϵ). Scaling of
+        ϵs = eigvals(J_k) / 2
+        ϵmin = minimum(ϵs)
+        # Scale all weights exp(-λ/η) by the factor exp(λmin/η). Scaling of
         # weights has no mathematical effect, but avoids numerical overflow.
-        ws = @. exp(-(λs-λmin)/ϵ)
-        sum(ws .* λs) / sum(ws)
+        ws = @. exp(-(ϵs-ϵmin)/η)
+        sum(ws .* ϵs) / sum(ws)
     end
 
     # Rescale by ∑ᵢSᵢ², which would be valid if the minimum-energy eigenvector
@@ -92,10 +92,10 @@ function minimize_luttinger_tisza_exchange(sys::System; k_guess, maxiters=10_000
     # Work around: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175
     method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
     res = Optim.optimize(k_guess, method, options) do k
-        luttinger_tisza_exchange(sys; k, ϵ=1e-8)
+        luttinger_tisza_exchange(sys; k, η=1e-8)
     end
     res = Optim.optimize(Optim.minimizer(res), Optim.ConjugateGradient(), options) do k
-        luttinger_tisza_exchange(sys; k, ϵ=1e-8)
+        luttinger_tisza_exchange(sys; k, η=1e-8)
     end
 
     if Optim.converged(res)
