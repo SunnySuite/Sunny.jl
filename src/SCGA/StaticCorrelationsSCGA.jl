@@ -39,12 +39,16 @@ struct StaticCorrelationsSCGA
         qs = make_q_grid(sys, dq)
         Js = [fourier_exchange_matrix(sys; q) for q in qs]
 
-        sublattice_resolved = !allequal(sys.crystal.classes)
-        if sublattice_resolved
-            λs = find_lagrange_multiplier_opt_sublattice(sys, Js, β)
+        # Initial guess for the Lagrange multipliers in the physically allowed
+        # space (all shifted J matrices positive definite). If `eigmin` becomes
+        # a bottleneck, we can try weaker bounds using Gershgorin's circle
+        # theorem: https://en.wikipedia.org/wiki/Gershgorin_circle_theorem.
+        λ_init = -minimum(eigmin(J) for J in Js) + 1/β
+
+        λs = if allequal(sys.crystal.classes)
+            find_lagrange_multiplier_single(sys, Js, β, λ_init)
         else
-            λ = find_lagrange_multiplier(sys, Js, β)
-            λs = fill(λ, natoms(sys.crystal))
+            find_lagrange_multiplier_multi(sys, Js, β, λ_init)
         end
 
         return new(sys, measure, β, λs)
@@ -67,36 +71,35 @@ end
 
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
 # Lagrange multiplier for all sublattices.
-function find_lagrange_multiplier(sys, Js, β)
-    starting_offset = 0.2
-    maxiters = 500
-    tol = 1e-10
-
+function find_lagrange_multiplier_single(sys, Js, β, λ_init)
     evals = Iterators.flatten(eigvals(J) for J in Js)
+    s² = norm2(sys.κs) * length(Js)
 
-    Nq = length(Js)
-    s² = norm2(sys.κs)
-
-    function f(λ)
-        return sum(1 / (λ + ev) for ev in evals) / (β * Nq)
-    end
-    function J(λ)
-        return -sum(1 / (λ + ev)^2 for ev in evals) / (β * Nq)
-    end
-
-    λn = starting_offset*0.1/β - minimum(evals)
-    for n in 1:maxiters
-        λ = λn + (1/J(λn))*(s²-f(λn))
-        if abs(λ-λn) < tol
-            return λ
-        else
-            λn = λ
+    function fgh!(_, gbuffer, hbuffer, λs)
+        λ = λs[1]
+        # λ must be large enough to shift all eigenvalues positive. Otherwise,
+        # apply an infinite penalty.
+        if λ + minimum(evals) <= 0
+            isnothing(gbuffer) || gbuffer .= NaN
+            isnothing(hbuffer) || hbuffer .= NaN
+            return Inf
         end
+        fbuffer = λ*s²/2 - sum(log(λ + ev) for ev in evals) / 2β
+        if !isnothing(gbuffer)
+            gbuffer[1] = s²/2 - sum(1 / (λ + ev) for ev in evals) / 2β
+        end
+        if !isnothing(hbuffer)
+            hbuffer[1, 1] = sum(1 / (λ + ev)^2 for ev in evals) / 2β
+        end
+        return fbuffer
     end
+
+    λs = newton_with_backtracking(fgh!, [λ_init]; x_reltol=1e-10, show_trace=false)
+    return fill(λs[1], natoms(sys.crystal))
 end
 
 
-function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
+function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
     Na = natoms(sys.crystal)
     s² = vec(sys.κs .^ 2)
 
@@ -114,8 +117,9 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
         A⁻¹ = zeros(ComplexF64, 3, Na, 3, Na)
 
         # Determine the Lagrange multipliers λ by maximizing the "grand" free
-        # energy G(λ) = log det A / 2β - ∑ᵢ λᵢ s²ᵢ, where A = J + Λ. Implement
-        # this numerically as minimization of the objective function f = -G.
+        # energy G(λ) = log det A / 2β - ∑ᵢ λᵢ s²ᵢ / 2, where A = J + Λ.
+        # Implement this numerically as minimization of the objective function f
+        # = -G.
         for J in Js
             # Cholesky decomposition fails if the matrix A is not positive
             # definite. This implies unphysical λ values, which we penalize by
@@ -123,8 +127,8 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
             @. A = J + Λ
             A_chol = cholesky!(A, RowMaximum(); check=false)
             if !issuccess(A_chol)
-                gbuffer .= NaN
-                hbuffer .= NaN
+                isnothing(gbuffer) || gbuffer .= NaN
+                isnothing(hbuffer) || hbuffer .= NaN
                 return Inf
             end
 
@@ -151,13 +155,8 @@ function find_lagrange_multiplier_opt_sublattice(sys, Js, β)
         return fbuffer
     end
 
-    # Get initial guess for the Lagrange multipliers. If `eigmin` becomes the
-    # bottleneck, it can be replaced with bounds using Gershgorin's circle
-    # theorem: https://en.wikipedia.org/wiki/Gershgorin_circle_theorem.
-    λ_init = -minimum(eigmin(J) for J in Js) + 1/β
     λs = fill(λ_init, Na)
-
-    return newton_with_backtracking(fgh!, λs; x_reltol=1e-10, maxiters=20, show_trace=false)
+    return newton_with_backtracking(fgh!, λs; x_reltol=1e-10, show_trace=false)
 end
 
 
