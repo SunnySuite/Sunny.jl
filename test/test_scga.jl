@@ -72,14 +72,14 @@ end
     res_jscga = [0.700944539713289, 0.6175127864675868, 0.5205893697530085, 0.48172879530096047,
                  0.5219040226511135, 0.6218544838522482, 0.7110417061581527, 0.738269833048121]
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0,0,0]],1)
+    cryst = Crystal(latvecs, [[0, 0 ,0]], 1)
     sys = System(cryst, [1 => Moment(; s=1, g=1)], :dipole; seed=0)
-    set_exchange!(sys, -1, Bond(1, 1, [1,0,0]))
-    set_exchange!(sys, -1, Bond(1, 1, [0,1,0]))
-    set_exchange!(sys, 0.5, Bond(1, 1, [1,1,0]))
-    set_exchange!(sys, 0.5, Bond(1, 1, [-1,1,0]))
-    set_exchange!(sys, 0.25, Bond(1, 1, [2,0,0]))
-    set_exchange!(sys, 0.25, Bond(1, 1, [0,2,0]))
+    set_exchange!(sys, -1, Bond(1, 1, [1, 0, 0]))
+    set_exchange!(sys, -1, Bond(1, 1, [0, 1, 0]))
+    set_exchange!(sys, 0.5, Bond(1, 1, [1, 1, 0]))
+    set_exchange!(sys, 0.5, Bond(1, 1, [-1, 1, 0]))
+    set_exchange!(sys, 0.25, Bond(1, 1, [2, 0, 0]))
+    set_exchange!(sys, 0.25, Bond(1, 1, [0, 2, 0]))
     to_inhomogeneous(sys)
     anis = [0.23 0.56 0.34;
             0.56 0.12 0.45;
