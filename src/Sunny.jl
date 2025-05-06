@@ -117,8 +117,8 @@ export SampledCorrelations, SampledCorrelationsStatic, add_sample!, clone_correl
     merge_correlations
 
 include("SCGA/NewtonBacktracking.jl")
-include("SCGA/StaticCorrelationsSCGA.jl")
-export StaticCorrelationsSCGA
+include("SCGA/SCGA.jl")
+export SCGA
 
 include("EntangledUnits/TypesAndAliasing.jl")
 include("EntangledUnits/EntangledUnits.jl")

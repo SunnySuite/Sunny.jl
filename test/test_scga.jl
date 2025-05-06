@@ -12,7 +12,7 @@
     set_exchange!(sys, 1/(2s)^2, Bond(1, 2, [0, 0, 0]))
     measure = ssf_perp(sys)
     kT = 15*meV_per_K
-    scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/8)
+    scga = SCGA(sys; measure, kT, dq=1/8)
     γ = s^2 * Sunny.natoms(cryst)
     grid = q_space_grid(cryst, [1, 0, 0], range(0, 3.6, 5), [0, 1, 0], range(0, 0.9, 2))
     res = intensities_static(scga, grid)
@@ -32,7 +32,7 @@ end
     set_exchange!(sys, 0.25, Bond(1, 1, [2, 0, 0]))
     measure = ssf_perp(sys)
     kT = 27.5*meV_per_K
-    scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/8)
+    scga = SCGA(sys; measure, kT, dq=1/8)
     path = q_space_path(cryst, [[-1, -1, 0], [-0.04, -1, 0]], 9)
     res = Sunny.intensities_static(scga, path)
     @test isapprox(vec(res.data)/2, res_jscga; rtol=1e-5)
@@ -56,7 +56,7 @@ end
     set_exchange!(sys, J_mgcro[4], Bond(1, 3, [0, 0, 0]))  # J3b
     measure = ssf_custom((q, ssf) -> real(ssf[1,1]), sys)
     kT = 20*meV_per_K
-    scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/4)
+    scga = SCGA(sys; measure, kT, dq=1/4)
     grid = q_space_grid(cryst, [1, 0, 0], range(-1.5, 1.5, 4), [0, 1, 0], range(-1.5, 1.5, 4))
     res = Sunny.intensities_static(scga, grid)
     res_cc = [2.4168819 1.237733 1.237733 2.4168819;
@@ -88,7 +88,7 @@ end
     set_onsite_coupling!(sys, S -> S'*anis*S, 1)
     measure = ssf_perp(sys)
     kT = 55*meV_per_K
-    scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/8)
+    scga = SCGA(sys; measure, kT, dq=1/8)
     path = q_space_path(cryst, [[0.125, 0.625, 0], [1, 0.625, 0]], 8)
     res = Sunny.intensities_static(scga, path)
     @test isapprox(vec(res.data), res_jscga; rtol=1e-6)
@@ -107,7 +107,7 @@ end
     set_exchange!(sys, J1, Bond(1, 2, [0, 0, 0]))
     measure = ssf_trace(sys; apply_g=false)
     kT = 22.5*meV_per_K
-    scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/100)
+    scga = SCGA(sys; measure, kT, dq=1/100)
     qs = [[qx, 0, 0] for qx in range(0, 2, 100)]
     res = Sunny.intensities_static(scga, qs)
     @test isapprox(sum(res.data)/length(qs), s1^2 + s2^2; rtol=1e-2)
@@ -124,7 +124,7 @@ end
     set_exchange!(sys, J1, Bond(1, 2, [0, 0, 0]))
     measure = ssf_trace(sys; apply_g=false)
     kT = 17.5 * meV_per_K
-    scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/40)
+    scga = SCGA(sys; measure, kT, dq=1/40)
     qs = q_space_path(cryst, [[0, 0, 0], [2, 0, 0]], 5)
     res = Sunny.intensities_static(scga, qs)
     # println(round.(res.data; digits=10))
@@ -165,7 +165,7 @@ end
     set_onsite_coupling!(sys, S -> D2*S[3]^2, 7)
     measure = ssf_perp(sys)
     kT = 80.5*meV_per_K
-    scga = StaticCorrelationsSCGA(sys; measure, kT, dq=1/4)
+    scga = SCGA(sys; measure, kT, dq=1/4)
     qs = [[0, 0, 0], [0, 1/2, 1/2], [0.06, 0.49, 0.59]]
     res = Sunny.intensities_static(scga, qs)
     # println(round.(res.data; digits=10))

@@ -21,7 +21,7 @@ LocalSampler
 Moment
 SampledCorrelations
 SampledCorrelationsStatic
-StaticCorrelationsSCGA
+SCGA
 Site
 SpinWaveTheory
 SpinWaveTheoryKPM
