@@ -60,7 +60,8 @@ include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
 export Moment, System, Site, clone_system, eachsite, position_to_site, global_position, magnetic_moment,
-    set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, set_spin_rescaling!, energy, energy_per_site,
+    set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, set_spin_rescaling!,
+    enable_spin_rescaling_for_static_sum_rule!, energy, energy_per_site,
     spin_label, set_onsite_coupling!, set_pair_coupling!, set_exchange!, dmvec, enable_dipole_dipole!,
     set_field!, to_inhomogeneous, set_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
     set_exchange_at!, set_pair_coupling_at!, symmetry_equivalent_bonds, remove_periodicity!,
@@ -114,6 +115,10 @@ include("SampledCorrelations/PhaseAveraging.jl")
 include("SampledCorrelations/DataRetrieval.jl")
 export SampledCorrelations, SampledCorrelationsStatic, add_sample!, clone_correlations,
     merge_correlations
+
+include("SCGA/NewtonBacktracking.jl")
+include("SCGA/SCGA.jl")
+export SCGA
 
 include("EntangledUnits/TypesAndAliasing.jl")
 include("EntangledUnits/EntangledUnits.jl")
