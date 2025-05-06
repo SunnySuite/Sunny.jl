@@ -3,6 +3,12 @@
 ## v0.7.6
 (May 1, 2025)
 
+* Add module [`StaticCorrelationsSCGA`](@ref) for calculating
+  [`intensities_static`](@ref) within the self-consistent Gaussian
+  approximation.
+* Add [`enable_spin_rescaling_for_static_sum_rule!`](@ref) which sets the
+  classical dipole magnitude to ``\sqrt{s (s + 1)}`` for each quantum spin-``s``
+  moment.
 * Extend [`powder_average`](@ref) to support static intensities.
 * Vacancies defined by [`set_vacancy_at!`](@ref) are supported in linear spin
   wave theory. Empty sites are modeled using bosons that do not excite.

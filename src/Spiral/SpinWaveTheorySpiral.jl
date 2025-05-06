@@ -219,24 +219,24 @@ end
 
 # Observables must be dipole moments, with some choice of apply_g. Extract and
 # return this parameter.
-function is_apply_g(swt::SpinWaveTheory, measure::MeasureSpec)
+function is_apply_g(sys::System, measure::MeasureSpec)
     obs1 = measure.observables
     for apply_g in (true, false)
-        obs2 = all_dipole_observables(swt.sys; apply_g)
+        obs2 = all_dipole_observables(sys; apply_g)
         vec(obs1) ≈ vec(obs2) && return apply_g
     end
     error("General measurements not supported for spiral calculation")
 end
 
-function gs_as_scalar(swt::SpinWaveTheory, measure::MeasureSpec)
-    return if is_apply_g(swt, measure)
-        map(swt.sys.gs) do g
+function gs_as_scalar(sys::System, measure::MeasureSpec)
+    return if is_apply_g(sys, measure)
+        map(sys.gs) do g
             g = to_float_or_mat3(g; atol=1e-12)
             g isa Float64 || error("Anisotropic g-tensor not supported for spiral calculation")
             g
         end
     else
-        map(swt.sys.gs) do _
+        map(sys.gs) do _
             1.0
         end
     end
@@ -282,7 +282,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
     Avec_pref = zeros(ComplexF64, Na)
 
     # If g-tensors are included in observables, they must be scalar. Precompute.
-    gs = gs_as_scalar(swt, measure)
+    gs = gs_as_scalar(sys, measure)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q

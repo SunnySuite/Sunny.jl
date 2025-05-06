@@ -70,6 +70,16 @@ end
     @test k[1:2] ≈ [0.5, 0.5]
     @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
 
+    # Luttinger Tisza exchange gives almost the right energy but: (1) The
+    # "constant shift" associated with the anisotropy needs to be included,
+    # and (2) It does not account for canting, which is a q=0 contribution
+    # to the S(q). For this problem, the canting effect can be counteracted
+    # by a halving of the Zeeman energy.
+    lt_exch = Sunny.luttinger_tisza_exchange(sys; k)
+    zeeman = sys.dipoles[1]' * sys.gs[1] * sys.extfield[1]
+    constant_shift = sys.interactions_union[1].onsite.c0[1]
+    @test spiral_energy(sys; k, axis) ≈ lt_exch + constant_shift + zeeman/2
+
     q = [0.12, 0.23, 0.34]
     swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys), k, axis)
     res = intensities_bands(swt, [q])
@@ -110,6 +120,7 @@ end
     k_ref = [0, 0, 0.14264604656200577]
     k_ref_alt = [0, 0, 1] - k_ref
 
+    # FIXME: Periodic failures
     k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
 
