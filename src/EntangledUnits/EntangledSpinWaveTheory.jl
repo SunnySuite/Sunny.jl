@@ -12,7 +12,6 @@ struct EntangledSpinWaveTheory <: AbstractSpinWaveTheory
 
     crystal_origin   :: Crystal
     contraction_info :: CrystalContractionInfo
-    Ns_unit          :: Vector{Vector{Int64}}
 end
  
 
@@ -28,7 +27,8 @@ function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    # Reshape (flatten) both sys and sys_origin in corresponding ways
+    # Reshape (flatten) both sys and sys_origin in corresponding ways.
+    # The reshaped sys_origin will just be used to construct
     sys, sys_origin = map([sys, sys_origin]) do sys
         new_shape = cell_shape(sys) * diagm(Vec3(sys.dims))
         new_cryst = reshape_crystal(orig_crystal(sys), new_shape)
@@ -57,7 +57,7 @@ function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
 
     data = swt_data_entangled(sys, sys_origin, new_Ns_unit, new_contraction_info, measure)
 
-    return EntangledSpinWaveTheory(sys, data, measure, regularization, crystal_origin, new_contraction_info, new_Ns_unit)
+    return EntangledSpinWaveTheory(sys, data, measure, regularization, crystal_origin, new_contraction_info)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", swt::EntangledSpinWaveTheory)
