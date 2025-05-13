@@ -1,5 +1,14 @@
 # Version History
 
+## v0.7.7
+(In development)
+
+* Add [`enable_spin_rescaling_for_static_sum_rule!`](@ref) which sets the
+  classical dipole magnitude to ``\sqrt{s (s + 1)}`` for each quantum spin-``s``
+  moment.
+* Add module [`SCGA`](@ref) for calculating [`intensities_static`](@ref) within
+  the self-consistent Gaussian approximation.
+
 ## v0.7.6
 (May 1, 2025)
 

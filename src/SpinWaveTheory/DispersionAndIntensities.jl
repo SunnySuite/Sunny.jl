@@ -172,13 +172,12 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     disp = zeros(Float64, L, Nq)
     intensity = zeros(eltype(measure), L, Nq)
 
-
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:Na, μ in 1:Nobs
-            r_global = global_position(sys, (1,1,1,i)) # + offsets[μ,i]
+            r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
             ff = get_swt_formfactor(measure, μ, i)
             Avec_pref[μ, i] = exp(- im * dot(q_global, r_global))
             Avec_pref[μ, i] *= compute_form_factor(ff, norm2(q_global))
@@ -214,8 +213,8 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
                 end
             end
 
-            map!(corrbuf, measure.corr_pairs) do (α, β)
-                Avec[α] * conj(Avec[β]) / Ncells
+            map!(corrbuf, measure.corr_pairs) do (μ, ν)
+                Avec[μ] * conj(Avec[ν]) / Ncells
             end
             intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbuf)
         end

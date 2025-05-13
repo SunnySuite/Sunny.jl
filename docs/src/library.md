@@ -21,6 +21,7 @@ LocalSampler
 Moment
 SampledCorrelations
 SampledCorrelationsStatic
+SCGA
 Site
 SpinWaveTheory
 SpinWaveTheoryKPM
@@ -35,6 +36,7 @@ dmvec
 domain_average
 eachsite
 enable_dipole_dipole!
+enable_spin_rescaling_for_static_sum_rule!
 energy
 energy_per_site
 excitations
