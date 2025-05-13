@@ -79,8 +79,8 @@ res3 = intensities_bands(swt, path);
 # corrections to its third dispersion band.
 
 fig = Figure(size=(768, 300))
-plot_intensities!(fig[1, 1], res1; units, title="Without long-range dipole")
-ax = plot_intensities!(fig[1, 2], res2; units, title="With long-range dipole")
+plot_intensities!(fig[1, 1], res1; units, ylims=(0, 4), title="Without long-range dipole")
+ax = plot_intensities!(fig[1, 2], res2; units, ylims=(0, 6), title="With long-range dipole")
 for c in eachrow(res3.disp)
     lines!(ax, eachindex(c), c; linestyle=:dash, color=:black)
 end
