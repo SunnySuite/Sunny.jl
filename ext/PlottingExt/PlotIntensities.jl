@@ -55,9 +55,9 @@ display(fig)
 """
 function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; colormap=nothing, colorrange=nothing,
                                  saturation=0.9, sensitivity=0.0025, allpositive=true, units=nothing, into=nothing,
-                                 fwhm=nothing, ylims=nothing, title="", axisopts=NamedTuple())
+                                 fwhm=nothing, ylims=nothing, title="", axis=NamedTuple())
     unit_energy, ylabel = get_unit_energy(units, into)
-    axisopts = (; title, axisopts...)
+    axis = (; title, axis...)
  
     if res.qpts isa Sunny.QPath 
         mindisp, maxdisp = extrema(res.disp)
@@ -74,7 +74,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
 
         xlims = extrema(axes(data, 2))
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, axisopts...)
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, axis...)
         Makie.image!(ax, xlims, ylims ./ unit_energy, data'; colorrange, colormap, lowclip=:white)
         for i in axes(res.disp, 1)
             Makie.lines!(ax, res.disp[i,:] / unit_energy; color=:lightskyblue3)
@@ -124,8 +124,8 @@ end
 
 function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colormap=nothing, colorrange=nothing,
                                  saturation=0.9, allpositive=true, units=nothing, into=nothing, ylims=nothing,
-                                 title="", axisopts=NamedTuple())
-    axisopts = (; title, axisopts...)
+                                 title="", axis=NamedTuple())
+    axis = (; title, axis...)
     (; crystal, qpts, data, energies) = res
 
     colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
@@ -137,7 +137,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
         xlims = extrema(axes(data, 2))
         ylims = @something ylims (extrema(energies) ./ unit_energy)
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(panel[1, 1]; xlabel="Momentum (r.l.u.)", ylabel, qpts.xticks, xticklabelrotation, axisopts...)
+        ax = Makie.Axis(panel[1, 1]; xlabel="Momentum (r.l.u.)", ylabel, qpts.xticks, xticklabelrotation, axis...)
         hm = Makie.image!(ax, xlims, ylims, data'; colormap, colorrange)
         Makie.Colorbar(panel[1, 2], hm)
         return ax
@@ -145,7 +145,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
         if isone(length(energies))
             aspect = grid_aspect_ratio(crystal, qpts)
             xlabel, ylabel = suggest_labels_for_grid(qpts)
-            ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axisopts...)
+            ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axis...)
             xl, yl = zip(qpts.coefs_lo, qpts.coefs_hi) # Ignore ylims argument
             hm = Makie.image!(ax, xl, yl, dropdims(data; dims=1); colormap, colorrange)
             Makie.Colorbar(panel[1, 2], hm)
@@ -160,8 +160,8 @@ end
 
 function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; colormap=nothing, colorrange=nothing,
                                  saturation=0.9, allpositive=true, units=nothing, into=nothing, ylims=nothing,
-                                 title="", axisopts=NamedTuple())
-    axisopts = (; title, axisopts...)
+                                 title="", axis=NamedTuple())
+    axis = (; title, axis...)
     (; crystal, qpts, data) = res
 
     colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
@@ -172,14 +172,14 @@ function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; c
         aspect = grid_aspect_ratio(crystal, qpts)
         xlabel, ylabel = suggest_labels_for_grid(qpts)
         xl, yl = zip(qpts.coefs_lo, qpts.coefs_hi) # Ignore ylims argument
-        ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axisopts...)
+        ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axis...)
         hm = Makie.image!(ax, xl, yl, data; colormap, colorrange)
         Makie.Colorbar(panel[1, 2], hm)
         return ax
     elseif qpts isa Sunny.QPath
         ylims = @something ylims colorrange (colorrange_suggest .* 1.1)
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel="Intensity", qpts.xticks, xticklabelrotation, axisopts...)
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel="Intensity", qpts.xticks, xticklabelrotation, axis...)
         Makie.ylims!(ax, ylims)
         Makie.lines!(ax, data)
         return ax
@@ -190,8 +190,8 @@ end
 
 function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; colormap=nothing, colorrange=nothing,
                                  saturation=0.9, allpositive=true, units=nothing, into=nothing, ylims=nothing,
-                                 title="", axisopts=NamedTuple())
-    axisopts = (; title, axisopts...)
+                                 title="", axis=NamedTuple())
+    axis = (; title, axis...)
     unit_energy, ylabel = get_unit_energy(units, into)
     xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
  
@@ -199,7 +199,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; c
     colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
     colorrange = @something colorrange colorrange_suggest
 
-    ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, axisopts...)
+    ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, axis...)
     xlims = extrema(res.radii)
     ylims = @something ylims (extrema(res.energies) ./ unit_energy)
     hm = Makie.image!(ax, xlims, ylims, res.data'; colormap, colorrange)
@@ -209,23 +209,23 @@ end
 
 function Sunny.plot_intensities!(panel, res::Sunny.PowderStaticIntensities{Float64}; colorrange=nothing,
                                  saturation=1.0, allpositive=true, units=nothing, ylims=nothing, title="",
-                                 axisopts=NamedTuple())
-    axisopts = (; title, axisopts...)
+                                 axis=NamedTuple())
+    axis = (; title, axis...)
     xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
     ylabel = "Intensity"
  
     colorrange_suggest = colorrange_from_data(; res.data, saturation, sensitivity=0, allpositive)
     ylims = @something ylims colorrange (colorrange_suggest .* 1.1)
 
-    ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, limits=(nothing, ylims), axisopts...)
+    ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, limits=(nothing, ylims), axis...)
     Makie.lines!(ax, res.radii, res.data)
     return ax
 end
 
 # Axes will currently be labeled as a linear combination of crystal lattice
 # vectors. See https://github.com/SunnySuite/Sunny.jl/pull/310 for details.
-function Sunny.plot_intensities!(panel, res::Sunny.BinnedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, title="", axisopts=NamedTuple(), divide_counts=true)
-    axisopts = (; title, axisopts...)
+function Sunny.plot_intensities!(panel, res::Sunny.BinnedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, title="", axis=NamedTuple(), divide_counts=true)
+    axis = (; title, axis...)
     unit_energy, elabel = get_unit_energy(units, into)
 
     data = divide_counts ? (res.data ./ res.counts) : res.data
@@ -239,7 +239,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BinnedIntensities{Float64}; c
 
     if n_dims_resolved == 0
         # No resolved data: Just display the one value!
-        ax = Makie.Axis(panel[1,1]; axisopts...)
+        ax = Makie.Axis(panel[1,1]; axis...)
         text = Sunny.number_to_simple_string(data[1]; digits=4)
         Makie.text!(ax, 0, 0; text)
         return ax
@@ -247,7 +247,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BinnedIntensities{Float64}; c
         # Only resolved on one axis!
         x_axis = findfirst(res.params.numbins .!= 1)
         xlabel = (x_axis == 4) ? elabel : Sunny.covector_name(res.params.covectors[x_axis, :])
-        ax = Makie.Axis(panel[1,1]; xlabel, ylabel="Integrated Intensity", axisopts...)
+        ax = Makie.Axis(panel[1,1]; xlabel, ylabel="Integrated Intensity", axis...)
         bcs = Sunny.axes_bincenters(res.params)
         bcs[4] /= unit_energy
         Makie.barplot!(ax, bcs[x_axis], data[:]; colormap, colorrange)
@@ -257,7 +257,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BinnedIntensities{Float64}; c
         y_axis = x_axis + findfirst(res.params.numbins[x_axis+1:end] .!= 1)
         xlabel = Sunny.covector_name(res.params.covectors[x_axis, :])
         ylabel = (y_axis == 4) ? elabel : Sunny.covector_name(res.params.covectors[y_axis, :])
-        ax = Makie.Axis(panel[1,1]; xlabel, ylabel, axisopts...)
+        ax = Makie.Axis(panel[1,1]; xlabel, ylabel, axis...)
         bcs = Sunny.axes_bincenters(res.params)
         bcs[4] /= unit_energy
         data = reshape(data, size(data, x_axis), size(data, y_axis))
@@ -270,8 +270,8 @@ function Sunny.plot_intensities!(panel, res::Sunny.BinnedIntensities{Float64}; c
 end
 
 #=
-  * `axisopts`: An additional collection of named arguments that will be passed
-    to the `Makie.Axis` constructor. This allows to override the axis `xlabel`,
+  * `axis`: An additional collection of named arguments that will be passed to
+    the `Makie.Axis` constructor. This allows to override the axis `xlabel`,
     `ylabel`, `xticks`, etc. See [Makie
     documentation](https://docs.makie.org/release/reference/blocks/axis#attributes)
     for details.
