@@ -26,14 +26,15 @@ normal to the polarization plane (in global Cartesian coordinates).
 
 When ``𝐤`` is incommensurate, this calculation can be viewed as creating an
 infinite number of periodic copies of `sys`. The spins on each periodic copy are
-rotated about the `axis` vector, with the angle ``θ = 2π 𝐤⋅𝐫``, where `𝐫`
+rotated about the `axis` vector, with the angle ``θ = 2π 𝐤⋅𝐫``, where ``𝐫``
 denotes the displacement vector between periodic copies of `sys` in multiples of
 the lattice vectors of the chemical cell.
 
-The return value is the energy associated with one periodic copy of `sys`. The
-special case ``𝐤 = 0`` yields result is identical to [`energy`](@ref).
+The return value is the energy associated with one periodic copy of `sys`.
+Selecting ``𝐤 = 0`` yields the ordinary system [`energy`](@ref).
 
-See also [`minimize_spiral_energy!`](@ref) and [`repeat_periodically_as_spiral`](@ref).
+See also [`minimize_spiral_energy!`](@ref) and
+[`repeat_periodically_as_spiral`](@ref).
 """
 function spiral_energy(sys::System{0}; k, axis)
     sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")

@@ -24,6 +24,10 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     buffers :: Vector{Array{CMat3, 2}}
 
     function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
+        if !(sys.mode in (:dipole, :dipole_uncorrected))
+            error("SpinWaveTheorySpiral requires :dipole or :dipole_uncorrected mode.")
+        end
+
         L = length(eachsite(sys))
         buffers = [zeros(CMat3, L, L) for _ in 1:6]
         return new(SpinWaveTheory(sys; measure, regularization), k, normalize(axis), buffers)
@@ -219,24 +223,24 @@ end
 
 # Observables must be dipole moments, with some choice of apply_g. Extract and
 # return this parameter.
-function is_apply_g(swt::SpinWaveTheory, measure::MeasureSpec)
+function is_apply_g(sys::System, measure::MeasureSpec)
     obs1 = measure.observables
     for apply_g in (true, false)
-        obs2 = all_dipole_observables(swt.sys; apply_g)
+        obs2 = all_dipole_observables(sys; apply_g)
         vec(obs1) ≈ vec(obs2) && return apply_g
     end
     error("General measurements not supported for spiral calculation")
 end
 
-function gs_as_scalar(swt::SpinWaveTheory, measure::MeasureSpec)
-    return if is_apply_g(swt, measure)
-        map(swt.sys.gs) do g
+function gs_as_scalar(sys::System, measure::MeasureSpec)
+    return if is_apply_g(sys, measure)
+        map(sys.gs) do g
             g = to_float_or_mat3(g; atol=1e-12)
             g isa Float64 || error("Anisotropic g-tensor not supported for spiral calculation")
             g
         end
     else
-        map(swt.sys.gs) do _
+        map(sys.gs) do _
             1.0
         end
     end
@@ -246,11 +250,9 @@ end
 function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branch=nothing
     (; swt, k, axis) = sswt
     (; sys, data, measure) = swt
-    (; local_rotations, observables_localized, sqrtS) = data
+    (; local_rotations, sqrtS) = data
 
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
-    sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
-    @assert sys.mode in (:dipole, :dipole_uncorrected)
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
@@ -282,7 +284,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
     Avec_pref = zeros(ComplexF64, Na)
 
     # If g-tensors are included in observables, they must be scalar. Precompute.
-    gs = gs_as_scalar(swt, measure)
+    gs = gs_as_scalar(sys, measure)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q

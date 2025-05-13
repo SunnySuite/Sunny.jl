@@ -43,7 +43,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     measure = @something measure empty_measurespec(sys)
-    if nsites(sys) != prod(size(measure.observables)[2:5])
+    if size(eachsite(sys)) != size(measure.observables)[2:5]
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
@@ -89,9 +89,13 @@ function nbands(swt::SpinWaveTheory)
 end
 
 
+function to_standard_rlu(sys::System, q_reshaped)
+    return orig_crystal(sys).recipvecs \ (sys.crystal.recipvecs * q_reshaped)
+end
+
 # Given q in reciprocal lattice units (RLU) for the original crystal, return a
 # q_reshaped in RLU for the possibly-reshaped crystal.
-function to_reshaped_rlu(sys::System{N}, q) where N
+function to_reshaped_rlu(sys::System, q)
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
