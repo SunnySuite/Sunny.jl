@@ -37,6 +37,14 @@ function colorrange_from_data(; data, saturation, sensitivity, allpositive)
     end
 end
 
+# Makie.heatmap can fail on large grids due to an OpenGL error. A workaround is
+# to wrap the data in a Makie.Resampler if any of the array dimensions is
+# "large" https://github.com/MakieOrg/Makie.jl/issues/4950. The empirical cutoff
+# 2000 should (hopefully) be conservative for most systems.
+function maybe_resample(data)
+    all(<(2000), size(data)) ? data : Makie.Resampler(data)
+end
+
 """
     plot_intensities!(panel, res; opts...)
 
@@ -61,9 +69,10 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
  
     if res.qpts isa Sunny.QPath 
         mindisp, maxdisp = extrema(res.disp)
-        ylims = @something ylims (min(0, mindisp), 1.1*maxdisp)
-        energies = range(ylims[1], ylims[2], 512)
-        fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
+        ylims = @something ylims (min(0, mindisp), 1.1*maxdisp) ./ unit_energy
+        ebounds = ylims .* unit_energy
+        energies = range(ebounds[1], ebounds[2], 512)
+        fwhm = @something fwhm 0.02*(ebounds[2]-ebounds[1])
         σ = fwhm/2√(2log(2))
         kernel = Sunny.Broadening(x -> exp(-x^2/2σ^2)) # Gaussian without normalization
         (; data) = Sunny.broaden(res; energies, kernel)
@@ -72,12 +81,11 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
         colormap = @something colormap (allpositive ? Makie.Reverse(:thermal) : :bwr)
         colorrange = @something colorrange colorrange_suggest
 
-        xlims = extrema(axes(data, 2))
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, axis...)
-        Makie.image!(ax, xlims, ylims ./ unit_energy, data'; colorrange, colormap, lowclip=:white)
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, limits=(nothing, ylims), axis...)
+        Makie.heatmap!(ax, (1, size(data, 2)), ylims, maybe_resample(collect(data')); colorrange, colormap, lowclip=:white)
         for i in axes(res.disp, 1)
-            Makie.lines!(ax, res.disp[i,:] / unit_energy; color=:lightskyblue3)
+            Makie.lines!(ax, res.disp[i,:]/unit_energy; color=:lightskyblue3)
         end
         return ax
     else
@@ -134,20 +142,18 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
 
     if qpts isa Sunny.QPath
         unit_energy, ylabel = get_unit_energy(units, into)
-        xlims = extrema(axes(data, 2))
-        ylims = @something ylims (extrema(energies) ./ unit_energy)
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(panel[1, 1]; xlabel="Momentum (r.l.u.)", ylabel, qpts.xticks, xticklabelrotation, axis...)
-        hm = Makie.image!(ax, xlims, ylims, data'; colormap, colorrange)
+        ax = Makie.Axis(panel[1, 1]; xlabel="Momentum (r.l.u.)", ylabel, qpts.xticks, xticklabelrotation, limits=(nothing, ylims), axis...)
+        hm = Makie.heatmap!(ax, (1, size(data, 2)), extrema(energies)./unit_energy, maybe_resample(data'); colormap, colorrange)
         Makie.Colorbar(panel[1, 2], hm)
         return ax
     elseif qpts isa Sunny.QGrid{2}
         if isone(length(energies))
             aspect = grid_aspect_ratio(crystal, qpts)
             xlabel, ylabel = suggest_labels_for_grid(qpts)
+            (xbounds, ybounds) = zip(qpts.coefs_lo, qpts.coefs_hi)
             ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axis...)
-            xl, yl = zip(qpts.coefs_lo, qpts.coefs_hi) # Ignore ylims argument
-            hm = Makie.image!(ax, xl, yl, dropdims(data; dims=1); colormap, colorrange)
+            hm = Makie.heatmap!(ax, xbounds, ybounds, maybe_resample(dropdims(data; dims=1)); colormap, colorrange)
             Makie.Colorbar(panel[1, 2], hm)
             return ax
         else
@@ -167,21 +173,20 @@ function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; c
     colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
     colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
 
-    if qpts isa Sunny.QGrid{2}
+    if qpts isa Sunny.QPath
+        ylims = @something ylims colorrange (colorrange_suggest .* 1.1)
+        xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel="Intensity", qpts.xticks, xticklabelrotation, limits=(nothing, ylims), axis...)
+        Makie.lines!(ax, data)
+        return ax
+    elseif qpts isa Sunny.QGrid{2}
         colorrange = @something colorrange colorrange_suggest
         aspect = grid_aspect_ratio(crystal, qpts)
         xlabel, ylabel = suggest_labels_for_grid(qpts)
-        xl, yl = zip(qpts.coefs_lo, qpts.coefs_hi) # Ignore ylims argument
+        (xbounds, ybounds) = zip(qpts.coefs_lo, qpts.coefs_hi)
         ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axis...)
-        hm = Makie.image!(ax, xl, yl, data; colormap, colorrange)
+        hm = Makie.heatmap!(ax, xbounds, ybounds, maybe_resample(data); colormap, colorrange)
         Makie.Colorbar(panel[1, 2], hm)
-        return ax
-    elseif qpts isa Sunny.QPath
-        ylims = @something ylims colorrange (colorrange_suggest .* 1.1)
-        xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel="Intensity", qpts.xticks, xticklabelrotation, axis...)
-        Makie.ylims!(ax, ylims)
-        Makie.lines!(ax, data)
         return ax
     else
         error("Cannot yet plot $(typeof(res))")
@@ -199,10 +204,8 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; c
     colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
     colorrange = @something colorrange colorrange_suggest
 
-    ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, axis...)
-    xlims = extrema(res.radii)
-    ylims = @something ylims (extrema(res.energies) ./ unit_energy)
-    hm = Makie.image!(ax, xlims, ylims, res.data'; colormap, colorrange)
+    ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, limits=(nothing, ylims), axis...)
+    hm = Makie.heatmap!(ax, extrema(res.radii), extrema(res.energies)./unit_energy, maybe_resample(res.data'); colormap, colorrange)
     Makie.Colorbar(panel[1, 2], hm)
     return ax
 end
@@ -216,7 +219,6 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderStaticIntensities{Float
  
     colorrange_suggest = colorrange_from_data(; res.data, saturation, sensitivity=0, allpositive)
     ylims = @something ylims colorrange (colorrange_suggest .* 1.1)
-
     ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, limits=(nothing, ylims), axis...)
     Makie.lines!(ax, res.radii, res.data)
     return ax
