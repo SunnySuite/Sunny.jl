@@ -62,7 +62,7 @@ end
 
 
 """
-    enable_dipole_dipole!(sys::System, μ0_μB²)
+    enable_dipole_dipole!(sys::System, μ0_μB²; N=0)
 
 Enables long-range interactions between magnetic dipole moments,
 
@@ -72,17 +72,62 @@ Enables long-range interactions between magnetic dipole moments,
 
 where the sum is over all pairs of sites (singly counted), including periodic
 images, regularized using the Ewald summation convention. Each magnetic moment
-is ``μ = -g μ_B 𝐒``, where ``𝐒`` is the spin angular momentum dipole. The
-parameter `μ0_μB²` specifies the physical constant ``μ_0 μ_B^2``, which has
+is ``μ_i = -g μ_B 𝐒_i``, where ``𝐒_i`` is the spin angular momentum dipole.
+The parameter `μ0_μB²` specifies the physical constant ``μ_0 μ_B^2``, which has
 dimensions of length³-energy. Obtain this constant for a given system of
 [`Units`](@ref) via its `vacuum_permeability` property.
+
+The optional demagnetization tensor `N` incorporates information about sample
+geometry. It can be scalar or matrix valued. Special cases are:
+
+  * `N = 1/3` for a spherical geometry in vacuum.
+  * `N = Diagonal(0, 0, 1)`` for a slab-like geometry perpendicular to the
+    ``ẑ``-axis.
+  * `N = Diagonal(1/2, 1/2, 0)` for a rod-like geometry aligned with the
+    ``ẑ``-axis.
+
+Traditional Ewald summation uses `N = 0`, which neglects all demagnetization.
+This could rationalized, e.g., for a rod-like geometry that is aligned with the
+net magnetization dipole.
 
 # Example
 
 ```julia
 units = Units(:meV, :angstrom)
-enable_dipole_dipole!(sys, units.vacuum_permeability)
+enable_dipole_dipole!(sys, units.vacuum_permeability; N=1/3)
 ```
+
+!!! tip "Origin of demagnetization"  
+
+    Formal summation over the infinitely many dipole-dipole pair interactions
+    becomes mathematically ambiguous when the sample has a net magnetic dipole,
+
+    ```math
+        𝐌 = ∑_i μ_i.
+    ```
+
+    The traditional Ewald method resolves the ambiguity by neglecting surface
+    effects that would lead to demagnetization. For physical correctness,
+    however, the Ewald result should be augmented with a surface contribution to
+    the total energy,
+
+    ```math
+        E_s = μ_0 𝐌⋅ℕ 𝐌 / 2V.
+    ```
+
+    Geometry enters through the demagnetization tensor ``ℕ``, which can be
+    written as an integral over the sample volume,
+
+    ```math
+        ℕ = - (1 / 4π) ∫ d𝐱 ∇ ∇ (1 / |𝐱|).
+    ```
+
+    This formula is valid in vacuum. If the sample is embedded in another
+    material with relative permeability ``μ' > 1``, it would lead to an
+    effective reduction in ``ℕ``. For example, ``ℕ = 1/(2μ'+1)`` is the
+    appropriate formula for a spherical inclusion. Recall that ``μ' = 1`` in
+    vacuum. Conversely, the limit ``μ' → ∞`` effectively removes any
+    demagnetization field.
 
 !!! tip "Efficiency considerations"  
     Dipole-dipole interactions are very efficient in the context of spin
@@ -97,7 +142,7 @@ enable_dipole_dipole!(sys, units.vacuum_permeability)
 
 See also [`modify_exchange_with_truncated_dipole_dipole!`](@ref).
 """
-function enable_dipole_dipole!(sys::System{N}, μ0_μB²=nothing) where N
+function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; J=0.0)
     if isnothing(μ0_μB²)
         @warn "Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV, :angstrom)`."
         μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
@@ -345,6 +390,14 @@ function energy_aux(ints::Interactions, sys::System{N}, sites) where N
             # Bilinear
             J = pc.bilin :: Union{Float64, Mat3}
             E += dot(Sᵢ, J, Sⱼ)
+
+            # if (siteᵢ, siteⱼ) == (CartesianIndex(2, 2, 1, 1), CartesianIndex(1, 1, 1, 1))
+            #     @show bond
+            # end
+            @show (siteᵢ, siteⱼ)
+            @show bond
+            @show J
+            @show Sᵢ, Sⱼ, dot(Sᵢ, J, Sⱼ)
 
             # Biquadratic
             if !iszero(pc.biquad)
