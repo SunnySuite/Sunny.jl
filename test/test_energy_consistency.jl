@@ -8,7 +8,7 @@
         add_linear_interactions!(sys, mode)
         add_quadratic_interactions!(sys, mode)
         add_quartic_interactions!(sys, mode)
-        enable_dipole_dipole!(sys, 0.5)
+        enable_dipole_dipole!(sys, 0.5; demag=1/3)
 
         # Random field
         for site in eachsite(sys)

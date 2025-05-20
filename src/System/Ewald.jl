@@ -1,5 +1,5 @@
 
-function Ewald(sys::System{N}, μ0_μB²) where N
+function Ewald(sys::System{N}, μ0_μB², demag) where N
     (; crystal, dims) = sys
 
     A = precompute_dipole_ewald(crystal, dims) * μ0_μB²
@@ -18,7 +18,7 @@ function Ewald(sys::System{N}, μ0_μB²) where N
     plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
     ift_plan = FFTW.plan_irfft(Fμ, dims[1], 2:4; flags=FFTW.MEASURE)
 
-    return Ewald(μ0_μB², A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
+    return Ewald(μ0_μB², demag, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
 end
 
 # Ideally, this would clone all mutable state within Ewald. Note that `A`, `FA`
@@ -29,8 +29,8 @@ end
 # https://github.com/JuliaMath/FFTW.jl/issues/261.
 function clone_ewald(ewald::Ewald)
     error("Not supported")
-    (; μ0_μB², A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan) = ewald
-    return Ewald(μ0_μB², A, copy(μ), copy(ϕ), FA, copy(Fμ), copy(Fϕ), copy(plan), copy(ift_plan))
+    (; μ0_μB², demag, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan) = ewald
+    return Ewald(μ0_μB², demag, A, copy(μ), copy(ϕ), FA, copy(Fμ), copy(Fϕ), copy(plan), copy(ift_plan))
 end
 
 # Tensor product of 3-vectors
@@ -248,8 +248,9 @@ Like [`enable_dipole_dipole!`](@ref), the purpose of this function is to
 introduce long-range dipole-dipole interactions between magnetic moments.
 Whereas `enable_dipole_dipole!` employs Ewald summation, this function instead
 employs real-space pair couplings with truncation at the specified `cutoff`
-distance. If the cutoff is relatively small, then this function may be faster
-than `enable_dipole_dipole!`.
+distance. The implicit demagnetization factor is ``ℕ = 1/3``, appropriate for a
+spherical sample. If the cutoff is relatively small, then this function may be
+faster than `enable_dipole_dipole!`.
 
 !!! warning "Mutation of existing couplings"  
     This function will modify existing bilinear couplings between spins by

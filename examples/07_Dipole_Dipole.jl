@@ -32,7 +32,7 @@ set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
 # using Ewald summation.
 
 sys_lr = clone_system(sys)
-enable_dipole_dipole!(sys_lr, units.vacuum_permeability)
+enable_dipole_dipole!(sys_lr, units.vacuum_permeability; demag=1/3)
 
 # Create a copy of the system and add long-range dipole-dipole interactions up
 # to a 5 Å cutoff distance.

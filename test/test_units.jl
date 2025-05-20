@@ -3,9 +3,9 @@
         crystal = Sunny.diamond_crystal(; a=units.angstrom)
         sys = System(crystal, [1 => Moment(s=1, g=2)], :dipole; dims=(4, 4, 4), seed=0)
         randomize_spins!(sys)
-        set_exchange!(sys, 2 * units.K, Bond(1, 2, [0,0,0]))
+        set_exchange!(sys, 2 * units.K, Bond(1, 2, [0, 0, 0]))
         set_field!(sys, [0, 0, 1] * units.T)
-        enable_dipole_dipole!(sys, units.vacuum_permeability)
+        enable_dipole_dipole!(sys, units.vacuum_permeability; demag=1/3)
         E = energy(sys) / units.meV
         ∇E = Sunny.energy_grad_dipoles(sys) / units.THz
         return (E, ∇E)
