@@ -67,7 +67,7 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
 
             (; j, n) = bond
             J_lab = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo transformation in `swt_data`
-            J = exp(-2π * im * dot(q_reshaped, n)) * J_lab # FIXME: MINUS
+            J = exp(-2π * im * dot(q_reshaped, n)) * J_lab
             Jq[i, j] += J
             Jq[j, i] += J'
         end
@@ -75,7 +75,7 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
 
     if !isnothing(sys.ewald)
         (; demag, μ0_μB²) = sys.ewald
-        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, -q_reshaped) * μ0_μB² # FIXME: HERE TOO
+        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, -q_reshaped) * μ0_μB²
         Aq = reshape(Aq, Na, Na)
         for i in 1:Na, j in 1:Na
             Jq[i, j] += gs[i]' * Aq[i, j] * gs[j]
