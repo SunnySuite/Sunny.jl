@@ -81,12 +81,12 @@ Geometry of the macroscopic sample enters through the demagnetization factor
 tensor ``ℕ``, denoted `demag`. In a vacuum background, `tr(demag) == 1`. Special
 cases are:
 
-  * `demag = 1/3` for isotropic demagnetization. This includes sphere and cube
-    sample geometries.
-  * `demag = Diagonal(0, 0, 1)`` for a slab-like geometry perpendicular to the
-    ``ẑ``-axis.
-  * `demag = Diagonal(1/2, 1/2, 0)` for a rod-like geometry aligned with the
-    ``ẑ``-axis.
+  * `demag = 1/3` for isotropic demagnetization. This is the default and is
+    valid for sphere and cube sample geometries.
+  * `demag = Diagonal([0, 0, 1])`` for a sheet-like geometry with surface normal
+    in ``ẑ``.
+  * `demag = Diagonal([1/2, 1/2, 0])` for a needle-like geometry aligned with
+    `ẑ``.
 
 Set `demag = 0` to neglect demagnetization effects.
 
