@@ -17,12 +17,12 @@
     # compute ewald energy using J(k)
     sys = System(cryst, [1 => Moment(s=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
-    enable_dipole_dipole!(sys, 1.0; demag=1/3)
+    enable_dipole_dipole!(sys, 1.0)
     E1 = spiral_energy_per_site(sys; k, axis)
 
     # compute ewald energy using supercell
     sys_large = repeat_periodically_as_spiral(sys, (La*Na, Lb*Nb, Lc*Nc); k, axis)
-    enable_dipole_dipole!(sys_large, 1.0; demag=1/3)
+    enable_dipole_dipole!(sys_large, 1.0)
     E2 = energy_per_site(sys_large)
 
     @test E1 ≈ E2
@@ -37,11 +37,11 @@
     # compute ewald energy using J(Q)
     sys = System(cryst, [1 => Moment(s=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
-    enable_dipole_dipole!(sys, 1.0; demag=1/3)
+    enable_dipole_dipole!(sys, 1.0)
     E1 = spiral_energy_per_site(sys; k, axis)
 
     sys_large = repeat_periodically_as_spiral(sys, (La*Na, Lb*Nb, Lc*Nc); k, axis)
-    enable_dipole_dipole!(sys_large, 1.0; demag=1/3)
+    enable_dipole_dipole!(sys_large, 1.0)
     E2 = energy_per_site(sys_large)
 
     @test E1 ≈ E2
