@@ -74,11 +74,11 @@ end
     # "constant shift" associated with the anisotropy needs to be included,
     # and (2) It does not account for canting, which is a q=0 contribution
     # to the S(q). For this problem, the canting effect can be counteracted
-    # by a halving of the Zeeman energy.
-    lt_exch = Sunny.luttinger_tisza_exchange(sys; k)
+    # by a halving of the Zeeman energy of a site.
+    lt_exch = Sunny.luttinger_tisza_exchange(sys; k) / length(eachsite(sys))
     zeeman = sys.dipoles[1]' * sys.gs[1] * sys.extfield[1]
     constant_shift = sys.interactions_union[1].onsite.c0[1]
-    @test spiral_energy(sys; k, axis) ≈ lt_exch + constant_shift + zeeman/2
+    @test spiral_energy_per_site(sys; k, axis) ≈ lt_exch + constant_shift + zeeman/2
 
     q = [0.12, 0.23, 0.34]
     swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys), k, axis)

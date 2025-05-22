@@ -3,11 +3,11 @@
 
 Analogous to [`SpinWaveTheory`](@ref), but interprets the provided system as
 having a generalized spiral order. This order is described by a single
-propagation wavevector `k`, which may be incommensurate. The `axis` vector
-defines the polarization plane via its surface normal. Typically the spin
-configuration in `sys` and the propagation wavevector `k` will be optimized
-using [`minimize_spiral_energy!`](@ref). In contrast, `axis` will typically be
-determined from symmetry considerations.
+propagation wavevector `k` (in reciprocal lattice units, RLU) an `axis` vector
+that is normal to the polarization plane (in global Cartesian coordinates).
+Typically the spin configuration in `sys` and the propagation wavevector `k`
+will be optimized using [`minimize_spiral_energy!`](@ref). In contrast, `axis`
+will typically be determined from symmetry considerations.
 
 The resulting object can be used to calculate the spin wave
 [`dispersion`](@ref), or the structure factor via [`intensities_bands`](@ref)
@@ -19,8 +19,9 @@ implemented in the [SpinW code](https://spinw.org/).
 """
 struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     swt :: SpinWaveTheory
-    k :: Vec3
-    axis :: Vec3
+    k :: Vec3              # Propagation wavevector
+    k_case :: Int          # Label (1, 2, 3) if (kᵢ ∈ ℕ, 2kᵢ ∈ ℕ, otherwise)
+    axis :: Vec3           # Axis for polarization plane
     buffers :: Vector{Array{CMat3, 2}}
 
     function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
@@ -28,9 +29,10 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
             error("SpinWaveTheorySpiral requires :dipole or :dipole_uncorrected mode.")
         end
 
+        k_case = spiral_propagation_case(to_reshaped_rlu(sys, k))
         L = length(eachsite(sys))
         buffers = [zeros(CMat3, L, L) for _ in 1:6]
-        return new(SpinWaveTheory(sys; measure, regularization), k, normalize(axis), buffers)
+        return new(SpinWaveTheory(sys; measure, regularization), k, k_case, normalize(axis), buffers)
     end
 end
 
@@ -49,7 +51,7 @@ end
 # Niraula and Xiaojian Bai developed and implemented the approprate
 # generalization in https://github.com/SunnySuite/Sunny.jl/pull/304.
 
-function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q)
+function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q_reshaped)
     (; sys, data) = swt
     (; local_rotations) = data
     (; gs) = sys
@@ -65,14 +67,14 @@ function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q)
 
             (; j, n) = bond
             J_lab = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo transformation in `swt_data`
-            J = exp(-2π * im * dot(q, n)) * J_lab
+            J = exp(-2π * im * dot(q_reshaped, n)) * J_lab
             J_k[i, j] += J
             J_k[j, i] += J'
         end
     end
 
     if !isnothing(sys.ewald)
-        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), -q) * sys.ewald.μ0_μB²
+        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), -q_reshaped) * sys.ewald.μ0_μB²
         A = reshape(A, Na, Na)
         for i in 1:Na, j in 1:Na
             J_k[i, j] += gs[i]' * A[i, j] * gs[j]
@@ -84,7 +86,7 @@ end
 ## Dispersion and intensities
 
 function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_reshaped; branch)
-    (; swt, k, axis) = sswt
+    (; swt, k, k_case, axis) = sswt
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
     L = nbands(swt)
@@ -101,17 +103,18 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     R1 = (I - im * nx - R2) / 2
     Rs = local_rotations
 
-    q_reshaped = q_reshaped + (branch - 2) .* k
+    k_reshaped = to_reshaped_rlu(sys, k)
+    q_reshaped = q_reshaped + (branch - 2) .* k_reshaped
 
     # Add pairwise bilinear term
 
     Jq, Jqmk, Jqpk, J0k, J0mk, J0pk = sswt.buffers
     fourier_bilinear_interaction!(Jq,   swt, q_reshaped)
-    fourier_bilinear_interaction!(Jqmk, swt, q_reshaped .- k)
-    fourier_bilinear_interaction!(Jqpk, swt, q_reshaped .+ k)
+    fourier_bilinear_interaction!(Jqmk, swt, q_reshaped .- k_reshaped)
+    fourier_bilinear_interaction!(Jqpk, swt, q_reshaped .+ k_reshaped)
     fourier_bilinear_interaction!(J0k,  swt, zero(Vec3))
-    fourier_bilinear_interaction!(J0mk, swt, -k)
-    fourier_bilinear_interaction!(J0pk, swt, +k)
+    fourier_bilinear_interaction!(J0mk, swt, -k_reshaped)
+    fourier_bilinear_interaction!(J0pk, swt, +k_reshaped)
 
     for i in 1:L, j in 1:L
         Jq1   = Jq[i, j]
@@ -120,14 +123,13 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
         J0k1  = J0k[i, j]
         J0pk1 = J0pk[i, j]
         J0mk1 = J0mk[i, j]
-        case = spiral_propagation_case(k)
-        if case == 1
+        if k_case == 1
             J = Jq1
             J0 = J0k1
-        elseif case == 2
+        elseif k_case == 2
             J = R2 * Jq1* R2 + conj(R1) * Jqpk1 * conj(R1) + R1 * Jqmk1 * R1 + R1 * Jqpk1 * conj(R1) + conj(R1) * Jqmk1 * R1
             J0 = R2 * J0k1 * R2 + conj(R1) * J0pk1 * conj(R1) + R1 * J0mk1 * R1 + R1 * J0pk1 * conj(R1) + conj(R1) * J0mk1 * R1
-        else @assert case == 3
+        else @assert k_case == 3
             J = R2 * Jq1* R2 + conj(R1) * Jqpk1 * conj(R1) + R1 * Jqmk1 * R1
             J0 = R2 * J0k1 * R2 + conj(R1) * J0pk1 * conj(R1) + R1 * J0mk1 * R1
         end
@@ -248,7 +250,7 @@ end
 
 
 function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branch=nothing
-    (; swt, k, axis) = sswt
+    (; swt, k_case, axis) = sswt
     (; sys, data, measure) = swt
     (; local_rotations, sqrtS) = data
 
@@ -314,19 +316,18 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
         end
 
         for band = 1:L
-            case = spiral_propagation_case(k)
-            if case == 1
+            if k_case == 1
                 # The three branches (q-k, q, q+k) are equivalent when k = 0
                 # (modulo 1). Spread 1/3 of the intensity among every branch.
                 S[band, 1] *= 1/3
                 S[band, 2] *= 1/3
                 S[band, 3] *= 1/3
                 @assert S[band, 1] ≈ S[band, 2] ≈ S[band, 3]
-            elseif case == 2
+            elseif k_case == 2
                 S[band, 1] = R1 * S[band, 1] * R1 + conj(R1) * S[band, 1] * R1
                 S[band, 2] = R2 * S[band, 2] * R2
                 S[band, 3] = conj(R1) * S[band, 3] * conj(R1) +  R1 * S[band, 3] * conj(R1)
-            else
+            else @assert k_case == 3
                 S[band, 1] = R1 * S[band, 1] * R1
                 S[band, 2] = R2 * S[band, 2] * R2
                 S[band, 3] = conj(R1) * S[band, 3] * conj(R1)
