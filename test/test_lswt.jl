@@ -296,7 +296,7 @@ end
 
     for mode in (:dipole, :SUN)
         sys = System(cryst, [1 => Moment(s=1, g=1)], mode)
-        enable_dipole_dipole!(sys, 1.0)
+        enable_dipole_dipole!(sys, 1.0; demag=0)
 
         polarize_spins!(sys, (0,0,1))
         @test energy_per_site(sys) ≈ -0.1913132980155851
@@ -310,9 +310,10 @@ end
     end
 
     begin
+        units = Units(:meV, :angstrom)
         cryst = Sunny.bcc_crystal()
         sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole, seed=2)
-        enable_dipole_dipole!(sys, Units(:meV, :angstrom).vacuum_permeability)
+        enable_dipole_dipole!(sys, units.vacuum_permeability; demag=0)
         polarize_spins!(sys, (1,2,3)) # arbitrary direction
 
         R = hcat([1,1,-1], [-1,1,1], [1,-1,1]) / 2
