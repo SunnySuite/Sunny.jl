@@ -6,10 +6,10 @@
 # and energy transfer _to_ the sample.
 #
 # The structure factor intensities at ``± 𝐪`` may be inequivalent if the model
-# lacks inversion symmetry. Consider, for example, a 1D chain that includes only
-# Dzyaloshinskii–Moriya interactions between neighboring sites. Coupling to an
-# external field then breaks time-reversal symmetry, giving rise to an
-# inequivalence of intensities ``\mathcal{S}(±𝐪,ω)``
+# lacks inversion symmetry. This tutorial considers a 1D chain with
+# Dzyaloshinskii–Moriya coupling between neighboring sites. An external field
+# then breaks time-reversal symmetry, giving rise to an inequivalence of
+# intensities ``\mathcal{S}(±𝐪,ω)``
 
 using Sunny, GLMakie
 
@@ -20,16 +20,16 @@ using Sunny, GLMakie
 # specified independently.
 
 latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
-cryst = Crystal(latvecs, [[0,0,0]], "P1")
+cryst = Crystal(latvecs, [[0, 0, 0]], "P1")
 
 # Construct a 1D chain system that extends along the global Cartesian ``ẑ``
 # axis. The Hamiltonian includes DM and Zeeman coupling terms, ``ℋ = ∑_j D ẑ ⋅
-# (𝐒_j × 𝐒_{j+1}) - ∑_j 𝐁 ⋅ μ_j``, where ``μ_j = - g 𝐒_j`` is the
+# (𝐒_j × 𝐒_{j+1}) - ∑_j 𝐁 ⋅ μ_j``, where ``μ_j = - 2 𝐒_j`` is the
 # [`magnetic_moment`](@ref) and ``𝐁 ∝ ẑ``.
 
-sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(1, 1, 25))
-D = 0.1
-B = 5D
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
+B = 0.8
+D = 0.2
 set_exchange!(sys, dmvec([0, 0, D]), Bond(1, 1, [0, 0, 1]))
 set_field!(sys, [0, 0, B])
 
@@ -38,55 +38,55 @@ set_field!(sys, [0, 0, B])
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-@assert energy_per_site(sys) ≈ -10D
+@assert magnetic_moment(sys, (1, 1, 1, 1)) ≈ [0, 0, 2 * sign(B)]
+@assert energy(sys) ≈ - 2 * abs(B)
 
-# Sample from the classical Boltzmann distribution at a low temperature.
+# ### Calculation using linear spin wave theory
 
-dt = 0.1
-kT = 0.02
+# The [`SpinWaveTheory`](@ref) calculation shows a single band with dispersion
+# ``ϵ(𝐪) = 2 |B| (1 - \sin(2πq_3) D / B)`` and uniform intensity. Notice the
+# different excitation energies at ``𝐪`` and ``-𝐪``.
+
+path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
+swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
+res = intensities_bands(swt, path)
+plot_intensities(res; ylims=(0, 3))
+
+# ### Calculation using classical spin dynamics
+
+# Enlarge the system with [`resize_supercell`](@ref)
+
+sys2 = resize_supercell(sys, (1, 1, 32))
+
+# Use [`Langevin`](@ref) dynamics to sample from the classical Boltzmann
+# distribution at a low temperature.
+
+dt = 0.05 / abs(B)
+kT = 0.05 * abs(B)
 damping = 0.1
 langevin = Langevin(dt; kT, damping)
-suggest_timestep(sys, langevin; tol=1e-2)
+suggest_timestep(sys2, langevin; tol=1e-2)
 for _ in 1:10_000
     step!(sys, langevin)
 end
 
-# The Zeeman coupling polarizes the magnetic moments in the ``𝐁 ∝ ẑ``
-# direction. The spin dipoles, however, are anti-aligned with the magnetic
-# moments and therefore point towards ``-ẑ``. This is shown below.
+# Estimate intensities with [`SampledCorrelations`](@ref), which employs
+# classical spin dynamics.
 
-plot_spins(sys)
-
-# Estimate the dynamical structure factor using classical dynamics.
-
-sc = SampledCorrelations(sys; dt, energies=range(0, 15D, 100), measure=ssf_trace(sys))
-add_sample!(sc, sys)
+sc = SampledCorrelations(sys2; dt, energies=range(0, 3, 100), measure=ssf_trace(sys2))
+add_sample!(sc, sys2)
 nsamples = 100
 for _ in 1:nsamples
-    for _ in 1:1_000
-        step!(sys, langevin)
+    for _ in 1:1000
+        step!(sys2, langevin)
     end
-    add_sample!(sc, sys)
+    add_sample!(sc, sys2)
 end
-path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
-res1 = intensities(sc, path; energies=:available, kT)
 
-# Calculate the same quantity with linear spin wave theory at ``T = 0``. Because
-# the ground state is fully polarized, the required magnetic cell is a ``1×1×1``
-# grid of chemical unit cells.
+# In the limit ``T → 0``, the excitation band matches linear spin wave theory up
+# to finite-size effects and statistical error. Additionally, there is an
+# elastic peak at ``𝐪 = [0,0,0]`` associated with the ferromagnetic ground
+# state.
 
-sys_small = resize_supercell(sys, (1,1,1))
-minimize_energy!(sys_small)
-swt = SpinWaveTheory(sys_small; measure=ssf_trace(sys_small))
-res2 = intensities_bands(swt, path)
-
-# This model system has a single magnon band with dispersion ``ϵ(𝐪) = 1 - D/B
-# \sin(2πq₃)`` and uniform intensity. Both calculation methods reproduce this
-# analytical solution. Observe that ``𝐪`` and ``-𝐪`` are inequivalent. The
-# structure factor calculated from classical dynamics additionally shows an
-# elastic peak at ``𝐪 = [0,0,0]``, reflecting the ferromagnetic ground state.
-
-fig = Figure(size=(768, 300))
-plot_intensities!(fig[1, 1], res1; ylims=(0, 15D), title="Classical dynamics")
-plot_intensities!(fig[1, 2], res2; ylims=(0, 15D), title="Spin wave theory")
-fig
+res2 = intensities(sc, path; energies=:available, kT)
+plot_intensities(res2)
