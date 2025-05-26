@@ -102,6 +102,12 @@ end
     @test res.data[1] + res.data[2] ≈ res2.data[2]
     @test res.disp[end] ≈ res2.disp[end]
     @test res.data[end] ≈ res2.data[end]
+
+    # Compare energy corrections
+
+    δE1 = Sunny.energy_per_site_lswt_correction(swt; atol=5e-4)
+    δE2 = Sunny.energy_per_site_lswt_correction(swt2; atol=5e-4)
+    @test_broken isapprox(δE1, δE2; atol=1e-3)
 end
 
 
@@ -252,4 +258,10 @@ end
 
     @test res.data[1:3, 1] ≈ res2.data[1:3, 1]
     @test res.data[1:3, 2] ≈ res2.data[[1, 3, 4], 2]
+
+    # Compare energy corrections
+
+    δE1 = Sunny.energy_per_site_lswt_correction(swt; atol=5e-4)
+    δE2 = Sunny.energy_per_site_lswt_correction(swt2; atol=5e-4)
+    @test_broken isapprox(δE1, δE2; atol=1e-3)
 end

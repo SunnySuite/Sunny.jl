@@ -15,8 +15,7 @@ for details.
 function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
     any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")
 
-    (; sys) = swt
-    Natoms = natoms(sys.crystal)
+    Natoms = natoms(swt.sys.crystal)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     V = zeros(ComplexF64, 2L, 2L)
@@ -25,6 +24,7 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
     # of the spin-wave Hamiltonian)
     dynamical_matrix!(H, swt, zero(Vec3))
     δE₁ = -real(tr(view(H, 1:L, 1:L))) / 2Natoms
+    @show δE₁
 
     # Integrate zero-point energy over the first Brillouin zone 𝐪 ∈ [0, 1]³ for
     # magnetic cell in reshaped RLU
@@ -33,6 +33,8 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
         ωs = bogoliubov!(V, H)
         return sum(view(ωs, 1:L)) / 2Natoms
     end
+
+    @show δE₂[1]
 
     # Error bars in δE₂[2] are discarded
     return δE₁ + δE₂[1]
