@@ -1,15 +1,32 @@
 # # 8. Momentum transfer conventions
 #
-# This example illustrates Sunny's conventions for dynamical structure factor
-# intensities, ``\mathcal{S}(𝐪,ω)``, as documented in the page [Structure
-# Factor Conventions](@ref). The variables ``𝐪`` and ``ω`` describe momentum
-# and energy transfer _to_ the sample.
+# Sunny defines the dynamical spin structure factor following the sign
+# conventions in [Squire](https://doi.org/10.1017/CBO9781139107808) and
+# [Boothroyd](https://groups.physics.ox.ac.uk/Boothroyd/PNS/) textbooks,
 #
-# The structure factor intensities at ``± 𝐪`` may be inequivalent if the model
-# lacks inversion symmetry. This tutorial considers a 1D chain with
-# Dzyaloshinskii–Moriya coupling between neighboring sites. An external field
-# then breaks time-reversal symmetry, giving rise to an inequivalence of
-# intensities ``\mathcal{S}(±𝐪,ω)``
+# ```math
+# \mathcal{S}^{α, β}(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} ⟨\hat{M}^{†α}_𝐪(0) \hat{M}^β_𝐪(t)⟩ dt.
+# ```
+# 
+# Momentum space operators ``\hat{𝐌}_𝐪`` are obtained from the real-space
+# density ``\hat{𝐌}(𝐫)`` using the Fourier transform convention,
+#
+# ```math
+# \hat{𝐌}_𝐪 ≡ \int_V e^{+ i 𝐪⋅𝐫} \hat{𝐌}(𝐫) d𝐫.
+# ```
+#
+# The structure factor, integrated over a finite ``𝐪``-region, is extensive in
+# sample volume ``V``. Sunny will report it as an intensive quantity by dividing
+# by the number of chemical cells in the sample. For full details, see the
+# documentation page [Structure Factor Conventions](@ref).
+#
+# With appropriate contraction of spin components, ``\mathcal{S}^{α, β}(𝐪, ω)``
+# can be directly related to the neutron scattering cross-section, where ``𝐪``
+# and ``ω`` denote momentum and energy transfer _to_ the sample. Special care is
+# required for models that lack inversion symmetry, in which case ``± 𝐪``
+# become inequivalent. We illustrate such a case using a 1D chain with
+# Dzyaloshinskii–Moriya coupling between neighboring sites. With an external
+# field, the inequivalence of ``\mathcal{S}(±𝐪,ω)`` becomes apparent.
 
 using Sunny, GLMakie
 
@@ -22,32 +39,42 @@ using Sunny, GLMakie
 latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]], "P1")
 
-# Construct a 1D chain system that extends along the global Cartesian ``ẑ``
-# axis. The Hamiltonian includes DM and Zeeman coupling terms, ``ℋ = ∑_j D ẑ ⋅
-# (𝐒_j × 𝐒_{j+1}) - ∑_j 𝐁 ⋅ μ_j``, where ``μ_j = - 2 𝐒_j`` is the
-# [`magnetic_moment`](@ref) and ``𝐁 ∝ ẑ``.
+# Consider a 1D chain oriented along the third lattice vector, such that site
+# ``j`` has position ``𝐫_j = j 𝐚_3``. The Hamiltonian includes DM coupling
+# between nearest neighbors and Zeeman coupling,
+#
+# ```math
+# ℋ = 𝐃 ⋅ ∑_j 𝐒_j × 𝐒_{j+1} - 𝐁 ⋅ ∑_j μ_j.
+# ```
+# Select DM vector ``𝐃 = D ê`` and external field ``𝐁 = B ê`` in an
+# arbitrary direction ``ê``. This field couples to each dimensionless
+# [`magnetic_moment`](@ref) ``μ_j = - g 𝐒_j``. The convention of Sunny is to
+# absorb the ``μ_B`` factor into ``𝐁``, giving it units of energy. Fix ``g =
+# -2`` for simplicity; other values could be viewed as a rescaling of ``𝐁``.
 
-sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
-B = 0.8
-D = 0.2
-set_exchange!(sys, dmvec([0, 0, D]), Bond(1, 1, [0, 0, 1]))
-set_field!(sys, [0, 0, B])
+s = 2
+sys = System(cryst, [1 => Moment(; s, g=-2)], :dipole)
+B = 1.0
+D = 0.1
+e = [1, 0, 0]
+set_exchange!(sys, dmvec(D * e), Bond(1, 1, [0, 0, 1]))
+set_field!(sys, B * e)
 
 # The large external field fully polarizes the system. Here, the DM coupling
 # contributes nothing, leaving only Zeeman coupling.
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-@assert magnetic_moment(sys, (1, 1, 1, 1)) ≈ [0, 0, 2 * sign(B)]
-@assert energy(sys) ≈ - 2 * abs(B)
+@assert magnetic_moment(sys, (1, 1, 1, 1)) ≈ 2s * sign(B) * e
+@assert energy(sys) ≈ - 2s * abs(B)
 
 # ### Calculation using linear spin wave theory
 
 # The [`SpinWaveTheory`](@ref) calculation shows a single band with dispersion
-# ``ϵ(𝐪) = 2 |B| (1 - \sin(2πq_3) D / B)`` and uniform intensity. Notice the
-# different excitation energies at ``𝐪`` and ``-𝐪``.
+# ``ϵ(𝐪) = |B| + sgn(B) 2 s D \sin(2πq_3)`` and uniform intensity. Notice
+# the different excitation energies at ``𝐪`` and ``-𝐪``.
 
-path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
+path = q_space_path(cryst, [[0, 0, -1/2], [0, 0, +1/2]], 400)
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
 res = intensities_bands(swt, path)
 plot_intensities(res; ylims=(0, 3))
