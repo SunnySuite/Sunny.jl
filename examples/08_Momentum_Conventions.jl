@@ -1,8 +1,8 @@
 # # 8. Momentum transfer conventions
 #
-# Sunny defines the dynamical spin structure factor following the sign
-# conventions in [Squire](https://doi.org/10.1017/CBO9781139107808) and
-# [Boothroyd](https://groups.physics.ox.ac.uk/Boothroyd/PNS/) textbooks,
+# Sunny defines the dynamical spin structure factor following conventions such
+# as in [Squire](https://doi.org/10.1017/CBO9781139107808) and
+# [Boothroyd](https://groups.physics.ox.ac.uk/Boothroyd/PNS/).
 #
 # ```math
 # \mathcal{S}^{α, β}(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} ⟨\hat{M}^{†α}_𝐪(0) \hat{M}^β_𝐪(t)⟩ dt.
@@ -22,11 +22,10 @@
 #
 # With appropriate contraction of spin components, ``\mathcal{S}^{α, β}(𝐪, ω)``
 # can be directly related to the neutron scattering cross-section, where ``𝐪``
-# and ``ω`` denote momentum and energy transfer _to_ the sample. Special care is
-# required for models that lack inversion symmetry, in which case ``± 𝐪``
-# become inequivalent. We illustrate such a case using a 1D chain with
-# Dzyaloshinskii–Moriya coupling between neighboring sites. With an external
-# field, the inequivalence of ``\mathcal{S}(±𝐪,ω)`` becomes apparent.
+# and ``ω`` denote momentum and energy transfer _to_ the sample. For models that
+# lack inversion symmetry, the intensities at ``± 𝐪`` may become inequivalent.
+# We illustrate such a case using a 1D chain with competing Ising and
+# Dzyaloshinskii–Moriya couplings between neighboring sites.
 
 using Sunny, GLMakie
 
@@ -40,44 +39,38 @@ latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]], "P1")
 
 # Consider a 1D chain oriented along the third lattice vector, such that site
-# ``j`` has position ``𝐫_j = j 𝐚_3``. The Hamiltonian includes DM coupling
-# between nearest neighbors and Zeeman coupling,
+# ``j`` has position ``𝐫_j = j 𝐚_3``. The Hamiltonian includes DM and
+# Ising-like couplings between nearest neighbors on the chain,
 #
 # ```math
-# ℋ = 𝐃 ⋅ ∑_j 𝐒_j × 𝐒_{j+1} - 𝐁 ⋅ ∑_j μ_j.
+# ℋ = 𝐃 ⋅ ∑_j 𝐒_j × 𝐒_{j+1} - J ∑_j ∑_j S^z_j S^z_{j+1}.
 # ```
-# Select DM vector ``𝐃 = D ê`` and external field ``𝐁 = B ê`` in an
-# arbitrary direction ``ê``. This field couples to each dimensionless
-# [`magnetic_moment`](@ref) ``μ_j = - g 𝐒_j``. The convention of Sunny is to
-# absorb the ``μ_B`` factor into ``𝐁``, giving it units of energy. Fix ``g =
-# -2`` for simplicity; other values could be viewed as a rescaling of ``𝐁``.
+# Select the DM vector ``𝐃 = D ẑ`.
 
-s = 2
+s = 3/2
 sys = System(cryst, [1 => Moment(; s, g=-2)], :dipole)
-B = 1.0
-D = 0.1
-e = [1, 0, 0]
-set_exchange!(sys, dmvec(D * e), Bond(1, 1, [0, 0, 1]))
-set_field!(sys, B * e)
+J = 1.0
+D = 0.2
+z = [0, 0, 1]
+set_exchange!(sys, dmvec(D * z) - J * z * z', Bond(1, 1, [0, 0, 1]))
 
-# The large external field fully polarizes the system. Here, the DM coupling
-# contributes nothing, leaving only Zeeman coupling.
+# The relatively large Ising coupling favors one of two polarized states,
+# ``±ẑ``. Choose spins ``𝐒 ∝ +ẑ`` to break the symmetry by hand.
 
-randomize_spins!(sys)
-minimize_energy!(sys)
-@assert magnetic_moment(sys, (1, 1, 1, 1)) ≈ 2s * sign(B) * e
-@assert energy(sys) ≈ - 2s * abs(B)
+polarize_spins!(sys, [0, 0, 1])
+@assert energy(sys) ≈ - s^2
+plot_spins(sys)
 
 # ### Calculation using linear spin wave theory
 
 # The [`SpinWaveTheory`](@ref) calculation shows a single band with dispersion
-# ``ϵ(𝐪) = |B| + sgn(B) 2 s D \sin(2πq_3)`` and uniform intensity. Notice
-# the different excitation energies at ``𝐪`` and ``-𝐪``.
+# ``ϵ(𝐪) = 2 s J ± 2 s D \sin(2πq_3)`` for magnetic ordering ``S = ±ẑ``.
+# Note the dependence on the sign of ``q_3``.
 
 path = q_space_path(cryst, [[0, 0, -1/2], [0, 0, +1/2]], 400)
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
 res = intensities_bands(swt, path)
-plot_intensities(res; ylims=(0, 3))
+plot_intensities(res; ylims=(0, 5))
 
 # ### Calculation using classical spin dynamics
 
@@ -88,8 +81,8 @@ sys2 = resize_supercell(sys, (1, 1, 32))
 # Use [`Langevin`](@ref) dynamics to sample from the classical Boltzmann
 # distribution at a low temperature.
 
-dt = 0.05 / abs(B)
-kT = 0.05 * abs(B)
+dt = 0.03 / abs(J)
+kT = 0.03 * abs(J)
 damping = 0.1
 langevin = Langevin(dt; kT, damping)
 suggest_timestep(sys2, langevin; tol=1e-2)
@@ -100,7 +93,7 @@ end
 # Estimate intensities with [`SampledCorrelations`](@ref), which employs
 # classical spin dynamics.
 
-sc = SampledCorrelations(sys2; dt, energies=range(0, 3, 100), measure=ssf_trace(sys2))
+sc = SampledCorrelations(sys2; dt, energies=range(0, 5, 100), measure=ssf_trace(sys2))
 add_sample!(sc, sys2)
 nsamples = 100
 for _ in 1:nsamples
