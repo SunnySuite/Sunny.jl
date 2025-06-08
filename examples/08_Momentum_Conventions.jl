@@ -45,17 +45,18 @@ cryst = Crystal(latvecs, [[0, 0, 0]], "P1")
 # ```math
 # ℋ = 𝐃 ⋅ ∑_j 𝐒_j × 𝐒_{j+1} - J ∑_j ∑_j S^z_j S^z_{j+1}.
 # ```
-# Select the DM vector ``𝐃 = D ẑ`.
+# Select the DM vector ``𝐃 = D ẑ``.
 
 s = 3/2
-sys = System(cryst, [1 => Moment(; s, g=-2)], :dipole)
+sys = System(cryst, [1 => Moment(; s, g=2)], :dipole)
 J = 1.0
 D = 0.2
 z = [0, 0, 1]
 set_exchange!(sys, dmvec(D * z) - J * z * z', Bond(1, 1, [0, 0, 1]))
 
 # The relatively large Ising coupling favors one of two polarized states,
-# ``±ẑ``. Choose spins ``𝐒 ∝ +ẑ`` to break the symmetry by hand.
+# ``±ẑ``. Align spins ``𝐒`` in the ``+ẑ`` direction to break the symmetry by
+# hand.
 
 polarize_spins!(sys, [0, 0, 1])
 @assert energy(sys) ≈ - s^2
@@ -64,8 +65,8 @@ plot_spins(sys)
 # ### Calculation using linear spin wave theory
 
 # The [`SpinWaveTheory`](@ref) calculation shows a single band with dispersion
-# ``ϵ(𝐪) = 2 s J ± 2 s D \sin(2πq_3)`` for magnetic ordering ``S = ±ẑ``.
-# Note the dependence on the sign of ``q_3``.
+# ``ϵ(𝐪) = 2 s [J ± D \sin(2πq_3)]`` for the polarization state ``𝐒 = ± s ẑ``.
+# Note the sensitivity to the sign of ``q_3``.
 
 path = q_space_path(cryst, [[0, 0, -1/2], [0, 0, +1/2]], 400)
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
