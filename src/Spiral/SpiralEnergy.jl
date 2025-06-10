@@ -5,11 +5,15 @@
 # energies for ordering wavevectors k = [1/2, 0, 0] and [1/2+ϵ, 0, 0], even in
 # the limit ϵ → 0. To account for some floating point roundoff, we select an
 # empirical and somewhat arbitrary tolerance ϵ = 1e-8 for the case check.
-function spiral_propagation_case(k)
+#
+# The public-facing user interface expects k in RLU for the conventional cell.
+# If the system has been reshaped, however, then all internal aspects of the
+# calculation must proceed in terms of k_reshaped (RLU for the reshaped cell).
+function spiral_propagation_case(k_reshaped)
     ϵ = 1e-8
-    if norm(k - round.(k)) < ϵ
+    if norm(k_reshaped - round.(k_reshaped)) < ϵ
         return 1
-    elseif norm(2k - round.(2k)) < 2ϵ
+    elseif norm(2k_reshaped - round.(2k_reshaped)) < 2ϵ
         return 2
     else
         return 3
@@ -67,7 +71,10 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
     @assert sys.dims == (1,1,1)
     Na = natoms(sys.crystal)
 
-    x, y, z = normalize(axis)
+    k_reshaped = to_reshaped_rlu(sys, k)
+
+    axis = normalize(axis)
+    x, y, z = axis
     K = Mat3([0 -z y; z 0 -x; -y x 0])
     K² = K*K
 
@@ -83,7 +90,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
             Sj = sys.dipoles[j]
 
             # Rotation angle along `axis` for cells displaced by `n`
-            θ = 2π * dot(k, n)
+            θ = 2π * dot(k_reshaped, n)
             dθdk = 2π*n
 
             # Rotation as a 3×3 matrix
@@ -129,17 +136,17 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         A0 = sys.ewald.A
         A0 = reshape(A0, Na, Na)
 
-        Ak = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB²
+        Ak = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k_reshaped) * sys.ewald.μ0_μB²
         Ak = reshape(Ak, Na, Na)
 
-        case = spiral_propagation_case(k)
+        k_case = spiral_propagation_case(k_reshaped)
 
         for i in 1:Na, j in 1:Na
-            if case == 1
+            if k_case == 1
                 E += real(μ[i]' * A0[i, j] * μ[j]) / 2
-            elseif case == 2
+            elseif k_case == 2
                 E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + K²*Ak[i, j]*K²) * μ[j]) / 2
-            else @assert case == 3
+            else @assert k_case == 3
                 E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + (im*K+K²)*Ak[i, j]*(im*K+K²)/2) * μ[j]) / 2
             end
         end
