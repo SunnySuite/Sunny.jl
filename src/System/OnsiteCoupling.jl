@@ -27,6 +27,11 @@ function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
         error("Symbolic operator only valid for system with mode :dipole_uncorrected.")
     end
 
+    if !iszero(imag(p))
+        error("Operator is not Hermitian. Consider real(…) to transform spin polynomial coefficients.")
+    end
+    p = real(p)
+
     S² = sys.κs[site]^2
     c = operator_to_stevens_coefficients(p, S²)
 
