@@ -546,7 +546,7 @@ function set_spin_rescaling!(sys::System{N}, κ) where N
 end
 
 """
-    enable_spin_rescaling_for_static_sum_rule!(sys)
+    set_spin_rescaling_for_static_sum_rule!(sys)
 
 Sets the classical dipole magnitude to ``\\sqrt{s(s+1)}`` rather than ``s`` for
 each quantum spin-``s`` moment. Valid only for systems in dipole mode.
@@ -581,7 +581,7 @@ rescaling.
    systems: Temperature-dependent spin dynamics of FeI₂_, Phys. Rev. B **109**,
    014427 (2024)](https://doi.org/10.1103/PhysRevB.109.014427).
 """
-function enable_spin_rescaling_for_static_sum_rule!(sys::System{N}) where N
+function set_spin_rescaling_for_static_sum_rule!(sys::System{N}) where N
     iszero(N) || error("Quantum dipole amplification requires :dipole or :dipole_uncorrected mode")
     for site in eachsite(sys)
         s = sys.κs[site]
