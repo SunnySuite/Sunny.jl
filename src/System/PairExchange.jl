@@ -588,8 +588,8 @@ function remove_periodicity!(sys::System{N}, flags) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
 
     for site in eachsite(sys)
-        ints = interactions_inhomog(sys)[site]
-        filter!(ints.pair) do (; bond)
+        int = interactions_inhomog(sys)[site]
+        filter!(int.pair) do (; bond)
             offset_cell = to_cell(site) .+ bond.n
 
             # keep bond if it is acceptable along every dimension (either

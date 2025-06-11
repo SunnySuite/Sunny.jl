@@ -19,8 +19,8 @@ end
 
 # Creates a copy of the Vector of PairCouplings. This is useful when cloning a
 # system; mutable updates to one clone should not affect the other.
-function clone_interactions(ints::Interactions)
-    (; onsite, pair) = ints
+function clone_interactions(int::Interactions)
+    (; onsite, pair) = int
     return Interactions(onsite, copy(pair))
 end
 
@@ -305,25 +305,25 @@ function energy(sys::System{N}; check_normalization=true) where N
 end
 
 # Total energy associated with the sites of one sublattice
-function energy_aux(ints::Interactions, sys::System{N}, sites) where N
+function energy_aux(int::Interactions, sys::System{N}, sites) where N
     E = 0.0
 
     # Single-ion anisotropy
     if N == 0       # Dipole mode
-        stvexp = ints.onsite :: StevensExpansion
+        stvexp = int.onsite :: StevensExpansion
         for site in sites
             S = sys.dipoles[site]
             E += energy_and_gradient_for_classical_anisotropy(S, stvexp)[1]
         end
     else            # SU(N) mode
-        Λ = ints.onsite :: HermitianC64
+        Λ = int.onsite :: HermitianC64
         for site in sites
             Z = sys.coherents[site]
             E += real(dot(Z, Λ, Z))
         end
     end
 
-    for pc in ints.pair
+    for pc in int.pair
         (; bond, isculled) = pc
         isculled && break
 
@@ -413,18 +413,18 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
 end
 
 # Calculate the energy gradient `∇E' for all sites of one sublattice
-function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, sites) where N
+function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, int::Interactions, sys::System{N}, sites) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into local H matrix.
     if sys.mode in (:dipole, :dipole_uncorrected)
-        stvexp = ints.onsite :: StevensExpansion
+        stvexp = int.onsite :: StevensExpansion
         for site in sites
             S = dipoles[site]
             ∇E[site] += energy_and_gradient_for_classical_anisotropy(S, stvexp)[2]
         end
     end
 
-    for pc in ints.pair
+    for pc in int.pair
         (; bond, isculled) = pc
         isculled && break
 
@@ -496,14 +496,14 @@ function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) wh
     fill!(dipoles, zero(Vec3))
 end
 
-function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{Vec3, 4}, ints::Interactions, sys::System{N}, sites) where N
+function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{Vec3, 4}, int::Interactions, sys::System{N}, sites) where N
     for site in sites
         # HZ += (Λ + dE/dS S) Z
-        Λ = ints.onsite :: HermitianC64
+        Λ = int.onsite :: HermitianC64
         HZ[site] += mul_spin_matrices(Λ, dE_dS[site], Z[site])
     end
 
-    for pc in ints.pair
+    for pc in int.pair
         (; bond, isculled) = pc
         isculled && break
 
