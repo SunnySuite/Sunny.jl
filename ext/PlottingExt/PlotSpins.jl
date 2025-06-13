@@ -81,11 +81,11 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
 
     # Parameters defining arrow shape
     a0 = arrowscale * ℓ0
-    arrowsize = 0.4a0
-    linewidth = 0.12a0
-    lengthscale = 0.6a0
-    markersize = 0.8linewidth
-    arrow_fractional_shift = 0.6
+    shaftradius = 0.06a0
+    tipradius = 0.2a0
+    tiplength = 0.4a0
+    lengthscale = 1.0a0
+    markersize = 1.6shaftradius
 
     # Positions in fractional coordinates of supercell vectors
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
@@ -128,11 +128,10 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
         # These observables will be reanimated upon calling `notify(notifier)`.
         vecs = Makie.Observable(Makie.Vec3f[])
         pts = Makie.Observable(Makie.Point3f[])
-        pts_shifted = Makie.Observable(Makie.Point3f[])
-        arrowcolor = Makie.Observable(Makie.RGBAf[])
+        tipcolor = Makie.Observable(Makie.RGBAf[])
 
         Makie.on(notifier, update=true) do _
-            empty!.((vecs[], pts[], pts_shifted[], arrowcolor[]))
+            empty!.((vecs[], pts[], tipcolor[]))
 
             # Dynamically adapt `rgba_colors` according to `colorfn`
             if !isnothing(colorfn)
@@ -140,27 +139,27 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
                 dyncolorrange = @something colorrange extrema(numeric_colors)
                 numbers_to_colors!(rgba_colors, numeric_colors, cmap_with_alpha, dyncolorrange)
             end
-            
+
             for (site, n) in zip(idxs, offsets)
                 v = (lengthscale / s0) * vec(sys.dipoles[site])
                 pt = supervecs * (rs[site] + n)
-                pt_shifted = pt - arrow_fractional_shift * v
                 push!(vecs[], Makie.Vec3f(v))
                 push!(pts[], Makie.Point3f(pt))
-                push!(pts_shifted[], Makie.Point3f(pt_shifted))
-                push!(arrowcolor[], rgba_colors[site])
+                push!(tipcolor[], rgba_colors[site])
             end
             # Trigger Makie redraw
-            notify.((vecs, pts, pts_shifted, arrowcolor))
+            notify.((vecs, pts, tipcolor))
             # isnothing(color) || notify(arrowcolor)
         end
 
         # Draw arrows
-        linecolor = (stemcolor, alpha)
-        Makie.arrows!(ax, pts_shifted, vecs; arrowsize, linewidth, linecolor, arrowcolor, diffuse=1.15, transparency=isghost)
+        shaftcolor = (stemcolor, alpha)
+        if !isempty(pts[])
+            Makie.arrows3d!(ax, pts, vecs; align=0.37, markerscale=1, tipradius, shaftradius, tiplength, tipcolor, shaftcolor, transparency=isghost) # FIXME: diffuse=1.15
+        end
 
         # Small sphere inside arrow to mark atom position
-        Makie.meshscatter!(ax, pts; markersize, color=linecolor, diffuse=1.15, transparency=isghost)
+        Makie.meshscatter!(ax, pts; markersize, color=shaftcolor, diffuse=1.15, transparency=isghost)
     end
 
     # Bounding box of original crystal unit cell in teal

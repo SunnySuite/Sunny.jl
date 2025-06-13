@@ -1,5 +1,5 @@
 
-getindex_cyclic(a, i) = a[mod1(i, length(a))] 
+getindex_cyclic(a, i) = a[mod1(i, length(a))]
 
 const seaborn_bright = [
     Makie.RGBf(0.00784313725490196,0.24313725490196078,1.0),
@@ -189,14 +189,14 @@ function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150
     # Draw arrows at origin
     pts = [Makie.Point3f(0, 0, 0), Makie.Point3f(0, 0, 0), Makie.Point3f(0, 0, 0)]
     vecs = [Makie.Point3f(1, 0, 0), Makie.Point3f(0, 1, 0), Makie.Point3f(0, 0, 1)]
-    Makie.arrows!(axcompass, pts, 0.8*vecs; color=[:red, :orange, :yellow], arrowsize=0.3, inspectable=false)
+    Makie.arrows3d!(axcompass, pts, vecs; color=[:red, :orange, :yellow], shaftradius=0.07, tiplength=0.3, inspectable=false)
 
     # Draw labels
     for (pos, text) in zip(1.2vecs, ["x", "y", "z"])
         Makie.text!(axcompass, pos; text, color=:black, fontsize=16, font=:bold, glowwidth=4.0,
             glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
     end
-    
+
     # The intention is that the parent scene fully controls the camera, and
     # ideally the compass "inset" wouldn't receive any events at all. However,
     # there is a GLMakie bug where events do go to the inset when the figure is
