@@ -60,14 +60,16 @@ function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q_reshaped)
     Na = natoms(sys.crystal)
     fill!(J_k, zero(CMat3))
 
-    for i in 1:natoms(sys.crystal)
-        for coupling in sys.interactions_union[i].pair
+    for (i, int) in enumerate(sys.interactions_union)
+        for coupling in int.pair
             (; isculled, bond, bilin) = coupling
             isculled && break
 
-            (; j, n) = bond
+            @assert i == bond.i
+            j = bond.j
+
             J_lab = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo transformation in `swt_data`
-            J = exp(-2π * im * dot(q_reshaped, n)) * J_lab
+            J = exp(-2π * im * dot(q_reshaped, bond.n)) * J_lab
             J_k[i, j] += J
             J_k[j, i] += J'
         end

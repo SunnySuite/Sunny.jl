@@ -36,8 +36,10 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
-            @assert bond.i == i "The first atom index must equal the loop variable"
+
+            @assert i == bond.i
             j = bond.j
+
             phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             si = sqrtS[i]^2
@@ -194,20 +196,22 @@ function multiply_by_hamiltonian_dipole!(y::AbstractMatrix{ComplexF64}, x::Abstr
     end
 
     # Pair interactions 
-    for ints in sys.interactions_union
+    for (i, int) in enumerate(sys.interactions_union)
 
-        for coupling in ints.pair
+        for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
-            (; i, j) = bond
 
-            si = sqrtS[i]^2
-            sj = sqrtS[j]^2
-            sij = sqrtS[i] * sqrtS[j]
+            @assert i == bond.i
+            j = bond.j
 
             map!(phases, qs_reshaped) do q
                 cis(2π*dot(q, bond.n))
             end
+
+            si = sqrtS[i]^2
+            sj = sqrtS[j]^2
+            sij = sqrtS[i] * sqrtS[j]
 
             # Bilinear exchange
             if !iszero(coupling.bilin)

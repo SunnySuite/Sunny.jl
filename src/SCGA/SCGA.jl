@@ -64,11 +64,9 @@ end
 
 function make_q_grid(sys, dq)
     wraps = [false, false, false]
-    for i in 1:natoms(sys.crystal)
-        for coupling in sys.interactions_union[i].pair
-            (; isculled, bond) = coupling
-            isculled && break
-            @. wraps = wraps || !iszero(bond.n)
+    for int in sys.interactions_union
+        for coupling in int.pair
+            @. wraps = wraps || !iszero(coupling.bond.n)
         end
     end
 
