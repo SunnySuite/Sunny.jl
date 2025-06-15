@@ -36,7 +36,8 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
-            (; i, j) = bond
+            @assert bond.i == i "The first atom index must equal the loop variable"
+            j = bond.j
             phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             si = sqrtS[i]^2
