@@ -1,8 +1,8 @@
 
-function Ewald(sys::System{N}, μ0_μB²) where N
+function Ewald(sys::System{N}, μ0_μB², demag) where N
     (; crystal, dims) = sys
 
-    A = precompute_dipole_ewald(crystal, dims) * μ0_μB²
+    A = precompute_dipole_ewald(crystal, dims, demag) * μ0_μB²
 
     na = natoms(crystal)
     μ = zeros(Vec3, dims..., na)
@@ -18,7 +18,7 @@ function Ewald(sys::System{N}, μ0_μB²) where N
     plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
     ift_plan = FFTW.plan_irfft(Fμ, dims[1], 2:4; flags=FFTW.MEASURE)
 
-    return Ewald(μ0_μB², A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
+    return Ewald(μ0_μB², demag, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
 end
 
 # Ideally, this would clone all mutable state within Ewald. Note that `A`, `FA`
@@ -29,20 +29,20 @@ end
 # https://github.com/JuliaMath/FFTW.jl/issues/261.
 function clone_ewald(ewald::Ewald)
     error("Not supported")
-    (; μ0_μB², A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan) = ewald
-    return Ewald(μ0_μB², A, copy(μ), copy(ϕ), FA, copy(Fμ), copy(Fϕ), copy(plan), copy(ift_plan))
+    (; μ0_μB², demag, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan) = ewald
+    return Ewald(μ0_μB², demag, A, copy(μ), copy(ϕ), FA, copy(Fμ), copy(Fϕ), copy(plan), copy(ift_plan))
 end
 
 # Tensor product of 3-vectors
 (⊗)(a::Vec3,b::Vec3) = reshape(kron(a,b), 3, 3)
 
 
-function precompute_dipole_ewald(cryst::Crystal, dims::NTuple{3,Int})
-    precompute_dipole_ewald_aux(cryst, dims, Vec3(0,0,0), cos, Val{Float64}())
+function precompute_dipole_ewald(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3)
+    precompute_dipole_ewald_aux(cryst, dims, demag, Vec3(0,0,0), cos, Val{Float64}())
 end
 
-function precompute_dipole_ewald_at_wavevector(cryst::Crystal, dims::NTuple{3,Int}, q_reshaped)
-    precompute_dipole_ewald_aux(cryst, dims, q_reshaped, cis, Val{ComplexF64}())
+function precompute_dipole_ewald_at_wavevector(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3, q_reshaped::Vec3)
+    precompute_dipole_ewald_aux(cryst, dims, demag, q_reshaped, cis, Val{ComplexF64}())
 end
 
 # Precompute the pairwise interaction matrix A between magnetic moments μ. For
@@ -58,7 +58,7 @@ end
 # part cancels in the symmetric sum over ±k. Specifically, replace `cis(x) ≡
 # exp(i x) = cos(x) + i sin(x)` with just `cos(x)` for efficiency. The parameter
 # `T ∈ {Float64, ComplexF64}` controls the return type in a type-stable way. 
-function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, q_reshaped, cis, ::Val{T}) where T
+function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag, q_reshaped, cis, ::Val{T}) where T
     na = natoms(cryst)
     A = zeros(SMatrix{3, 3, T, 9}, dims..., na, na)
 
@@ -120,10 +120,14 @@ function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, q_resh
 
             ϵ² = 1e-16
             if k² <= ϵ²
-                # Consider including a surface dipole term as in S. W. DeLeeuw,
-                # J. W. Perram, and E. R. Smith, Proc. R. Soc. Lond. A 373,
-                # 27-56 (1980). For a spherical geometry, this term might be:
-                # acc += (μ0/2V) * I₃
+                # Surface term Eₛ = μ₀ M⋅ℕ M / 2V gives rise to demagnetization
+                # effect. Net magnetization M is associated with mode k = 0.
+                # Demagnetization factor tensor ℕ, denoted `demag`, depends on
+                # sample geometry and has trace 1 in vacuum background. This
+                # Ewald correction was originally derived in S. W. DeLeeuw et
+                # al., Proc. R. Soc. Lond. A 373, 27-56 (1980). See Ballenegger,
+                # J. Chem. Phys. 140, 161102 (2014) for a pedagogical review.
+                acc += demag / V
             elseif ϵ² < k² <= kmax*kmax
                 phase = cis(-k⋅Δr)
                 acc += phase * (1/V) * (exp(-σ²*k²/2) / k²) * (k⊗k)
@@ -248,8 +252,9 @@ Like [`enable_dipole_dipole!`](@ref), the purpose of this function is to
 introduce long-range dipole-dipole interactions between magnetic moments.
 Whereas `enable_dipole_dipole!` employs Ewald summation, this function instead
 employs real-space pair couplings with truncation at the specified `cutoff`
-distance. If the cutoff is relatively small, then this function may be faster
-than `enable_dipole_dipole!`.
+distance. The implicit demagnetization factor is ``ℕ = 1/3``, appropriate for a
+spherical sample. If the cutoff is relatively small, then this function may be
+faster than `enable_dipole_dipole!`.
 
 !!! warning "Mutation of existing couplings"  
     This function will modify existing bilinear couplings between spins by

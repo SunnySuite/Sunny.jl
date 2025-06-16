@@ -51,14 +51,14 @@ end
 # Niraula and Xiaojian Bai developed and implemented the approprate
 # generalization in https://github.com/SunnySuite/Sunny.jl/pull/304.
 
-function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q_reshaped)
+function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
     (; sys, data) = swt
     (; local_rotations) = data
     (; gs) = sys
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
     Rs = local_rotations
     Na = natoms(sys.crystal)
-    fill!(J_k, zero(CMat3))
+    fill!(Jq, zero(CMat3))
 
     for (i, int) in enumerate(sys.interactions_union)
         for coupling in int.pair
@@ -70,16 +70,17 @@ function fourier_bilinear_interaction!(J_k, swt::SpinWaveTheory, q_reshaped)
 
             J_lab = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo transformation in `swt_data`
             J = exp(-2π * im * dot(q_reshaped, bond.n)) * J_lab
-            J_k[i, j] += J
-            J_k[j, i] += J'
+            Jq[i, j] += J
+            Jq[j, i] += J'
         end
     end
 
     if !isnothing(sys.ewald)
-        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), -q_reshaped) * sys.ewald.μ0_μB²
-        A = reshape(A, Na, Na)
+        (; demag, μ0_μB²) = sys.ewald
+        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, -q_reshaped) * μ0_μB²
+        Aq = reshape(Aq, Na, Na)
         for i in 1:Na, j in 1:Na
-            J_k[i, j] += gs[i]' * A[i, j] * gs[j]
+            Jq[i, j] += gs[i]' * Aq[i, j] * gs[j]
         end
     end
 end

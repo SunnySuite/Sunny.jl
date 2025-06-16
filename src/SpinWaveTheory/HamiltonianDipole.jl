@@ -100,23 +100,23 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
     # Add long-range dipole-dipole
     if !isnothing(sys.ewald)
+        (; demag, μ0_μB², A) = sys.ewald
         Rs = local_rotations
 
-        # Interaction matrix for wavevector q
-        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
-        A = reshape(A, L, L)
-
         # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
-        # precompute_dipole_ewald(sys.crystal, (1,1,1)) * sys.ewald.μ0_μB²
-        A0 = sys.ewald.A
-        A0 = reshape(A0, L, L)
+        # precompute_dipole_ewald(sys.crystal, (1,1,1), demag) * μ0_μB²
+        A0 = reshape(A, L, L)
+
+        # Interaction matrix for wavevector q
+        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
+        Aq = reshape(Aq, L, L)
 
         # Loop over sublattice pairs
         for i in 1:L, j in 1:L
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy. A symmetric contribution will appear for the bond reversal
             # (i, j) → (j, i).  Note that μ = -μB g S.
-            J = gs[i]' * A[i, j] * gs[j] / 2
+            J = gs[i]' * Aq[i, j] * gs[j] / 2
             J0 = gs[i]' * A0[i, j] * gs[j] / 2
 
             # Perform same transformation as appears in usual bilinear exchange.
