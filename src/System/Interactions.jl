@@ -83,10 +83,10 @@ cases are:
 
   * `demag = 1/3` for isotropic demagnetization. This is the default and is
     valid for sphere and cube sample geometries.
-  * `demag = Diagonal([0, 0, 1])`` for a sheet-like geometry with surface normal
+  * `demag = Diagonal([0, 0, 1])` for a sheet-like geometry with surface normal
     in ``ẑ``.
   * `demag = Diagonal([1/2, 1/2, 0])` for a needle-like geometry aligned with
-    `ẑ``.
+    ``ẑ``.
 
 Set `demag = 0` to neglect demagnetization effects.
 
@@ -116,11 +116,11 @@ enable_dipole_dipole!(sys, units.vacuum_permeability)
     where ``ℕ`` is the demagnetization factor tensor. Assuming vacuum background,
     it can be expressed as an integral over the sample volume,
     ```math
-        ℕ = - (1 / 4π) ∫ d𝐱 ∇ ∇ (1 / |𝐱|).
+        ℕ = - (1 / 4π) ∫_\\mathrm{sample} d𝐱 ∇ ∇ |𝐱|^{-1}.
     ```
 
-    As constructed, ``ℕ`` has trace 1. If the sample is embedded in another
-    material with relative permeability ``μ' > 1``, then ``ℕ`` may be reduced. For
+    Here, ``ℕ`` has trace 1. If the sample is embedded in another material with
+    relative permeability ``μ' > 1``, however, then ``ℕ`` may be reduced. For
     example, a spherical inclusion has ``ℕ = 1/(2μ'+1)`` in the general case.
 
 !!! tip "Efficiency considerations"  
