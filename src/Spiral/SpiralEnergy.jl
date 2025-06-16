@@ -78,20 +78,22 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
     K = Mat3([0 -z y; z 0 -x; -y x 0])
     K² = K*K
 
-    for i in 1:Na
-        (; onsite, pair) = sys.interactions_union[i]
+    for (i, int) in enumerate(sys.interactions_union)
         Si = sys.dipoles[i]
 
         # Pair coupling
-        for coupling in pair
+        for coupling in int.pair
             (; isculled, bond, bilin, biquad) = coupling
             isculled && break
-            (; j, n) = bond
+
+            @assert i == bond.i
+            j = bond.j
+
             Sj = sys.dipoles[j]
 
             # Rotation angle along `axis` for cells displaced by `n`
-            θ = 2π * dot(k_reshaped, n)
-            dθdk = 2π*n
+            θ = 2π * dot(k_reshaped, bond.n)
+            dθdk = 2π*bond.n
 
             # Rotation as a 3×3 matrix
             s, c = sincos(θ)
@@ -117,7 +119,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         end
 
         # Onsite coupling
-        E_aniso, dEds_aniso = energy_and_gradient_for_classical_anisotropy(Si, onsite)
+        E_aniso, dEds_aniso = energy_and_gradient_for_classical_anisotropy(Si, int.onsite)
         E += E_aniso
 
         # Zeeman coupling

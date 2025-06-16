@@ -34,7 +34,10 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
-            (; i, j) = bond
+
+            @assert i == bond.i
+            j = bond.j
+
             phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             # Set "general" pair interactions of the form Aᵢ⊗Bⱼ. Note that Aᵢ
@@ -166,7 +169,9 @@ function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::Abstract
             # Extract information common to bond
             (; isculled, bond) = coupling
             isculled && break
-            (; i, j) = bond
+
+            @assert i == bond.i
+            j = bond.j
 
             map!(phases, qs_reshaped) do q
                 cis(2π*dot(q, bond.n))
