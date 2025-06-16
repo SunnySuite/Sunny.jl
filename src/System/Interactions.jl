@@ -97,7 +97,7 @@ units = Units(:meV, :angstrom)
 enable_dipole_dipole!(sys, units.vacuum_permeability)
 ```
 
-!!! tip "Origin of demagnetization"  
+!!! tip "Demagnetization details"  
 
     Formal summation over the infinitely many dipole-dipole pair interactions
     becomes mathematically ambiguous when the sample has a net magnetic dipole,
