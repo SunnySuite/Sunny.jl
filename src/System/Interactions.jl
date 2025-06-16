@@ -97,29 +97,35 @@ units = Units(:meV, :angstrom)
 enable_dipole_dipole!(sys, units.vacuum_permeability)
 ```
 
+See also [`modify_exchange_with_truncated_dipole_dipole!`](@ref).
+
 !!! tip "Demagnetization details"  
 
     Formal summation over the infinitely many dipole-dipole pair interactions
-    becomes mathematically ambiguous when the sample has a net magnetic dipole,
+    becomes mathematically ambiguous when the sample has a nonzero net magnetic
+    moment, ``𝐌 = ∑_i μ_i``. The traditional Ewald method resolves this ambiguity
+    by neglecting surface effects that would lead to demagnetization. For physical
+    correctness, however, the Ewald energy must be augmented with a surface energy
+    correction,
     ```math
-        𝐌 = ∑_i μ_i.
-    ```
-    The traditional Ewald method resolves this ambiguity by neglecting surface
-    effects that would lead to demagnetization. For physical correctness, however,
-    the Ewald energy should be augmented with a surface contribution to the total
-    energy,
-    ```math
-        E_s = μ_0 𝐌⋅ℕ 𝐌 / 2V,
+        E_s = \\frac{μ_0}{2V} 𝐌⋅ℕ 𝐌,
     ```
     where ``ℕ`` is the demagnetization factor tensor. Assuming vacuum background, it
     can be expressed as an integral over the sample volume ``V``,
     ```math
-        ℕ = - (1/4π) ∫_V d𝐱 ∇ ∇ |𝐱|^{-1}.
+        ℕ = - \\frac{1}{4π} ∫_V d𝐱 ∇ ∇ |𝐱|^{-1}.
     ```
-    Here, ``ℕ`` has trace 1. If the sample is embedded in another material, however,
-    then ``ℕ`` should be calculated differently. For example, a spherical inclusion
-    generally has ``ℕ = 1/(2μ'+1) ≤ 1/3`` where ``μ' ≥ 1`` denotes the relative
-    permeability of the background medium.
+    Note that ``ℕ`` has trace 1 because ``∇^2|𝐱|^{-1} = -4πδ(𝐱)``.
+
+    This surface correction to the Ewald energy originally appeared in S. de Leeuw,
+    J. Perram, and E. Smith, Proc. R. Soc. London A **373**, 27 (1980); **373**, 57
+    (1980); **388**, 177 (1983). For a pedagogical review, see [V. Ballenegger, J.
+    Chem. Phys. **140**, 161102 (2014)](https://doi.org/10.1063/1.4872019).
+
+    If the sample is embedded in another material, the surface correction ``E_s``
+    remains valid, but ``ℕ`` should be calculated differently. For example, a
+    spherical inclusion generally has ``ℕ = 1/(2μ'+1) ≤ 1/3`` where ``μ' ≥ 1``
+    denotes the relative permeability of the background medium.
 
 !!! tip "Efficiency considerations"  
 
@@ -131,8 +137,6 @@ enable_dipole_dipole!(sys, units.vacuum_permeability)
     per cell. Conversely, dipole-dipole interactions are highly _inefficient_ in
     the context of a [`LocalSampler`](@ref). Each Monte Carlo update of a single
     spin currently requires scanning over all other spins in the system.
-
-See also [`modify_exchange_with_truncated_dipole_dipole!`](@ref).
 """
 function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; demag=1/3)
     if isnothing(μ0_μB²)
