@@ -78,8 +78,7 @@ constant for a given system of [`Units`](@ref) via its `vacuum_permeability`
 property.
 
 Geometry of the macroscopic sample enters through the demagnetization factor
-tensor ``ℕ``, denoted `demag`. In a vacuum background, `tr(demag) == 1`. Special
-cases are:
+tensor ``ℕ``, denoted `demag`. Special cases are:
 
   * `demag = 1/3` for isotropic demagnetization. This is the default and is
     valid for sphere and cube sample geometries.
@@ -88,7 +87,8 @@ cases are:
   * `demag = Diagonal([1/2, 1/2, 0])` for a needle-like geometry aligned with
     ``ẑ``.
 
-Set `demag = 0` to neglect demagnetization effects.
+In a vacuum background, the demagnetization tensor should have trace 1. Set
+`demag = 0` to artificially neglect demagnetization effects.
 
 # Example
 
@@ -120,8 +120,8 @@ enable_dipole_dipole!(sys, units.vacuum_permeability)
     ```
 
     Here, ``ℕ`` has trace 1. If the sample is embedded in another material with
-    relative permeability ``μ' > 1``, however, then ``ℕ`` may be reduced. For
-    example, a spherical inclusion has ``ℕ = 1/(2μ'+1)`` in the general case.
+    relative permeability ``μ' > 1`` then ``ℕ`` may be reduced. For example, a
+    spherical inclusion has ``ℕ = 1/(2μ'+1)``.
 
 !!! tip "Efficiency considerations"  
 
