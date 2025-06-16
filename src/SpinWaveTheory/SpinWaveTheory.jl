@@ -289,10 +289,12 @@ function swt_data(sys::System{0}, measure)
     obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
 
     # Precompute transformed exchange matrices and store in sys.interactions_union.
-    for ints in sys.interactions_union
-        for c in eachindex(ints.pair)
-            (; bond, scalar, bilin, biquad, general) = ints.pair[c]
-            (; i, j) = bond
+    for (i, int) in enumerate(sys.interactions_union)
+        for c in eachindex(int.pair)
+            (; bond, scalar, bilin, biquad, general) = int.pair[c]
+
+            @assert i == bond.i
+            j = bond.j
 
             if !iszero(bilin)  # Leave zero if already zero
                 J = Mat3(bilin*I)
@@ -307,7 +309,7 @@ function swt_data(sys::System{0}, measure)
 
             @assert isempty(general.data)
 
-            ints.pair[c] = PairCoupling(bond, scalar, bilin, biquad, general)
+            int.pair[c] = PairCoupling(bond, scalar, bilin, biquad, general)
         end
     end
 

@@ -335,7 +335,10 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
-            (; i, j) = bond
+
+            @assert i == bond.i
+            j = bond.j
+
             phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             # Set "general" pair interactions of the form Aᵢ⊗Bⱼ. Note that Aᵢ

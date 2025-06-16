@@ -7,14 +7,16 @@ function fourier_exchange_matrix!(J_q::Matrix{ComplexF64}, sys::System; q)
     J_q .= 0
     J_q = reshape(J_q, 3, Na, 3, Na)
 
-    for i in 1:Na
-        for coupling in sys.interactions_union[i].pair
+    for (i, int) in enumerate(sys.interactions_union)
+        for coupling in int.pair
             (; isculled, bond, bilin, biquad) = coupling
             isculled && break
             iszero(biquad) || error("Biquadratic interactions not supported")
 
-            (; j, n) = bond
-            J = exp(2π * im * dot(q_reshaped, n)) * Mat3(bilin*I)
+            @assert i == bond.i
+            j = bond.j
+
+            J = exp(2π * im * dot(q_reshaped, bond.n)) * Mat3(bilin*I)
             view(J_q, :, i, :, j) .+= J
             view(J_q, :, j, :, i) .+= J'
         end
