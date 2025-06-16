@@ -92,11 +92,11 @@ function minimize_luttinger_tisza_exchange(sys::System; k_guess, maxiters=10_000
     options = Optim.Options(; iterations=maxiters)
 
     # Work around: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175
-    method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
-    res = Optim.optimize(k_guess, method, options) do k
-        luttinger_tisza_exchange(sys; k, η=1e-8)
-    end
-    res = Optim.optimize(Optim.minimizer(res), Optim.ConjugateGradient(), options) do k
+    # method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
+    # res = Optim.optimize(k_guess, method, options) do k
+    #     luttinger_tisza_exchange(sys; k, η=1e-8)
+    # end
+    res = Optim.optimize(k_guess, Optim.ConjugateGradient(), options) do k
         luttinger_tisza_exchange(sys; k, η=1e-8)
     end
 
