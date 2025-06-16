@@ -104,7 +104,6 @@ enable_dipole_dipole!(sys, units.vacuum_permeability)
     ```math
         𝐌 = ∑_i μ_i.
     ```
-
     The traditional Ewald method resolves this ambiguity by neglecting surface
     effects that would lead to demagnetization. For physical correctness, however,
     the Ewald energy should be augmented with a surface contribution to the total
@@ -112,16 +111,15 @@ enable_dipole_dipole!(sys, units.vacuum_permeability)
     ```math
         E_s = μ_0 𝐌⋅ℕ 𝐌 / 2V,
     ```
-
-    where ``ℕ`` is the demagnetization factor tensor. Assuming vacuum background,
-    it can be expressed as an integral over the sample volume,
+    where ``ℕ`` is the demagnetization factor tensor. Assuming vacuum background, it
+    can be expressed as an integral over the sample volume ``V``,
     ```math
-        ℕ = - (1 / 4π) ∫_\\mathrm{sample} d𝐱 ∇ ∇ |𝐱|^{-1}.
+        ℕ = - (1/4π) ∫_V d𝐱 ∇ ∇ |𝐱|^{-1}.
     ```
-
-    Here, ``ℕ`` has trace 1. If the sample is embedded in another material with
-    relative permeability ``μ' > 1`` then ``ℕ`` may be reduced. For example, a
-    spherical inclusion has ``ℕ = 1/(2μ'+1)``.
+    Here, ``ℕ`` has trace 1. If the sample is embedded in another material, however,
+    then ``ℕ`` should be calculated differently. For example, a spherical inclusion
+    generally has ``ℕ = 1/(2μ'+1) ≤ 1/3`` where ``μ' ≥ 1`` denotes the relative
+    permeability of the background medium.
 
 !!! tip "Efficiency considerations"  
 
