@@ -246,12 +246,11 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
 
     # Minimize f, the energy of a spiral. See comment in `minimize_energy!` for
     # a discussion of the tolerance settings.
-    # options = Optim.Options(; iterations=maxiters, x_tol=NaN, x_reltol=1e-12, g_tol=NaN, f_reltol=NaN, f_abstol=NaN, show_trace=true)
-    options = Optim.Options(; iterations=maxiters, x_abstol=1e-12, g_abstol=0, f_reltol=NaN, f_abstol=NaN, show_trace=true)
+    x_abstol = 1e-14 * √length(params)
+    options = Optim.Options(; iterations=maxiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN, show_trace=false)
 
-    # LBFGS does not converge to high precision, but ConjugateGradient can fail
-    # to converge: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175.
-    # TODO: Call only ConjugateGradient when issue is fixed.
+    # Optimize with and then without regularization λ, which pushes spins away
+    # from alignment with the spiral `axis`. See spiral_f for full definition.
     method = Optim.ConjugateGradient()
     λ = 1 * abs(spiral_energy_per_site(sys; k=k_guess, axis)) # regularize at some energy scale
     res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, Optim.Options(; iterations=maxiters))
@@ -260,7 +259,7 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
 
     k = unpack_spiral_params!(sys, axis, Optim.minimizer(res))
 
-    if Optim.converged(res)
+    if Optim.converged(res) || res.termination_code == Optim.TerminationCode.SmallXChange
         # For aesthetics, wrap k components to [1-ϵ, -ϵ)
         return wrap_to_unit_cell(k; symprec=1e-6)
     else
