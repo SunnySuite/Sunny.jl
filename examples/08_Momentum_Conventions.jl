@@ -31,21 +31,19 @@ using Sunny, GLMakie
 
 # Selecting the P1 spacegroup will effectively disable all symmetry analysis.
 # This can be a convenient way to avoid symmetry-imposed constraints on the
-# couplings. A disadvantage is that all bonds are treated as
-# symmetry-inequivalent, such that each coupling within the unit cell must be
-# specified independently.
+# couplings. With this choice, all bonds within the unit cell are treated as
+# symmetry-inequivalent and must be specified independently.
 
 latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]], "P1")
 
-# Consider a 1D chain oriented along the third lattice vector, such that site
+# Consider a 1D chain oriented along the lattice vector ``𝐚_3``, such that site
 # ``j`` has position ``𝐫_j = j 𝐚_3``. The Hamiltonian includes DM and
 # Ising-like couplings between nearest neighbors on the chain,
-#
 # ```math
-# ℋ = 𝐃 ⋅ ∑_j 𝐒_j × 𝐒_{j+1} - J ∑_j ∑_j S^z_j S^z_{j+1}.
+# ℋ = 𝐃 ⋅ ∑_j 𝐒_j × 𝐒_{j+1} - J ∑_j ∑_j S^z_j S^z_{j+1},
 # ```
-# Select the DM vector ``𝐃 = D ẑ``.
+# with DM vector ``𝐃 = D ẑ``.
 
 s = 3/2
 sys = System(cryst, [1 => Moment(; s, g=2)], :dipole)
@@ -55,8 +53,10 @@ z = [0, 0, 1]
 set_exchange!(sys, dmvec(D * z) - J * z * z', Bond(1, 1, [0, 0, 1]))
 
 # The relatively large Ising coupling favors one of two polarized states,
-# ``±ẑ``. Align spins ``𝐒`` in the ``+ẑ`` direction to break the symmetry by
-# hand.
+# ``±ẑ``. Align spin ``𝐒`` with the ``+ẑ`` direction to break the symmetry by
+# hand. Physically, this could be realized via magnetic field quench using ``𝐁
+# ∝ -ẑ``. Note that the spin angular momentum and the [`magnetic_moment`](@ref)
+# dipoles are anti-aligned.
 
 polarize_spins!(sys, [0, 0, 1])
 @assert energy(sys) ≈ - s^2
@@ -75,12 +75,14 @@ plot_intensities(res; ylims=(0, 5))
 
 # ### Calculation using classical spin dynamics
 
-# Enlarge the system with [`resize_supercell`](@ref)
+# Classical dynamics at low temperatures should, in principle, produce the same
+# excitation spectra. Finite-size effects will limit ``𝐪``-space resolution.
+# Use [`resize_supercell`](@ref) to study a chain of 32 sites.
 
 sys2 = resize_supercell(sys, (1, 1, 32))
 
 # Use [`Langevin`](@ref) dynamics to sample from the classical Boltzmann
-# distribution at a low temperature.
+# distribution.
 
 dt = 0.03 / abs(J)
 kT = 0.03 * abs(J)
@@ -91,8 +93,8 @@ for _ in 1:10_000
     step!(sys, langevin)
 end
 
-# Estimate intensities with [`SampledCorrelations`](@ref), which employs
-# classical spin dynamics.
+# Use [`SampledCorrelations`](@ref) to collect statistics from classical spin
+# dynamic trajectories.
 
 sc = SampledCorrelations(sys2; dt, energies=range(0, 5, 100), measure=ssf_trace(sys2))
 add_sample!(sc, sys2)
@@ -104,9 +106,9 @@ for _ in 1:nsamples
     add_sample!(sc, sys2)
 end
 
-# In the limit ``T → 0``, the excitation band matches linear spin wave theory up
-# to finite-size effects and statistical error. Additionally, there is an
-# elastic peak at ``𝐪 = [0,0,0]`` associated with the ferromagnetic ground
+# In the limit ``T → 0``, the [`intensities`](@ref) match linear spin wave
+# theory up to finite-size effects and statistical error. Additionally, there is
+# an elastic peak at ``𝐪 = [0,0,0]`` associated with the ferromagnetic ground
 # state.
 
 res2 = intensities(sc, path; energies=:available, kT)

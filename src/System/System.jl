@@ -504,7 +504,10 @@ end
 """
     set_dipole!(sys::System, dir, site::Site)
 
-Polarize the spin at a [`Site`](@ref) along the direction `dir`.
+Polarize the spin angular momentum dipole at one [`Site`](@ref) in the direction
+`dir`.
+
+See also [`polarize_spins!`](@ref).
 """
 function set_dipole!(sys::System{N}, dir, site) where N
     site = to_cartesian(site)
@@ -514,7 +517,12 @@ end
 """
     polarize_spins!(sys::System, dir)
 
-Polarize all spins in the system along the direction `dir`.
+Polarize all spins in the direction `dir`.
+
+In the common case where the ``g``-factor is scalar, the spin angular momentum
+is anti-aligned with the [`magnetic_moment`](@ref). Polarization of spins along
+`dir` can be therefore be realized using [`set_field!`](@ref) in the direction
+_opposite_ to `dir`.
 """
 function polarize_spins!(sys::System{N}, dir) where N
     for site in eachsite(sys)
