@@ -27,9 +27,8 @@
 # We illustrate such a case using a 1D chain with competing Ising and
 # Dzyaloshinskii–Moriya couplings between neighboring sites.
 #
-# For reference, SpinW follows the opposite sign convention, which can be
-# interpreted as reversal of momentum transfer ``𝐪 → -𝐪`` in the structure
-# factor calculation.
+# For reference, SpinW follows the opposite sign convention when introducing
+# ``𝐪``, therefore reversing its direction of momentum transfer.
 
 using Sunny, GLMakie
 
