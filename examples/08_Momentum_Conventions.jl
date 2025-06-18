@@ -2,7 +2,7 @@
 #
 # Sunny defines the dynamical spin structure factor following conventions such
 # as in [Squire](https://doi.org/10.1017/CBO9781139107808) and
-# [Boothroyd](https://groups.physics.ox.ac.uk/Boothroyd/PNS/).
+# [Boothroyd](https://groups.physics.ox.ac.uk/Boothroyd/PNS/),
 #
 # ```math
 # \mathcal{S}^{α, β}(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} ⟨\hat{M}^{†α}_𝐪(0) \hat{M}^β_𝐪(t)⟩ dt.
@@ -26,6 +26,10 @@
 # lack inversion symmetry, the intensities at ``± 𝐪`` may become inequivalent.
 # We illustrate such a case using a 1D chain with competing Ising and
 # Dzyaloshinskii–Moriya couplings between neighboring sites.
+#
+# For reference, SpinW follows the opposite sign convention, which can be
+# interpreted as reversal of momentum transfer ``𝐪 → -𝐪`` in the structure
+# factor calculation.
 
 using Sunny, GLMakie
 
