@@ -142,7 +142,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
 
         # Exit if converged. Note that Hager-Zhang line search could report
         # failure if the step Δx vanishes, but for CG this is actually success.
-        if Optim.converged(res) || res.termination_code == Optim.TerminationCode.SmallXChange
+        if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
             cnt = (iter-1)*subiters + res.iterations
             return cnt
         end

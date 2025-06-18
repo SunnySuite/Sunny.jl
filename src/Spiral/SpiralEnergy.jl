@@ -244,22 +244,22 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     f(params) = spiral_f(sys, axis, params, λ)
     g!(G, params) = spiral_g!(G, sys, axis, params, λ)
 
-    # Minimize f, the energy of a spiral. See comment in `minimize_energy!` for
-    # a discussion of the tolerance settings.
+    # See `minimize_energy!` for discussion of the tolerance settings.
     x_abstol = 1e-14 * √length(params)
-    options = Optim.Options(; iterations=maxiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN, show_trace=false)
+    options = Optim.Options(; iterations=maxiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN)
 
-    # Optimize with and then without regularization λ, which pushes spins away
-    # from alignment with the spiral `axis`. See spiral_f for full definition.
+    # First, optimize with regularization λ that pushes spins away from
+    # alignment with the spiral `axis`. See `spiral_f` for precise definition.
     method = Optim.ConjugateGradient()
-    λ = 1 * abs(spiral_energy_per_site(sys; k=k_guess, axis)) # regularize at some energy scale
-    res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, Optim.Options(; iterations=maxiters))
-    λ = 0 # disable regularization
+    λ = 1 * abs(spiral_energy_per_site(sys; k=k_guess, axis))
+    res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, options)
+    # Second, disable regularization to find true energy minimum.
+    λ = 0
     res = Optim.optimize(f, g!, Optim.minimizer(res0), method, options)
 
     k = unpack_spiral_params!(sys, axis, Optim.minimizer(res))
 
-    if Optim.converged(res) || res.termination_code == Optim.TerminationCode.SmallXChange
+    if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
         # For aesthetics, wrap k components to [1-ϵ, -ϵ)
         return wrap_to_unit_cell(k; symprec=1e-6)
     else

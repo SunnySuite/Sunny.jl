@@ -88,14 +88,13 @@ end
 
 # Starting from an initial guess, return the wavevector k that locally minimizes
 # `luttinger_tisza_exchange`.
-function minimize_luttinger_tisza_exchange(sys::System; k_guess, maxiters=10_000)
+function minimize_luttinger_tisza_exchange(sys::System; k_guess, maxiters=1000)
+    # Default "low precision" settings seem OK here. If higher precision is
+    # required, see considerations documented in `minimize_energy!`.
     options = Optim.Options(; iterations=maxiters)
-
-    # Work around: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175
-    # method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
-    # res = Optim.optimize(k_guess, method, options) do k
-    #     luttinger_tisza_exchange(sys; k, η=1e-8)
-    # end
+    # For simplicity, allow Optim.jl to estimate the gradient components using
+    # finite differences. These estimates are not very reliable and cause
+    # occasional test failures in `test_spiral.jl`.
     res = Optim.optimize(k_guess, Optim.ConjugateGradient(), options) do k
         luttinger_tisza_exchange(sys; k, η=1e-8)
     end

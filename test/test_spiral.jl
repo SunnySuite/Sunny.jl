@@ -120,7 +120,18 @@ end
     k_ref = [0, 0, 0.14264604656200577]
     k_ref_alt = [0, 0, 1] - k_ref
 
-    # FIXME: Periodic failures
+    # TODO: Investigate periodic failures. For debugging, the special guess  
+    #
+    #     k_guess = [-0.40243248293794137, 0.8540414903329187, -0.6651248667822778]
+    #
+    # will degrade accuracy by about 4 digits and cause deterministic test
+    # failure. Surprisingly, it also fails when switching the implementation of
+    # `minimize_luttinger_tisza_exchange` to a different optimizer:  
+    #
+    #     Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
+    #
+    # This suggests that the underlying problem is the numerical low-quality of
+    # Luttinger-Tisza gradient estimation obtained from finite-differencing.
     k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
 
