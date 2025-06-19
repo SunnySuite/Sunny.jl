@@ -8,7 +8,7 @@
 * Add module [`SCGA`](@ref) for calculating [`intensities_static`](@ref) within
   the self-consistent Gaussian approximation ([PR
   #355](https://github.com/SunnySuite/Sunny.jl/pull/355)).
-* Extend [`enable_dipole_dipole!`](@ref) to accept a demagnetization factor
+* Extend [`enable_dipole_dipole!`](@ref) to accept a demagnetization factor or
   tensor `demag`. The new default is isotropic demagnetization, `demag = 1/3`,
   appropriate for a spherical sample in vacuum. Set `demag = 0` to disable
   demagnetization ([Issue
