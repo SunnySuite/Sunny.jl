@@ -1,15 +1,15 @@
 # # 8. Momentum transfer conventions
 #
-# Sunny defines the dynamical spin structure factor following conventions such
-# as in [Squire](https://doi.org/10.1017/CBO9781139107808) and
+# Sunny defines the dynamical structure factor following conventions as in
+# [Squire](https://doi.org/10.1017/CBO9781139107808) and
 # [Boothroyd](https://groups.physics.ox.ac.uk/Boothroyd/PNS/),
 #
 # ```math
 # \mathcal{S}^{α, β}(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} ⟨\hat{M}^{†α}_𝐪(0) \hat{M}^β_𝐪(t)⟩ dt.
 # ```
 # 
-# Momentum space operators ``\hat{𝐌}_𝐪`` are obtained from the real-space
-# density ``\hat{𝐌}(𝐫)`` using the Fourier transform convention,
+# The magnetic moment in momentum space ``\hat{𝐌}_𝐪`` is obtained from the
+# real-space density ``\hat{𝐌}(𝐫)`` using the Fourier transform convention,
 #
 # ```math
 # \hat{𝐌}_𝐪 ≡ \int_V e^{+ i 𝐪⋅𝐫} \hat{𝐌}(𝐫) d𝐫.
@@ -23,12 +23,13 @@
 # With appropriate contraction of spin components, ``\mathcal{S}^{α, β}(𝐪, ω)``
 # can be directly related to the neutron scattering cross-section, where ``𝐪``
 # and ``ω`` denote momentum and energy transfer _to_ the sample. For models that
-# lack inversion symmetry, the intensities at ``± 𝐪`` may become inequivalent.
-# We illustrate such a case using a 1D chain with competing Ising and
+# lack inversion symmetry, the intensities at ``±𝐪`` may be inequivalent. We
+# illustrate such a case using a 1D chain with competing Ising and
 # Dzyaloshinskii–Moriya couplings between neighboring sites.
 #
-# For reference, SpinW follows the opposite sign convention when introducing
-# ``𝐪``, therefore reversing its direction of momentum transfer.
+# Be aware that other codes (e.g. [SpinW](https://spinw.org/)) may employ an
+# alternative sign convention that effectively reverses the direction of
+# momentum transfer, ``𝐪 → -𝐪``.
 
 using Sunny, GLMakie
 
@@ -40,7 +41,7 @@ using Sunny, GLMakie
 latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]], "P1")
 
-# Consider a 1D chain oriented along the lattice vector ``𝐚_3``, such that site
+# Consider a 1D chain oriented along the lattice vector ``𝐚_3`` such that site
 # ``j`` has position ``𝐫_j = j 𝐚_3``. The Hamiltonian includes DM and
 # Ising-like couplings between nearest neighbors on the chain,
 # ```math
@@ -56,10 +57,12 @@ z = [0, 0, 1]
 set_exchange!(sys, dmvec(D * z) - J * z * z', Bond(1, 1, [0, 0, 1]))
 
 # The relatively large Ising coupling favors one of two polarized states,
-# ``±ẑ``. Align spin ``𝐒`` with the ``+ẑ`` direction to break the symmetry by
-# hand. Physically, this could be realized via magnetic field quench using ``𝐁
-# ∝ -ẑ``. Note that the spin angular momentum and the [`magnetic_moment`](@ref)
-# dipoles are anti-aligned.
+# ``±ẑ``. Use [`polarize_spins!`]@(ref) to align spin angular momentum ``𝐒``
+# with the ``+ẑ`` direction, breaking the symmetry by hand. Physically, this
+# polarization could be realized via an applied field ``𝐁`` in the direction
+# ``-ẑ``. This is because ``𝐁`` couples to the [`magnetic_moment`](@ref),
+# which is anti-aligned with ``𝐒``. Visualize the latter using
+# [`plot_spins`](@ref).
 
 polarize_spins!(sys, [0, 0, 1])
 @assert energy(sys) ≈ - s^2
@@ -68,8 +71,8 @@ plot_spins(sys)
 # ### Calculation using linear spin wave theory
 
 # The [`SpinWaveTheory`](@ref) calculation shows a single band with dispersion
-# ``ϵ(𝐪) = 2 s [J ± D \sin(2πq_3)]`` for the polarization state ``𝐒 = ± s ẑ``.
-# Note the sensitivity to the sign of ``q_3``.
+# ``ϵ(𝐪) = 2 s [J ± D \sin(2πq_3)]`` for the polarization state ``𝐒 = ± s
+# ẑ``. There is a clear dependence on the sign of ``q_3``.
 
 path = q_space_path(cryst, [[0, 0, -1/2], [0, 0, +1/2]], 400)
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
@@ -78,17 +81,17 @@ plot_intensities(res; ylims=(0, 5))
 
 # ### Calculation using classical spin dynamics
 
-# Classical dynamics at low temperatures should, in principle, produce the same
-# excitation spectra. Finite-size effects will limit ``𝐪``-space resolution.
-# Use [`resize_supercell`](@ref) to study a chain of 32 sites.
+# Classical dynamics at low temperatures produces, in principle, the same
+# excitation spectrum. Here, finite-size effects will limit ``𝐪``-space
+# resolution. Use [`resize_supercell`](@ref) to study a chain of 32 sites.
 
 sys2 = resize_supercell(sys, (1, 1, 32))
 
 # Use [`Langevin`](@ref) dynamics to sample from the classical Boltzmann
-# distribution.
+# distribution at a relatively low temperature, ``k_B T / J = 0.03``
 
-dt = 0.03 / abs(J)
-kT = 0.03 * abs(J)
+dt = 0.03 / J
+kT = 0.03 * J
 damping = 0.1
 langevin = Langevin(dt; kT, damping)
 suggest_timestep(sys2, langevin; tol=1e-2)
@@ -110,9 +113,9 @@ for _ in 1:nsamples
 end
 
 # In the limit ``T → 0``, the [`intensities`](@ref) match linear spin wave
-# theory up to finite-size effects and statistical error. Additionally, there is
-# an elastic peak at ``𝐪 = [0,0,0]`` associated with the ferromagnetic ground
-# state.
+# theory up to finite-size effects and statistical error. Additionally, the
+# classical dynamics calculation shows the elastic peak at ``𝐪 = [0,0,0]``,
+# associated with the ferromagnetic ground state.
 
 res2 = intensities(sc, path; energies=:available, kT)
 plot_intensities(res2)
