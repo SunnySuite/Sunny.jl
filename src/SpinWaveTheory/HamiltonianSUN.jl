@@ -72,21 +72,22 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     end
 
     if !isnothing(sys.ewald)
+        (; demag, μ0_μB², A) = sys.ewald
         N = sys.Ns[1]
 
-        # Interaction matrix for wavevector q
-        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
-        A = reshape(A, Na, Na)
+        # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
+        # precompute_dipole_ewald(sys.crystal, (1,1,1), demag) * μ0_μB²
+        A0 = reshape(A, Na, Na)
 
-        # Interaction matrix for wavevector (0,0,0)
-        A0 = sys.ewald.A
-        A0 = reshape(A0, Na, Na)
+        # Interaction matrix for wavevector q
+        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
+        Aq = reshape(Aq, Na, Na)
 
         for i in 1:Na, j in 1:Na
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy, where μ = - g S. A symmetric contribution will appear for
             # the bond reversal (i, j) → (j, i).
-            J = gs[i]' * A[i, j] * gs[j] / 2
+            J = gs[i]' * Aq[i, j] * gs[j] / 2
             J0 = gs[i]' * A0[i, j] * gs[j] / 2
 
             for α in 1:3, β in 1:3

@@ -14,18 +14,20 @@
     end
 
     # Long-range energy of single dipole in cubic box with PBC
-    latvecs = lattice_vectors(1,1,1,90,90,90)
-    positions = [[0,0,0]]
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    positions = [[0, 0, 0]]
     cryst = Crystal(latvecs, positions)
     moments = [1 => Moment(s=1, g=1)]
     sys = System(cryst, moments, :dipole)
-    enable_dipole_dipole!(sys, 1.0)
+
+    # Neglect demagnetization
+    enable_dipole_dipole!(sys, 1.0; demag=0)
     @test ewalder_energy(sys) ≈ -1/6
     @test isapprox(energy(sys), -1/6; atol=1e-13)
 
     # Same thing, with multiple unit cells
     sys = System(cryst, moments, :dipole; dims=(2, 3, 4))
-    enable_dipole_dipole!(sys, 1.0)
+    enable_dipole_dipole!(sys, 1.0; demag=0)
     @test isapprox(energy_per_site(sys), -1/6; atol=1e-13)
 
     # Create a random box
@@ -39,15 +41,23 @@
         3 => Moment(s=2, g=rand(3,3)),
     ]
     sys = System(cryst, moments, :dipole)
-    enable_dipole_dipole!(sys, 1.0)
     randomize_spins!(sys)
+
+    # Demagnetization as randomized, positive definite tensor
+    μ0_μB² = 1.0
+    R = randn(3, 3)
+    demag = R'*R
+    enable_dipole_dipole!(sys, μ0_μB²; demag)
+
+    # Comparison with Ewalder reference plus explicit surface energy term E_s
+    V = det(cryst.latvecs)
+    M = sum(magnetic_moment(sys, site) for site in eachsite(sys))
+    E_s = (M' * demag * M) / 2V
+    @test isapprox(energy(sys), μ0_μB² * (ewalder_energy(sys) + E_s); atol=1e-12)
 
     # Energy per site is independent of resizing
     sys2 = resize_supercell(sys, (2, 3, 1))
     @test isapprox(energy_per_site(sys), energy_per_site(sys2); atol=1e-12)
-
-    # Consistency with Ewalder reference calculation
-    @test isapprox(energy(sys), ewalder_energy(sys); atol=1e-12)
 
     # Calculate energy gradient using a sum over pairs, or using an FFT-based
     # convolution

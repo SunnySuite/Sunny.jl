@@ -1,11 +1,11 @@
-function fourier_exchange_matrix!(J_q::Matrix{ComplexF64}, sys::System; q)
+function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
     q_reshaped = to_reshaped_rlu(sys, q)
 
     Na = natoms(sys.crystal)
-    J_q .= 0
-    J_q = reshape(J_q, 3, Na, 3, Na)
+    Jq .= 0
+    Jq = reshape(Jq, 3, Na, 3, Na)
 
     for (i, int) in enumerate(sys.interactions_union)
         for coupling in int.pair
@@ -17,16 +17,17 @@ function fourier_exchange_matrix!(J_q::Matrix{ComplexF64}, sys::System; q)
             j = bond.j
 
             J = exp(2π * im * dot(q_reshaped, bond.n)) * Mat3(bilin*I)
-            view(J_q, :, i, :, j) .+= J
-            view(J_q, :, j, :, i) .+= J'
+            view(Jq, :, i, :, j) .+= J
+            view(Jq, :, j, :, i) .+= J'
         end
     end
 
     if !isnothing(sys.ewald)
-        A_q = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
-        A_q = reshape(A_q, Na, Na)
+        (; demag, μ0_μB²) = sys.ewald
+        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
+        Aq = reshape(Aq, Na, Na)
         for i in 1:Na, j in 1:Na
-            view(J_q, :, i, :, j) .+= sys.gs[i]' * A_q[i, j] * sys.gs[j]
+            view(Jq, :, i, :, j) .+= sys.gs[i]' * Aq[i, j] * sys.gs[j]
         end
     end
 
@@ -37,18 +38,18 @@ function fourier_exchange_matrix!(J_q::Matrix{ComplexF64}, sys::System; q)
         anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
                               c2[5] -c2[1]-c2[3] 0.5c2[4];
                            0.5c2[2]     0.5c2[4]   2c2[3]]
-        view(J_q, :, i, :, i) .+= 2 * anisotropy
+        view(Jq, :, i, :, i) .+= 2 * anisotropy
     end
 
-    J_q = reshape(J_q, 3Na, 3Na)
-    @assert diffnorm2(J_q, J_q') < 1e-15
-    return hermitianpart!(J_q)
+    Jq = reshape(Jq, 3Na, 3Na)
+    @assert diffnorm2(Jq, Jq') < 1e-15
+    return hermitianpart!(Jq)
 end
 
 function fourier_exchange_matrix(sys::System; q)
     Na = natoms(sys.crystal)
-    J_q = zeros(ComplexF64, 3Na, 3Na)
-    return fourier_exchange_matrix!(J_q, sys; q)
+    Jq = zeros(ComplexF64, 3Na, 3Na)
+    return fourier_exchange_matrix!(Jq, sys; q)
 end
 
 # Returns the Luttinger-Tisza predicted exchange energy associated with the

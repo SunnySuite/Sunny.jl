@@ -74,6 +74,7 @@ const rIFTPlan = FFTW.AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
 
 struct Ewald
     μ0_μB²   :: Float64               # Strength of dipole-dipole interactions
+    demag    :: Mat3                  # Demagnetization factor
     A        :: Array{Mat3, 5}        # Interaction matrices in real-space         [offset+1,i,j]
     μ        :: Array{Vec3, 4}        # Magnetic moments μ = g s                   [cell,i]
     ϕ        :: Array{Vec3, 4}        # Cross correlation, ϕ = A⋆μ                 [cell,i]
