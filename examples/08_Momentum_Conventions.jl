@@ -27,11 +27,11 @@
 # We illustrate such a case using a 1D chain with competing Ising and
 # Dzyaloshinskii–Moriya couplings between neighboring sites.
 #
-# Be aware that other codes, e.g. [SpinW](https://spinw.org/), may employ a
-# different Fourier transform convention that effectively reverses the direction
+# Be aware that other codes, e.g. [SpinW](https://spinw.org/), may employ an
+# alternate structure factor convention that effectively reverses the direction
 # of momentum transfer, ``𝐪 → -𝐪``.
 
-# ### Build a 1D model without reflection symmetry
+# ### 1D model lacking reflection symmetry
 
 using Sunny, GLMakie
 
@@ -67,7 +67,7 @@ polarize_spins!(sys, [0, 0, 1])
 @assert energy(sys) ≈ - s^2
 plot_spins(sys)
 
-# ### Calculate intensities from linear spin wave theory
+# ### Intensities from linear spin wave theory
 
 # The [`SpinWaveTheory`](@ref) calculation shows a single band with dispersion
 # ``ϵ(𝐪) = 2 s [J ± D \sin(2πq_3)]`` for the polarization state ``𝐒 = ± s
@@ -78,7 +78,7 @@ swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
 res = intensities_bands(swt, path)
 plot_intensities(res; ylims=(0, 5))
 
-# ### Calculate intensities from classical spin dynamics
+# ### Intensities from classical spin dynamics
 
 # Classical dynamics at low temperatures produces, in principle, the same
 # excitation spectrum. Here, finite-size effects will limit ``𝐪``-space
