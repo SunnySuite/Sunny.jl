@@ -120,9 +120,9 @@ function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag,
 
             ϵ² = 1e-16
             if k² <= ϵ²
-                # Surface term Eₛ = μ₀ M⋅ℕ M / 2V gives rise to demagnetization
+                # Surface term Eₛ = μ₀ M⋅N M / 2V gives rise to demagnetization
                 # effect. Net magnetization M is associated with mode k = 0.
-                # Demagnetization factor tensor ℕ, denoted `demag`, depends on
+                # Demagnetization factor tensor N, denoted `demag`, depends on
                 # sample geometry and has trace 1 in vacuum background. This
                 # Ewald correction was originally derived in S. W. DeLeeuw et
                 # al., Proc. R. Soc. Lond. A 373, 27-56 (1980). See Ballenegger,
@@ -252,9 +252,9 @@ Like [`enable_dipole_dipole!`](@ref), the purpose of this function is to
 introduce long-range dipole-dipole interactions between magnetic moments.
 Whereas `enable_dipole_dipole!` employs Ewald summation, this function instead
 employs real-space pair couplings with truncation at the specified `cutoff`
-distance. The implicit demagnetization factor is ``ℕ = 1/3``, appropriate for a
-spherical sample. If the cutoff is relatively small, then this function may be
-faster than `enable_dipole_dipole!`.
+distance. The implicit demagnetization factor is 1/3, as appropriate for a
+spherical sample in vacuum. If the cutoff is relatively small, then this
+function may be faster than `enable_dipole_dipole!`.
 
 !!! warning "Mutation of existing couplings"  
     This function will modify existing bilinear couplings between spins by
