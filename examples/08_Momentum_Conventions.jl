@@ -22,14 +22,14 @@
 #
 # With appropriate contraction of spin components, ``\mathcal{S}^{αβ}(𝐪, ω)``
 # can be directly related to the neutron scattering cross-section with ``𝐪``
-# and ``ω`` denoting momentum and energy transfer **to** the sample. For models
+# and ``ω`` denoting momentum and energy transfer _to_ the sample. For models
 # that lack inversion symmetry, the intensities at ``±𝐪`` may be inequivalent.
 # We illustrate such a case using a 1D chain with competing Ising and
 # Dzyaloshinskii–Moriya couplings between neighboring sites.
 #
-# Be aware that other codes, e.g. [SpinW](https://spinw.org/), may employ an
-# alternate structure factor convention that effectively reverses the direction
-# of momentum transfer, ``𝐪 → -𝐪``.
+# This example also serves to illustrate that some other codes, e.g.
+# [SpinW](https://spinw.org/), effectively employ the opposite sign convention
+# for ``𝐪``.
 
 # ### 1D model lacking reflection symmetry
 
