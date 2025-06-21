@@ -534,14 +534,14 @@ end
 
     # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
     function simple_swt(mode)
-        cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]], "P1")
+        cryst = Crystal(diagm([1, 1, 2]), [[0, 0, 0]], "P1")
         sys = System(cryst, [1 => Moment(s=1, g=1)], mode; dims=(8, 1, 1))
 
         K1 = diagm([2, -1, -1])
         K2 = diagm([-1, -1, 2])
         set_pair_coupling!(sys, (Si, Sj) -> -Si'*Sj + (Si'*K1*Si)*(Sj'*K2*Sj), Bond(1,1,[1,0,0]); extract_parts=true)
         set_onsite_coupling!(sys, S -> S[3]^2, 1)
-        set_field!(sys, [0,0,0.1])
+        set_field!(sys, [0, 0, 0.1])
 
         randomize_spins!(sys)
         minimize_energy!(sys; maxiters=1_000)

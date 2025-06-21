@@ -32,6 +32,12 @@ function diffnorm2(a, b)
     return acc
 end
 
+function isapprox_mod1(x::AbstractArray, y::AbstractArray; opts...)
+    @assert size(x) == size(y) "Non-matching dimensions"
+    Δ = @. mod(x - y + 0.5, 1) - 0.5
+    return isapprox(Δ, zero(Δ); opts...)
+end
+
 # Project `v` onto space perpendicular to `n`
 @inline proj(v, n) = v - n * ((n' * v) / norm2(n))
 
