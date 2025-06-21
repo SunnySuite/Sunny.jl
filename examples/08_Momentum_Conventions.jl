@@ -29,7 +29,7 @@
 #
 # This model may serve as a point of comparison between codes. For example,
 # [SpinW](https://spinw.org/) employs the opposite sign convention for momentum
-# transfer, which effectively relabels ``𝐪 → -𝐪``.
+# transfer ``𝐪``.
 
 # ### 1D model lacking reflection symmetry
 
