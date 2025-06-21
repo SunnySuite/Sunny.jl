@@ -8,7 +8,7 @@
 # \mathcal{S}^{αβ}(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} ⟨\hat{M}^{†α}_𝐪(0) \hat{M}^β_𝐪(t)⟩ dt.
 # ```
 # 
-# The magnetic moment in momentum space ``\hat{𝐌}_𝐪`` is obtained from the
+# The momentum-space dipole operator ``\hat{𝐌}_𝐪`` is obtained from the
 # real-space density ``\hat{𝐌}(𝐫)`` using the Fourier transform convention,
 #
 # ```math
@@ -16,20 +16,19 @@
 # ```
 #
 # The structure factor, integrated over a finite ``𝐪``-region, is extensive in
-# sample volume ``V``. Sunny will report it as an intensive quantity by dividing
-# by the number of chemical cells in the sample. For full details, see the
+# sample volume. Sunny will report it as an intensive quantity by dividing by
+# the number of chemical cells in the sample. For full details, see the
 # documentation page [Structure Factor Conventions](@ref).
 #
 # With appropriate contraction of spin components, ``\mathcal{S}^{αβ}(𝐪, ω)``
-# can be directly related to the neutron scattering cross-section with ``𝐪``
-# and ``ω`` denoting momentum and energy transfer _to_ the sample. For models
-# that lack inversion symmetry, the intensities at ``±𝐪`` may be inequivalent.
-# We illustrate such a case using a 1D chain with competing Ising and
+# directly relates to the neutron scattering cross-section where ``𝐪`` and
+# ``ω`` represent momentum and energy transfer _to_ the sample. For models that
+# lack inversion symmetry, the intensities at ``±𝐪`` may be inequivalent. We
+# illustrate such a case using a 1D chain with competing Ising and
 # Dzyaloshinskii–Moriya couplings between neighboring sites.
 #
-# This example also serves to illustrate that some other codes, e.g.
-# [SpinW](https://spinw.org/), effectively employ the opposite sign convention
-# for ``𝐪``.
+# This example serves as a point of comparison between codes. For example,
+# [SpinW](https://spinw.org/) employs the opposite sign convention for ``𝐪``.
 
 # ### 1D model lacking reflection symmetry
 
