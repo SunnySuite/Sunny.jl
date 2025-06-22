@@ -155,7 +155,7 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
         # Draw arrows
         shaftcolor = (stemcolor, alpha)
         if !isempty(pts[])
-            Makie.arrows3d!(ax, pts, vecs; align=0.37, markerscale=1, tipradius, shaftradius, tiplength, tipcolor, shaftcolor, transparency=isghost) # FIXME: diffuse=1.15
+            Makie.arrows3d!(ax, pts, vecs; align=0.37, markerscale=1, tipradius, shaftradius, tiplength, tipcolor, shaftcolor, diffuse=1.15, transparency=isghost)
         end
 
         # Small sphere inside arrow to mark atom position

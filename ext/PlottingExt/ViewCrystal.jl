@@ -98,7 +98,7 @@ function exchange_decomposition(J)
     return (vals, q)
 end
 
-function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
+function draw_exchange_geometries(; ax, visible, ionradius, pts, scaled_exchanges)
 
     ### Ellipsoids for symmetric exchanges
 
@@ -126,8 +126,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
         d = c+(1-c)*abs(y) # c ≤ d ≤ 1
         y > 0 ? Makie.RGBf(c, c, d) : Makie.RGBf(d, c, c)
     end
-    o = Makie.meshscatter!(ax, pts; color, markersize, rotation, specular=0, diffuse=1.5, inspectable=false)
-    Makie.connect!(o.visible, obs)
+    Makie.meshscatter!(ax, pts; color, markersize, rotation, specular=0, diffuse=1.5, visible, inspectable=false)
 
     # Draw dots using cylinders
     cylinders = map(eachcol(Sunny.Mat3(I))) do x
@@ -149,8 +148,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
         end
         markersize2 = [ms .* rs for (ms, rs) in zip(markersize, rescalings)]
 
-        o = Makie.meshscatter!(ax, pts; color, markersize=markersize2, rotation, marker=cylinders[dim], inspectable=false)
-        Makie.connect!(o.visible, obs)
+        Makie.meshscatter!(ax, pts; color, markersize=markersize2, rotation, marker=cylinders[dim], visible, inspectable=false)
     end
 
     ### Cones for DM vectors
@@ -176,11 +174,11 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
 
     # Draw cones
     marker = Makie.GeometryBasics.Cone(Makie.Point3f(0, 0, 0), Makie.Point3f(0, 0, 1), 0.5)
-    o = Makie.meshscatter!(ax, dm_pts; marker, markersize, rotation=dmvecs, color=:magenta, specular=0.0, diffuse=1.15, inspectable=false)
-    Makie.connect!(o.visible, obs)
+    Makie.meshscatter!(ax, dm_pts; marker, markersize, rotation=dmvecs, color=:magenta,
+                       specular=0.0, diffuse=1.15, visible, inspectable=false)
 end
 
-function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bonds, refbond, color)
+function draw_bonds(; ax, visible, ionradius, exchange_mag, cryst, interactions, bonds, refbond, color)
     # The bond is directed if it allows for a DM exchange. This will be
     # visualized with an arrow.
     isdirected = begin
@@ -207,14 +205,15 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
         ghosts = findall(b -> !iszero(b.n), bonds)
 
         # Concatenate ghosts to the end of arrays
-        bonds = vcat(bonds, bonds[ghosts])
-        color = vcat(color, color[ghosts])
+        append!(bonds, bonds[ghosts])
+        append!(color, color[ghosts])
 
         # Ghost bonds are offset by -n multiples of lattice vectors
-        segments = vcat(segments, map(ghosts) do i
+        ghost_segments = map(ghosts) do i
             offset = - cryst.latvecs * bonds[i].n
-            segments[i] .+ Ref(offset)
-        end)
+            Makie.Point3f.(segments[i] .+ Ref(offset))
+        end
+        append!(segments, ghost_segments)
     end
 
     # String for each bond b′. Like print_bond(b′), but shorter.
@@ -262,10 +261,8 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
     dirs = [normalize(rj-ri) for (ri, rj) in segments]
     pts0 = @. getindex.(segments, 1) + ionradius*dirs
     pts1 = @. getindex.(segments, 2) - ionradius*dirs
-    o = Makie.arrows3d!(ax, pts0, pts1-pts0; markerscale=1, minshaftlength=0,
-                        tiplength, tipradius, shaftradius, color, # FIXME: diffuse=3
-                        transparency=true, inspectable=true, inspector_label)
-    Makie.connect!(o.visible, obs)
+    Makie.arrows3d!(ax, pts0, pts1-pts0; markerscale=1, minshaftlength=0, tiplength, tipradius, shaftradius,
+                    color, diffuse=3, transparency=true, visible, inspectable=true, inspector_label)
 
     # Draw exchange interactions if data is available
     if exchange_mag > 0
@@ -273,7 +270,7 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
         exchanges = map(bonds) do b
             Sunny.get_exchange_from_interactions(interactions[b.i], b)
         end
-        draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges=exchanges/exchange_mag)
+        draw_exchange_geometries(; ax, visible, ionradius, pts, scaled_exchanges=exchanges/exchange_mag)
     end
 
     return
@@ -376,7 +373,7 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
                 s0 = (N0 - 1) / 2
                 spin_dipoles = sys.dipoles[sites] / s0
                 magn_dipoles = magnetic_moment.(Ref(sys), sites) / (s0*g0)
-                for (dipoles, obs) in [(spin_dipoles, show_spin_dipoles), (magn_dipoles, show_magn_dipoles)]
+                for (dipoles, visible) in [(spin_dipoles, show_spin_dipoles), (magn_dipoles, show_magn_dipoles)]
                     a0 = 5ionradius
                     shaftradius = 0.06a0
                     tipradius = 0.2a0
@@ -388,25 +385,26 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
                     # Draw arrows
                     shaftcolor = (:white, alpha)
                     tipcolor = (:gray, alpha)
-                    o = Makie.arrows3d!(ax, Makie.Point3f.(pts), Makie.Vec3f.(vecs); align=0.37, markerscale=1, tipradius, shaftradius, tiplength, shaftcolor, tipcolor, transparency=isghost, inspectable=false) # FIXME: diffuse=1.15
-                    Makie.connect!(o.visible, obs)
+                    Makie.arrows3d!(ax, Makie.Point3f.(pts), Makie.Vec3f.(vecs); align=0.37, markerscale=1, tipradius,
+                                    shaftradius, tiplength, shaftcolor, tipcolor, diffuse=1.15, transparency=isghost,
+                                    visible, inspectable=false)
 
                     # Small sphere inside arrow to mark atom position
-                    o = Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, transparency=isghost, inspectable=!isghost, inspector_label)
-                    Makie.connect!(o.visible, obs)
+                    Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, transparency=isghost,
+                                       visible, inspectable=!isghost, inspector_label)
                 end
             end
 
             # Show atoms as spheres
             markersize = ionradius * (ismagnetic ? 1 : 1/2)
-            o = Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, transparency=isghost, inspectable=!isghost, inspector_label)
-            Makie.connect!(o.visible, ismagnetic ? show_atom_spheres : full_crystal_toggle.active)
+
+            visible = ismagnetic ? show_atom_spheres : full_crystal_toggle.active
+            Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, transparency=isghost, visible, inspectable=!isghost, inspector_label)
 
             # White numbers for real, magnetic ions
             if !isghost && ismagnetic
                 text = repr.(eachindex(pts))
-                o = Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), depth_shift=-1f0)
-                !ismagnetic && Makie.connect!(o.visible, full_crystal_toggle.active)
+                Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), depth_shift=-1f0)
             end
         end
     end
@@ -542,7 +540,7 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndim
     toggle = Makie.Toggle(fig; active=activate_refbonds, buttoncolor, framecolor_inactive, framecolor_active)
     for (refbond, bond_color) in zip(refbonds, bond_colors)
         color = set_alpha(bond_color, 0.25)
-        draw_bonds(; ax, obs=toggle.active, ionradius, exchange_mag, cryst, interactions, bonds=[], refbond, color)
+        draw_bonds(; ax, visible=toggle.active, ionradius, exchange_mag, cryst, interactions, bonds=[], refbond, color)
     end
     toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Reference bonds"; fontsize, halign=:left)]
 
@@ -554,7 +552,7 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndim
         toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
         bonds = propagate_reference_bond_for_cell(cryst, refbond)
         color = fill(set_alpha(bond_color, 0.25), length(bonds))
-        draw_bonds(; ax, obs=toggle.active, ionradius, exchange_mag, cryst, interactions, bonds, refbond, color)
+        draw_bonds(; ax, visible=toggle.active, ionradius, exchange_mag, cryst, interactions, bonds, refbond, color)
         bondstr = "Bond($(refbond.i), $(refbond.j), $(refbond.n))"
         toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
     end
