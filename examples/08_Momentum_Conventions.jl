@@ -15,19 +15,17 @@
 # \hat{𝐌}_𝐪 ≡ \int_V e^{+ i 𝐪⋅𝐫} \hat{𝐌}(𝐫) d𝐫.
 # ```
 #
-# The structure factor, integrated over a finite ``𝐪``-region, is extensive in
-# sample volume. Sunny will report it as an intensive quantity by dividing by
-# the number of chemical cells in the sample. For full details, see the
-# documentation page [Structure Factor Conventions](@ref).
+# With appropriate contraction of spin components, ``\mathcal{S}^{αβ}(𝐪, ω)``
+# directly relates to the neutron scattering cross-section. Here, ``𝐪`` and
+# ``ω`` represent momentum and energy transfer _to_ the sample. Sunny will
+# report the structure factor as an intensive quantity by dividing by the number
+# of chemical cells in the macroscopic sample. Full details are provided in the
+# documentation page [Structure Factor Conventions](@ref). 
 #
-# Upon contraction of spin components, ``\mathcal{S}^{αβ}(𝐪, ω)`` directly
-# relates to the neutron scattering cross-section with ``𝐪`` and ``ω``
-# representing momentum and energy transfer _to_ the sample. For models that
-# lack inversion symmetry, the intensities at ``±𝐪`` may be inequivalent. A
-# simple example is the 1D chain with competing Ising and Dzyaloshinskii–Moriya
-# couplings between neighboring sites.
-#
-# This model may serve as a point of comparison between codes. For example,
+# For models that lack inversion symmetry, the intensities at ``±𝐪`` may be
+# inequivalent. A simple example is the 1D chain with competing Ising and
+# Dzyaloshinskii–Moriya couplings between neighboring sites. This model may
+# serve as a point of comparison between codes. For example,
 # [SpinW](https://spinw.org/) employs the opposite sign convention for momentum
 # transfer ``𝐪``.
 
