@@ -19,14 +19,14 @@
 # directly relates to the neutron scattering cross-section. Here, ``𝐪`` and
 # ``ω`` represent momentum and energy transfer _to_ the sample. Sunny will
 # report the structure factor as an intensive quantity by dividing by the number
-# of chemical cells in the macroscopic sample. Full details are provided in the
+# of chemical cells in the macroscopic sample. Full details are given in the
 # documentation page [Structure Factor Conventions](@ref). 
 #
-# For models that lack inversion symmetry, the intensities at ``±𝐪`` may be
-# inequivalent. A simple example is the 1D chain with competing Ising and
-# Dzyaloshinskii–Moriya couplings. This model may serve as a point of comparison
-# between Sunny and other codes. For example, [SpinW](https://spinw.org/)
-# employs the opposite sign convention for momentum transfer ``𝐪``.
+# If the spin Hamiltonian lacks inversion symmetry, intensities at ``±𝐪`` may
+# be inequivalent. A simple example is the 1D chain with competing Ising and
+# Dzyaloshinskii–Moriya couplings. Sunny calculations on this model can be
+# compared to those of other codes. For example, [SpinW](https://spinw.org/)
+# employs the opposite sign convention for the momentum transfer ``𝐪``.
 
 # ### 1D model lacking reflection symmetry
 
