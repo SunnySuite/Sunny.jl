@@ -25,7 +25,7 @@
 # For models that lack inversion symmetry, the intensities at ``±𝐪`` may be
 # inequivalent. A simple example is the 1D chain with competing Ising and
 # Dzyaloshinskii–Moriya couplings between neighboring sites. This model may
-# serve as a point of comparison between codes. For example,
+# serve as a point of comparison between Sunny and other codes. For example,
 # [SpinW](https://spinw.org/) employs the opposite sign convention for momentum
 # transfer ``𝐪``.
 
