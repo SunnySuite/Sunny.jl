@@ -20,12 +20,12 @@
 # the number of chemical cells in the sample. For full details, see the
 # documentation page [Structure Factor Conventions](@ref).
 #
-# With appropriate contraction of spin components, ``\mathcal{S}^{αβ}(𝐪, ω)``
-# directly relates to the neutron scattering cross-section where ``𝐪`` and
-# ``ω`` represent momentum and energy transfer _to_ the sample. For models that
-# lack inversion symmetry, the intensities at ``±𝐪`` may be inequivalent. We
-# illustrate such a case using a 1D chain with competing Ising and
-# Dzyaloshinskii–Moriya couplings between neighboring sites.
+# Upon contraction of spin components, ``\mathcal{S}^{αβ}(𝐪, ω)`` directly
+# relates to the neutron scattering cross-section with ``𝐪`` and ``ω``
+# representing momentum and energy transfer _to_ the sample. For models that
+# lack inversion symmetry, the intensities at ``±𝐪`` may be inequivalent. A
+# simple example is the 1D chain with competing Ising and Dzyaloshinskii–Moriya
+# couplings between neighboring sites.
 #
 # This model may serve as a point of comparison between codes. For example,
 # [SpinW](https://spinw.org/) employs the opposite sign convention for momentum
@@ -35,21 +35,21 @@
 
 using Sunny, GLMakie
 
-# The model will live on a 1D chain. Select the spacegroup P1 to effectively
-# disable all symmetry analysis. This eliminates all symmetry-imposed
-# constraints on the couplings. Furthermore, because all bonds become
-# symmetry-inequivalent, each coupling must be specified independently (there is
-# no automatic propagation to "equivalent" bonds).
+# Create a [`Crystal`](@ref) with spacegroup P1 to effectively disable all
+# symmetry analysis. This avoids any symmetry-imposed constraints on the
+# couplings. Because all bonds are treated as symmetry-inequivalent, each
+# coupling must be specified independently; there is no automatic propagation to
+# "equivalent" bonds.
 
 latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]], "P1")
 
-# Include DM and Ising couplings between nearest neighbors on the chain. Letting
+# Include DM and Ising couplings between nearest neighbors on a chain. Letting
 # ``j`` denote the site position along axis ``𝐚_3``, the full Hamiltonian is
 # ```math
 # ℋ = 𝐃 ⋅ ∑_j 𝐒_j × 𝐒_{j+1} - J ∑_j ∑_j S^z_j S^z_{j+1},
 # ```
-# with DM vector ``𝐃 = D ẑ``.
+# with [`dmvec`](@ref) ``𝐃 = D ẑ``.
 
 s = 3/2
 sys = System(cryst, [1 => Moment(; s, g=2)], :dipole)
