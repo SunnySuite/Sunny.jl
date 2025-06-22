@@ -130,8 +130,8 @@ end
     #
     #     Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
     #
-    # This suggests that the underlying problem is the numerical low-quality of
-    # Luttinger-Tisza gradient estimation obtained from finite-differencing.
+    # The underlying problem could be the low quality of gradient estimation
+    # using finite-differencing.
     k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
 
