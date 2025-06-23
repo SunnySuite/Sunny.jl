@@ -99,7 +99,7 @@ function find_lagrange_multiplier_single(sys, Js, β, λ_init)
         return fbuffer
     end
 
-    λs = newton_with_backtracking(fgh!, [λ_init]; x_reltol=1e-10, show_trace=false)
+    λs = newton_with_backtracking(fgh!, [λ_init]; x_reltol=1e-10)
     return fill(λs[1], natoms(sys.crystal))
 end
 
@@ -161,7 +161,7 @@ function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
     end
 
     λs = fill(λ_init, Na)
-    return newton_with_backtracking(fgh!, λs; x_reltol=1e-10, show_trace=false)
+    return newton_with_backtracking(fgh!, λs; x_reltol=1e-10)
 end
 
 
