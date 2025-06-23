@@ -31,7 +31,7 @@ set_exchange!(sys, J-Jc/2, Bond(1, 1, [1, 0, 0]))
 set_exchange!(sys, Jp-Jc/4, Bond(1, 1, [1, 1, 0]))
 set_exchange!(sys, Jpp, Bond(1, 1, [2, 0, 0]))
 
-# Energy minimization yields the expected Néel order
+# Energy minimization yields the expected Néel order within each plane.
 
 randomize_spins!(sys)
 minimize_energy!(sys)

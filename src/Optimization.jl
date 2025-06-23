@@ -124,20 +124,26 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         optim_set_gradient!(G, sys, αs, ns)
     end
 
-    # Repeatedly optimize using a small number (`subiters`) of steps. See
-    # https://github.com/JuliaNLSolvers/Optim.jl/issues/1120 for discussion of
-    # settings required to find the minimizer `x` to high-accuracy. Note that
-    # `x` contains normalized spin variables, while gradient `g` has dimensions
-    # of energy, so we elect to set `x_abstol` as the dimensionless convergence
-    # tolerance.
-    options = Optim.Options(; iterations=subiters, x_abstol=1e-12, g_abstol=0, f_reltol=NaN, f_abstol=NaN, kwargs...)
-    local output
+    # Repeatedly optimize using a small number (`subiters`) of steps, within
+    # which the stereographic projection axes are fixed. Because we require
+    # high-precision in the spin variables (x), disable check on the energy (f),
+    # which is much lower precision. Also disable check on the energy gradient
+    # (g) because this has units of energy, and it is not obvious how to select
+    # a natural energy scale. Disable check on `x_reltol` because `x = [zeros]`
+    # is a valid configuration (all spins aligned with the stereographic
+    # projection axes). This leaves only the check on `x_abstol`. Since Optim.jl
+    # uses the default (p=2) norm, the acceptable x-tolerance scales like the
+    # square root of the number of optimization parameters.
+    x_abstol = 1e-14 * √length(αs)
+    options = Optim.Options(; iterations=subiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
+    local res
     for iter in 1 : div(maxiters, subiters, RoundUp)
-        output = Optim.optimize(f, g!, αs, method, options)
+        res = Optim.optimize(f, g!, αs, method, options)
 
-        # Exit if converged
-        if Optim.converged(output)
-            cnt = (iter-1)*subiters + output.iterations
+        # Exit if converged. Note that Hager-Zhang line search could report
+        # failure if the step Δx vanishes, but for CG this is actually success.
+        if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
+            cnt = (iter-1)*subiters + res.iterations
             return cnt
         end
 
@@ -146,7 +152,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         αs .*= 0
     end
 
-    f_abschange, x_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(output), Optim.x_abschange(output), Optim.g_residual(output)); digits=2)
+    f_abschange, x_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(res), Optim.x_abschange(res), Optim.g_residual(res)); digits=2)
     @warn "Non-converged after $maxiters iterations: |ΔE|=$f_abschange, |Δx|=$x_abschange, |∂E/∂x|=$g_residual"
     return -1
 end

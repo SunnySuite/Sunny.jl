@@ -244,22 +244,22 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     f(params) = spiral_f(sys, axis, params, λ)
     g!(G, params) = spiral_g!(G, sys, axis, params, λ)
 
-    # Minimize f, the energy of a spiral. See comment in `minimize_energy!` for
-    # a discussion of the tolerance settings.
-    options = Optim.Options(; iterations=maxiters, x_abstol=1e-12, g_abstol=0, f_reltol=NaN, f_abstol=NaN)
+    # See `minimize_energy!` for discussion of the tolerance settings.
+    x_abstol = 1e-14 * √length(params)
+    options = Optim.Options(; iterations=maxiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN)
 
-    # LBFGS does not converge to high precision, but ConjugateGradient can fail
-    # to converge: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175.
-    # TODO: Call only ConjugateGradient when issue is fixed.
-    method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
-    λ = 1 * abs(spiral_energy_per_site(sys; k=k_guess, axis)) # regularize at some energy scale
+    # First, optimize with regularization λ that pushes spins away from
+    # alignment with the spiral `axis`. See `spiral_f` for precise definition.
+    method = Optim.ConjugateGradient()
+    λ = 1 * abs(spiral_energy_per_site(sys; k=k_guess, axis))
     res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, options)
-    λ = 0 # disable regularization
-    res = Optim.optimize(f, g!, Optim.minimizer(res0), Optim.ConjugateGradient(), options)
+    # Second, disable regularization to find true energy minimum.
+    λ = 0
+    res = Optim.optimize(f, g!, Optim.minimizer(res0), method, options)
 
     k = unpack_spiral_params!(sys, axis, Optim.minimizer(res))
 
-    if Optim.converged(res)
+    if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
         # For aesthetics, wrap k components to [1-ϵ, -ϵ)
         return wrap_to_unit_cell(k; symprec=1e-6)
     else

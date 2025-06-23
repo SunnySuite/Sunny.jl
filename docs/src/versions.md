@@ -15,6 +15,8 @@
   #380](https://github.com/SunnySuite/Sunny.jl/issues/380)).
 * Fix heatmaps in [`plot_intensities`](@ref) for very large grids ([PR
   #379](https://github.com/SunnySuite/Sunny.jl/pull/379)).
+* Make energy minimization more reliable ([PR
+  #397](https://github.com/SunnySuite/Sunny.jl/pull/397)).
 
 ## v0.7.6
 (May 1, 2025)
