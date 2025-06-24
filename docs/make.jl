@@ -18,6 +18,9 @@ isdir(build_path) && rm(build_path; recursive=true)
 notebooks_path = joinpath(build_path, "assets", "notebooks")
 scripts_path = joinpath(build_path, "assets", "scripts")
 mkpath.([notebooks_path, scripts_path])
+# Copy logo to `build/assets`
+cp(pkgdir(Sunny, "assets", "sunny_logo.svg"), joinpath(build_path, "assets", "logo.svg"))
+cp(pkgdir(Sunny, "assets", "sunny_logo-dark.svg"), joinpath(build_path, "assets", "logo-dark.svg"))
 
 
 function build_examples(example_sources, destdir)
@@ -116,7 +119,7 @@ contributed_mds = isdraft ? [] : prepare_contributed()
 # Build docs as HTML, including the `examples/name.md` markdown built above
 Documenter.makedocs(;
     clean = false, # Don't wipe files in `build/assets/`
-    sitename = "Documentation",
+    sitename = "Sunny.jl",
     pages = [
         "index.md",
         "why.md",
@@ -146,7 +149,8 @@ Documenter.makedocs(;
                 :inlineMath => [["\$","\$"]],
                 :tags => "ams",
             ),
-        ))
+        )),
+        sidebar_sitename = false, # Sitename redundant with Sunny logo
     ),
     draft = isdraft
 )
