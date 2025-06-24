@@ -142,15 +142,17 @@ Documenter.makedocs(;
         # break the relative URL paths `./assets/*` for embedded HTML. See:
         # https://github.com/JuliaDocs/Documenter.jl/issues/423#issuecomment-1733869224.
         prettyurls = false,
-        size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
-        size_threshold      = 300*2024, # 300KB
+        edit_link = nothing,
+        canonical = "https://sunnysuite.github.io/Sunny.jl/stable",
+        sidebar_sitename = false, # Sitename redundant with Sunny logo
         mathengine = Documenter.MathJax3(Dict(
             :tex => Dict(
                 :inlineMath => [["\$","\$"]],
                 :tags => "ams",
             ),
         )),
-        sidebar_sitename = false, # Sitename redundant with Sunny logo
+        size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
+        size_threshold      = 300*2024, # 300KB
     ),
     draft = isdraft
 )
