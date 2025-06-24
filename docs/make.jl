@@ -18,6 +18,9 @@ isdir(build_path) && rm(build_path; recursive=true)
 notebooks_path = joinpath(build_path, "assets", "notebooks")
 scripts_path = joinpath(build_path, "assets", "scripts")
 mkpath.([notebooks_path, scripts_path])
+# Copy logo to `build/assets`
+cp(pkgdir(Sunny, "assets", "sunny_logo.svg"), joinpath(build_path, "assets", "logo.svg"))
+cp(pkgdir(Sunny, "assets", "sunny_logo-dark.svg"), joinpath(build_path, "assets", "logo-dark.svg"))
 
 
 function build_examples(example_sources, destdir)
@@ -116,7 +119,7 @@ contributed_mds = isdraft ? [] : prepare_contributed()
 # Build docs as HTML, including the `examples/name.md` markdown built above
 Documenter.makedocs(;
     clean = false, # Don't wipe files in `build/assets/`
-    sitename = "Documentation",
+    sitename = "Sunny.jl",
     pages = [
         "index.md",
         "why.md",
@@ -139,14 +142,17 @@ Documenter.makedocs(;
         # break the relative URL paths `./assets/*` for embedded HTML. See:
         # https://github.com/JuliaDocs/Documenter.jl/issues/423#issuecomment-1733869224.
         prettyurls = false,
-        size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
-        size_threshold      = 300*2024, # 300KB
+        edit_link = nothing,
+        canonical = "https://sunnysuite.github.io/Sunny.jl/stable",
+        sidebar_sitename = false, # Sitename redundant with Sunny logo
         mathengine = Documenter.MathJax3(Dict(
             :tex => Dict(
                 :inlineMath => [["\$","\$"]],
                 :tags => "ams",
             ),
-        ))
+        )),
+        size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
+        size_threshold      = 300*2024, # 300KB
     ),
     draft = isdraft
 )
