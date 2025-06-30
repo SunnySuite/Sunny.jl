@@ -318,11 +318,18 @@ function label_atoms(cryst; ismagnetic, sys)
     end
 end
 
+function scaled_dipole_to_arrow_length(dipole, lengthscale, tiplength)
+    s = norm(dipole)
+    dir = dipole / s
+    baselen = s * lengthscale
+    headlen = min(tiplength, 4baselen)
+    return (baselen + headlen) * dir
+end
+
 function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sys, class_colors, ionradius, ndims, ghost_radius)
     selection = isnothing(dipole_menu) ? Makie.Observable("No dipoles") : dipole_menu.selection
     show_spin_dipoles = Makie.lift(==("Spin dipoles"), selection)
     show_magn_dipoles = Makie.lift(==("Magnetic dipoles"), selection)
-    show_atom_spheres = Makie.lift(==("No dipoles"), selection)
 
     # Draw magnetic and non-magnetic ions
     for ismagnetic in (false, true)
@@ -378,27 +385,22 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
                     shaftradius = 0.06a0
                     tipradius = 0.2a0
                     tiplength = 0.4a0
-                    lengthscale = 1.0a0
-                    markersize = 0.9ionradius
-                    vecs = lengthscale * dipoles
+                    lengthscale = 0.6a0
+                    vecs = scaled_dipole_to_arrow_length.(dipoles, lengthscale, tiplength)
 
                     # Draw arrows
                     shaftcolor = (:white, alpha)
                     tipcolor = (:gray, alpha)
-                    Makie.arrows3d!(ax, Makie.Point3f.(pts), Makie.Vec3f.(vecs); align=0.37, markerscale=1, tipradius,
-                                    shaftradius, tiplength, shaftcolor, tipcolor, diffuse=1.15, transparency=isghost,
-                                    visible, inspectable=false)
-
-                    # Small sphere inside arrow to mark atom position
-                    Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, transparency=isghost,
-                                       visible, inspectable=!isghost, inspector_label)
+                    Makie.arrows3d!(ax, pts, vecs; align=0.37, markerscale=1, tipradius, shaftradius,
+                                    tiplength, minshaftlength=0, tipcolor, shaftcolor, diffuse=1.15,
+                                    transparency=isghost, visible, inspectable=false)
                 end
             end
 
             # Show atoms as spheres
             markersize = ionradius * (ismagnetic ? 1 : 1/2)
 
-            visible = ismagnetic ? show_atom_spheres : full_crystal_toggle.active
+            visible = ismagnetic ? true : full_crystal_toggle.active
             Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, transparency=isghost, visible, inspectable=!isghost, inspector_label)
 
             # White numbers for real, magnetic ions

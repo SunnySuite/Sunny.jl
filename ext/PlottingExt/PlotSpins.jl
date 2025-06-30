@@ -81,11 +81,11 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
 
     # Parameters defining arrow shape
     a0 = arrowscale * ℓ0
+    markersize = 0.1*a0
     shaftradius = 0.06a0
     tipradius = 0.2a0
     tiplength = 0.4a0
-    lengthscale = 1.0a0
-    markersize = 1.6shaftradius
+    lengthscale = 0.6a0
 
     # Positions in fractional coordinates of supercell vectors
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
@@ -141,9 +141,9 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
             end
 
             for (site, n) in zip(idxs, offsets)
-                v = (lengthscale / s0) * vec(sys.dipoles[site])
+                vec = scaled_dipole_to_arrow_length(sys.dipoles[site]/s0, lengthscale, tiplength)
                 pt = supervecs * (rs[site] + n)
-                push!(vecs[], Makie.Vec3f(v))
+                push!(vecs[], Makie.Vec3f(vec))
                 push!(pts[], Makie.Point3f(pt))
                 push!(tipcolor[], rgba_colors[site])
             end
@@ -155,7 +155,9 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
         # Draw arrows
         shaftcolor = (stemcolor, alpha)
         if !isempty(pts[])
-            Makie.arrows3d!(ax, pts, vecs; align=0.37, markerscale=1, tipradius, shaftradius, tiplength, tipcolor, shaftcolor, diffuse=1.15, transparency=isghost)
+            Makie.arrows3d!(ax, pts, vecs; align=0.37, markerscale=1, tipradius, shaftradius,
+                            tiplength, minshaftlength=0, tipcolor, shaftcolor, diffuse=1.15,
+                            transparency=isghost)
         end
 
         # Small sphere inside arrow to mark atom position
