@@ -326,16 +326,15 @@ function scaled_dipole_to_arrow_geometry(dipole, lengthscale, tiplength)
     # In the typical case, spin magnitude will be denoted by shaft length.
     shaftlength0 = s * lengthscale
 
-    # If magnitude is too small, however, then it will be depicted as the
-    # _volume_ of the arrow tip. This is achieved by effectively scaling
-    # tiplength by a reduction factor c ~ cbrt(s) ≤ 1.
-    r = shaftlength0 / tiplength
+    # If spin magnitude is too small, reduce overall arrow length by the factor
+    # c ~ cbrt(s) ≤ 1. Here, the spin magnitude is effectively represented by
+    # the _volume_ of the arrow tip.
+    r = shaftlength0 / (0.5 * tiplength)
     c = cbrt(min(r, 1))
-    full_length = shaftlength0 + c * tiplength
+    full_length = c * (shaftlength0 + tiplength)
 
-    # Calculate the true space remaining for the shaft. If tiplength exceeds
-    # full_length, then Makie will automatically scale arrow arrow geometry to
-    # honor full_length.
+    # The true space remaining for the shaft. If no space is left, Makie will
+    # also rescale the arrow tip as needed to achieve the requested full_length.
     shaftlength = max(full_length - tiplength, 0)
 
     offset = -(shaftlength/2) * dir
