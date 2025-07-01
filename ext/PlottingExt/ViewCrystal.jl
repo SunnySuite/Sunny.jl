@@ -329,11 +329,11 @@ function scaled_dipole_to_arrow_geometry(dipole, lengthscale, tiplength)
     # If magnitude is too small, however, then it will be depicted as the
     # _volume_ of the arrow tip. This is achieved by effectively scaling
     # tiplength by a reduction factor c ~ cbrt(s) ≤ 1.
-    r = 4shaftlength0/tiplength
+    r = shaftlength0 / tiplength
     c = cbrt(min(r, 1))
     full_length = shaftlength0 + c * tiplength
 
-    # This is the true space remaining for the shaft. If tiplength exceeds
+    # Calculate the true space remaining for the shaft. If tiplength exceeds
     # full_length, then Makie will automatically scale arrow arrow geometry to
     # honor full_length.
     shaftlength = max(full_length - tiplength, 0)
