@@ -75,9 +75,9 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
-    # Quantum spin-s, averaged over all sites. Will be used to normalize
-    # dipoles.
-    s0 = (sum(sys.Ns)/length(sys.Ns) - 1) / 2
+    # Quantum spin-s averaged over sites. Will be used to normalize dipoles.
+    N0 = norm(sys.Ns) / sqrt(length(sys.Ns))
+    s0 = (N0 - 1) / 2
 
     # Parameters defining arrow shape
     a0 = arrowscale * ℓ0

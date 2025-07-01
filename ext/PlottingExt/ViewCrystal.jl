@@ -322,8 +322,12 @@ function scaled_dipole_to_arrow_length(dipole, lengthscale, tiplength)
     s = norm(dipole)
     dir = dipole / s
     baselen = s * lengthscale
-    headlen = min(tiplength, 4baselen)
-    return (baselen + headlen) * dir
+    # If dipole becomes very short, its magnitude will be depicted as the
+    # _volume_ of the arrow tip. This is achieved by scaling tiplength (space
+    # reserved for arrow tip) by a reduction factor c ~ cbrt(s) ≤ 1
+    r = 4baselen/tiplength
+    c = cbrt(min(r, 1))
+    return (baselen + c * tiplength) * dir
 end
 
 function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sys, class_colors, ionradius, ndims, ghost_radius)
