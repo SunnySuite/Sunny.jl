@@ -75,17 +75,17 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
-    # Quantum spin-s, averaged over all sites. Will be used to normalize
-    # dipoles.
-    s0 = (sum(sys.Ns)/length(sys.Ns) - 1) / 2
+    # Quantum spin-s averaged over sites. Will be used to normalize dipoles.
+    N0 = norm(sys.Ns) / sqrt(length(sys.Ns))
+    s0 = (N0 - 1) / 2
 
     # Parameters defining arrow shape
     a0 = arrowscale * ℓ0
-    arrowsize = 0.4a0
-    linewidth = 0.12a0
+    markersize = 0.1*a0
+    shaftradius = 0.06a0
+    tipradius = 0.2a0
+    tiplength = 0.4a0
     lengthscale = 0.6a0
-    markersize = 0.8linewidth
-    arrow_fractional_shift = 0.6
 
     # Positions in fractional coordinates of supercell vectors
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
@@ -126,13 +126,13 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
         end
 
         # These observables will be reanimated upon calling `notify(notifier)`.
-        vecs = Makie.Observable(Makie.Vec3f[])
         pts = Makie.Observable(Makie.Point3f[])
-        pts_shifted = Makie.Observable(Makie.Point3f[])
-        arrowcolor = Makie.Observable(Makie.RGBAf[])
+        offset_pts = Makie.Observable(Makie.Point3f[])
+        vecs = Makie.Observable(Makie.Vec3f[])
+        tipcolor = Makie.Observable(Makie.RGBAf[])
 
         Makie.on(notifier, update=true) do _
-            empty!.((vecs[], pts[], pts_shifted[], arrowcolor[]))
+            empty!.((vecs[], offset_pts[], tipcolor[]))
 
             # Dynamically adapt `rgba_colors` according to `colorfn`
             if !isnothing(colorfn)
@@ -140,27 +140,29 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
                 dyncolorrange = @something colorrange extrema(numeric_colors)
                 numbers_to_colors!(rgba_colors, numeric_colors, cmap_with_alpha, dyncolorrange)
             end
-            
+
             for (site, n) in zip(idxs, offsets)
-                v = (lengthscale / s0) * vec(sys.dipoles[site])
+                (; offset, vec) = scaled_dipole_to_arrow_geometry(sys.dipoles[site]/s0, lengthscale, tiplength)
                 pt = supervecs * (rs[site] + n)
-                pt_shifted = pt - arrow_fractional_shift * v
-                push!(vecs[], Makie.Vec3f(v))
                 push!(pts[], Makie.Point3f(pt))
-                push!(pts_shifted[], Makie.Point3f(pt_shifted))
-                push!(arrowcolor[], rgba_colors[site])
+                push!(offset_pts[], pt + Makie.Point3f(offset))
+                push!(vecs[], Makie.Vec3f(vec))
+                push!(tipcolor[], rgba_colors[site])
             end
             # Trigger Makie redraw
-            notify.((vecs, pts, pts_shifted, arrowcolor))
+            notify.((offset_pts, vecs, tipcolor))
             # isnothing(color) || notify(arrowcolor)
         end
 
         # Draw arrows
-        linecolor = (stemcolor, alpha)
-        Makie.arrows!(ax, pts_shifted, vecs; arrowsize, linewidth, linecolor, arrowcolor, diffuse=1.15, transparency=isghost)
+        shaftcolor = (stemcolor, alpha)
+        if !isempty(offset_pts[])
+            Makie.arrows3d!(ax, offset_pts, vecs; align=0, markerscale=1, minshaftlength=0, tipradius,
+                            shaftradius, tiplength, tipcolor, shaftcolor, diffuse=1.15, transparency=isghost)
+        end
 
         # Small sphere inside arrow to mark atom position
-        Makie.meshscatter!(ax, pts; markersize, color=linecolor, diffuse=1.15, transparency=isghost)
+        Makie.meshscatter!(ax, pts; markersize, color=shaftcolor, diffuse=1.15, transparency=isghost)
     end
 
     # Bounding box of original crystal unit cell in teal
