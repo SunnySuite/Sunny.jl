@@ -1,7 +1,7 @@
 # Version History
 
 ## v0.7.8
-(Jun 30, 2025)
+(Jul 1, 2025)
 
 * Compatibility with Makie v0.24 ([PR
   #393](https://github.com/SunnySuite/Sunny.jl/pull/393)).
