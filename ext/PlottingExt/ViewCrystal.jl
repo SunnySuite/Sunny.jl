@@ -318,16 +318,29 @@ function label_atoms(cryst; ismagnetic, sys)
     end
 end
 
-function scaled_dipole_to_arrow_length(dipole, lengthscale, tiplength)
+function scaled_dipole_to_arrow_geometry(dipole, lengthscale, tiplength)
+    # Spin magnitude and direction
     s = norm(dipole)
     dir = dipole / s
-    baselen = s * lengthscale
-    # If dipole becomes very short, its magnitude will be depicted as the
-    # _volume_ of the arrow tip. This is achieved by scaling tiplength (space
-    # reserved for arrow tip) by a reduction factor c ~ cbrt(s) ≤ 1
-    r = 4baselen/tiplength
+
+    # In the typical case, spin magnitude will be denoted by shaft length.
+    shaftlength0 = s * lengthscale
+
+    # If magnitude is too small, however, then it will be depicted as the
+    # _volume_ of the arrow tip. This is achieved by effectively scaling
+    # tiplength by a reduction factor c ~ cbrt(s) ≤ 1.
+    r = 4shaftlength0/tiplength
     c = cbrt(min(r, 1))
-    return (baselen + c * tiplength) * dir
+    full_length = shaftlength0 + c * tiplength
+
+    # This is the true space remaining for the shaft. If tiplength exceeds
+    # full_length, then Makie will automatically scale arrow arrow geometry to
+    # honor full_length.
+    shaftlength = max(full_length - tiplength, 0)
+
+    offset = -(shaftlength/2) * dir
+    vec = full_length * dir
+    return (; offset, vec)
 end
 
 function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sys, class_colors, ionradius, ndims, ghost_radius)
@@ -390,13 +403,17 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
                     tipradius = 0.2a0
                     tiplength = 0.4a0
                     lengthscale = 0.6a0
-                    vecs = scaled_dipole_to_arrow_length.(dipoles, lengthscale, tiplength)
+
+                    # Calculate arrow geometries based on dipole lengths
+                    geometries = scaled_dipole_to_arrow_geometry.(dipoles, lengthscale, tiplength)
+                    offsets = getfield.(geometries, :offset)
+                    vecs = getfield.(geometries, :vec)
 
                     # Draw arrows
                     shaftcolor = (:white, alpha)
                     tipcolor = (:gray, alpha)
-                    Makie.arrows3d!(ax, pts, vecs; align=0.37, markerscale=1, tipradius, shaftradius,
-                                    tiplength, minshaftlength=0, tipcolor, shaftcolor, diffuse=1.15,
+                    Makie.arrows3d!(ax, pts + offsets, vecs; align=0, markerscale=1, minshaftlength=0,
+                                    tipradius, shaftradius, tiplength, tipcolor, shaftcolor, diffuse=1.15,
                                     transparency=isghost, visible, inspectable=false)
                 end
             end

@@ -126,12 +126,13 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
         end
 
         # These observables will be reanimated upon calling `notify(notifier)`.
-        vecs = Makie.Observable(Makie.Vec3f[])
         pts = Makie.Observable(Makie.Point3f[])
+        offset_pts = Makie.Observable(Makie.Point3f[])
+        vecs = Makie.Observable(Makie.Vec3f[])
         tipcolor = Makie.Observable(Makie.RGBAf[])
 
         Makie.on(notifier, update=true) do _
-            empty!.((vecs[], pts[], tipcolor[]))
+            empty!.((vecs[], offset_pts[], tipcolor[]))
 
             # Dynamically adapt `rgba_colors` according to `colorfn`
             if !isnothing(colorfn)
@@ -141,23 +142,23 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
             end
 
             for (site, n) in zip(idxs, offsets)
-                vec = scaled_dipole_to_arrow_length(sys.dipoles[site]/s0, lengthscale, tiplength)
+                (; offset, vec) = scaled_dipole_to_arrow_geometry(sys.dipoles[site]/s0, lengthscale, tiplength)
                 pt = supervecs * (rs[site] + n)
-                push!(vecs[], Makie.Vec3f(vec))
                 push!(pts[], Makie.Point3f(pt))
+                push!(offset_pts[], pt + Makie.Point3f(offset))
+                push!(vecs[], Makie.Vec3f(vec))
                 push!(tipcolor[], rgba_colors[site])
             end
             # Trigger Makie redraw
-            notify.((vecs, pts, tipcolor))
+            notify.((offset_pts, vecs, tipcolor))
             # isnothing(color) || notify(arrowcolor)
         end
 
         # Draw arrows
         shaftcolor = (stemcolor, alpha)
-        if !isempty(pts[])
-            Makie.arrows3d!(ax, pts, vecs; align=0.37, markerscale=1, tipradius, shaftradius,
-                            tiplength, minshaftlength=0, tipcolor, shaftcolor, diffuse=1.15,
-                            transparency=isghost)
+        if !isempty(offset_pts[])
+            Makie.arrows3d!(ax, offset_pts, vecs; align=0, markerscale=1, minshaftlength=0, tipradius,
+                            shaftradius, tiplength, tipcolor, shaftcolor, diffuse=1.15, transparency=isghost)
         end
 
         # Small sphere inside arrow to mark atom position
