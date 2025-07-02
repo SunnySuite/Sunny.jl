@@ -10,18 +10,18 @@ Reads the crystal from a `.cif` file located at the path `filename`. If
 `override_symmetry=true`, the spacegroup will be inferred based on atom
 positions and the returned unit cell may be reduced in size. For an mCIF file,
 the return value is the magnetic supercell, unless `override_symmetry=true`. If
-a precision for spacegroup symmetries cannot be inferred from the CIF file, it
-must be specified with `symprec`. The `latvecs` field of the returned `Crystal`
-will be in units of angstrom.
+a dimensionless precision for spacegroup symmetries cannot be inferred from the
+CIF file, it must be specified with `symprec`. The `latvecs` field of the
+returned `Crystal` will be in units of angstrom.
 
     Crystal(latvecs, positions; types=nothing, symprec=1e-5)
 
 Constructs a crystal from the complete list of atom positions `positions`, with
 coordinates (between 0 and 1) in units of lattice vectors `latvecs`. Spacegroup
 symmetry information is automatically inferred using the [Spglib
-package](https://github.com/spglib/spglib) [1]. The optional parameter `types`
-is a list of strings, one for each atom, and can be used to break
-symmetry-equivalence between atoms.
+package](https://github.com/spglib/spglib) [1] at the dimensionless symmetry
+precision `symprec`. The optional parameter `types` is a list of strings, one
+for each atom, and can be used to break symmetry-equivalence between atoms.
 
     Crystal(latvecs, positions, spacegroup; types=nothing, choice=nothing, symprec=1e-5)
 
@@ -124,14 +124,43 @@ function Crystal(latvecs, positions, symbol::Union{Int, String}; types::Union{No
 end
 
 
+# Sunny crystal specification is agnostic to length units, and the Sunny symprec
+# parameter is dimensionless. Spglib, however, expects lattice vector magnitudes
+# to be order one (this will be the case for atomic crystals specified in Å).
+# The Spglib wrappers below do the following: (1) Identify a natural length
+# scale as the operator norm (largest singular value) of the lattice vectors as
+# a matrix, (2) Non-dimensionalize the lattice vectors using this length, (3)
+# Perform Spglib symmetry analysis, (4) Re-introduce length dimensions in the
+# appropriate return values.
+function dimensionless_cell(cell)
+    (; lattice, positions, atoms, magmoms) = cell
+    a0 = opnorm(Mat3(lattice))
+    cell = Spglib.Cell(lattice/a0, positions, atoms, magmoms)
+    return (; cell, a0)
+end
+function spg_standardize_cell_scaled(cell, symprec; no_idealize)
+    (; cell, a0) = dimensionless_cell(cell)
+    ret = Spglib.standardize_cell(cell, symprec; no_idealize)
+    ret.lattice .*= a0
+    return ret
+end
+function spg_get_dataset_scaled(cell, symprec)
+    (; cell, a0) = dimensionless_cell(cell)
+    ret = Spglib.get_dataset(cell, symprec)
+    ret.std_lattice .*= a0
+    ret.primitive_lattice .*= a0
+    return ret
+end
+
+
 function print_crystal_warnings(latvecs, positions)
     det(latvecs) < 0 && @warn "Lattice vectors are not right-handed."
     if length(positions) >= 100
-        @info """This a very large crystallographic cell, which Sunny does not handle well.
-                 If the intention is to model chemical inhomogeneity, the recommended procedure is as
-                 follows: First, create a small unit cell with an idealized structure. Next, create
-                 a perfectly periodic `System` of the desired size. Finally, use `to_inhomogeneous`
-                 and related functions to design a system with the desired inhomogeneities."""
+        @info """This a very large crystallographic cell, which Sunny does not handle well. If
+                 the intention is to model chemical inhomogeneity, the recommended steps are:
+                 (1) Create a small unit cell with an idealized structure. (2) Create a
+                 `System` with of desired dimensions `dims`. (3) Use `to_inhomogeneous` and
+                 related functions to introduce model inhomogeneities."""
     end
 end
 
@@ -243,7 +272,7 @@ function standardize(cryst::Crystal; idealize=true)
 
     (; symprec) = cryst
     cell = Spglib.Cell(cryst.latvecs, cryst.positions, cryst.types)
-    (; lattice, positions, atoms) = Spglib.standardize_cell(cell, symprec; no_idealize=!idealize)
+    (; lattice, positions, atoms) = spg_standardize_cell_scaled(cell, symprec; no_idealize=!idealize)
     positions = Vec3.(positions)
     lattice = Mat3(lattice)
 
@@ -252,7 +281,7 @@ function standardize(cryst::Crystal; idealize=true)
         # digits. However, spglib produces much higher accuracy with the
         # `idealize=true` option. Rotate the higher precision lattice vectors so
         # that they give the best match to the ones for the non-idealized cell.
-        std_lattice = Mat3(Spglib.standardize_cell(cell, symprec; no_idealize=false).lattice)
+        std_lattice = Mat3(spg_standardize_cell_scaled(cell, symprec; no_idealize=false).lattice)
         R = closest_unitary(lattice / std_lattice)
         isapprox(R*std_lattice, lattice; rtol=1e-5) || error("Failed to standardize the cell")
         lattice = R * std_lattice
@@ -298,7 +327,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     positions = wrap_to_unit_cell.(positions; symprec)
 
     cell = Spglib.Cell(latvecs, positions, types)
-    d = Spglib.get_dataset(cell, symprec)
+    d = spg_get_dataset_scaled(cell, symprec)
 
     if check_cell
         ratio = length(positions) / d.n_std_atoms
