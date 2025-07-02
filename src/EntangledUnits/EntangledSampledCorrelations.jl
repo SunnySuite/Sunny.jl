@@ -128,7 +128,7 @@ function SampledCorrelationsStatic(esys::EntangledSystem; measure, calculate_err
     crystal = esys.sys_origin.crystal
     origin_crystal = orig_crystal(esys.sys_origin)
     parent = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables, positions, source_idcs, measure.corr_pairs,
-                                 sc.measperiod, sc.dt, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
+                                 sc.integrator, sc.measperiod, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
     ssc = SampledCorrelationsStatic(parent)
     return EntangledSampledCorrelationsStatic(ssc, esys)
