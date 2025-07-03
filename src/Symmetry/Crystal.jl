@@ -128,13 +128,13 @@ end
 # parameter is dimensionless. Spglib, however, expects lattice vector magnitudes
 # to be order one (this will be the case for atomic crystals specified in Å).
 # The Spglib wrappers below do the following: (1) Identify a natural length
-# scale as the operator norm (largest singular value) of the lattice vectors as
-# a matrix, (2) Non-dimensionalize the lattice vectors using this length, (3)
-# Perform Spglib symmetry analysis, (4) Re-introduce length dimensions in the
-# appropriate return values.
+# scale as the smallest singular value of the lattice vectors as a matrix, (2)
+# Non-dimensionalize the lattice vectors using this length, (3) Perform Spglib
+# symmetry analysis, (4) Re-introduce length dimensions in the appropriate
+# return values.
 function dimensionless_cell(cell)
     (; lattice, positions, atoms, magmoms) = cell
-    a0 = opnorm(Mat3(lattice))
+    a0 = minimum(svdvals(Mat3(lattice)))
     cell = Spglib.Cell(lattice/a0, positions, atoms, magmoms)
     return (; cell, a0)
 end
