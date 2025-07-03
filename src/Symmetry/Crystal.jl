@@ -158,9 +158,9 @@ function print_crystal_warnings(latvecs, positions)
     if length(positions) >= 100
         @info """This a very large crystallographic cell, which Sunny does not handle well. If
                  the intention is to model chemical inhomogeneity, the recommended steps are:
-                 (1) Create a small unit cell with an idealized structure. (2) Create a
-                 `System` with of desired dimensions `dims`. (3) Use `to_inhomogeneous` and
-                 related functions to introduce model inhomogeneities."""
+                 (1) Create a `Crystal` with idealized chemical cell. (2) Create a `System`
+                 with many cells, as set by the `dims` parameter. (3) Use `to_inhomogeneous`
+                 and related functions to introduce model inhomogeneities."""
     end
 end
 
