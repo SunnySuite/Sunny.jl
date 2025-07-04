@@ -104,6 +104,11 @@ end
 
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
 
+    # Test static structure factor is zero (dipolar sector)
+    ssf = SampledCorrelationsStatic(esys; measure=ssf_trace(esys))
+    add_sample!(ssf, esys)
+    @test all(x -> isapprox(x, 0.0; atol=1e-12), ssf.sc.parent.data)
+
     # Test classical dynamics and perform golden test.
     esys = repeat_periodically(esys, (8, 1, 1))
     energies = range(0, 2, 5)
