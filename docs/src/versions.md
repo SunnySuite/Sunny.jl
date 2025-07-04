@@ -1,5 +1,11 @@
 # Version History
 
+## v0.7.9
+(In development)
+
+* Fix tolerance of Spglib symmetry inference ([PR
+  #405](https://github.com/SunnySuite/Sunny.jl/pull/405)).
+
 ## v0.7.8
 (Jul 1, 2025)
 
