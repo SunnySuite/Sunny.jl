@@ -183,7 +183,7 @@ function repeat_periodically_as_spiral(sys::System, counts::NTuple{3,Int}; k, ax
     # Original positions units of supervecs (components between 0 and 1)
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
 
-    # Tighted symprec suitable for scaled positions
+    # Tightened symprec suitable for scaled positions
     symprec = sys.crystal.symprec / minimum(sys.dims)
 
     # Copy per-site quantities

@@ -39,12 +39,12 @@ end
     msg = """Loading the magnetic cell as chemical cell for TESTING PURPOSES only.
              Set the option `override_symmetry=true` to infer the standard chemical
              cell and its spacegroup symmetries."""
-    cryst1 = @test_logs (:warn, msg) Crystal(filename; symprec=1e-2)
+    cryst1 = @test_logs (:warn, msg) Crystal(filename; symprec=1e-3)
     cryst1 = subcrystal(cryst1, "Tb1_1")
     sys1 = System(cryst1, [1 => Moment(s=3/2, g=-2)], :dipole)
     set_dipoles_from_mcif!(sys1, filename)
 
-    cryst2 = Crystal(filename; override_symmetry=true, symprec=1e-2)
+    cryst2 = Crystal(filename; override_symmetry=true, symprec=1e-3)
     cryst2 = subcrystal(cryst2, "Tb3+")
     sys2 = System(cryst2, [1 => Moment(s=3/2, g=-2)], :dipole)
     msg = "Use `reshape_supercell(sys, [1/2 0 2; 0 1/2 -2; -1/2 1/2 2])` to get compatible system"
