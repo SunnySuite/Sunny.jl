@@ -121,30 +121,18 @@ end
 
 
 """
-    dssf_tc(swt::SpinWaveTheory, q, ωs, η::Float64; opts...)
+    intensities_free_two_magnon(swt::SpinWaveTheory, q, energies, η::Float64; opts...)
 
-Given a [`SpinWaveTheory`](@ref) object, computes the dynamical spin structure
-factor,
-```math
-    𝒮^{αβ}(𝐪, ω) = 1/(2πN)∫dt ∑_𝐫 \\exp[i(ωt - 𝐪⋅𝐫)] ⟨S^α(𝐫, t)S^β(0, 0)⟩,
-```
-
-from the two-particle continuum contribution,
-
-```math
-    𝒮^{αβ}(𝐪, ω) =1/N ∑_n ∑_m ∑_{𝐤}  |A_n^{αβ}_{nm}(𝐤, 𝐪)|^2 δ[ω-ω_{n}(𝐪+𝐤)-ω_{m}(-𝐤)].
-```
-
-``q`` must be a 3-vector in reciprocal lattice units (RLU), i.e., in the basis of
-reciprocal lattice vectors.
+Calculates dynamical pair correlation intensities for a provided ``𝐪``-point in
+reciprocal space.
 """
-function dssf_tc(swt::SpinWaveTheory, q, ωs, η::Float64; opts...)
+function intensities_free_two_magnon(swt::SpinWaveTheory, q, energies, η::Float64; opts...)
     kernel = lorentzian(; fwhm=2η)
 
     (; sys, data, measure) = swt
     cryst = orig_crystal(sys)
-    q_reshaped = to_reshaped_rlu(swt.sys, q)
     q_global = cryst.recipvecs * q
+    q_reshaped = to_reshaped_rlu(sys, q)
 
     # Number of atoms in magnetic cell
     Nm = length(sys.dipoles)
@@ -156,7 +144,7 @@ function dssf_tc(swt::SpinWaveTheory, q, ωs, η::Float64; opts...)
     L = nbands(swt)
 
     # Get some integer numbers for later use
-    numωs = length(ωs)
+    num_energies = length(energies)
     num_obs = num_observables(measure)
     num_corrs = num_correlations(measure)
 
@@ -168,16 +156,20 @@ function dssf_tc(swt::SpinWaveTheory, q, ωs, η::Float64; opts...)
     H2 = zeros(ComplexF64, 2L, 2L)
     V2 = zeros(ComplexF64, 2L, 2L)
 
-    Avec_pref = zeros(ComplexF64, Nm)
+    Avec_pref = zeros(ComplexF64, num_obs, Nm)
     Avec = zeros(ComplexF64, num_obs, L, L)
-    corrbuf = zeros(ComplexF64, num_corrs*numωs)
+    corrbuf = zeros(ComplexF64, num_corrs, num_energies)
+    resbuf = zeros(num_energies)
 
-    for i = 1:Nm
-        @assert Nm == natoms(sys.crystal)
-        Avec_pref[i] = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
+
+    for i = 1:Nm, μ in 1:num_obs
+        r_global = global_position(sys, (1,1,1,i))
+        ff = get_swt_formfactor(measure, μ, i)
+        Avec_pref[μ, i] = exp(-1im * dot(q_global, r_global))
+        Avec_pref[μ, i] *= compute_form_factor(ff, norm2(q_global))
     end
 
-    Sqω = hcubature((0,0,0), (1,1,1); opts...) do k_reshaped
+    ints = hcubature((0,0,0), (1,1,1); opts...) do k_reshaped
         qpk_reshaped = q_reshaped + k_reshaped
         if sys.mode == :SUN
             swt_hamiltonian_SUN!(H1, swt, qpk_reshaped)
@@ -193,6 +185,7 @@ function dssf_tc(swt::SpinWaveTheory, q, ωs, η::Float64; opts...)
 
         # Fill the buffers with zeros
         Avec .= 0.0
+        resbuf .= 0.0
         corrbuf .= 0.0
 
         if sys.mode == :SUN
@@ -205,7 +198,7 @@ function dssf_tc(swt::SpinWaveTheory, q, ωs, η::Float64; opts...)
                             O = data.observables_localized[μ, i]
                             for α = 1:N-1
                                 for β = 1:N-1
-                                    Avec[μ, band1, band2] += Avec_pref[i] * (O[α, β] - δ(α, β) * O[N, N]) * (v1[α, i, 2]*v2[β, i, 1] + v1[β, i, 1]*v2[α, i, 2])
+                                    Avec[μ, band1, band2] += Avec_pref[μ, i] * (O[α, β] - δ(α, β) * O[N, N]) * (v1[α, i, 2]*v2[β, i, 1] + v1[β, i, 1]*v2[α, i, 2])
                                 end
                             end
                         end
@@ -221,28 +214,25 @@ function dssf_tc(swt::SpinWaveTheory, q, ωs, η::Float64; opts...)
                     for i = 1:Nm
                         for μ = 1:num_obs
                             O = data.observables_localized[μ, i]
-                            Avec[μ, band1, band2] += Avec_pref[i] * O[3] * (v1[i, 2]*v2[i, 1] + v1[i, 1]*v2[i, 2])
+                            Avec[μ, band1, band2] += Avec_pref[μ, i] * O[3] * (v1[i, 2]*v2[i, 1] + v1[i, 1]*v2[i, 2])
                         end
                     end
                 end
             end
         end
 
-        for (iω, ω) in enumerate(ωs)
+        for (ie, energy) in enumerate(energies)
             for (i, (α, β)) in enumerate(measure.corr_pairs)
                 for band1 in 1:L, band2 in 1:L
-                    corrbuf[(iω-1)*num_corrs+i] += Avec[α, band1, band2] * conj(Avec[β, band1, band2]) * kernel(disp1[band1]-disp2[band2], ω) / Ncells
+                    corrbuf[i, ie] += Avec[α, band1, band2] * conj(Avec[β, band1, band2]) * kernel(disp1[band1]+disp2[band2], energy) / Ncells
                 end
             end
+
+            resbuf[ie] += measure.combiner(q_global, corrbuf[:, ie])
         end
 
-        return SVector{num_corrs*numωs}(corrbuf)
+        return SVector{num_energies}(resbuf)
     end
 
-    corrs = reshape(Sqω[1], num_corrs, numωs)
-    ret = map(eachcol(corrs)) do corr_i
-        measure.combiner(q_global, corr_i)
-    end
-
-    return ret
+    return Vector(ints[1])
 end
