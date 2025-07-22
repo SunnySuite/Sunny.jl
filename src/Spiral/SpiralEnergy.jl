@@ -105,9 +105,9 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
             J = Mat3(bilin*I)
             @assert R'*J*R ≈ J
 
-            # Accumulate energy and derivatives
+            # Accumulate energy and derivatives. By invariance of J verified
+            # above, note that Si' J (R Sj) = (R' Si)' J Sj.
             E += Si' * J * (R * Sj)
-            @assert Si' * J * (R * Sj) ≈ (R' * Si)' * J * Sj
             if accum_grad
                 dEds[i] += J * (R * Sj)
                 dEds[j] += J' * (R' * Si)
