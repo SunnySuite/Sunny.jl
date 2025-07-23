@@ -83,7 +83,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, limits=(nothing, ylims), axis...)
-        Makie.heatmap!(ax, (1, size(data, 2)), ylims, maybe_resample(collect(data')); colorrange, colormap, lowclip=:white)
+        Makie.heatmap!(ax, (1, size(data, 2)), ylims, maybe_resample(collect(data')); colorrange, colormap, lowclip=:transparent)
         for i in axes(res.disp, 1)
             Makie.lines!(ax, res.disp[i,:]/unit_energy; color=:lightskyblue3)
         end
