@@ -37,32 +37,24 @@ function colorrange_from_data(; data, saturation, sensitivity, allpositive)
     end
 end
 
-# Makie.heatmap and Makie.image can fail on large grids due to an OpenGL error.
-# A workaround is to wrap the data in a Makie.Resampler if any of the array
-# dimensions is "large" https://github.com/MakieOrg/Makie.jl/issues/4950. The
-# empirical cutoff 2000 should (hopefully) be conservative for most systems.
+# Makie.heatmap can fail on large grids. A workaround is to wrap the data in a
+# Makie.Resampler if any of the array dimensions is "large"
+# https://github.com/MakieOrg/Makie.jl/issues/4950. For OpenGL backends, the
+# cutoff 2,000 should (hopefully) be conservative for most systems. The Cairo
+# backend only errors for sizes exceeding 32,745.
 function is_texture_too_big(data)
-    return any(>=(2000), size(data)) && in(repr(Makie.current_backend()), ("GLMakie", "WGLMakie"))
+    return any(>=(2000), size(data))
 end
 
 function heatmap_aux!(ax, x, y, data; opts...)
     if is_texture_too_big(data)
         pl = Makie.heatmap!(ax, x, y, Makie.Resampler(data); opts...)
         # Avoid transparency bug https://github.com/MakieOrg/Makie.jl/issues/5215
-        pl.visible[] = false
+        pl.plots[1].visible[]
+        pl.plots[1].visible[] = false
         return pl
     else
         return Makie.heatmap!(ax, x, y, data; opts...)
-    end
-end
-
-function image_aux!(ax, x, y, data; opts...)
-    if is_texture_too_big(data)
-        # Fall back to Makie.heatmap since Makie.image doesn't seem to support
-        # resampling. https://github.com/MakieOrg/Makie.jl/issues/5215
-        return heatmap_aux!(ax, x, y, data; opts...)
-    else
-        return Makie.image!(ax, x, y, data; opts...)
     end
 end
 
@@ -104,7 +96,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, limits=(nothing, ylims), axis...)
-        image_aux!(ax, (1, size(data, 2)), ylims, data'; colorrange, colormap, lowclip=:transparent)
+        heatmap_aux!(ax, (1, size(data, 2)), ylims, data'; colorrange, colormap, interpolate=true)
         for i in axes(res.disp, 1)
             Makie.lines!(ax, res.disp[i,:]/unit_energy; color=:lightskyblue3)
         end
