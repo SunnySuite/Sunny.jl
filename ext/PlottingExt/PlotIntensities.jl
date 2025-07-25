@@ -91,7 +91,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
         (; data) = Sunny.broaden(res; energies, kernel)
 
         colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity, allpositive)
-        colormap = @something colormap (allpositive ? reverse_thermal_fade : :bwr)
+        colormap = @something colormap (allpositive ? reverse_thermal_fade : blue_white_red_fade)
         colorrange = @something colorrange colorrange_suggest
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0

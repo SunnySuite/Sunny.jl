@@ -46,6 +46,17 @@ reverse_thermal_fade = let
     Makie.cgrad(getindex.(data, 1), getindex.(data, 2))
 end
 
+blue_white_red_fade = let
+    data = [
+        (Makie.RGBAf(0.00, 0.00, 1.00, 1.00), 0.00),
+        (Makie.RGBAf(0.80, 0.80, 1.00, 1.00), 0.45),
+        (Makie.RGBAf(1.00, 1.00, 1.00, 0.00), 0.50),
+        (Makie.RGBAf(1.00, 0.80, 0.80, 1.00), 0.55),
+        (Makie.RGBAf(1.00, 0.00, 0.00, 1.00), 1.00),
+    ]
+    Makie.cgrad(getindex.(data, 1), getindex.(data, 2))
+end
+
 
 # Colors from Jmol table, https://jmol.sourceforge.net/jscolors/
 atom_colors = let
