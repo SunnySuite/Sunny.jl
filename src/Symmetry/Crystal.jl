@@ -3,16 +3,15 @@
 An object describing a crystallographic unit cell and its space group symmetry.
 Constructors are as follows:
 
+    Crystal(filename)
 
-    Crystal(filename; override_symmetry=false, symprec=nothing)
+Reads the crystal from a `.cif` or `.mcif` file located at the path `filename`.
+The `latvecs` field of the returned `Crystal` will be in units of angstrom.
 
-Reads the crystal from a `.cif` file located at the path `filename`. If
-`override_symmetry=true`, the spacegroup will be inferred based on atom
-positions and the returned unit cell may be reduced in size. For an mCIF file,
-the return value is the magnetic supercell, unless `override_symmetry=true`. If
-a dimensionless precision for spacegroup symmetries cannot be inferred from the
-CIF file, it must be specified with `symprec`. The `latvecs` field of the
-returned `Crystal` will be in units of angstrom.
+If an `.mcif` file is provided, a conventional chemical cell will be inferred
+and returned. The spacegroup symmetry of this crystal will be independent of the
+magnetic structure. This crystal will have site positions that are compatible
+with subsequent calls to [`set_dipoles_from_mcif!`](@ref).
 
     Crystal(latvecs, positions; types=nothing, symprec=1e-5)
 
@@ -396,10 +395,10 @@ function crystallographic_orbit(symops::Vector{SymOp}, position::Vec3; symprec)
     return orbit
 end
 
-function crystallographic_orbits_distinct(symops::Vector{SymOp}, positions::Vector{Vec3}; symprec, wyckoffs=nothing)
+function crystallographic_orbits_distinct(symops::Vector{SymOp}, positions::Vector{Vec3}; symprec, multiplicities=nothing, wyckoffs=nothing)
     orbits = crystallographic_orbit.(Ref(symops), positions; symprec)
 
-    # Check orbits are distinct
+    # Check that orbits are distinct
     for (i, ri) in enumerate(positions), j in i+1:length(orbits)
         if any(rj -> all_integer(ri-rj; symprec), orbits[j])
             if isnothing(wyckoffs)
@@ -409,6 +408,15 @@ function crystallographic_orbits_distinct(symops::Vector{SymOp}, positions::Vect
                 (; multiplicity, letter) = wyckoffs[i]
                 error("Reference positions $(positions[i]) and $(positions[j]) are symmetry equivalent in Wyckoff $multiplicity$letter.")
             end
+        end
+    end
+
+    # Check that orbits have the correct multiplicities
+    if !isnothing(multiplicities)
+        for i in eachindex(orbits)
+            mult = length(orbits[i])
+            mult0 = multiplicities[i]
+            mult ≈ mult0 || error("Position $(positions[i]) has multiplicity $mult but expected $mult0" )
         end
     end
 
@@ -425,12 +433,8 @@ end
 # of positions
 function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, sg::Spacegroup; symprec)
     wyckoffs = find_wyckoff_for_position.(Ref(sg), positions; symprec)
-    orbits = crystallographic_orbits_distinct(sg.symops, positions; symprec, wyckoffs)
-
-    # Symmetry-propagated orbits must match known multiplicities of the Wyckoffs
-    foreach(orbits, wyckoffs) do orbit, wyckoff
-        @assert wyckoff.multiplicity ≈ length(orbit) / abs(det(sg.setting.R))
-    end
+    multiplicities = [w.multiplicity * abs(det(sg.setting.R)) for w in wyckoffs]
+    orbits = crystallographic_orbits_distinct(sg.symops, positions; symprec, multiplicities, wyckoffs)
 
     all_positions = reduce(vcat, orbits)
     all_types = repeat_multiple(types, length.(orbits))

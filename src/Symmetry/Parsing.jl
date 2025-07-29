@@ -65,8 +65,13 @@ function parse_op(str::AbstractString) :: SymOp
 end
 
 
-# Reads the crystal from a `.cif` file located at the path `filename`.
-function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=false)
+# Reads the crystal from a `.cif` file located at the path `filename`. See
+# extended doc string in Crystal.jl.
+function Crystal(filename::AbstractString; keep_supercell=false, symprec=1e-4, override_symmetry=nothing)
+    if !isnothing(override_symmetry)
+        @warn "Ignoring deprecated `override_symmetry` option"
+    end
+
     cif = CIF.Cif(filename)
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
@@ -97,31 +102,6 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         labels = types
     end
 
-    # Try to infer symprec from coordinate strings. TODO: Use uncertainty
-    # information if available from .cif
-    if isnothing(symprec)
-        elems = vcat(xs, ys, zs)
-        # guess fractional errors by assuming each elem is a fraction with simple denominator (2, 3, or 4)
-        errs = map(elems) do x
-            c = 12
-            return abs(rem(x*c, 1, RoundNearest)) / c
-        end
-        (err, _) = findmax(errs)
-        if err < 1e-12
-            @info """Precision parameter is unspecified, but all coordinates seem to be simple fractions.
-                     Setting symprec=1e-12."""
-            symprec = 1e-12
-        elseif 1e-12 < err < 1e-4
-            symprec = 15err
-            err_str = @sprintf "%.1e" err
-            symprec_str = @sprintf "%.1e" symprec
-            @info """Precision parameter is unspecified, but coordinate string '$s' seems to have error $err_str.
-                     Setting symprec=$symprec_str."""
-        else
-            error("Cannot infer precision. Please provide an explicit `symprec` parameter to load '$filename'")
-        end
-    end
-
     symops = nothing
     sym_header = oneof("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
     if !isnothing(sym_header)
@@ -135,6 +115,7 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         sg_number = parse(Int, cif[sg_number_header][1])
     end
 
+    #=
     hall_symbol = nothing
     hall_header = "_space_group_name_hall"
     if hall_header in keys(cif)
@@ -146,14 +127,13 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
     if hm_header in keys(cif)
         hm_symbol = cif[hm_header][1]
     end
+    =#
 
-    # If we're overriding symmetry, then distinct labels may need to be merged
-    # into equivalent sites. E.g., site-symmetry may be broken due to magnetic
-    # order in an .mcif -- undo that.
-    classes = override_symmetry ? types : labels
+    classes = labels
 
     # If chemical cell symops are missing, attempt to build a crystal from
     # magnetic symops
+    from_mcif = false
     if isnothing(symops)
         # IUCR standard or legacy field name, respectively
         mcif_fields = (;
@@ -171,39 +151,52 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
             # is to reconstruct all atom positions in crystal_from_symops.
             symops = [SymOp(s.R, s.T) for s in symops]
 
-            # Fill atom positions by symmetry and infer symmetry operations
-            orbits = crystallographic_orbits_distinct(symops, positions; symprec)
-            all_positions = reduce(vcat, orbits)
-            all_types = repeat_multiple(classes, length.(orbits))
-            supercell = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
+            # Some magnetically inequivalent sites may become equivalent in the
+            # chemical cell. This analysis requires type labels for the atoms.
+            isnothing(types) && error("Missing _atom_site_type_symbol data")
+            classes = types
 
-            if override_symmetry
-                # Don't idealize because later `set_dipoles_from_mcif!` will
-                # need to search for atom positions using this specific setting.
-                return standardize(supercell; idealize=false)
-            else
-                @warn """Loading the magnetic cell as chemical cell for TESTING PURPOSES only.
-                         Set the option `override_symmetry=true` to infer the standard chemical
-                         cell and its spacegroup symmetries."""
-                return supercell
-            end
+            # Remember that symops were projected from msymops
+            from_mcif = true
         end
     end
 
-    if !isnothing(symops)
-        isnothing(sg_number) && error("Spacegroup number not specified.")
-        hall_number = hall_number_from_symops(sg_number, symops)
-        isnothing(hall_number) && error("Symmetry operations do not match an ITA setting for spacegroup $sg_number.")
-        sg_label = spacegroup_label(hall_number)
-        sg_setting = mapping_to_standard_setting(hall_number)
-        sg = Spacegroup(symops, sg_label, sg_number, sg_setting)
-        ret = crystal_from_spacegroup(latvecs, positions, classes, sg; symprec)
-    elseif !isnothing(hall_symbol)
-        # Use symmetries for Hall symbol
-        ret = Crystal(latvecs, positions, hall_symbol; types=classes, symprec)
-    else
-        error("Spacegroup symops are unknown.")
+    if isnothing(symops)
+        error("Missing spacegroup symmetry operations")
     end
 
-    return override_symmetry ? standardize(ret) : ret
+    # Fill atom positions by symmetry and infer symmetry operations
+    orbits = crystallographic_orbits_distinct(symops, positions; symprec) # Multiplicities
+    all_positions = reduce(vcat, orbits)
+    all_types = repeat_multiple(classes, length.(orbits))
+
+    # Infer symmetry from full list of atoms. Disable cell check because we will
+    # customize the warning message below.
+    ret = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
+
+    if from_mcif
+        if !keep_supercell
+            # Disable idealization when loading an mCIF because a subsequent
+            # call to `set_dipoles_from_mcif!` must be able to search for atom
+            # positions using the mCIF setting.
+            return standardize(ret; idealize=false)
+        else
+            @warn "Use `keep_supercell=true` for testing purposes only! Inferred symmetries \
+                   are unreliable."
+            return ret
+        end
+    else
+        if !isnothing(sg_number) && sg_number != ret.sg.number
+            error("Expected spacegroup $sg_number but inferred $(ret.sg.number)")
+        end
+
+        hall_number_inferred = hall_number_from_symops(ret.sg.number, ret.sg.symops)
+        if isnothing(hall_number_inferred)
+            @warn "This CIF employs a non-standard spacegroup setting for which symmetry \
+                   analysis may be unreliable! Use `standardize(cryst)` to obtain the \
+                   standard chemical cell. Use `reshape_supercell(sys, shape)` to perform \
+                   calculations on a reshaped system."
+        end
+        return ret
+    end
 end
