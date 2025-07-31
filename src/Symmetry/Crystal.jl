@@ -275,19 +275,21 @@ function standardize(cryst::Crystal; idealize=true)
     lattice = Mat3(lattice)
 
     if !idealize
-        # Empirically, these lattice vectors from spglib are accurate to about 6
-        # digits. However, spglib produces much higher accuracy with the
-        # `idealize=true` option. Rotate the higher precision lattice vectors so
-        # that they give the best match to the ones for the non-idealized cell.
+        # Even if we're not idealizing the site positions, it is still important
+        # to tune the lattice vectors so that the lattice system is exactly
+        # consistent with the spacegroup setting (e.g. 90° angles are expected
+        # for cubic and tetragonal spacegroups). This adjustment is needed to
+        # ensure that `latvecs * symop.R * inv(latvecs)` is exactly orthogonal
+        # for each symmetry operation of the spacegroup.
         std_lattice = Mat3(spg_standardize_cell_scaled(cell, symprec; no_idealize=false).lattice)
         R = closest_unitary(lattice / std_lattice)
-        isapprox(R*std_lattice, lattice; rtol=1e-5) || error("Failed to standardize the cell")
+        isapprox(R*std_lattice, lattice; rtol=cryst.symprec) || error("Lattice vectors inconsistent at symprec=$symprec")
         lattice = R * std_lattice
-        # In the non-idealized case, the spglib choice of lattice vectors can
-        # sometimes be strange. For example, in a tetrahedral cell, (a1, a2)
-        # might be pointing along (y, -x), whereas (x, y) would be a more
-        # natural choice. Attempt to permute lattice vectors back to a standard
-        # order, with sign-flips as needed.
+        # The spglib choice of idealized lattice vectors can sometimes be
+        # strange. For example, in a tetrahedral cell, (a1, a2) might be
+        # pointing along (y, -x), whereas (x, y) would be a more natural choice.
+        # Attempt to permute lattice vectors back to a standard order, with
+        # sign-flips as needed.
         P = permute_to_standardize_lattice_vectors(lattice)
         # These transformations preserve global positions, `lattice * r`
         lattice = lattice * P

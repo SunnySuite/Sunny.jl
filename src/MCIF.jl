@@ -20,7 +20,7 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
 
     # TODO: Tolerance to permutations (with sign flips) of lattice vectors
     if !isapprox(supervecs, supervecs2; rtol=sys.crystal.symprec)
-        tol = 0.1 * sys.crystal.symprec # Tolerance might need tuning
+        tol = sys.crystal.symprec # Tolerance might need tuning
         orig_cryst = orig_crystal(sys)
 
         primcell = @something primitive_cell(orig_cryst) Mat3(I)

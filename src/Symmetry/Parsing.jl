@@ -1,10 +1,45 @@
 # Functions for parsing Crystals / SymOps from text / .cif files
 
-# Strips trailing uncertainty values from a String, then parses as a Float
-function parse_cif_float(str::String) :: Float64
-    i = findfirst('(', str)
-    str = isnothing(i) ? str : str[1:i-1]
-    return parse(Float64, str)
+function parse_cif_float_with_err(str::String)
+    parts = split(str, '(')
+    number_str = parts[1]
+    number = parse(Float64, number_str)
+    sigfigs = in('.', number_str) ? length(split(number_str, '.')[2]) : 0
+
+    if length(parts) == 1
+        # E.g., 0.2 has an assumed error bar of ±0.05
+        err = 10.0^(-sigfigs) / 2
+    else
+        # E.g., 0.2(3) has an error bar of ±0.3
+        err_str = parts[2][begin:end-1]
+        err = 10.0^(-sigfigs) * parse(Int, err_str)
+    end
+
+    return (number, err)
+end
+
+
+
+function parse_cif_float(str::String)
+    return parse_cif_float_with_err(str)[1]
+end
+
+# Components x of each Wyckoff position will either be:
+# 1. An exact multiple of {1/2, 1/3, 1/4, 1/6, 1/8}, or
+# 2. An arbitrary real number  
+# In practice, the CIF will provide x as a decimal expansion. Work backwards to
+# make a conservative guess about the precision of x. For example, 0.125 = 1/8
+# could be exact, but 0.126 is likely ±0.0005
+function guess_precision(x)
+    # See if x closely matches any simple fraction
+    tol1 = minimum(abs(rem(x * c, 1, RoundNearest)) / c for c in (2, 3, 4, 6, 8))
+
+    # Count digits in a decimal expansion
+    x_decimal = round(x, digits=12)
+    fraction_digits = length(split(repr(x_decimal), ".")[2])
+    tol2 = 10.0^(-fraction_digits) / 2
+
+    min(tol1, tol2)
 end
 
 
