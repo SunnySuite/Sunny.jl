@@ -104,10 +104,10 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
     cif = cif[first(keys(cif))]
     oneof(fields...) = findfirstval(in(keys(cif)), fields)
 
-    # If user-provided symprec0 is nothing, we will need to infer a symprec from
-    # strings for lattice constants and coordinate positions.
+    # The user-provided symprec may be nothing, so we also infer a symprec from
+    # the coordinate positions represented as strings.
     symprec0 = symprec
-    symprec = 0
+    symprec = 0.0
 
     (a, err_a) = parse_cif_float_with_err(cif["_cell_length_a"][1]; maybe_fractional=false)
     (b, err_b) = parse_cif_float_with_err(cif["_cell_length_b"][1]; maybe_fractional=false)
@@ -116,13 +116,6 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
     β = parse_cif_float(cif["_cell_angle_beta"][1])
     γ = parse_cif_float(cif["_cell_angle_gamma"][1])
     latvecs = lattice_vectors(a, b, c, α, β, γ)
-
-    # If lattice constants are not all equal, then it is possible that the
-    # spacegroup symmetry requires them to have a precise ratio, which might be
-    # imperfectly captured in the string representation.
-    if !allequal((a, b, c))
-        symprec = max(symprec, err_a/a, err_b/b, err_c/c)
-    end
 
     geo_table = CIF.get_loop(cif, "_atom_site_fract_x")
     positions = Vec3[]
@@ -133,10 +126,6 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
         push!(positions, Vec3(x, y, z))
         symprec = max(symprec, err_x, err_y, err_z)
     end
-
-    # If user-provided symprec0 is unavailable, use inferred symprec. The 10x
-    # fudge factor and 1e-5 lower bound give spglib a safety margin.
-    symprec = @something symprec0 max(10*symprec, 1e-12)
 
     types = nothing
     if "_atom_site_type_symbol" in keys(cif)
@@ -203,6 +192,15 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
             isnothing(types) && error("Missing _atom_site_type_symbol data")
             classes = types
 
+            # If the supercell dimensions are not all equal, then it is possible
+            # that the spacegroup symmetry requires them to have a precise
+            # ratio. Any uncertainty in (a, b, c) should therefore be
+            # incorporated into symprec. See test/cifs/ZnFe2O4.cif for a
+            # real-world example.
+            if !allequal((a, b, c))
+                symprec = max(symprec, err_a/a, err_b/b, err_c/c)
+            end
+
             # Remember that symops were projected from msymops
             from_mcif = true
         end
@@ -211,6 +209,10 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
     if isnothing(symops)
         error("Missing spacegroup symmetry operations")
     end
+
+    # If user-provided symprec0 is unavailable, use inferred symprec. The 10x
+    # fudge factor and 1e-8 lower bound give Spglib some safety margin.
+    symprec = @something symprec0 max(10*symprec, 1e-8)
 
     # Fill atom positions by symmetry and infer symmetry operations
     orbits = crystallographic_orbits_distinct(symops, positions; symprec)
@@ -250,14 +252,14 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
                    standard chemical cell and then `reshape_supercell(sys, shape)` for \
                    calculations on an arbitrarily shaped system."
         else
-            # Sometimes the inferred ret.sg data (setting and symops) are very
-            # slightly perturbed from the ideal ones. This situation was
-            # detected for UPt3 with spacegroup 194. Its Wyckoff 6h has a site
-            # at position (x,2x,1/4). The CIF file stores x and 2x using strings
-            # with truncated decimal expansions, 0.333 and 0.667, slightly
-            # violating the expected factor of two ratio. This causes Spglib to
-            # infer a slightly perturbed setting. Aoid possible contamination by
-            # using clean spacegroup tables for the inferred Hall number.
+            # The inferred ret.sg data (setting and symops) may be slightly
+            # perturbed from the ITA standard tables. This happens for
+            # test/cifs/UPt3.cif, with spacegroup 194. Wyckoff 6h has a site at
+            # position (x,2x,1/4). The CIF file stores x and 2x using strings
+            # with truncated decimal expansions, 0.333 and 0.667. The ratio of
+            # these numbers slightly deviates from 2, causing Spglib to infer a
+            # slightly perturbed setting. Get clean symmetry data using tables
+            # for the inferred Hall number.
             sg = Spacegroup(hall_number_inferred)
             @assert isapprox(symops, sg.symops; atol=symprec)
             ret = crystal_from_spacegroup(latvecs, positions, classes, sg; symprec)
