@@ -240,10 +240,10 @@ end
 
 # Given a spacegroup number and a table of symops, try to infer the affine map
 # that transforms to the ITA standard setting.
-function hall_number_from_symops(sgnum, symops)
+function hall_number_from_symops(sgnum, symops; atol)
     sgts = filter(all_spacegroup_types_for_symbol(sgnum)) do sgt
         Rs, Ts = Spglib.get_symmetry_from_database(sgt.hall_number)
-        SymOp.(Rs, Ts) ≈ symops
+        isapprox(SymOp.(Rs, Ts), symops; atol)
     end
 
     if isempty(sgts)
@@ -322,6 +322,21 @@ const standard_primitive_basis = Dict(
     'F' => SA[0 1/2 1/2; 1/2 0 1/2; 1/2 1/2 0],
     'R' => SA[2/3 -1/3 -1/3; 1/3 1/3 -2/3; 1/3 1/3 1/3],
 )
+
+# Let setting=(P, p) transform from a custom setting to the standard one:  
+#   xₛ = P x + p.  
+# A symop (Rₛ, Tₛ) in the standard setting maps positions as xₛ' = Rₛ xₛ + Tₛ.
+# The corresponding map in the custom setting x' = R x + T requires  
+#   R = P⁻¹ Rₛ P  
+#   T = P⁻¹ (Rₛ p + Tₛ - p)  
+# Given symop (Rₛ, Tₛ), return the symop (R, T) that acts in the custom setting.
+function map_symop_to_setting(symop; setting)
+    P = setting.R
+    p = setting.T
+    R = P \ symop.R * P
+    T = P \ (symop.R * p + symop.T - p)
+    return SymOp(R, T)
+end
 
 struct Spacegroup
     symops    :: Vector{SymOp} # Symmetry operations

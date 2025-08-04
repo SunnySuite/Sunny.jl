@@ -1,6 +1,6 @@
 @testitem "ErOBr" begin
     filename = joinpath(@__DIR__, "cifs", "ErOBr.cif")
-    cryst = Crystal(filename; symprec=1e-3)
+    cryst = Crystal(filename)
     @test Sunny.get_wyckoff(cryst, 1).letter == 'c'
     @test Sunny.get_wyckoff(cryst, 3).letter == 'a'
     @test Sunny.get_wyckoff(cryst, 5).letter == 'c'
@@ -10,12 +10,12 @@ end
     filename = joinpath(@__DIR__, "cifs", "ZnFe2O4_jana.cif")
 
     msg = "Use `keep_supercell=true` for testing purposes only! Inferred symmetries are unreliable."
-    cryst1 = @test_logs (:warn, msg) Crystal(filename; symprec=1e-2, keep_supercell=true)
+    cryst1 = @test_logs (:warn, msg) Crystal(filename; keep_supercell=true)
     cryst1 = subcrystal(cryst1, "Fe")
     sys1 = System(cryst1, [1 => Moment(s=3/2, g=-2)], :dipole)
     set_dipoles_from_mcif!(sys1, filename)
 
-    cryst2 = Crystal(filename; symprec=1e-2)
+    cryst2 = Crystal(filename)
     cryst2 = subcrystal(cryst2, "Fe")
     sys2 = System(cryst2, [1 => Moment(s=3/2, g=-2)], :dipole)
     msg = "Use `resize_supercell(sys, (1, 1, 2))` to get compatible system"    
@@ -35,12 +35,12 @@ end
     filename = joinpath(@__DIR__, "cifs", "TbSb_isodistort.mcif")
 
     msg = "Use `keep_supercell=true` for testing purposes only! Inferred symmetries are unreliable."
-    cryst1 = @test_logs (:warn, msg) Crystal(filename; symprec=1e-3, keep_supercell=true)
+    cryst1 = @test_logs (:warn, msg) Crystal(filename; keep_supercell=true)
     cryst1 = subcrystal(cryst1, "Tb3+")
     sys1 = System(cryst1, [1 => Moment(s=3/2, g=-2)], :dipole)
     set_dipoles_from_mcif!(sys1, filename)
 
-    cryst2 = Crystal(filename; symprec=1e-3)
+    cryst2 = Crystal(filename)
     cryst2 = subcrystal(cryst2, "Tb3+")
     sys2 = System(cryst2, [1 => Moment(s=3/2, g=-2)], :dipole)
     msg = "Use `reshape_supercell(sys, [1/2 0 2; 0 1/2 -2; -1/2 1/2 2])` to get compatible system"

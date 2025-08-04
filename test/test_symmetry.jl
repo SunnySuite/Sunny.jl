@@ -173,12 +173,12 @@ end
     import Spglib
 
     # Check conversions between settings for different Hall numbers
-    for hall1 in 1:530
-        hall2 = Sunny.standard_setting_for_hall_number(hall1)
-        P = Sunny.mapping_to_standard_setting(hall1)
-        g1 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall1)...)
-        g2 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall2)...)
-        @test [inv(P) * s * P for s in g2] ≈ g1
+    for hall_c in 1:530
+        hall_s = Sunny.standard_setting_for_hall_number(hall_c)
+        setting = Sunny.mapping_to_standard_setting(hall_c)
+        g_c = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall_c)...)
+        g_s = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall_s)...)
+        @test Sunny.map_symop_to_setting.(g_s; setting) ≈ g_c
     end
 
     ### Check settings for trigonal spacegroup
