@@ -323,19 +323,11 @@ const standard_primitive_basis = Dict(
     'R' => SA[2/3 -1/3 -1/3; 1/3 1/3 -2/3; 1/3 1/3 1/3],
 )
 
-# Let setting=(P, p) transform from a custom setting to the standard one:  
-#   xₛ = P x + p.  
-# A symop (Rₛ, Tₛ) in the standard setting maps positions as xₛ' = Rₛ xₛ + Tₛ.
-# The corresponding map in the custom setting x' = R x + T requires  
-#   R = P⁻¹ Rₛ P  
-#   T = P⁻¹ (Rₛ p + Tₛ - p)  
-# Given symop (Rₛ, Tₛ), return the symop (R, T) that acts in the custom setting.
+# Let `setting` denote the transformation from a custom setting to the standard
+# one: xₛ = transform(setting, x). Given a `symop` that acts in the standard
+# setting, return the transformed symop that acts in the custom setting.
 function map_symop_to_setting(symop; setting)
-    P = setting.R
-    p = setting.T
-    R = P \ symop.R * P
-    T = P \ (symop.R * p + symop.T - p)
-    return SymOp(R, T)
+    return inv(setting) * symop * setting
 end
 
 struct Spacegroup
