@@ -16,23 +16,20 @@ end
 
 @testitem "FeI2_orth" begin
     filename = joinpath(@__DIR__, "cifs", "FeI2_orth.cif")
-
-    msg = "This CIF uses a non-standard spacegroup setting, making symmetry \
-        analysis unreliable! Use `standardize(cryst)` to obtain the \
-        standard chemical cell. Then use `reshape_supercell(sys, shape)` \
-        for calculations on an arbitrarily shaped system."
+    msg = "Inconsistent symmetry operations! This may occur with an incomplete CIF, \
+           a non-standard setting, or failed inference. Try overriding `symprec` \
+           (inferred 5e-06)."
     cryst = @test_logs (:warn, msg) Crystal(filename)
     @test Sunny.get_wyckoff(cryst, 1).letter == 'a'
     @test Sunny.get_wyckoff(cryst, 3).letter == 'd'
 end
 
 @testitem "Alpha quartz" begin
-    msg = "This CIF uses a non-standard spacegroup setting, making symmetry \
-           analysis unreliable! Use `standardize(cryst)` to obtain the \
-           standard chemical cell. Then use `reshape_supercell(sys, shape)` \
-           for calculations on an arbitrarily shaped system."
     filename = joinpath(@__DIR__, "cifs", "alpha_quartz.cif")
-    cryst = @test_logs (:warn, msg) Crystal(filename)
+    msg = "Cell appears non-standard. Consider `standardize(cryst)` and then \
+           `reshape_supercell(sys, shape)` for calculations on an arbitrarily shaped \
+           system."
+    cryst = @test_logs (:info, msg) Crystal(filename)
     @test cryst.sg.number == 154
     @test Sunny.get_wyckoff(cryst, 1).letter == 'a'
     @test Sunny.get_wyckoff(cryst, 4).letter == 'c'

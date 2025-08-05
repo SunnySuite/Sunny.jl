@@ -240,30 +240,36 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
             return ret
         end
     else
+        symprec_str = number_to_simple_string(symprec; digits=2)
+        suggest_symprec = isnothing(symprec0) ? " Try overriding `symprec` (inferred $symprec_str)." : ""
+
         if !isnothing(sg_number) && sg_number != ret.sg.number
-            symprec_str = number_to_simple_string(symprec; digits=4)
-            msg = isnothing(symprec0) ? " Try overriding `symprec` parameter (inferred $symprec_str)." : ""
-            error("Inferred spacegroup $(ret.sg.number) differs from $sg_number. CIF may be incomplete or inconsistent.$msg")
+            error("Inferred spacegroup $(ret.sg.number) differs from $sg_number in CIF.$suggest_symprec")
         end
 
+        symops_consistent = isapprox(symops, ret.sg.symops; atol=symprec)
         hall_number_inferred = hall_number_from_symops(ret.sg.number, ret.sg.symops; atol=symprec)
-        if isnothing(hall_number_inferred)
-            @warn "This CIF uses a non-standard spacegroup setting, making symmetry \
-                   analysis unreliable! Use `standardize(cryst)` to obtain the \
-                   standard chemical cell. Then use `reshape_supercell(sys, shape)` \
-                   for calculations on an arbitrarily shaped system."
+
+        if symops_consistent
+            if !isnothing(hall_number_inferred)
+                # The inferred ret.sg data (setting and symops) may be slightly
+                # perturbed from the ITA standard tables. This happens for
+                # test/cifs/UPt3.cif, with spacegroup 194. Wyckoff 6h has a site at
+                # position (x,2x,1/4). The CIF stores x and 2x using strings with
+                # truncated decimal expansions, 0.333 and 0.667. The ratio of these
+                # numbers slightly deviates from 2, causing Spglib to infer a
+                # slightly perturbed setting. Get clean symmetry data using tables
+                # for the inferred Hall number.
+                sg = Spacegroup(hall_number_inferred)
+                ret = crystal_from_spacegroup(latvecs, positions, classes, sg; symprec)
+            else
+                @info "Cell appears non-standard. Consider `standardize(cryst)` and then \
+                       `reshape_supercell(sys, shape)` for calculations on an arbitrarily \
+                       shaped system."
+            end
         else
-            # The inferred ret.sg data (setting and symops) may be slightly
-            # perturbed from the ITA standard tables. This happens for
-            # test/cifs/UPt3.cif, with spacegroup 194. Wyckoff 6h has a site at
-            # position (x,2x,1/4). The CIF stores x and 2x using strings with
-            # truncated decimal expansions, 0.333 and 0.667. The ratio of these
-            # numbers slightly deviates from 2, causing Spglib to infer a
-            # slightly perturbed setting. Get clean symmetry data using tables
-            # for the inferred Hall number.
-            sg = Spacegroup(hall_number_inferred)
-            @assert isapprox(symops, sg.symops; atol=symprec)
-            ret = crystal_from_spacegroup(latvecs, positions, classes, sg; symprec)
+            @warn "Inconsistent symmetry operations! This may occur with an incomplete CIF, \
+                   a non-standard setting, or failed inference.$suggest_symprec"
         end
         return ret
     end
