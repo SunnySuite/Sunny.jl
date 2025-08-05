@@ -10,10 +10,10 @@ function parse_cif_float_with_err(str::String; maybe_fractional)
         # E.g., 0.2 has an assumed error bar of ±0.05
         err = 10.0^(-sigfigs) / 2
 
-        # Components of each Wyckoff position in an ITA standard cell may also
-        # be an exact multiple of {1/2, 1/3, 1/4, 1/6, 1/8}. For example, the
-        # position 0.125 = 1/8 is likely to be exact. Such strings should not
-        # contributed to the estimated error.
+        # Components of each Wyckoff position in an ITA standard cell may be an
+        # exact multiple of {1/2, 1/3, 1/4, 1/6, 1/8}. For example, the position
+        # 0.125 = 1/8 is likely to be exact. Such strings do not contribute to
+        # the estimated error when `maybe_fractional=true`.
         if maybe_fractional
             smallest_remainder = minimum(abs(rem(number * c, 1, RoundNearest)) / c for c in (2, 3, 4, 6, 8))
             if smallest_remainder < 1e-12
@@ -92,7 +92,7 @@ function parse_op(str::AbstractString) :: SymOp
 end
 
 
-# Reads the crystal from a `.cif` file located at the path `filename`. See
+# Reads the crystal from a CIF or mCIF located at the path `filename`. See
 # extended doc string in Crystal.jl.
 function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing, override_symmetry=nothing)
     if !isnothing(override_symmetry)
@@ -255,9 +255,9 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
             # The inferred ret.sg data (setting and symops) may be slightly
             # perturbed from the ITA standard tables. This happens for
             # test/cifs/UPt3.cif, with spacegroup 194. Wyckoff 6h has a site at
-            # position (x,2x,1/4). The CIF file stores x and 2x using strings
-            # with truncated decimal expansions, 0.333 and 0.667. The ratio of
-            # these numbers slightly deviates from 2, causing Spglib to infer a
+            # position (x,2x,1/4). The CIF stores x and 2x using strings with
+            # truncated decimal expansions, 0.333 and 0.667. The ratio of these
+            # numbers slightly deviates from 2, causing Spglib to infer a
             # slightly perturbed setting. Get clean symmetry data using tables
             # for the inferred Hall number.
             sg = Spacegroup(hall_number_inferred)
