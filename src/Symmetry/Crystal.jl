@@ -211,9 +211,10 @@ function sort_sites!(cryst::Crystal)
             end
         end
 
-        # Should never hit this case because either `validate_positions` or
-        # `crystallographic_orbits_distinct` should already be called.
-        error("Symmetry-equivalent sites $r1 and $r2")
+        # Should never get here because `validate_positions` or
+        # `validate_orbits` should already have passed. But report something
+        # meaningful just in case.
+        error("Symmetry-equivalent positions $r1 and $r2")
     end
     p = sort(eachindex(cryst.positions), lt=less_than)
     permute_sites!(cryst, p)
@@ -315,18 +316,9 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     # Print a warning if non-conventional lattice vectors are detected.
     try cell_type(latvecs) catch e @warn e.msg end
 
-    for i in 1:length(positions)
-        for j in i+1:length(positions)
-            ri = positions[i]
-            rj = positions[j]
-            if is_periodic_copy(ri, rj; symprec)
-                error("Positions $ri and $rj are equivalent.")
-            end
-        end
-    end
-
     recipvecs = 2π*Mat3(inv(latvecs)')
     positions = wrap_to_unit_cell.(positions; symprec)
+    validate_positions(positions; symprec)
 
     cell = Spglib.Cell(latvecs, positions, types)
     d = spg_get_dataset_scaled(cell, symprec)
@@ -354,7 +346,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     @assert unique(classes) == 1:maximum(classes)
 
     ret = Crystal(nothing, latvecs, recipvecs, positions, types, classes, sg, symprec)
-    validate(ret)
+    validate_crystal(ret)
     for i in 1:natoms(ret)
         w = get_wyckoff(ret, i)
         @assert w.letter == d.wyckoffs[i]
@@ -388,7 +380,7 @@ function is_spacegroup_type_consistent(sgt, latvecs)
 end
 
 
-function crystallographic_orbit(symops::Vector{SymOp}, position::Vec3; symprec)
+function crystallographic_orbit(position::Vec3; symops::Vector{SymOp}, symprec)
     orbit = Vec3[]
     for s = symops
         x = wrap_to_unit_cell(transform(s, position); symprec)
@@ -399,19 +391,38 @@ function crystallographic_orbit(symops::Vector{SymOp}, position::Vec3; symprec)
     return orbit
 end
 
-function crystallographic_orbits_distinct(symops::Vector{SymOp}, positions::Vector{Vec3}; symprec, multiplicities=nothing, wyckoffs=nothing)
-    orbits = crystallographic_orbit.(Ref(symops), positions; symprec)
+function validate_positions(positions; symprec)
+    for i in eachindex(positions), j in i+1:length(positions)
+        ri, rj = positions[[i, j]]
+        ri_str, rj_str = fractional_vec3_to_string.((ri, rj))
+        symprec_str = number_to_simple_string(symprec; digits=2)
+        if is_periodic_copy(ri, rj; symprec)
+            error("Overlapping positions $ri_str and $rj_str at $symprec_str")
+        elseif is_periodic_copy(ri, rj; symprec=10symprec)
+            @warn "Nearly overlapping positions $ri_str and $rj_str at $symprec_str"
+        end
+    end
+end
 
+function validate_orbits(positions, orbits; symprec, multiplicities=nothing, wyckoffs=nothing)
+    @assert size(positions) == size(orbits)
     # Check that orbits are distinct
-    for (i, ri) in enumerate(positions), j in i+1:length(orbits)
-        if any(rj -> is_periodic_copy(ri, rj; symprec), orbits[j])
-            if isnothing(wyckoffs)
-                error("Reference positions $(positions[i]) and $(positions[j]) are symmetry equivalent.")
-            else
-                @assert wyckoffs[i].letter == wyckoffs[j].letter
-                (; multiplicity, letter) = wyckoffs[i]
-                error("Reference positions $(positions[i]) and $(positions[j]) are symmetry equivalent in Wyckoff $multiplicity$letter.")
-            end
+    for i in eachindex(positions), j in i+1:length(positions)
+        ri, rj = positions[[i, j]]
+        ri_str, rj_str = fractional_vec3_to_string.((ri, rj))
+        symprec_str = number_to_simple_string(symprec; digits=2)
+        wyckoff_str = if isnothing(wyckoffs)
+            ""
+        else
+            (; multiplicity, letter) = wyckoffs[i]
+            " in Wyckoff $multiplicity$letter"
+        end
+
+        if any(is_periodic_copy.(Ref(ri), orbits[j]; symprec))
+            @assert wyckoffs[i].letter == wyckoffs[j].letter
+            error("Symmetry equivalent positions $ri_str and $rj_str$wyckoff_str at symprec=$symprec_str")
+        elseif any(is_periodic_copy.(Ref(ri), orbits[j]; symprec=10symprec))
+            @warn "Nearly symmetry equivalent positions $ri_str and $rj_str$wyckoff_str at symprec=$symprec_str"
         end
     end
 
@@ -427,6 +438,27 @@ function crystallographic_orbits_distinct(symops::Vector{SymOp}, positions::Vect
     return orbits
 end
 
+function validate_crystal(cryst::Crystal)
+    # Atoms of the same class must have the same type
+    for i in eachindex(cryst.positions)
+        for j in eachindex(cryst.positions)
+            if cryst.classes[i] == cryst.classes[j]
+                @assert cryst.types[i] == cryst.types[j]
+            end
+        end
+    end
+
+    # Rotation matrices in global coordinates must be orthogonal
+    for s in cryst.sg.symops
+        R = cryst.latvecs * s.R * inv(cryst.latvecs)
+        # Due to possible imperfections in the lattice vectors, only require
+        # that R is approximately orthogonal
+        @assert norm(R*R' - I) < cryst.symprec "Lattice vectors and symmetry operations are incompatible."
+    end
+
+    # TODO: Check that space group is closed and that symops have inverse?
+end
+
 function repeat_multiple(vals, lens)
     reduce(vcat, map(vals, lens) do val, len
         fill(val, len)
@@ -438,7 +470,8 @@ end
 function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, sg::Spacegroup; symprec)
     wyckoffs = find_wyckoff_for_position.(Ref(sg), positions; symprec)
     multiplicities = [w.multiplicity * abs(det(sg.setting.R)) for w in wyckoffs]
-    orbits = crystallographic_orbits_distinct(sg.symops, positions; symprec, multiplicities, wyckoffs)
+    orbits = crystallographic_orbit.(positions; sg.symops, symprec)
+    validate_orbits(positions, orbits; symprec, multiplicities, wyckoffs)
 
     all_positions = reduce(vcat, orbits)
     all_types = repeat_multiple(types, length.(orbits))
@@ -447,7 +480,7 @@ function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::
     recipvecs = 2π*Mat3(inv(latvecs)')
     ret = Crystal(nothing, latvecs, recipvecs, all_positions, all_types, all_classes, sg, symprec)
     sort_sites!(ret)
-    validate(ret)
+    validate_crystal(ret)
 
     return ret
 end
@@ -664,41 +697,6 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
     end
 end
 
-function validate_positions(positions; symprec)
-    for i in eachindex(positions), j in i+1:length(positions)
-        ri = positions[i]
-        rj = positions[j]
-
-        str1, str2 = fractional_vec3_to_string.((ri, rj))
-        str3 = number_to_simple_string(cryst.symprec; digits=2)
-        if is_periodic_copy(ri, rj; symprec)
-            error("Atoms $str1 and $str2 are symmetry equivalent!")
-        elseif is_periodic_copy(ri, rj; symprec=10symprec)
-            error("Atoms $str1 and $str2 are too close at symprec=$str3")
-        end
-    end
-end
-
-function validate(cryst::Crystal)
-    # Atoms of the same class must have the same type
-    for i in eachindex(cryst.positions)
-        for j in eachindex(cryst.positions)
-            if cryst.classes[i] == cryst.classes[j]
-                @assert cryst.types[i] == cryst.types[j]
-            end
-        end
-    end
-
-    # Rotation matrices in global coordinates must be orthogonal
-    for s in cryst.sg.symops
-        R = cryst.latvecs * s.R * inv(cryst.latvecs)
-        # Due to possible imperfections in the lattice vectors, only require
-        # that R is approximately orthogonal
-        @assert norm(R*R' - I) < cryst.symprec "Lattice vectors and symmetry operations are incompatible."
-    end
-
-    # TODO: Check that space group is closed and that symops have inverse?
-end
 
 #= Definitions of common crystals =#
 

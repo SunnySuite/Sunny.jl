@@ -30,7 +30,7 @@
     for sgnum in 1:230
         sg = Sunny.Spacegroup(Sunny.standard_setting[sgnum])
         for (mult, letter, sitesym, pos) in Sunny.wyckoff_table[sgnum]
-            orbit = Sunny.crystallographic_orbit(sg.symops, Sunny.WyckoffExpr(pos))
+            orbit = Sunny.crystallographic_orbit(Sunny.WyckoffExpr(pos); sg.symops)
             @test length(orbit) == mult
         end
     end
@@ -167,6 +167,22 @@ end
     @test count(==(2), cryst.classes) == 4
 end
 
+
+@testitem "Crystal errors" begin
+    latvecs = lattice_vectors(1, 1, 1.5, 90, 90, 120)
+    x = 0.15
+
+    positions = [[x, 2x, 1/4], [-x, -2x, 3/4]]
+    msg = "Symmetry equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 3/4] in Wyckoff 6h at symprec=0.001"
+    @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
+
+    positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 0.01]]
+    msg = "Nearly symmetry equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.76] in Wyckoff 6h at symprec=0.001"
+    @test_logs (:warn, msg) Crystal(latvecs, positions, 194; symprec=1e-3)
+
+    positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 0.1]]
+    @test_logs Crystal(latvecs, positions, 194; symprec=1e-3) # No warning
+end
 
 @testitem "Spacegroup settings" begin
     using LinearAlgebra
@@ -325,6 +341,7 @@ end
         end
     end
 end
+
 
 @testitem "Symmetry table" begin
     using LinearAlgebra
@@ -496,6 +513,7 @@ end
     @test Sunny.is_anisotropy_valid(cryst, 2, 𝒪[6,-1]+0.997385420𝒪[6,1])
     @test Sunny.is_anisotropy_valid(cryst, 2, rotate_operator(𝒪[6,2], R))
 end
+
 
 @testitem "Renormalization" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)

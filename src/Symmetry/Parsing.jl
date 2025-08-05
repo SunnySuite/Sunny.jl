@@ -215,7 +215,8 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
     symprec = @something symprec0 max(10*symprec, 1e-8)
 
     # Fill atom positions by symmetry and infer symmetry operations
-    orbits = crystallographic_orbits_distinct(symops, positions; symprec)
+    orbits = crystallographic_orbit.(positions; symops, symprec)
+    validate_orbits(positions, orbits; symprec)
     all_positions = reduce(vcat, orbits)
     all_types = repeat_multiple(classes, length.(orbits))
 
