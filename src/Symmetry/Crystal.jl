@@ -204,18 +204,16 @@ function sort_sites!(cryst::Crystal)
         end
         ri = cryst.positions[i]
         rj = cryst.positions[j]
+
         for k = 3:-1:1
-            # Factor of 10 included to err on the side of throwing a "too close"
-            # exception, below. TODO: Use is_periodic_copy instead, and make
-            # exactly consistent with crystallographic_orbit. Warning about
-            # closeness should appear there instead.
-            if !isapprox(ri[k], rj[k], atol=10cryst.symprec)
+            if !is_integer(ri[k]-rj[k]; atol=cryst.symprec)
                 return ri[k] < rj[k]
             end
         end
-        str1, str2 = fractional_vec3_to_string.((ri, rj))
-        str3 = number_to_simple_string(cryst.symprec; digits=2)
-        error("Atoms $str1 and $str2 too close at symprec=$str3")
+
+        # Should never hit this case because either `validate_positions` or
+        # `crystallographic_orbits_distinct` should already be called.
+        error("Symmetry-equivalent sites $r1 and $r2")
     end
     p = sort(eachindex(cryst.positions), lt=less_than)
     permute_sites!(cryst, p)
@@ -321,7 +319,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
         for j in i+1:length(positions)
             ri = positions[i]
             rj = positions[j]
-            if all_integer(ri-rj; symprec)
+            if is_periodic_copy(ri, rj; symprec)
                 error("Positions $ri and $rj are equivalent.")
             end
         end
@@ -394,7 +392,7 @@ function crystallographic_orbit(symops::Vector{SymOp}, position::Vec3; symprec)
     orbit = Vec3[]
     for s = symops
         x = wrap_to_unit_cell(transform(s, position); symprec)
-        if !any(y -> all_integer(x-y; symprec), orbit)
+        if !any(y -> is_periodic_copy(x, y; symprec), orbit)
             push!(orbit, x)
         end
     end
@@ -406,7 +404,7 @@ function crystallographic_orbits_distinct(symops::Vector{SymOp}, positions::Vect
 
     # Check that orbits are distinct
     for (i, ri) in enumerate(positions), j in i+1:length(orbits)
-        if any(rj -> all_integer(ri-rj; symprec), orbits[j])
+        if any(rj -> is_periodic_copy(ri, rj; symprec), orbits[j])
             if isnothing(wyckoffs)
                 error("Reference positions $(positions[i]) and $(positions[j]) are symmetry equivalent.")
             else
@@ -497,7 +495,7 @@ end
 function check_shape_commensurate(cryst, shape)
     prim_cell = @something primitive_cell(cryst) Mat3(I)
     shape_in_prim = prim_cell \ shape
-    if !all_integer(shape_in_prim; cryst.symprec)
+    if !all_integer(shape_in_prim; atol=cryst.symprec)
         if prim_cell ≈ I
             error("Elements of `shape` must be integer. Received $shape.")
         else
@@ -662,6 +660,21 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
         for i in findall(==(c), cryst.classes)
             pos = fractional_vec3_to_string(cryst.positions[i])
             println(io, "   $i. $pos")
+        end
+    end
+end
+
+function validate_positions(positions; symprec)
+    for i in eachindex(positions), j in i+1:length(positions)
+        ri = positions[i]
+        rj = positions[j]
+
+        str1, str2 = fractional_vec3_to_string.((ri, rj))
+        str3 = number_to_simple_string(cryst.symprec; digits=2)
+        if is_periodic_copy(ri, rj; symprec)
+            error("Atoms $str1 and $str2 are symmetry equivalent!")
+        elseif is_periodic_copy(ri, rj; symprec=10symprec)
+            error("Atoms $str1 and $str2 are too close at symprec=$str3")
         end
     end
 end
