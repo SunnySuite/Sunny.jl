@@ -394,12 +394,13 @@ end
 function validate_positions(positions; symprec)
     for i in eachindex(positions), j in i+1:length(positions)
         ri, rj = positions[[i, j]]
-        ri_str, rj_str = fractional_vec3_to_string.((ri, rj))
-        symprec_str = number_to_simple_string(symprec; digits=2)
-        if is_periodic_copy(ri, rj; symprec)
-            error("Overlapping positions $ri_str and $rj_str at $symprec_str")
-        elseif is_periodic_copy(ri, rj; symprec=10symprec)
-            @warn "Nearly overlapping positions $ri_str and $rj_str at $symprec_str"
+        overlapping = is_periodic_copy(ri, rj; symprec=1.001symprec)
+        too_close = is_periodic_copy(ri, rj; symprec=4.001symprec)
+        if overlapping || too_close
+            descriptor = overlapping ? "Overlapping" : "Near-overlapping"
+            ri_str, rj_str = fractional_vec3_to_string.((ri, rj))
+            symprec_str = number_to_simple_string(symprec; digits=2)
+            error("$descriptor positions $ri_str and $rj_str at symprec=$symprec_str")
         end
     end
 end
@@ -409,20 +410,18 @@ function validate_orbits(positions, orbits; symprec, multiplicities=nothing, wyc
     # Check that orbits are distinct
     for i in eachindex(positions), j in i+1:length(positions)
         ri, rj = positions[[i, j]]
-        ri_str, rj_str = fractional_vec3_to_string.((ri, rj))
-        symprec_str = number_to_simple_string(symprec; digits=2)
-        wyckoff_str = if isnothing(wyckoffs)
-            ""
-        else
-            (; multiplicity, letter) = wyckoffs[i]
-            " in Wyckoff $multiplicity$letter"
-        end
-
-        if any(is_periodic_copy.(Ref(ri), orbits[j]; symprec))
-            @assert wyckoffs[i].letter == wyckoffs[j].letter
-            error("Symmetry equivalent positions $ri_str and $rj_str$wyckoff_str at symprec=$symprec_str")
-        elseif any(is_periodic_copy.(Ref(ri), orbits[j]; symprec=10symprec))
-            @warn "Nearly symmetry equivalent positions $ri_str and $rj_str$wyckoff_str at symprec=$symprec_str"
+        overlapping = any(is_periodic_copy.(Ref(ri), orbits[j]; symprec=1.001symprec))
+        too_close = any(is_periodic_copy.(Ref(ri), orbits[j]; symprec=4.001symprec))
+        if overlapping || too_close
+            descriptor = overlapping ? "Equivalent" : "Near-equivalent"
+            ri_str, rj_str = fractional_vec3_to_string.((ri, rj))
+            symprec_str = number_to_simple_string(symprec; digits=2)
+            if isnothing(wyckoffs)
+                error("$descriptor positions $ri_str and $rj_str at symprec=$symprec_str")
+            else
+                (; multiplicity, letter) = wyckoffs[i]
+                error("$descriptor positions $ri_str and $rj_str in Wyckoff $multiplicity$letter at symprec=$symprec_str")
+            end
         end
     end
 

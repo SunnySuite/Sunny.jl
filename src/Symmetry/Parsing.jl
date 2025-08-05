@@ -211,7 +211,7 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
     end
 
     # If user-provided symprec0 is unavailable, use inferred symprec. The 10x
-    # fudge factor and 1e-8 lower bound give Spglib some safety margin.
+    # fudge factor and 1e-8 lower bound give some safety margin.
     symprec = @something symprec0 max(10*symprec, 1e-8)
 
     # Fill atom positions by symmetry and infer symmetry operations
