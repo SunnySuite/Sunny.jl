@@ -247,10 +247,10 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
 
         hall_number_inferred = hall_number_from_symops(ret.sg.number, ret.sg.symops; atol=symprec)
         if isnothing(hall_number_inferred)
-            @warn "This CIF employs a non-standard spacegroup setting for which symmetry \
-                   analysis may be unreliable! Use `standardize(cryst)` to obtain the \
-                   standard chemical cell and then `reshape_supercell(sys, shape)` for \
-                   calculations on an arbitrarily shaped system."
+            @warn "This CIF uses a non-standard spacegroup setting, making symmetry \
+                   analysis unreliable! Use `standardize(cryst)` to obtain the \
+                   standard chemical cell. Then use `reshape_supercell(sys, shape)` \
+                   for calculations on an arbitrarily shaped system."
         else
             # The inferred ret.sg data (setting and symops) may be slightly
             # perturbed from the ITA standard tables. This happens for

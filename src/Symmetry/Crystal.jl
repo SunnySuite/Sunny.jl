@@ -205,13 +205,17 @@ function sort_sites!(cryst::Crystal)
         ri = cryst.positions[i]
         rj = cryst.positions[j]
         for k = 3:-1:1
+            # Factor of 10 included to err on the side of throwing a "too close"
+            # exception, below. TODO: Use is_periodic_copy instead, and make
+            # exactly consistent with crystallographic_orbit. Warning about
+            # closeness should appear there instead.
             if !isapprox(ri[k], rj[k], atol=10cryst.symprec)
                 return ri[k] < rj[k]
             end
         end
         str1, str2 = fractional_vec3_to_string.((ri, rj))
-        error("""Detected two very close atoms ($str1 and $str2).
-                 If positions inferred from spacegroup, try increasing `symprec` parameter to `Crystal`.""")
+        str3 = number_to_simple_string(cryst.symprec; digits=2)
+        error("Atoms $str1 and $str2 too close at symprec=$str3")
     end
     p = sort(eachindex(cryst.positions), lt=less_than)
     permute_sites!(cryst, p)
