@@ -10,9 +10,9 @@ units of angstrom. In most cases, `symprec` can be omitted. If provided, it will
 specify the precision of the dimensionless site position data (commonly between
 1e-2 and 1e-5).
 
-Given an mCIF, this constructor will convert the magnetic cell to an inferred
-conventional chemical cell. Use this crystal to construct an appropriately
-shaped [`System`](@ref) and then load the magnetic order with
+If reading an mCIF, the magnetic cell will be converted to an inferred
+conventional chemical cell and returned. Use this crystal to build an
+appropriately shaped [`System`](@ref) and then load the magnetic order with
 [`set_dipoles_from_mcif!`](@ref).
 
     Crystal(latvecs, positions; types=nothing, symprec=1e-5)
