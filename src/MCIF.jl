@@ -1,8 +1,9 @@
 """
     set_dipoles_from_mcif!(sys::System, filename::AbstractString)
 
-Load the magnetic supercell according to an mCIF file. System `sys` must already
-be resized to the correct supercell dimensions.
+Load the magnetic supercell from data in the mCIF at `filename`. If the shape of
+`sys` is not consistent with that of the magnetic supercell, an error message
+will be thrown that gives instructions for calling [`reshape_supercell`](@ref).
 """
 function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
     cif = CIF.Cif(filename)
