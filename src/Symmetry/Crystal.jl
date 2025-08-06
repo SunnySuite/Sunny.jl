@@ -3,13 +3,12 @@
 An object describing a crystallographic unit cell and its space group symmetry.
 Constructors are as follows:
 
-    Crystal(filename, symprec=nothing)
+    Crystal(filename; symprec=nothing)
 
 Reads the crystal from a CIF or mCIF at `filename`. Lattice vectors will be in
-units of angstrom. In most cases, `symprec` can be inferred. In cases of
-inconsistency, however, an explicit `symprec` may be provided. It should specify
-the precision of the dimensionless site position data, commonly in the range of
-1e-2 to 1e-5.
+units of angstrom. In most cases, `symprec` can be omitted. If provided, it will
+specify the precision of the dimensionless site position data (commonly between
+1e-2 and 1e-5).
 
 For an mCIF, the magnetic cell will be converted to a conventional chemical
 cell, which will have an enlarged set of spacegroup symmetries. Site positions
