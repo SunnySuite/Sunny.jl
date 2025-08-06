@@ -5,17 +5,17 @@ Constructors are as follows:
 
     Crystal(filename, symprec=nothing)
 
-Reads the crystal from a `.cif` or `.mcif` file located at the path `filename`.
-The `latvecs` field of the returned `Crystal` will be in units of angstrom. In
-most cases, `symprec` can be inferred correctly. If a consistency error is
-reported, however, then an explicit `symprec` may be selected, which should
-describe the precision of the dimensionless site position data (commonly between
-1e-2 and 1e-5).
+Reads the crystal from a CIF or mCIF file located at the path `filename`. The
+`latvecs` field of the returned `Crystal` will be in units of angstrom. In most
+cases, `symprec` can be inferred correctly. If a consistency error is reported,
+however, then an explicit `symprec` may be selected, which should describe the
+precision of the dimensionless site position data (commonly between 1e-2 and
+1e-5).
 
-If an `.mcif` file is provided, a conventional chemical cell will be inferred
-and returned. Its spacegroup symmetries will be a superset of the magnetic
-spacegroup symmetries. Site positions of the returned crystal will be compatible
-with subsequent calls to [`set_dipoles_from_mcif!`](@ref).
+For an mCIF file, the magnetic cell will be reduced to a conventional chemical
+cell. The magnetic spacegroup symmetries will be a subset of the inferred
+chemical spacecegroup symmetries. Site positions of the returned crystal will be
+compatible with subsequent calls to [`set_dipoles_from_mcif!`](@ref).
 
     Crystal(latvecs, positions; types=nothing, symprec=1e-5)
 
