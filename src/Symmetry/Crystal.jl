@@ -3,14 +3,18 @@
 An object describing a crystallographic unit cell and its space group symmetry.
 Constructors are as follows:
 
-    Crystal(filename)
+    Crystal(filename, symprec=nothing)
 
 Reads the crystal from a `.cif` or `.mcif` file located at the path `filename`.
-The `latvecs` field of the returned `Crystal` will be in units of angstrom.
+The `latvecs` field of the returned `Crystal` will be in units of angstrom. In
+most cases, `symprec` can be inferred correctly. If a consistency error is
+reported, however, then an explicit `symprec` may be selected, which should
+describe the precision of the dimensionless site position data (commonly between
+1e-2 and 1e-5).
 
 If an `.mcif` file is provided, a conventional chemical cell will be inferred
-and returned. The spacegroup symmetry of this crystal will be independent of the
-magnetic structure. This crystal will have site positions that are compatible
+and returned. Its spacegroup symmetries will be a superset of the magnetic
+spacegroup symmetries. Site positions of the returned crystal will be compatible
 with subsequent calls to [`set_dipoles_from_mcif!`](@ref).
 
     Crystal(latvecs, positions; types=nothing, symprec=1e-5)
