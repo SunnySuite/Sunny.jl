@@ -30,7 +30,7 @@
     for sgnum in 1:230
         sg = Sunny.Spacegroup(Sunny.standard_setting[sgnum])
         for (mult, letter, sitesym, pos) in Sunny.wyckoff_table[sgnum]
-            orbit = Sunny.crystallographic_orbit(sg.symops, Sunny.WyckoffExpr(pos))
+            orbit = Sunny.crystallographic_orbit(Sunny.WyckoffExpr(pos); sg.symops)
             @test length(orbit) == mult
         end
     end
@@ -168,17 +168,45 @@ end
 end
 
 
+@testitem "Crystal errors" begin
+    latvecs = lattice_vectors(1, 1, 1.5, 90, 90, 120)
+    x = 0.15
+
+    positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 1e-3]]
+    msg = "Equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.751] in Wyckoff 6h at symprec=0.001"
+    @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
+
+    positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 2e-3]]
+    msg = "Near-equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.752] in Wyckoff 6h at symprec=0.001"
+    @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
+
+    positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 5e-3]]
+    Crystal(latvecs, positions, 194; symprec=1e-3) # No error
+
+    positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 1e-3]]
+    msg = "Overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.751] at symprec=0.001"
+    @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
+
+    positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 2e-3]]
+    msg = "Near-overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.752] at symprec=0.001"
+    @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
+
+    positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 5e-3]]
+    Crystal(latvecs, positions; symprec=1e-3)
+end
+
+
 @testitem "Spacegroup settings" begin
     using LinearAlgebra
     import Spglib
 
     # Check conversions between settings for different Hall numbers
-    for hall1 in 1:530
-        hall2 = Sunny.standard_setting_for_hall_number(hall1)
-        P = Sunny.mapping_to_standard_setting(hall1)
-        g1 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall1)...)
-        g2 = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall2)...)
-        @test [inv(P) * s * P for s in g2] ≈ g1
+    for hall_c in 1:530
+        hall_s = Sunny.standard_setting_for_hall_number(hall_c)
+        setting = Sunny.mapping_to_standard_setting(hall_c)
+        g_c = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall_c)...)
+        g_s = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall_s)...)
+        @test Sunny.map_symop_to_setting.(g_s; setting) ≈ g_c
     end
 
     ### Check settings for trigonal spacegroup
@@ -325,6 +353,7 @@ end
         end
     end
 end
+
 
 @testitem "Symmetry table" begin
     using LinearAlgebra
@@ -496,6 +525,7 @@ end
     @test Sunny.is_anisotropy_valid(cryst, 2, 𝒪[6,-1]+0.997385420𝒪[6,1])
     @test Sunny.is_anisotropy_valid(cryst, 2, rotate_operator(𝒪[6,2], R))
 end
+
 
 @testitem "Renormalization" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)

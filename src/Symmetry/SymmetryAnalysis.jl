@@ -1,15 +1,15 @@
-# Wrap each coordinate of position r into the range [0,1). To account for finite
-# precision, wrap 1-ϵ to -ϵ, where ϵ=symprec is a tolerance parameter.
-function wrap_to_unit_cell(r::Vec3; symprec)
-    return @. mod(r+symprec, 1) - symprec
+# Wrap x into the range [0,1). To account for finite precision, wrap 1-ϵ to -ϵ,
+# where ϵ=symprec is a tolerance parameter.
+function wrap_to_unit_cell(x::Float64; symprec)
+    return mod(x+symprec, 1) - symprec
 end
 
-function all_integer(x; symprec)
-    return norm(x - round.(x)) < symprec
+function wrap_to_unit_cell(r::Vec3; symprec)
+    return wrap_to_unit_cell.(r; symprec)
 end
 
 function is_periodic_copy(r1::Vec3, r2::Vec3; symprec)
-    all_integer(r1-r2; symprec)
+    return all_integer(r1-r2; atol=symprec)
 end
 
 function is_periodic_copy(b1::BondPos, b2::BondPos; symprec)

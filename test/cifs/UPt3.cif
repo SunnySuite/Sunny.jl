@@ -1,0 +1,46 @@
+data_UPt3
+
+_cell_length_a 5.8
+_cell_length_b 5.8
+_cell_length_c 4.9
+_cell_angle_alpha 90.
+_cell_angle_beta 90.
+_cell_angle_gamma 120.
+_space_group_IT_number 194
+
+loop_
+_space_group_symop_operation_xyz
+'x, x-y, -z+1/2'
+'-x+y, y, -z+1/2'
+'-y, -x, -z+1/2'
+'-x+y, -x, -z+1/2'
+'-y, x-y, -z+1/2'
+'x, y, -z+1/2'
+'-x, -x+y, z+1/2'
+'x-y, -y, z+1/2'
+'y, x, z+1/2'
+'x-y, x, z+1/2'
+'y, -x+y, z+1/2'
+'-x, -y, z+1/2'
+'-x, -x+y, -z'
+'x-y, -y, -z'
+'y, x, -z'
+'x-y, x, -z'
+'y, -x+y, -z'
+'-x, -y, -z'
+'x, x-y, z'
+'-x+y, y, z'
+'-y, -x, z'
+'-x+y, -x, z'
+'-y, x-y, z'
+'x, y, z'
+
+loop_
+_atom_site_label
+_atom_site_symmetry_multiplicity
+_atom_site_Wyckoff_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+Pt1 6 h 0.8333 0.6667 0.25
+U1 2 c 0.3334 0.6667 0.25

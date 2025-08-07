@@ -31,10 +31,10 @@ end
 # that F = F′ and c = c′ mod 1.
 function is_periodic_copy(w1::WyckoffExpr, w2::WyckoffExpr)
     atol = 1e-12 # FP precision because all coefficients are perfect fractions
-    return isapprox(w1.F, w2.F; atol) && all_integer(w2.c - w1.c; symprec=atol)
+    return isapprox(w1.F, w2.F; atol) && is_periodic_copy(w1.c, w2.c; symprec=atol)
 end
 
-function crystallographic_orbit(symops::Vector{SymOp}, w::WyckoffExpr)
+function crystallographic_orbit(w::WyckoffExpr; symops::Vector{SymOp})
     orbit = WyckoffExpr[]
     for s in symops
         w2 = transform(s, w)
@@ -75,7 +75,7 @@ function find_wyckoff_for_position(sgnum::Int, r::Vec3; symprec)
     symops = SymOp.(Rs, Ts)
 
     for (multiplicity, letter, sitesym, pos) in reverse(wyckoff_table[sgnum])
-        for w in crystallographic_orbit(symops, WyckoffExpr(pos))
+        for w in crystallographic_orbit(WyckoffExpr(pos); symops)
             θ = position_to_wyckoff_params(r, w; symprec)
             if !isnothing(θ)
                 return Wyckoff(multiplicity, letter, sitesym)

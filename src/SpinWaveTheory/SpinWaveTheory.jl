@@ -17,17 +17,21 @@ abstract type AbstractSpinWaveTheory end
 """
     SpinWaveTheory(sys::System; measure, regularization=1e-8)
 
-Constructs an object to perform linear spin wave theory. The system must be in
-an energy minimizing configuration. Enables calculation of [`dispersion`](@ref)
-bands. If pair correlations are specified with `correspec`, one can also
-calculate [`intensities_bands`](@ref) and broadened [`intensities`](@ref).
+Constructs an object to perform linear spin wave theory. The `measure` object
+specifies observable fields, ``𝐪``-dependent contractions, and form factors.
+Common choices are [`ssf_perp`](@ref), [`ssf_trace`](@ref), and
+[`ssf_custom`](@ref). The resulting `SpinWaveTheory` object can be used to
+calculate [`intensities_bands`](@ref) and broadened [`intensities`](@ref). If
+`measure=nothing`, it is still possible to calculate the [`dispersion`](@ref)
+curves. Eigenvectors describing the Bogoliubov bosons are available in
+[`excitations`](@ref).
 
-The spins in system must be energy-minimized, otherwise the Cholesky step of the
-Bogoliubov diagonalization procedure will fail. The parameter `regularization`
-adds a small positive shift to the diagonal of the dynamical matrix to avoid
-numerical issues with quasi-particle modes of vanishing energy. Physically, this
-shift can be interpreted as application of an inhomogeneous field aligned with
-the magnetic ordering.
+The magnetic structure in `sys` must be energy minimized, otherwise the Cholesky
+step of the Bogoliubov diagonalization procedure will fail. The parameter
+`regularization` adds a small positive shift to the diagonal of the dynamical
+matrix to avoid numerical issues with quasi-particle modes of vanishing energy.
+Physically, this shift can be interpreted as application of an inhomogeneous
+field aligned with the magnetic ordering.
 """
 struct SpinWaveTheory <: AbstractSpinWaveTheory
     sys            :: System
