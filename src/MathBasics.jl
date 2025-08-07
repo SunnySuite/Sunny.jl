@@ -32,6 +32,16 @@ function diffnorm2(a, b)
     return acc
 end
 
+function is_integer(x; atol)
+    return abs(x - round(x)) < atol
+end
+
+function all_integer(xs; atol)
+    return all(is_integer(x; atol) for x in xs)
+end
+
+# Periodic variant of Base.isapprox. When comparing lattice quantities like
+# positions or bonds, prefer is_periodic_copy because it works element-wise.
 function isapprox_mod1(x::AbstractArray, y::AbstractArray; opts...)
     @assert size(x) == size(y) "Non-matching dimensions"
     Δ = @. mod(x - y + 0.5, 1) - 0.5

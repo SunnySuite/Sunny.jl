@@ -1,10 +1,37 @@
-# Functions for parsing Crystals / SymOps from text / .cif files
+# Reading CIF and mCIF files
 
-# Strips trailing uncertainty values from a String, then parses as a Float
-function parse_cif_float(str::String) :: Float64
-    i = findfirst('(', str)
-    str = isnothing(i) ? str : str[1:i-1]
-    return parse(Float64, str)
+function parse_cif_float_with_err(str::String; maybe_fractional)
+    parts = split(str, '(')
+    number_str = parts[1]
+    number = parse(Float64, number_str)
+    sigfigs = in('.', number_str) ? length(split(number_str, '.')[2]) : 0
+
+    if length(parts) == 1
+        # E.g., 0.2 has an assumed error bar of ±0.05
+        err = 10.0^(-sigfigs) / 2
+
+        # Components of each Wyckoff position in an ITA standard cell may be an
+        # exact multiple of {1/2, 1/3, 1/4, 1/6, 1/8}. For example, the position
+        # 0.125 = 1/8 is likely to be exact. Such strings do not contribute to
+        # the estimated error when `maybe_fractional=true`.
+        if maybe_fractional
+            smallest_remainder = minimum(abs(rem(number * c, 1, RoundNearest)) / c for c in (2, 3, 4, 6, 8))
+            if smallest_remainder < 1e-12
+                err = 0.0
+            end
+        end
+    else
+        # E.g., 0.2(3) has an error bar of ±0.3
+        @assert parts[2][end] == ')'
+        err_str = parts[2][begin:end-1]
+        err = 10.0^(-sigfigs) * parse(Int, err_str)
+    end
+
+    return (number, err)
+end
+
+function parse_cif_float(str::String)
+    return parse_cif_float_with_err(str; maybe_fractional=false)[1]
 end
 
 
@@ -65,26 +92,40 @@ function parse_op(str::AbstractString) :: SymOp
 end
 
 
-# Reads the crystal from a `.cif` file located at the path `filename`.
-function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=false)
+# Reads the crystal from a CIF or mCIF located at the path `filename`. See
+# extended doc string in Crystal.jl.
+function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing, override_symmetry=nothing)
+    if !isnothing(override_symmetry)
+        @warn "Ignoring deprecated `override_symmetry` option"
+    end
+
     cif = CIF.Cif(filename)
-    # For now, assumes there is only one data collection per .cif
+    # Accessor `oneof` assumes collections in CIF are unique
     cif = cif[first(keys(cif))]
     oneof(fields...) = findfirstval(in(keys(cif)), fields)
 
-    a = parse_cif_float(cif["_cell_length_a"][1])
-    b = parse_cif_float(cif["_cell_length_b"][1])
-    c = parse_cif_float(cif["_cell_length_c"][1])
+    # The user-provided symprec may be nothing, so we also infer a symprec from
+    # the coordinate positions represented as strings.
+    symprec0 = symprec
+    symprec = 0.0
+
+    (a, err_a) = parse_cif_float_with_err(cif["_cell_length_a"][1]; maybe_fractional=false)
+    (b, err_b) = parse_cif_float_with_err(cif["_cell_length_b"][1]; maybe_fractional=false)
+    (c, err_c) = parse_cif_float_with_err(cif["_cell_length_c"][1]; maybe_fractional=false)
     α = parse_cif_float(cif["_cell_angle_alpha"][1])
     β = parse_cif_float(cif["_cell_angle_beta"][1])
     γ = parse_cif_float(cif["_cell_angle_gamma"][1])
     latvecs = lattice_vectors(a, b, c, α, β, γ)
 
     geo_table = CIF.get_loop(cif, "_atom_site_fract_x")
-    xs = parse_cif_float.(geo_table[:, "_atom_site_fract_x"])
-    ys = parse_cif_float.(geo_table[:, "_atom_site_fract_y"])
-    zs = parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
-    positions = Vec3.(zip(xs, ys, zs))
+    positions = Vec3[]
+    for i in axes(geo_table, 1)
+        (x, err_x) = parse_cif_float_with_err(geo_table[i, "_atom_site_fract_x"]; maybe_fractional=true)
+        (y, err_y) = parse_cif_float_with_err(geo_table[i, "_atom_site_fract_y"]; maybe_fractional=true)
+        (z, err_z) = parse_cif_float_with_err(geo_table[i, "_atom_site_fract_z"]; maybe_fractional=true)
+        push!(positions, Vec3(x, y, z))
+        symprec = max(symprec, err_x, err_y, err_z)
+    end
 
     types = nothing
     if "_atom_site_type_symbol" in keys(cif)
@@ -95,31 +136,6 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         labels = String.(geo_table[:, "_atom_site_label"])
     else
         labels = types
-    end
-
-    # Try to infer symprec from coordinate strings. TODO: Use uncertainty
-    # information if available from .cif
-    if isnothing(symprec)
-        elems = vcat(xs, ys, zs)
-        # guess fractional errors by assuming each elem is a fraction with simple denominator (2, 3, or 4)
-        errs = map(elems) do x
-            c = 12
-            return abs(rem(x*c, 1, RoundNearest)) / c
-        end
-        (err, _) = findmax(errs)
-        if err < 1e-12
-            @info """Precision parameter is unspecified, but all coordinates seem to be simple fractions.
-                     Setting symprec=1e-12."""
-            symprec = 1e-12
-        elseif 1e-12 < err < 1e-4
-            symprec = 15err
-            err_str = @sprintf "%.1e" err
-            symprec_str = @sprintf "%.1e" symprec
-            @info """Precision parameter is unspecified, but coordinate string '$s' seems to have error $err_str.
-                     Setting symprec=$symprec_str."""
-        else
-            error("Cannot infer precision. Please provide an explicit `symprec` parameter to load '$filename'")
-        end
     end
 
     symops = nothing
@@ -135,6 +151,7 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         sg_number = parse(Int, cif[sg_number_header][1])
     end
 
+    #=
     hall_symbol = nothing
     hall_header = "_space_group_name_hall"
     if hall_header in keys(cif)
@@ -146,14 +163,13 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
     if hm_header in keys(cif)
         hm_symbol = cif[hm_header][1]
     end
+    =#
 
-    # If we're overriding symmetry, then distinct labels may need to be merged
-    # into equivalent sites. E.g., site-symmetry may be broken due to magnetic
-    # order in an .mcif -- undo that.
-    classes = override_symmetry ? types : labels
+    classes = labels
 
     # If chemical cell symops are missing, attempt to build a crystal from
     # magnetic symops
+    from_mcif = false
     if isnothing(symops)
         # IUCR standard or legacy field name, respectively
         mcif_fields = (;
@@ -171,39 +187,90 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
             # is to reconstruct all atom positions in crystal_from_symops.
             symops = [SymOp(s.R, s.T) for s in symops]
 
-            # Fill atom positions by symmetry and infer symmetry operations
-            orbits = crystallographic_orbits_distinct(symops, positions; symprec)
-            all_positions = reduce(vcat, orbits)
-            all_types = repeat_multiple(classes, length.(orbits))
-            supercell = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
+            # Some magnetically inequivalent sites may become equivalent in the
+            # chemical cell. This analysis requires type labels for the atoms.
+            isnothing(types) && error("Missing _atom_site_type_symbol data")
+            classes = types
 
-            if override_symmetry
-                # Don't idealize because later `set_dipoles_from_mcif!` will
-                # need to search for atom positions using this specific setting.
-                return standardize(supercell; idealize=false)
-            else
-                @warn """Loading the magnetic cell as chemical cell for TESTING PURPOSES only.
-                         Set the option `override_symmetry=true` to infer the standard chemical
-                         cell and its spacegroup symmetries."""
-                return supercell
+            # If the supercell dimensions are not all equal, then it is possible
+            # that the spacegroup symmetry requires them to have a precise
+            # ratio. Any uncertainty in (a, b, c) should therefore be
+            # incorporated into symprec. See test/cifs/ZnFe2O4.cif for a
+            # real-world example.
+            if !allequal((a, b, c))
+                symprec = max(symprec, err_a/a, err_b/b, err_c/c)
             end
+
+            # Remember that symops were projected from msymops
+            from_mcif = true
         end
     end
 
-    if !isnothing(symops)
-        isnothing(sg_number) && error("Spacegroup number not specified.")
-        hall_number = hall_number_from_symops(sg_number, symops)
-        isnothing(hall_number) && error("Symmetry operations do not match an ITA setting for spacegroup $sg_number.")
-        sg_label = spacegroup_label(hall_number)
-        sg_setting = mapping_to_standard_setting(hall_number)
-        sg = Spacegroup(symops, sg_label, sg_number, sg_setting)
-        ret = crystal_from_spacegroup(latvecs, positions, classes, sg; symprec)
-    elseif !isnothing(hall_symbol)
-        # Use symmetries for Hall symbol
-        ret = Crystal(latvecs, positions, hall_symbol; types=classes, symprec)
-    else
-        error("Spacegroup symops are unknown.")
+    if isnothing(symops)
+        error("Missing spacegroup symmetry operations")
     end
 
-    return override_symmetry ? standardize(ret) : ret
+    # If user-provided symprec0 is unavailable, use inferred symprec. The 10x
+    # fudge factor and 1e-8 lower bound give some safety margin.
+    symprec = @something symprec0 max(10*symprec, 1e-8)
+
+    # Fill atom positions by symmetry and infer symmetry operations
+    orbits = crystallographic_orbit.(positions; symops, symprec)
+    validate_orbits(positions, orbits; symprec)
+    all_positions = reduce(vcat, orbits)
+    all_types = repeat_multiple(classes, length.(orbits))
+
+    # TODO: Check orbit lengths against _atom_site_symmetry_multiplicity data if
+    # available.
+
+    # Infer symmetry from full list of atoms. Disable cell check because we will
+    # customize the warning message below.
+    ret = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
+    sort_sites!(ret)
+
+    if from_mcif
+        if !keep_supercell
+            # Disable idealization when loading an mCIF because a subsequent
+            # call to `set_dipoles_from_mcif!` must be able to search for atom
+            # positions using the mCIF setting.
+            return standardize(ret; idealize=false)
+        else
+            @warn "Use `keep_supercell=true` for testing purposes only! Inferred symmetries \
+                   are unreliable."
+            return ret
+        end
+    else
+        symprec_str = number_to_simple_string(symprec; digits=2)
+        suggest_symprec = isnothing(symprec0) ? " Try overriding `symprec` (inferred $symprec_str)." : ""
+
+        if !isnothing(sg_number) && sg_number != ret.sg.number
+            error("Inferred spacegroup $(ret.sg.number) differs from $sg_number in CIF.$suggest_symprec")
+        end
+
+        symops_consistent = isapprox(symops, ret.sg.symops; atol=symprec)
+        hall_number_inferred = hall_number_from_symops(ret.sg.number, ret.sg.symops; atol=symprec)
+
+        if symops_consistent
+            if !isnothing(hall_number_inferred)
+                # The inferred ret.sg data (setting and symops) may be slightly
+                # perturbed from the ITA standard tables. This happens for
+                # test/cifs/UPt3.cif, with spacegroup 194. Wyckoff 6h has a site at
+                # position (x,2x,1/4). The CIF stores x and 2x using strings with
+                # truncated decimal expansions, 0.333 and 0.667. The ratio of these
+                # numbers slightly deviates from 2, causing Spglib to infer a
+                # slightly perturbed setting. Get clean symmetry data using tables
+                # for the inferred Hall number.
+                sg = Spacegroup(hall_number_inferred)
+                ret = crystal_from_spacegroup(latvecs, positions, classes, sg; symprec)
+            else
+                @info "Cell appears non-standard. Consider `standardize(cryst)` and then \
+                       `reshape_supercell(sys, shape)` for calculations on an arbitrarily \
+                       shaped system."
+            end
+        else
+            @warn "Inconsistent symmetry operations! This may occur with an incomplete CIF, \
+                   a non-standard setting, or failed inference.$suggest_symprec"
+        end
+        return ret
+    end
 end

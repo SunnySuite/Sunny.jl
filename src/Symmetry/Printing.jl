@@ -171,13 +171,6 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
     println(io)
 end
 
-function validate_crystal(cryst::Crystal)
-    if isempty(cryst.sg.symops)
-        error("""No symmetry information available for crystal. This likely indicates that
-                 the crystal has been reshaped. Perform symmetry analysis on the original
-                 crystal instead.""")
-    end
-end
 
 """
     print_symmetry_table(cryst::Crystal, max_dist)
@@ -188,7 +181,6 @@ b)` for every bond `b` in `reference_bonds(cryst, max_dist)`, where
 `Bond(i, i, [0,0,0])` refers to a single site `i`.
 """
 function print_symmetry_table(cryst::Crystal, max_dist; io=stdout)
-    validate_crystal(cryst)
     for b in reference_bonds(cryst, max_dist)
         print_bond(cryst, b; io)
     end

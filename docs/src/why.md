@@ -5,10 +5,10 @@
 
 Feature highlights include:
 
-- Ability to [specify a crystal](@ref Crystal) from a `.cif` file, from its
+- Ability to [specify a crystal](@ref Crystal) from a CIF file, from its
   spacegroup number and Wyckoffs, or from a full chemical cell with
   automatically inferred symmetry operations. Magnetic structures [can be
-  read](@ref set_dipoles_from_mcif!) from `.mcif` files.
+  read](@ref set_dipoles_from_mcif!) from mCIF files.
 - Interactive visualization of [3D crystals](@ref view_crystal) and [magnetic
   structures](@ref plot_spins).
 - Symmetry analysis to determine [allowed anisotropies and interaction

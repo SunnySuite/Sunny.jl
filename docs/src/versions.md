@@ -3,7 +3,12 @@
 ## v0.7.9
 (In development)
 
-* Fix tolerance of Spglib symmetry inference ([PR
+* More robust loading of CIF files via [`Crystal`](@ref) constructor. Precision
+  parameter `symprec` is now inferred. The magnetic cell of an mCIF file will
+  always downfold to a standard chemical cell. As before, use
+  [`set_dipoles_from_mcif!`](@ref) to set dipoles on a reshaped [`System`](@ref)
+  ([PR #413](https://github.com/SunnySuite/Sunny.jl/pull/413)). 
+* Scale `symprec` prior to symmetry inference as expected by Spglib ([PR
   #405](https://github.com/SunnySuite/Sunny.jl/pull/405)).
 
 ## v0.7.8

@@ -42,7 +42,7 @@ end
 
 function Base.isapprox(s1::SymOp, s2::SymOp; atol=1e-8)
     T1, T2 = wrap_to_unit_cell.((s1.T, s2.T); symprec=atol)
-    return isapprox(s1.R, s2.R; atol) && isapprox(T1, T2; atol)
+    return isapprox(s1.R, s2.R; atol=atol*√9) && isapprox(T1, T2; atol=atol*√3)
 end
 
 # Approximate group subset relation
