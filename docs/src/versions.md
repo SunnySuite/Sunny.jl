@@ -10,6 +10,8 @@
   ([PR #413](https://github.com/SunnySuite/Sunny.jl/pull/413)). 
 * Scale `symprec` prior to symmetry inference as expected by Spglib ([PR
   #405](https://github.com/SunnySuite/Sunny.jl/pull/405)).
+* Modify color gradient in [`plot_intensities`](@ref) when plotting discrete
+  bands ([PR #411](https://github.com/SunnySuite/Sunny.jl/pull/411)).
 
 ## v0.7.8
 (Jul 1, 2025)
