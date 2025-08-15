@@ -37,6 +37,9 @@ end
 =#
 const scalar_biquad_metric = Vec5(1/2, 2, 1/6, 2, 1/2)
 
+# HermitianC64 in :SUN mode, StevensExpansion in :dipole mode
+const OnsiteCoupling = Union{HermitianC64, StevensExpansion}
+
 # Pair couplings are counted only once per bond
 struct PairCoupling
     isculled :: Bool # Bond directionality is used to avoid double counting
@@ -63,14 +66,20 @@ end
 mutable struct Interactions
     # Onsite coupling is either an N×N Hermitian matrix or possibly renormalized
     # Stevens coefficients, depending on the mode :SUN or :dipole.
-    onsite :: Union{HermitianC64, StevensExpansion}
+    onsite :: OnsiteCoupling
     # Pair couplings for every bond that starts at the given atom
     pair :: Vector{PairCoupling}
 end
 
 mutable struct ModelParam
+    const label :: Symbol
     scale :: Float64
-    const interactions :: Vector{Interactions}
+    const onsites :: Vector{Tuple{Int, OnsiteCoupling}}
+    const pairs :: Vector{PairCoupling}
+
+    function ModelParam(label::Symbol, scale::Float64; onsites=Tuple{Int, OnsiteCoupling}[], pairs=Vector{PairCoupling}[])
+        return new(label, scale, onsites, pairs)
+    end
 end
 
 const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
@@ -106,13 +115,13 @@ mutable struct System{N}
 
     # Interactions may be homogeneous (defined for one unit cell), or
     # inhomogeneous (defined for every cell in the system).
-    interactions_union     :: Union{Vector{Interactions}, Array{Interactions,4}}
+    interactions_union     :: Union{Vector{Interactions}, Array{Interactions, 4}}
 
     # Map from each independent model parameter to a group of interactions. This
     # can be useful for model fitting, whereby the free parameters can be
     # rescaled in adherence with symmetry constraints. The map will be empty for
     # inhomogeneous systems.
-    params                 :: Dict{String, ModelParam}
+    params                 :: Vector{ModelParam}
 
     # Optional long-range dipole-dipole interactions
     ewald                  :: Union{Ewald, Nothing}

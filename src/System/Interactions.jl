@@ -1,7 +1,88 @@
-function empty_interactions(mode, na, N)
+function replace_model_param!(_::System, _::Any)
+    error("Use the syntax `param=(:J1, 1.0)` to specify a labeled parameter")
+end
+
+function replace_model_param!(sys::System, param::Tuple{Symbol, Real})
+    label, scale = param
+    inds = findall(p.label == label for p in sys.params)
+    if !isempty(inds)
+        @info "Overwriting param $label"
+        deleteat!(sys.params, only(inds))
+    end
+    push!(sys.params, ModelParam(label, scale))
+    return sys.params[end]
+end
+
+function Base.copy(param::ModelParam)
+    return ModelParam(param.label, param.scale; param.onsites, param.pairs)
+end
+
+#=
+function param_has_atom(i)
+    param -> any(i == j for (j, _) in param.onsites)
+end
+=#
+
+# Find an existing param satisfying `matches` or, if missing, create a new one
+# with a unique label.
+function get_default_param(sys::System, matches::Function)
+    label = nothing
+
+    is_unlabeled(param) = startswith(string(param.label), "Param_")
+
+    # Search for an existing param that `matches` and is unlabeled.
+    inds = findall(sys.params) do param
+        matches(param) && is_unlabeled(param)
+    end
+
+    if !isempty(inds)
+        # There can be at most one. Use it.
+        label = params[only(inds)].label
+    else
+        # Otherwise, create a unique "Param_" label.
+        cnt = count(is_unlabeled, sys.params)
+        label = Symbol("Param_$(cnt+1)")
+    end
+
+    return (label, 1.0)
+end
+
+
+function repopulate_pair_couplings!(sys::System)
+    @assert is_homogeneous(sys)
+    ints = interactions_homog(sys)
+
+    # Clear existing pair couplings
+    for site in eachsite(sys)
+        empty!(ints[site].pair)
+    end
+
+    for param in sys.params
+        # For each PairCoupling in param, accumulate it into existing
+        # interactions.
+        for pc in param.pairs
+            b = pc.bond
+            scaled_pc = pc * param.scale
+            ints_pairs = ints[b.i].pair
+
+            # Find existing entry for this bond and accumulate
+            idx = findfirst(pc′ -> pc′.bond == b, ints_pairs)
+            if isnothing(idx)
+                push!(ints_pairs, scaled_pc)
+            else
+                ints_pairs[idx] += scaled_pc
+            end
+        end
+    end
+
+    return nothing
+end
+
+
+function empty_interactions(mode::Symbol, Na::Int, N::Int)
     # Cannot use `fill` because the PairCoupling arrays must be
     # allocated separately for later mutation.
-    return map(1:na) do _
+    return map(1:Na) do _
         Interactions(empty_anisotropy(mode, N), PairCoupling[])
     end
 end

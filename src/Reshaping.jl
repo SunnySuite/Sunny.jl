@@ -71,7 +71,7 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     new_κs               = zeros(Float64, new_dims..., new_na)
     new_gs               = zeros(Mat3, new_dims..., new_na)
     new_ints             = empty_interactions(sys.mode, new_na, N)
-    new_params           = Dict{String, ModelParam}()
+    new_params           = ModelParam[]
     new_ewald            = nothing
     new_extfield         = zeros(Vec3, new_dims..., new_na)
     new_dipoles          = zeros(Vec3, new_dims..., new_na)

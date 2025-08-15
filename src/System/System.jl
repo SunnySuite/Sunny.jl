@@ -73,7 +73,7 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     gs = reshape(gs, 1, 1, 1, :)
 
     interactions = empty_interactions(mode, na, N)
-    params = Dict{String, ModelParam}()
+    params = ModelParam[]
     ewald = nothing
 
     extfield = zeros(Vec3, 1, 1, 1, na)
@@ -151,7 +151,7 @@ function clone_system(sys::System{N}) where N
     # Dynamically dispatch to the correct `map` function for either homogeneous
     # (Vector) or inhomogeneous interactions (4D Array)
     interactions_clone = map(clone_interactions, interactions_union)
-    params_clone = Dict{String, ModelParam}((k, copy(v)) for (k, v) in params)
+    params_clone = [copy(p) for p in params]
 
     # Empty buffers are required for thread safety.
     empty_dipole_buffers = Array{Vec3, 4}[]
