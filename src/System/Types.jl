@@ -68,6 +68,11 @@ mutable struct Interactions
     pair :: Vector{PairCoupling}
 end
 
+mutable struct ModelParam
+    scale :: Float64
+    const interactions :: Vector{Interactions}
+end
+
 const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
 const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
 const rIFTPlan = FFTW.AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
@@ -102,6 +107,12 @@ mutable struct System{N}
     # Interactions may be homogeneous (defined for one unit cell), or
     # inhomogeneous (defined for every cell in the system).
     interactions_union     :: Union{Vector{Interactions}, Array{Interactions,4}}
+
+    # Map from each independent model parameter to a group of interactions. This
+    # can be useful for model fitting, whereby the free parameters can be
+    # rescaled in adherence with symmetry constraints. The map will be empty for
+    # inhomogeneous systems.
+    params                 :: Dict{String, ModelParam}
 
     # Optional long-range dipole-dipole interactions
     ewald                  :: Union{Ewald, Nothing}

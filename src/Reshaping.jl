@@ -14,7 +14,7 @@ with [`resize_supercell`](@ref).
 See also [`repeat_periodically`](@ref).
 """
 function reshape_supercell(sys::System, shape)
-    is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
+    is_homogeneous(sys) || error("Cannot reshape inhomogeneous system.")
 
     orig = orig_crystal(sys)
     check_shape_commensurate(orig, shape)
@@ -39,15 +39,12 @@ end
 # process to set a new interaction is to first modify `sys.origin`, and then to
 # call this function.
 function transfer_interactions!(sys::System, src::System)
+    @assert is_homogeneous(sys) && is_homogeneous(src)
+
     new_ints = interactions_homog(sys)
 
     for new_i in 1:natoms(sys.crystal)
-        # Find `src` interaction either through an atom index or a site index
-        if is_homogeneous(src)
-            i = map_atom_to_other_crystal(sys.crystal, new_i, src.crystal)
-        else
-            i = map_atom_to_other_system(sys.crystal, new_i, src)
-        end
+        i = map_atom_to_other_crystal(sys.crystal, new_i, src.crystal)
         src_int = src.interactions_union[i]
 
         # Copy onsite couplings
@@ -66,12 +63,15 @@ end
 
 
 function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTuple{3, Int}) where N
+    @assert is_homogeneous(sys)
+
     # Allocate data for new system, but with an empty list of interactions
     new_na               = natoms(new_cryst)
     new_Ns               = zeros(Int, new_dims..., new_na)
     new_κs               = zeros(Float64, new_dims..., new_na)
     new_gs               = zeros(Mat3, new_dims..., new_na)
     new_ints             = empty_interactions(sys.mode, new_na, N)
+    new_params           = Dict{String, ModelParam}()
     new_ewald            = nothing
     new_extfield         = zeros(Vec3, new_dims..., new_na)
     new_dipoles          = zeros(Vec3, new_dims..., new_na)
@@ -84,13 +84,14 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     # reshaped system will also update interactions in its `origin` system.
     orig_sys = clone_system(@something sys.origin sys)
 
-    new_sys = System(orig_sys, sys.mode, new_cryst, new_dims, new_Ns, new_κs, new_gs, new_ints, new_ewald,
-        new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
+    new_sys = System(orig_sys, sys.mode, new_cryst, new_dims, new_Ns, new_κs, new_gs,
+                     new_ints, new_params, new_ewald, new_extfield, new_dipoles,
+                     new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
 
-    # Transfer interactions. In the case of an inhomogeneous system, the
-    # interactions in `sys` have detached from `orig`, so we use the latest
-    # ones.
     transfer_interactions!(new_sys, sys)
+
+    # FIXME
+    # transfer_params!(new_sys, sys)
 
     # Copy per-site quantities
     for new_site in eachsite(new_sys)
@@ -135,6 +136,7 @@ reshape_supercell(sys, [dims[1] 0 0; 0 dims[2] 0; 0 0 dims[3]])
 See also [`reshape_supercell`](@ref) and [`repeat_periodically`](@ref).
 """
 function resize_supercell(sys::System, dims::NTuple{3,Int})
+    is_homogeneous(sys) || error("Cannot resize inhomogeneous system.")
     return reshape_supercell(sys, diagm(Vec3(dims)))
 end
 
@@ -149,6 +151,7 @@ See also [`repeat_periodically_as_spiral`](@ref), which rotates the spins
 between periodic copies.
 """
 function repeat_periodically(sys::System, counts::NTuple{3,Int})
+    is_homogeneous(sys) || error("Cannot repeat inhomogeneous system.")
     all(>=(1), counts) || error("Require at least one count in each direction.")
     return reshape_supercell_aux(sys, sys.crystal, counts .* sys.dims)
 end

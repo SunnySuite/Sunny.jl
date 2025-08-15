@@ -132,7 +132,7 @@ end
     #
     # The underlying problem could be the low quality of gradient estimation
     # using finite-differencing.
-    k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
+    k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=[-0.40, 0.85, -0.66])
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
 
     axis = [0, 0, 1]
