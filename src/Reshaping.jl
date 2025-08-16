@@ -1,4 +1,3 @@
-
 """
     reshape_supercell(sys::System, shape)
 
@@ -31,21 +30,22 @@ function reshape_supercell(sys::System, shape)
     return reshape_supercell_aux(sys, new_cryst, new_dims)
 end
 
-
+#=
 # Transfer interactions from `src` to reshaped `sys`.
 #
 # Frequently `src` will refer to `sys.origin`, associated with the original
 # crystal, which will make symmetry analysis available. In this case, the
 # process to set a new interaction is to first modify `sys.origin`, and then to
 # call this function.
-function transfer_interactions!(sys::System, src::System)
-    @assert is_homogeneous(sys) && is_homogeneous(src)
+function transfer_interactions_from_origin!(sys::System)
+    @assert is_homogeneous(sys)
+    (; origin) = sys
 
     new_ints = interactions_homog(sys)
 
     for new_i in 1:natoms(sys.crystal)
-        i = map_atom_to_other_crystal(sys.crystal, new_i, src.crystal)
-        src_int = src.interactions_union[i]
+        i = map_atom_to_other_crystal(sys.crystal, new_i, origin.crystal)
+        src_int = origin.interactions_union[i]
 
         # Copy onsite couplings
         new_ints[new_i].onsite = src_int.onsite
@@ -53,12 +53,51 @@ function transfer_interactions!(sys::System, src::System)
         # Copy pair couplings
         new_pc = PairCoupling[]
         for pc in src_int.pair
-            new_bond = map_bond_to_other_crystal(src.crystal, pc.bond, sys.crystal, new_i)
+            new_bond = map_bond_to_other_crystal(origin.crystal, pc.bond, sys.crystal, new_i)
             push!(new_pc, PairCoupling(new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
         end
         new_pc = sort!(new_pc, by=c->c.isculled)
         new_ints[new_i].pair = new_pc
     end
+end
+=#
+
+# Transfer interactions from `sys.origin` to reshaped `sys`.
+function transfer_params_from_origin!(sys::System)
+    @assert is_homogeneous(sys)
+    (; origin) = sys
+
+    # Map atom (for origin crystal) to vector of atoms (for new crystal)
+    old_to_new = Dict(i => Int[] for i in 1:natoms(origin.crystal))
+    for i in 1:natoms(sys.crystal)
+        i_old = map_atom_to_other_crystal(sys.crystal, i, origin.crystal)
+        push!(old_to_new[i_old], i)
+    end
+
+    empty!(sys.params)
+
+    for param in origin.params
+        onsites = empty(param.onsites)
+        for (i_old, oc) in param.onsites
+            for i in old_to_new[i_old]
+                push!(onsites, (i, oc))
+            end
+        end
+
+        pairs = PairCoupling[]
+        for pc in param.pairs
+            i_old = pc.bond.i
+            for i in old_to_new[i_old]
+                bond = map_bond_to_other_crystal(origin.crystal, pc.bond, sys.crystal, i)
+                push!(pairs, PairCoupling(bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
+            end
+        end
+
+        push!(sys.params, ModelParam(param.label, param.scale; onsites, pairs))
+    end
+
+    repopulate_pair_couplings!(sys)
+    return
 end
 
 
@@ -88,10 +127,8 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
                      new_ints, new_params, new_ewald, new_extfield, new_dipoles,
                      new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
 
-    transfer_interactions!(new_sys, sys)
-
-    # FIXME
-    # transfer_params!(new_sys, sys)
+    # Map ModelParams from `sys` to `new_sys` and then rebuild pair couplings
+    transfer_params_from_origin!(new_sys)
 
     # Copy per-site quantities
     for new_site in eachsite(new_sys)

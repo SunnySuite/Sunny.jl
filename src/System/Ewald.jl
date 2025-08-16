@@ -271,12 +271,14 @@ function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, �
 
     if !isnothing(sys.origin)
         modify_exchange_with_truncated_dipole_dipole!(sys.origin, cutoff, μ0_μB²)
-        transfer_interactions!(sys, sys.origin)
+        transfer_params_from_origin!(sys)
         return
     end
 
     is_homogeneous(sys) || error("Currently requires homogeneous system")
     ints = interactions_homog(sys)
+
+    # FIXME
 
     for bond in reference_bonds(sys.crystal, cutoff)
         for i in 1:natoms(sys.crystal)

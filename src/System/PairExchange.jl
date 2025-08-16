@@ -220,7 +220,7 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
     # contains full symmetry information.
     if !isnothing(sys.origin)
         set_pair_coupling_aux!(sys.origin, scalar, bilin, biquad, tensordec, bond, param)
-        transfer_interactions!(sys, sys.origin)
+        transfer_params_from_origin!(sys)
         return
     end
 

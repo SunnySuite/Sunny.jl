@@ -53,8 +53,8 @@ function repopulate_pair_couplings!(sys::System)
     ints = interactions_homog(sys)
 
     # Clear existing pair couplings
-    for site in eachsite(sys)
-        empty!(ints[site].pair)
+    for (; pair) in ints
+        empty!(pair)
     end
 
     for param in sys.params
@@ -75,7 +75,12 @@ function repopulate_pair_couplings!(sys::System)
         end
     end
 
-    return nothing
+    # Non-culled couplings must come first to enable early `break`
+    for (; pair) in ints
+        sort!(pair, by = pc -> pc.isculled)
+    end
+
+    return
 end
 
 
