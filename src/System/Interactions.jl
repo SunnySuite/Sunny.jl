@@ -57,9 +57,8 @@ function repopulate_pair_couplings!(sys::System)
         empty!(pair)
     end
 
+    # Accumulate from params
     for param in sys.params
-        # For each PairCoupling in param, accumulate it into existing
-        # interactions.
         for pc in param.pairs
             b = pc.bond
             scaled_pc = pc * param.scale
@@ -83,6 +82,25 @@ function repopulate_pair_couplings!(sys::System)
     return
 end
 
+function repopulate_onsite_couplings!(sys::System{N}) where N
+    @assert is_homogeneous(sys)
+    ints = interactions_homog(sys)
+
+    # Clear current onsite couplings
+    for i in eachindex(ints)
+        ints[i].onsite = empty_anisotropy(sys.mode, N)
+    end
+
+    # Accumulate from params
+    for param in sys.params
+        s = param.scale
+        for (i, oc) in param.onsites
+            ints[i].onsite += oc * s
+        end
+    end
+
+    return
+end
 
 function empty_interactions(mode::Symbol, Na::Int, N::Int)
     # Cannot use `fill` because the PairCoupling arrays must be

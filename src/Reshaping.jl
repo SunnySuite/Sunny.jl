@@ -97,6 +97,7 @@ function transfer_params_from_origin!(sys::System)
     end
 
     repopulate_pair_couplings!(sys)
+    repopulate_onsite_couplings!(sys)
     return
 end
 
@@ -127,7 +128,7 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
                      new_ints, new_params, new_ewald, new_extfield, new_dipoles,
                      new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
 
-    # Map ModelParams from `sys` to `new_sys` and then rebuild pair couplings
+    # Map params from `new_sys.origin` to `new_sys` and then rebuild interactions
     transfer_params_from_origin!(new_sys)
 
     # Copy per-site quantities

@@ -72,6 +72,19 @@ function Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion)
            (stvexp.c4 ≈ stvexp′.c4) && (stvexp.c6 ≈ stvexp′.c6)
 end
 
+function Base.:+(stvexp::StevensExpansion, stvexp′::StevensExpansion)
+    return StevensExpansion(max(stvexp.kmax, stvexp′.kmax),
+                            stvexp.c0 + stvexp′.c0,
+                            stvexp.c2 + stvexp′.c2,
+                            stvexp.c4 + stvexp′.c4,
+                            stvexp.c6 + stvexp′.c6)
+end
+
+function Base.:*(stvexp::StevensExpansion, x::Real)
+    (; kmax, c0, c2, c4, c6) = stvexp
+    return StevensExpansion(kmax, c0*x, c2*x, c4*x, c6*x)
+end
+
 function rotate_operator(stvexp::StevensExpansion, R)
     c2′ = rotate_stevens_coefficients(stvexp.c2, R)
     c4′ = rotate_stevens_coefficients(stvexp.c4, R)
@@ -134,14 +147,12 @@ set_onsite_coupling!(sys, O[4,0] + 5*O[4,4], i)
     naïvely replaces quantum spin operators with classical moments. See the
     documentation page [Interaction Renormalization](@ref) for more information.
 """
-function set_onsite_coupling!(sys::System, op, i::Int)
+function set_onsite_coupling!(sys::System, op, i::Int; param=nothing)
     is_homogeneous(sys) || error("Use `set_onsite_coupling_at!` for an inhomogeneous system.")
-    ints = interactions_homog(sys)
 
-    # If `sys` has been reshaped, then operate first on `sys.origin`, which
-    # contains full symmetry information.
+    # If reshaped, write to origin and transfer params back
     if !isnothing(sys.origin)
-        set_onsite_coupling!(sys.origin, op, i)
+        set_onsite_coupling!(sys.origin, op, i; param)
         transfer_params_from_origin!(sys)
         return
     end
@@ -149,16 +160,17 @@ function set_onsite_coupling!(sys::System, op, i::Int)
     @assert isnothing(sys.origin)
     (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
 
-    if !iszero(ints[i].onsite)
-        warn_coupling_override("Overriding anisotropy for atom $i.")
-    end
-
     onsite = onsite_coupling(sys, CartesianIndex(1, 1, 1, i), op)
 
     if !is_anisotropy_valid(sys.crystal, i, onsite)
         error("""Symmetry-violating anisotropy: $op.
                  Use `print_site(cryst, $i)` for more information.""")
     end
+
+    # Get ModelParam to be filled
+    atom_matches(param) = any(j == i for (j, _) in param.onsites)
+    param = @something param get_default_param(sys, atom_matches)
+    param = replace_model_param!(sys, param)
 
     cryst = sys.crystal
     for j in all_symmetry_related_atoms(cryst, i)
@@ -175,13 +187,16 @@ function set_onsite_coupling!(sys::System, op, i::Int)
         # In moving from site i to j, a spin S rotates to Q S. Transform the
         # anisotropy operator using the inverse rotation Q' so that the energy
         # remains invariant when applied to the transformed spins.
-        ints[j].onsite = rotate_operator(onsite, Q')
+        onsite′ = rotate_operator(onsite, Q')
+        push!(param.onsites, (j, onsite′))
     end
+
+    repopulate_onsite_couplings!(sys)
 end
 
-function set_onsite_coupling!(sys::System, fn::Function, i::Int)
+function set_onsite_coupling!(sys::System, fn::Function, i::Int; param=nothing)
     S = spin_matrices(spin_label(sys, i))
-    set_onsite_coupling!(sys, fn(S), i)
+    set_onsite_coupling!(sys, fn(S), i; param)
 end
 
 

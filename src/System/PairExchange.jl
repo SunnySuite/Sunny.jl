@@ -54,8 +54,8 @@ function Base.:+(c1::PairCoupling, c2::PairCoupling)
     PairCoupling(c1.bond, scalar, bilin, biquad, general)
 end
 
-function Base.:*(pc::PairCoupling, c::Real)
-    return PairCoupling(pc.bond, pc.scalar * c, pc.bilin * c, pc.biquad * c, pc.general * c)
+function Base.:*(pc::PairCoupling, x::Real)
+    return PairCoupling(pc.bond, pc.scalar * x, pc.bilin * x, pc.biquad * x, pc.general * x)
 end
 
 # If A ≈ α B, then return the scalar α. Otherwise, return A.
@@ -138,9 +138,9 @@ function Base.:+(op1::TensorDecomposition, op2::TensorDecomposition)
     =#
 end
 
-function Base.:*(op::TensorDecomposition, c::Real)
+function Base.:*(op::TensorDecomposition, x::Real)
     data = map(op.data) do (A, B)
-        (A*c, B)
+        (A*x, B)
     end
     return TensorDecomposition(op.gen1, op.gen2, data)
 end
@@ -189,6 +189,8 @@ end
 
 function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5},
                                 tensordec::TensorDecomposition, bond::Bond, param)
+    @assert is_homogeneous(sys)
+
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
@@ -216,9 +218,6 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
                  Use `print_bond(cryst, $bond)` for more information.""")
     end
 
-    # Print a warning if an interaction already exists for bond
-    ints = interactions_homog(sys)
-
     # Get ModelParam to be filled
     bond_matches(param) = any(pc.bond == bond for pc in param.pairs)
     param = @something param get_default_param(sys, bond_matches)
@@ -241,9 +240,7 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
             biquad′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, biquad)
             tensordec′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, tensordec)
             pc = PairCoupling(bond′, scalar, bilin′, biquad′, tensordec′)
-            if !isnothing(param)
-                push!(param.pairs, pc)
-            end
+            push!(param.pairs, pc)
         end
     end
 
