@@ -581,7 +581,7 @@ end
         S1i, S1j = Sunny.to_product_space(S1, S1)
         S2i, S2j = Sunny.to_product_space(S2, S2)
         scalar, bilin, biquad, tensordec = Sunny.decompose_general_coupling(J′*(S1i' * S1j + S2i' * S2j), 4, 4; extract_parts=fast)
-        Sunny.set_pair_coupling_aux!(sys, scalar, Sunny.Mat3(I)*bilin, biquad, tensordec, Bond(1, 1, [-1,0,0]))
+        Sunny.set_pair_coupling_aux!(sys, scalar, Sunny.Mat3(I)*bilin, biquad, tensordec, Bond(1, 1, [-1,0,0]), nothing)
 
         return sys, cryst
     end

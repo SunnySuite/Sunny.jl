@@ -37,7 +37,7 @@ function get_default_param(sys::System, matches::Function)
 
     if !isempty(inds)
         # There can be at most one. Use it.
-        label = params[only(inds)].label
+        label = sys.params[only(inds)].label
     else
         # Otherwise, create a unique "Param_" label.
         cnt = count(is_unlabeled, sys.params)

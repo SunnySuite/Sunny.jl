@@ -58,33 +58,6 @@ function Base.:*(pc::PairCoupling, c::Real)
     return PairCoupling(pc.bond, pc.scalar * c, pc.bilin * c, pc.biquad * c, pc.general * c)
 end
 
-# Internal function only
-function replace_coupling!(pairs, coupling::PairCoupling; accum=false)
-    (; bond) = coupling
-
-    # Find and remove existing couplings for this bond
-    idxs = findall(pc -> pc.bond == bond, pairs)
-    existing = pairs[idxs]
-    deleteat!(pairs, idxs)
-
-    # If the new coupling is exactly zero, and we're not accumulating, then
-    # return early
-    iszero(coupling) && !accum && return
-
-    # Optionally accumulate to an existing PairCoupling
-    if accum && !isempty(existing)
-        coupling += only(existing)
-    end
-
-    # Add to the list and sort by isculled. Sorting after each insertion will
-    # introduce quadratic scaling in length of `couplings`. If this becomes
-    # slow, we could swap two PairCouplings instead of performing a full sort.
-    push!(pairs, coupling)
-    sort!(pairs, by=pc->pc.isculled)
-
-    return
-end
-
 # If A ≈ α B, then return the scalar α. Otherwise, return A.
 function proportionality_factor(A, B; atol=1e-12)
     norm(A) < atol && return 0.0
@@ -455,6 +428,32 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
     end
 end
 
+# Internal function only
+function replace_coupling!(pairs, coupling::PairCoupling; accum=false)
+    (; bond) = coupling
+
+    # Find and remove existing couplings for this bond
+    idxs = findall(pc -> pc.bond == bond, pairs)
+    existing = pairs[idxs]
+    deleteat!(pairs, idxs)
+
+    # If the new coupling is exactly zero, and we're not accumulating, then
+    # return early
+    iszero(coupling) && !accum && return
+
+    # Optionally accumulate to an existing PairCoupling
+    if accum && !isempty(existing)
+        coupling += only(existing)
+    end
+
+    # Add to the list and sort by isculled. Sorting after each insertion will
+    # introduce quadratic scaling in length of `couplings`. If this becomes
+    # slow, we could swap two PairCouplings instead of performing a full sort.
+    push!(pairs, coupling)
+    sort!(pairs, by=pc->pc.isculled)
+
+    return
+end
 
 function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition, site1::Site, site2::Site, offset)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
