@@ -113,15 +113,13 @@ mutable struct System{N}
     const κs               :: Array{Float64, 4}         # Sets either |Z| = √κ or |s| = κ
     const gs               :: Array{Mat3, 4}            # g-tensor per atom in unit cell
 
+    # List of independent model parameters, each of which defines a group of
+    # symmetry-allowed interactions. Empty for inhomogeneous systems.
+    params                 :: Vector{ModelParam}
+
     # Interactions may be homogeneous (defined for one unit cell), or
     # inhomogeneous (defined for every cell in the system).
     interactions_union     :: Union{Vector{Interactions}, Array{Interactions, 4}}
-
-    # Map from each independent model parameter to a group of interactions. This
-    # can be useful for model fitting, whereby the free parameters can be
-    # rescaled in adherence with symmetry constraints. The map will be empty for
-    # inhomogeneous systems.
-    params                 :: Vector{ModelParam}
 
     # Optional long-range dipole-dipole interactions
     ewald                  :: Union{Ewald, Nothing}

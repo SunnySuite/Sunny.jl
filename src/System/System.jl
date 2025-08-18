@@ -84,7 +84,7 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
 
     rng = isnothing(seed) ? Random.Xoshiro(rand(UInt64, 4)...) : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, interactions, params, ewald,
+    ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, params, interactions, ewald,
                  extfield, dipoles, coherents, dipole_buffers, coherent_buffers, rng)
     polarize_spins!(ret, (0,0,1))
     return dims == (1, 1, 1) ? ret : repeat_periodically(ret, dims)
@@ -146,19 +146,20 @@ function clone_system(sys::System{N}) where N
        params, ewald, dipoles, coherents, rng) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
-    ewald_clone = nothing # TODO: use clone_ewald(ewald)
+
+    # Copy model params individually because param.scale is mutable
+    params_clone = copy.(params)
 
     # Dynamically dispatch to the correct `map` function for either homogeneous
     # (Vector) or inhomogeneous interactions (4D Array)
     interactions_clone = map(clone_interactions, interactions_union)
-    params_clone = [copy(p) for p in params]
 
     # Empty buffers are required for thread safety.
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
     ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
-                 interactions_clone, params_clone, ewald_clone, copy(extfield),
+                 params_clone, interactions_clone, nothing, copy(extfield),
                  copy(dipoles), copy(coherents), empty_dipole_buffers,
                  empty_coherent_buffers, copy(rng))
 
