@@ -191,7 +191,7 @@ function set_onsite_coupling!(sys::System, op, i::Int; param=nothing)
         push!(param.onsites, (j, onsite′))
     end
 
-    repopulate_onsite_couplings!(sys)
+    repopulate_couplings_from_params!(sys)
 end
 
 function set_onsite_coupling!(sys::System, fn::Function, i::Int; param=nothing)

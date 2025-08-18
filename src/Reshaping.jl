@@ -96,8 +96,7 @@ function transfer_params_from_origin!(sys::System)
         push!(sys.params, ModelParam(param.label, param.scale; onsites, pairs))
     end
 
-    repopulate_pair_couplings!(sys)
-    repopulate_onsite_couplings!(sys)
+    repopulate_couplings_from_params!(sys)
     return
 end
 

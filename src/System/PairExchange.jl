@@ -244,7 +244,7 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
         end
     end
 
-    repopulate_pair_couplings!(sys)
+    repopulate_couplings_from_params!(sys)
 end
 
 
