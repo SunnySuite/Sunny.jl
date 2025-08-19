@@ -55,6 +55,7 @@ export FormFactor
 include("System/Moment.jl")
 include("System/Types.jl")
 include("System/System.jl")
+include("System/ModelParams.jl")
 include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")

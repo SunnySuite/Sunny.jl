@@ -30,80 +30,72 @@ function reshape_supercell(sys::System, shape)
     return reshape_supercell_aux(sys, new_cryst, new_dims)
 end
 
-#=
-# Transfer interactions from `src` to reshaped `sys`.
-#
-# Frequently `src` will refer to `sys.origin`, associated with the original
-# crystal, which will make symmetry analysis available. In this case, the
-# process to set a new interaction is to first modify `sys.origin`, and then to
-# call this function.
-function transfer_interactions_from_origin!(sys::System)
-    @assert is_homogeneous(sys)
-    (; origin) = sys
-
-    new_ints = interactions_homog(sys)
-
-    for new_i in 1:natoms(sys.crystal)
-        i = map_atom_to_other_crystal(sys.crystal, new_i, origin.crystal)
-        src_int = origin.interactions_union[i]
-
-        # Copy onsite couplings
-        new_ints[new_i].onsite = src_int.onsite
-
-        # Copy pair couplings
-        new_pc = PairCoupling[]
-        for pc in src_int.pair
-            new_bond = map_bond_to_other_crystal(origin.crystal, pc.bond, sys.crystal, new_i)
-            push!(new_pc, PairCoupling(new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
-        end
-        new_pc = sort!(new_pc, by=c->c.isculled)
-        new_ints[new_i].pair = new_pc
-    end
-end
-=#
 
 # Transfer interactions from `sys.origin` to reshaped `sys`.
 function transfer_params_from_origin!(sys::System)
     @assert is_homogeneous(sys)
     (; origin) = sys
 
-    # Map atom (for origin crystal) to vector of atoms (for new crystal)
-    old_to_new = Dict(i => Int[] for i in 1:natoms(origin.crystal))
-    for i in 1:natoms(sys.crystal)
-        i_old = map_atom_to_other_crystal(sys.crystal, i, origin.crystal)
-        push!(old_to_new[i_old], i)
+    # Map atom in origin crystal to vector of atoms in new crystal
+    origin_to_new = Dict(i => Int[] for i in 1:natoms(origin.crystal))
+    for new_i in 1:natoms(sys.crystal)
+        i = map_atom_to_other_crystal(sys.crystal, new_i, origin.crystal)
+        # Append `new_i` to the vector at `origin_to_new[i]`
+        push!(origin_to_new[i], new_i)
     end
 
     empty!(sys.params)
 
     for param in origin.params
-        onsites = empty(param.onsites)
-        for (i_old, oc) in param.onsites
-            for i in old_to_new[i_old]
-                push!(onsites, (i, oc))
+        new_onsites = empty(param.onsites)
+        for (i, oc) in param.onsites
+            for new_i in origin_to_new[i]
+                push!(new_onsites, (new_i, oc))
             end
         end
 
-        pairs = PairCoupling[]
+        new_pairs = PairCoupling[]
         for pc in param.pairs
             i_old = pc.bond.i
-            for i in old_to_new[i_old]
-                bond = map_bond_to_other_crystal(origin.crystal, pc.bond, sys.crystal, i)
-                push!(pairs, PairCoupling(bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
+            for new_i in origin_to_new[i_old]
+                new_bond = map_bond_to_other_crystal(origin.crystal, pc.bond, sys.crystal, new_i)
+                push!(new_pairs, PairCoupling(new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
             end
         end
 
-        push!(sys.params, ModelParam(param.label, param.scale; onsites, pairs))
+        push!(sys.params, ModelParam(param.label, param.scale; onsites=new_onsites, pairs=new_pairs))
     end
 
     repopulate_couplings_from_params!(sys)
     return
 end
 
+# This function exists to support SpinWaveTheory reshaping from inhomogeneous
+# `src` to a homogeneous `sys` containing a single massive cell.
+function transfer_interactions_from_inhomogeneous!(sys::System, src::System)
+    @assert is_homogeneous(sys) && !is_homogeneous(src)
+
+    empty!(sys.params)
+    new_ints = interactions_homog(sys)
+
+    for new_i in 1:natoms(sys.crystal)
+        site = map_atom_to_other_system(sys.crystal, new_i, src)
+        int = src.interactions_union[site]
+
+        new_ints[new_i].onsite = int.onsite
+
+        new_pc = PairCoupling[]
+        for pc in int.pair
+            new_bond = map_bond_to_other_crystal(src.crystal, pc.bond, sys.crystal, new_i)
+            push!(new_pc, PairCoupling(new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
+        end
+        new_pc = sort!(new_pc, by=c->c.isculled)
+        new_ints[new_i].pair = new_pc
+    end
+end
+
 
 function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTuple{3, Int}) where N
-    @assert is_homogeneous(sys)
-
     # Allocate data for new system, but with an empty list of interactions
     new_na               = natoms(new_cryst)
     new_Ns               = zeros(Int, new_dims..., new_na)
@@ -127,8 +119,17 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
                      new_params, new_ints, new_ewald, new_extfield, new_dipoles,
                      new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
 
-    # Map params from `new_sys.origin` to `new_sys` and then rebuild interactions
-    transfer_params_from_origin!(new_sys)
+    if is_homogeneous(sys)
+        # Transfer params from `new_sys.origin`, which will then be used to fill
+        # interactions.
+        transfer_params_from_origin!(new_sys)
+    else
+        # Inhomogeneous interactions must be transferred directly. This path
+        # only exists to support SpinWaveTheory reshaping.
+        @assert new_sys.dims == (1, 1, 1)
+        @assert length(eachsite(new_sys)) == length(eachsite(sys))
+        transfer_interactions_from_inhomogeneous!(new_sys, sys)
+    end
 
     # Copy per-site quantities
     for new_site in eachsite(new_sys)

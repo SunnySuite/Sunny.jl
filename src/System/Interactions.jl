@@ -1,48 +1,3 @@
-function replace_model_param!(_::System, _::Any)
-    error("Use the syntax `param=(:J1, 1.0)` to specify a labeled parameter")
-end
-
-function replace_model_param!(sys::System, param::Tuple{Symbol, Real})
-    label, scale = param
-    inds = findall(p.label == label for p in sys.params)
-    if !isempty(inds)
-        @info "Overwriting param $label"
-        deleteat!(sys.params, only(inds))
-    end
-    push!(sys.params, ModelParam(label, scale))
-    return sys.params[end]
-end
-
-function Base.copy(param::ModelParam)
-    return ModelParam(param.label, param.scale; param.onsites, param.pairs)
-end
-
-
-# Find an existing param satisfying `matches` or, if missing, create a new one
-# with a unique label.
-function get_default_param(sys::System, matches::Function)
-    label = nothing
-
-    is_unlabeled(param) = startswith(string(param.label), "Unnamed")
-
-    # Search for an existing param that `matches` and is unlabeled.
-    inds = findall(sys.params) do param
-        matches(param) && is_unlabeled(param)
-    end
-
-    if !isempty(inds)
-        # There can be at most one. Use it.
-        label = sys.params[only(inds)].label
-    else
-        # Otherwise, create a unique "Unnamed" label.
-        cnt = count(is_unlabeled, sys.params)
-        label = Symbol("Unnamed$(cnt+1)")
-    end
-
-    return (label, 1.0)
-end
-
-
 function repopulate_couplings_from_params!(sys::System)
     @assert is_homogeneous(sys)
     ints = interactions_homog(sys)
@@ -80,7 +35,6 @@ function repopulate_couplings_from_params!(sys::System)
     end
 end
 
-
 function empty_interactions(mode::Symbol, Na::Int, N::Int)
     # Cannot use `fill` because the PairCoupling arrays must be
     # allocated separately for later mutation.
@@ -88,17 +42,6 @@ function empty_interactions(mode::Symbol, Na::Int, N::Int)
         Interactions(empty_anisotropy(mode, N), PairCoupling[])
     end
 end
-
-# Warn up to `OverrideWarningMax` times about overriding a coupling
-OverrideWarningCnt::Int = 0
-OverrideWarningMax::Int = 5
-function warn_coupling_override(str)
-    global OverrideWarningCnt, OverrideWarningMax
-    OverrideWarningCnt < OverrideWarningMax && @info str
-    OverrideWarningCnt += 1
-    OverrideWarningCnt == OverrideWarningMax && @info "Suppressing future override notifications."
-end
-
 
 # Creates a copy of the Vector of PairCouplings. This is useful when cloning a
 # system; mutable updates to one clone should not affect the other.
@@ -134,6 +77,13 @@ function to_inhomogeneous(sys::System{N}) where N
     ints = interactions_homog(sys)
 
     ret = clone_system(sys)
+
+    # TODO: Zero out params and interactions of ret.origin?
+
+    # Params unsupported for inhomogeneous system
+    empty!(ret.params)
+
+    # Population interactions_union as 4D array
     na = natoms(ret.crystal)
     ret.interactions_union = Array{Interactions}(undef, ret.dims..., na)
     for site in eachsite(ret)

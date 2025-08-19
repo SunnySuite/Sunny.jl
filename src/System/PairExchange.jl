@@ -272,7 +272,7 @@ set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 
 See also [`spin_matrices`](@ref), [`to_product_space`](@ref).
 """
-function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; param=nothing, extract_parts=true) where N
+function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond, param=nothing; extract_parts=true) where N
     is_homogeneous(sys) || error("Use `set_pair_coupling_at!` for an inhomogeneous system.")
 
     op ≈ op' || error("Operator is not Hermitian")
@@ -299,7 +299,7 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; param=noth
     return
 end
 
-function set_pair_coupling!(sys::System{N}, fn::Function, bond; param=nothing, extract_parts=true) where N
+function set_pair_coupling!(sys::System{N}, fn::Function, bond, param=nothing; extract_parts=true) where N
     if sys.mode == :dipole_uncorrected
         error("General coupling not currently supported for mode :dipole_uncorrected. \
                Use set_exchange! with option `biquad` for scalar biquadratic.")
@@ -308,7 +308,7 @@ function set_pair_coupling!(sys::System{N}, fn::Function, bond; param=nothing, e
     si = spin_label(sys, bond.i)
     sj = spin_label(sys, bond.j)
     Si, Sj = to_product_space(spin_matrices.([si, sj])...)
-    set_pair_coupling!(sys, fn(Si, Sj), bond; param, extract_parts)
+    set_pair_coupling!(sys, fn(Si, Sj), bond, param; extract_parts)
     return
 end
 
@@ -374,7 +374,7 @@ J = [2 3 0;
 set_exchange!(sys, J, bond)
 ```
 """
-function set_exchange!(sys::System{N}, J, bond::Bond; param=nothing, biquad=0.0) where N
+function set_exchange!(sys::System{N}, J, bond::Bond, param=nothing; biquad=0.0) where N
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
     sys_orig = something(sys.origin, sys)
     scalar, bilin, biquad = adapt_for_biquad(0.0, J, biquad, sys_orig, (1, 1, 1, bond.i), (1, 1, 1, bond.j))

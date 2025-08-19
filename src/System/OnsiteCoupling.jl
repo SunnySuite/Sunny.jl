@@ -147,12 +147,12 @@ set_onsite_coupling!(sys, O[4,0] + 5*O[4,4], i)
     naïvely replaces quantum spin operators with classical moments. See the
     documentation page [Interaction Renormalization](@ref) for more information.
 """
-function set_onsite_coupling!(sys::System, op, i::Int; param=nothing)
+function set_onsite_coupling!(sys::System, op, i::Int, param=nothing)
     is_homogeneous(sys) || error("Use `set_onsite_coupling_at!` for an inhomogeneous system.")
 
     # If reshaped, write to origin and transfer params back
     if !isnothing(sys.origin)
-        set_onsite_coupling!(sys.origin, op, i; param)
+        set_onsite_coupling!(sys.origin, op, i, param)
         transfer_params_from_origin!(sys)
         return
     end
@@ -194,9 +194,9 @@ function set_onsite_coupling!(sys::System, op, i::Int; param=nothing)
     repopulate_couplings_from_params!(sys)
 end
 
-function set_onsite_coupling!(sys::System, fn::Function, i::Int; param=nothing)
+function set_onsite_coupling!(sys::System, fn::Function, i::Int, param=nothing)
     S = spin_matrices(spin_label(sys, i))
-    set_onsite_coupling!(sys, fn(S), i; param)
+    set_onsite_coupling!(sys, fn(S), i, param)
 end
 
 
