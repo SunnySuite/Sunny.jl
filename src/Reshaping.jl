@@ -71,7 +71,7 @@ function transfer_params_from_origin!(sys::System)
 end
 
 # This function exists to support SpinWaveTheory reshaping from inhomogeneous
-# `src` to a homogeneous `sys` containing a single massive cell.
+# `src` to a homogeneous `sys` containing a single large cell.
 function transfer_interactions_from_inhomogeneous!(sys::System, src::System)
     @assert is_homogeneous(sys) && !is_homogeneous(src)
 

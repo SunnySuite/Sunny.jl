@@ -273,7 +273,8 @@ function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, Î
     # https://github.com/SunnySuite/Sunny.jl/pull/416).
     is_homogeneous(sys) || error("System must be homogeneous")
 
-    param = replace_model_param!(sys, :TruncatedDipoleDipole => 1.0)
+    label = :TruncatedDipoleDipole
+    param = replace_model_param!(sys, label => 1.0, repr(label))
 
     for bond in reference_bonds(sys.crystal, cutoff)
         for i in 1:natoms(sys.crystal)

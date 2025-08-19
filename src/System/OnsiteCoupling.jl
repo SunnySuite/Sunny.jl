@@ -170,7 +170,7 @@ function set_onsite_coupling!(sys::System, op, i::Int, param=nothing)
     # Get ModelParam to be filled
     atom_matches(param) = any(j == i for (j, _) in param.onsites)
     param = @something param get_default_param(sys, atom_matches)
-    param = replace_model_param!(sys, param)
+    param = replace_model_param!(sys, param, "atom $i")
 
     cryst = sys.crystal
     for j in all_symmetry_related_atoms(cryst, i)

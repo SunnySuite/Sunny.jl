@@ -221,7 +221,7 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
     # Get ModelParam to be filled
     bond_matches(param) = any(pc.bond == bond for pc in param.pairs)
     param = @something param get_default_param(sys, bond_matches)
-    param = replace_model_param!(sys, param)
+    param = replace_model_param!(sys, param, repr(bond))
 
     # General interactions require SU(N) mode
     check_allowable_dipole_coupling(tensordec, sys.mode)
@@ -430,9 +430,9 @@ function replace_coupling!(pairs, coupling::PairCoupling; accum=false)
     (; bond) = coupling
 
     # Find and remove existing couplings for this bond
-    idxs = findall(pc -> pc.bond == bond, pairs)
-    existing = pairs[idxs]
-    deleteat!(pairs, idxs)
+    inds = findall(pc -> pc.bond == bond, pairs)
+    existing = pairs[inds]
+    deleteat!(pairs, inds)
 
     # If the new coupling is exactly zero, and we're not accumulating, then
     # return early
@@ -554,8 +554,8 @@ end
 
 # Find the PairCoupling object for bond `b`
 function search_pair_couplings_for_bond(pairs::Vector{PairCoupling}, b::Bond)
-    indices = findall(pc -> pc.bond == b, pairs)
-    isempty(indices) ? nothing : pairs[only(indices)]
+    inds = findall(pc -> pc.bond == b, pairs)
+    isempty(inds) ? nothing : pairs[only(inds)]
 end
 
 function get_exchange_from_interactions(inter::Interactions, bond::Bond)
