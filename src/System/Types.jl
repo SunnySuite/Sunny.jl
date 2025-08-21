@@ -73,7 +73,7 @@ end
 
 mutable struct ModelParam
     const label :: Symbol
-    scale :: Float64
+    val :: Float64
     const onsites :: Vector{Tuple{Int, OnsiteCoupling}}
     const pairs :: Vector{PairCoupling}
 

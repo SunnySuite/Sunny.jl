@@ -1,5 +1,5 @@
 function Base.copy(param::ModelParam)
-    return ModelParam(param.label, param.scale; param.onsites, param.pairs)
+    return ModelParam(param.label, param.val; param.onsites, param.pairs)
 end
 
 function is_unnamed(label::Symbol)
@@ -21,7 +21,7 @@ function replace_model_param!(_::System, _::Any, desc::String)
 end
 
 function replace_model_param!(sys::System, param::Pair{Symbol, <: Real}, desc::String)
-    label, scale = param
+    label, val = param
     inds = findall(p.label == label for p in sys.params)
     if !isempty(inds)
         if is_unnamed(label)
@@ -34,7 +34,7 @@ function replace_model_param!(sys::System, param::Pair{Symbol, <: Real}, desc::S
         end
         deleteat!(sys.params, only(inds))
     end
-    push!(sys.params, ModelParam(label, Float64(scale)))
+    push!(sys.params, ModelParam(label, Float64(val)))
     return sys.params[end]
 end
 
@@ -77,7 +77,7 @@ set_param!(sys, :J1, 2.0)
 ```
 """
 function get_param(sys::System, label::Symbol)
-    return lookup_param(sys, label).scale
+    return lookup_param(sys, label).val
 end
 
 """
@@ -93,8 +93,8 @@ set_param!(sys, :J1, 2.0)
 @assert get_param(sys, :J1) == 2.0
 ```
 """
-function set_param!(sys::System, label::Symbol, scale::Real)
-    lookup_param(sys, label).scale = scale
+function set_param!(sys::System, label::Symbol, val::Real)
+    lookup_param(sys, label).val = val
     repopulate_couplings_from_params!(sys)
     return
 end
@@ -113,9 +113,9 @@ set_params!(sys, [:J1, :J2], [2.0, 3.0])
 @assert get_param(sys, :J2) == 3.0
 ```
 """
-function set_params!(sys::System, labels::Vector{Symbol}, scales::Vector{<: Real})
-    foreach(labels, scales) do label, scale
-        lookup_param(sys, label).scale = scale
+function set_params!(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
+    foreach(labels, vals) do label, val
+        lookup_param(sys, label).val = val
     end
     repopulate_couplings_from_params!(sys)
     return

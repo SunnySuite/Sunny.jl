@@ -11,12 +11,12 @@ function repopulate_couplings_from_params!(sys::System)
     # Accumulate from params
     for param in sys.params
         for (i, oc) in param.onsites
-            ints[i].onsite += oc * param.scale
+            ints[i].onsite += oc * param.val
         end
 
         for pc in param.pairs
             b = pc.bond
-            scaled_pc = pc * param.scale
+            scaled_pc = pc * param.val
             ints_pairs = ints[b.i].pair
 
             # Find existing entry for this bond and accumulate
