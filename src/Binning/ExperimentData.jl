@@ -49,59 +49,9 @@ To load another field instead of the signal, specify e.g.
 """
 function load_nxs(filename; field="signal")
     JLD2.jldopen(filename, "r") do file
-        read_covectors_from_axes_labels = false
-
         # This variable is basically the "Mantid W-Matrix". See discussion on
         # Github: https://github.com/SunnySuite/Sunny.jl/pull/256.
         spatial_covectors = zeros(3, 3)
-        try
-            try
-                w_matrix = file["MDHistoWorkspace"]["experiment0"]["logs"]["W_MATRIX"]["value"]
-                # Transpose to arrange axes labels as columns
-                spatial_covectors .= transpose(reshape(w_matrix, 3, 3))
-            catch e
-                printstyled("Warning", color=:yellow)
-                print(": failed to load W_MATRIX from Mantid file $filename due to:\n")
-                println(e)
-                println("Falling back to reading transform_from_orig")
-
-                coordinate_system = file["MDHistoWorkspace"]["coordinate_system"][1]
-
-                # Permalink to where this enum is defined:
-                # https://github.com/mantidproject/mantid/blob/057df5b2de1c15b819c7dd06e50bdbf5461b09c6/Framework/Kernel/inc/MantidKernel/SpecialCoordinateSystem.h#L14
-                system_name = ["None", "QLab", "QSample", "HKL"][coordinate_system + 1]
-
-                # The matrix stored in the file is transpose of the actual
-                # transform_from_orig matrix
-                transform_from_orig = file["MDHistoWorkspace"]["transform_from_orig"]
-                transform_from_orig = reshape(transform_from_orig, 5, 5)
-                transform_from_orig = transform_from_orig'
-
-                # U: Orthogonal rotation matrix
-                # B: inv(lattice_vectors(...)) matrix, as in Sunny
-                # The matrix stored in the file is transpose of U * B
-                ub_matrix = file["MDHistoWorkspace"]["experiment0"]["sample"]["oriented_lattice"]["orientation_matrix"]
-                ub_matrix = ub_matrix'
-
-                # Following: https://docs.mantidproject.org/nightly/concepts/Lattice.html
-                # It can be verified that the matrix G^* = (ub_matrix' * ub_matrix)
-                # is equal to B' * B, where B = inv(lattice_vectors(...)), and the diagonal
-                # entries of the inverse of this matrix are the lattice parameters squared
-                #
-                #abcMagnitude = sqrt.(diag(inv(ub_matrix' * ub_matrix)))
-                #println("[a,b,c] = ",abcMagnitude)
-
-                # This is how you extract the covectors from `transform_from_orig` and `ub_matrix`
-                # TODO: Parse this from the `long_name` of the data_dims instead
-                spatial_covectors .= 2π .* transform_from_orig[1:3,1:3] * ub_matrix
-            end
-        catch e
-            printstyled("Warning", color=:yellow)
-            print(": failed to read histogram axes from Mantid file $filename due to:\n")
-            println(e)
-            println("Defaulting to low-accuracy reading of axes labels!")
-            read_covectors_from_axes_labels = true
-        end
 
         signal = file["MDHistoWorkspace"]["data"][field]
 
@@ -125,10 +75,8 @@ function load_nxs(filename; field="signal")
             else # spatial covector case
                 ix = findfirst(spatial_covector_ixs .== 0)
                 spatial_covector_ixs[ix] = i
-                if read_covectors_from_axes_labels
-                    lbl = parse_long_name(long_name)
-                    spatial_covectors[:,ix] .= lbl
-                end
+                lbl = parse_long_name(long_name)
+                spatial_covectors[:,ix] .= lbl
             end
 
             data_dims[i] = file["MDHistoWorkspace"]["data"][name]
