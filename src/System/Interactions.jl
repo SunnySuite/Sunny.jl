@@ -1,21 +1,47 @@
-function empty_interactions(mode, na, N)
-    # Cannot use `fill` because the PairCoupling arrays must be
-    # allocated separately for later mutation.
-    return map(1:na) do _
-        Interactions(empty_anisotropy(mode, N), PairCoupling[])
+function repopulate_couplings_from_params!(sys::System)
+    @assert is_homogeneous(sys)
+    ints = interactions_homog(sys)
+
+    # Clear current interactions
+    for i in eachindex(ints)
+        ints[i].onsite = ints[i].onsite * 0.0
+        empty!(ints[i].pair)
+    end
+
+    # Accumulate from params
+    for param in sys.params
+        for (i, oc) in param.onsites
+            ints[i].onsite += oc * param.val
+        end
+
+        for pc in param.pairs
+            b = pc.bond
+            scaled_pc = pc * param.val
+            ints_pairs = ints[b.i].pair
+
+            # Find existing entry for this bond and accumulate
+            idx = findfirst(pc′ -> pc′.bond == b, ints_pairs)
+            if isnothing(idx)
+                push!(ints_pairs, scaled_pc)
+            else
+                ints_pairs[idx] += scaled_pc
+            end
+        end
+    end
+
+    # Non-culled couplings must come first to enable early `break`
+    for (; pair) in ints
+        sort!(pair, by = pc -> pc.isculled)
     end
 end
 
-# Warn up to `OverrideWarningMax` times about overriding a coupling
-OverrideWarningCnt::Int = 0
-OverrideWarningMax::Int = 5
-function warn_coupling_override(str)
-    global OverrideWarningCnt, OverrideWarningMax
-    OverrideWarningCnt < OverrideWarningMax && @info str
-    OverrideWarningCnt += 1
-    OverrideWarningCnt == OverrideWarningMax && @info "Suppressing future override notifications."
+function empty_interactions(mode::Symbol, Na::Int, N::Int)
+    # Cannot use `fill` because the PairCoupling arrays must be
+    # allocated separately for later mutation.
+    return map(1:Na) do _
+        Interactions(empty_anisotropy(mode, N), PairCoupling[])
+    end
 end
-
 
 # Creates a copy of the Vector of PairCouplings. This is useful when cloning a
 # system; mutable updates to one clone should not affect the other.
@@ -51,6 +77,13 @@ function to_inhomogeneous(sys::System{N}) where N
     ints = interactions_homog(sys)
 
     ret = clone_system(sys)
+
+    # TODO: Zero out params and interactions of ret.origin?
+
+    # Params unsupported for inhomogeneous system
+    empty!(ret.params)
+
+    # Population interactions_union as 4D array
     na = natoms(ret.crystal)
     ret.interactions_union = Array{Interactions}(undef, ret.dims..., na)
     for site in eachsite(ret)
