@@ -65,6 +65,28 @@ function lookup_param(sys::System, label::Symbol)
 end
 
 """
+    (label => val) :: Param
+
+Functions like [`set_exchange!`](@ref), [`set_pair_coupling!`](@ref), and
+[`set_onsite_coupling!`](@ref) accept a trailing `param::Param` argument that
+associates a `label` and `val` pair with the coupling strength. Modify the
+coupling strength with [`set_param!`](@ref) or [`set_params!`](@ref). Such
+updates be useful in model fitting contexts.
+
+# Example
+
+```julia
+# Set a coupling in Jxx of strength 2.0
+set_exchange!(sys, Diagonal([1, 0, 0]), bond, :Jxx => 2.0)
+
+# Modify the coupling strength
+set_param!(sys, :Jxx, 3.0)
+```
+"""
+const Param = Pair{Symbol, <: Real}
+
+
+"""
     get_param(sys::System, label::Symbol)
 
 Gets the value of the parameter `label`. See also [`set_param!`](@ref).

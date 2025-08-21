@@ -66,7 +66,7 @@ export Moment, System, Site, clone_system, eachsite, position_to_site, global_po
     spin_label, set_onsite_coupling!, set_pair_coupling!, set_exchange!, dmvec, enable_dipole_dipole!,
     set_field!, to_inhomogeneous, set_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
     set_exchange_at!, set_pair_coupling_at!, symmetry_equivalent_bonds, remove_periodicity!,
-    modify_exchange_with_truncated_dipole_dipole!, get_param, set_param!, set_params!
+    modify_exchange_with_truncated_dipole_dipole!, get_param, set_param!, set_params!, Param
 
 include("MagneticOrdering.jl")
 export print_wrapped_intensities, suggest_magnetic_supercell

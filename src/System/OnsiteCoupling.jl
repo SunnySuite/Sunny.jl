@@ -114,7 +114,7 @@ end
 
 
 """
-    set_onsite_coupling!(sys::System, op, i::Int)
+    set_onsite_coupling!(sys::System, op, i, param=nothing)
 
 Set the single-ion anisotropy for the `i`th atom of every unit cell, as well as
 all symmetry-equivalent atoms. The operator `op` may be provided as an abstract
@@ -135,6 +135,9 @@ set_onsite_coupling!(sys, S -> 20*(S[1]^4 + S[2]^4 + S[3]^4), i)
 O = stevens_matrices(spin_label(sys, i))
 set_onsite_coupling!(sys, O[4,0] + 5*O[4,4], i)
 ```
+
+The optional trailing [`Param`](@ref) argument labels the coupling and allows to
+mutably update the coupling strength.
 
 !!! warning "Limitations arising from quantum spin operators"  
     Single-ion anisotropy is physically impossible for local moments with
