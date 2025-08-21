@@ -64,17 +64,56 @@ function lookup_param(sys::System, label::Symbol)
     return sys.params[only(inds)]
 end
 
+"""
+    get_param(sys::System, label::Symbol)
+
+Gets the value of the parameter `label`. See also [`set_param!`](@ref).
+
+# Example
+
+```julia
+set_param!(sys, :J1, 2.0)
+@assert get_param(sys, :J1) == 2.0
+```
+"""
 function get_param(sys::System, label::Symbol)
     return lookup_param(sys, label).scale
 end
 
+"""
+    set_param!(sys::System, label::Symbol, val::Real)
+
+Sets the value for the parameter `label`. See also [`get_param`](@ref) and
+[`set_params!`](@ref).
+
+# Example
+
+```julia
+set_param!(sys, :J1, 2.0)
+@assert get_param(sys, :J1) == 2.0
+```
+"""
 function set_param!(sys::System, label::Symbol, scale::Real)
     lookup_param(sys, label).scale = scale
     repopulate_couplings_from_params!(sys)
     return
 end
 
-function set_params!(sys::System, labels::Symbol, scales::Real)
+"""
+    set_params!(sys::System, labels::Vector{Symbol}, vals::Vector{Real})
+
+Sets each parameter in `labels` to the value in `vals`. See also
+[`get_param`](@ref) and [`set_param!`](@ref).
+
+# Example
+
+```julia
+set_params!(sys, [:J1, :J2], [2.0, 3.0])
+@assert get_param(sys, :J1) == 2.0
+@assert get_param(sys, :J2) == 3.0
+```
+"""
+function set_params!(sys::System, labels::Vector{Symbol}, scales::Vector{<: Real})
     foreach(labels, scales) do label, scale
         lookup_param(sys, label).scale = scale
     end

@@ -701,6 +701,13 @@ end
 
 #= Definitions of common crystals =#
 
+function chain_crystal(; a=1.0, b=10a)
+    latvecs = lattice_vectors(b, b, a, 90, 90, 90)
+    positions = [[0, 0, 0]]
+    cryst = Crystal(latvecs, positions)
+    return cryst
+end
+
 function square_crystal(; a=1.0, c=10a)
     latvecs = lattice_vectors(a, a, c, 90, 90, 90)
     positions = [[0, 0, 0]]
