@@ -70,7 +70,7 @@ function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; symprec=1e-8)
     return nothing
 end
 
-function find_wyckoff_for_position(sgnum::Int, r::Vec3; symprec)
+function idealize_wyckoff(sgnum::Int, r::Vec3; symprec)
     Rs, Ts = Spglib.get_symmetry_from_database(standard_setting[sgnum])
     symops = SymOp.(Rs, Ts)
 
@@ -78,7 +78,13 @@ function find_wyckoff_for_position(sgnum::Int, r::Vec3; symprec)
         for w in crystallographic_orbit(WyckoffExpr(pos); symops)
             θ = position_to_wyckoff_params(r, w; symprec)
             if !isnothing(θ)
-                return Wyckoff(multiplicity, letter, sitesym)
+                # Idealized Wyckoff position
+                r_ideal = w.F * θ + w.c
+                # Periodic image that is closest to r
+                r_ideal += Vec3(round.(r - r_ideal, RoundNearest))
+                # Vectors should now match at symprec
+                @assert isapprox(r, r_ideal; atol=√3*symprec)
+                return (Wyckoff(multiplicity, letter, sitesym), r_ideal)
             end
         end
     end
@@ -86,9 +92,11 @@ function find_wyckoff_for_position(sgnum::Int, r::Vec3; symprec)
     @assert false
 end
 
-function find_wyckoff_for_position(sg::Spacegroup, r::Vec3; symprec)
+function idealize_wyckoff(sg::Spacegroup, r::Vec3; symprec)
     r_std = transform(sg.setting, r)
-    return find_wyckoff_for_position(sg.number, r_std; symprec)
+    w, r_std_ideal = idealize_wyckoff(sg.number, r_std; symprec)
+    r_ideal = transform(inv(sg.setting), r_std_ideal)
+    return (w, r_ideal)
 end
 
 

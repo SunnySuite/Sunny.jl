@@ -42,7 +42,7 @@
             w = Sunny.WyckoffExpr(pos)
             θ = 10 * randn(3)
             r = w.F * θ + w.c
-            @test letter == Sunny.find_wyckoff_for_position(sgnum, r; symprec=1e-8).letter
+            @test letter == Sunny.idealize_wyckoff(sgnum, r; symprec=1e-8)[1].letter
         end
     end
 end
@@ -222,7 +222,7 @@ end
     @test primitive_cell(cryst2) ≈ I
 
     # Check equivalence of positions
-    @test cryst.latvecs * cryst.positions[1] ≈ [0, 0, 0]
+    @test cryst.latvecs * cryst.positions[1] == [0, 0, 0]
     @test cryst.latvecs * cryst.positions[2] ≈ cryst2.latvecs[:, 1]
     @test cryst.latvecs * cryst.positions[3] ≈ cryst2.latvecs[:, 1] + cryst2.latvecs[:, 2]
 
