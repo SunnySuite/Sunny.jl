@@ -598,7 +598,7 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     end
 
     # Check that we have the right number of atoms
-    @assert abs(det(B)) * length(new_positions) ≈ natoms(cryst) "Missing atoms in reshaped unit cell. Please report this bug!"
+    @assert abs(det(B)) * length(new_positions) ≈ natoms(cryst) "You hit a Sunny bug! Please report it to the developers."
 
     # Reciprocal lattice vectors of the new unit cell
     new_recipvecs = 2π * Mat3(inv(new_latvecs)')
