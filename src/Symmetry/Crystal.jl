@@ -343,17 +343,23 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     setting = mapping_to_standard_setting_from_spglib_dataset(d)
     sg = Spacegroup(symops, label, number, setting)
 
+    # See if the spacegroup setting match any Hall number and, if so, use
+    # tabulated spacegroup data.
+    sg = idealize_spacegroup(sg; symprec)
+
+    # Idealize Wyckoff positions
+    for i in eachindex(positions)
+        w, r = idealize_wyckoff(sg, positions[i]; symprec)
+        @assert w.letter == d.wyckoffs[i]
+        positions[i] = r
+    end
+
     # Renumber class indices so that they are ascending, from 1..max_class.
     classes = [findfirst(==(c), unique(classes)) for c in classes]
     @assert unique(classes) == 1:maximum(classes)
 
     ret = Crystal(nothing, latvecs, recipvecs, positions, types, classes, sg, symprec)
     validate_crystal(ret)
-    for i in 1:natoms(ret)
-        w = get_wyckoff(ret, i)
-        @assert w.letter == d.wyckoffs[i]
-        @assert w.sitesym == d.site_symmetry_symbols[i]
-    end
 
     return ret
 end
@@ -400,14 +406,14 @@ function validate_positions(positions; symprec)
         too_close = is_periodic_copy(ri, rj; symprec=4.001symprec)
         if overlapping || too_close
             descriptor = overlapping ? "Overlapping" : "Near-overlapping"
-            ri_str, rj_str = fractional_vec3_to_string.((ri, rj))
+            ri_str, rj_str = pos_to_string.((ri, rj))
             symprec_str = number_to_simple_string(symprec; digits=2)
             error("$descriptor positions $ri_str and $rj_str at symprec=$symprec_str")
         end
     end
 end
 
-function validate_orbits(positions, orbits; symprec, multiplicities=nothing, wyckoffs=nothing)
+function validate_orbits(positions, orbits; symprec, wyckoffs=nothing)
     @assert size(positions) == size(orbits)
     # Check that orbits are distinct
     for i in eachindex(positions), j in i+1:length(positions)
@@ -416,7 +422,7 @@ function validate_orbits(positions, orbits; symprec, multiplicities=nothing, wyc
         too_close = any(is_periodic_copy.(Ref(ri), orbits[j]; symprec=4.001symprec))
         if overlapping || too_close
             descriptor = overlapping ? "Equivalent" : "Near-equivalent"
-            ri_str, rj_str = fractional_vec3_to_string.((ri, rj))
+            ri_str, rj_str = pos_to_string.((ri, rj))
             symprec_str = number_to_simple_string(symprec; digits=2)
             if isnothing(wyckoffs)
                 error("$descriptor positions $ri_str and $rj_str at symprec=$symprec_str")
@@ -427,34 +433,33 @@ function validate_orbits(positions, orbits; symprec, multiplicities=nothing, wyc
         end
     end
 
-    # Check that orbits have the correct multiplicities
-    if !isnothing(multiplicities)
-        for i in eachindex(orbits)
-            mult = length(orbits[i])
-            mult0 = multiplicities[i]
-            mult ≈ mult0 || error("Position $(positions[i]) has multiplicity $mult but expected $mult0" )
-        end
-    end
-
     return orbits
 end
 
 function validate_crystal(cryst::Crystal)
-    # Atoms of the same class must have the same type
-    for i in eachindex(cryst.positions)
-        for j in eachindex(cryst.positions)
-            if cryst.classes[i] == cryst.classes[j]
-                @assert cryst.types[i] == cryst.types[j]
+    (; latvecs, positions, types, classes, sg, symprec) = cryst
+
+    for i in eachindex(positions)
+        # Atoms of the same class must have the same type
+        for j in eachindex(positions)
+            if classes[i] == classes[j]
+                @assert types[i] == types[j]
             end
         end
+
+        # Wyckoffs must have the correct multiplicity
+        w = get_wyckoff(cryst, i)
+        cell_multiplicity = count(==(classes[i]), classes)
+        @assert w.multiplicity ≈ cell_multiplicity / abs(det(sg.setting.R))
     end
 
-    # Rotation matrices in global coordinates must be orthogonal
-    for s in cryst.sg.symops
-        R = cryst.latvecs * s.R * inv(cryst.latvecs)
+    # Symop rotation/reflection matrices R must be orthogonal in Cartesian
+    # coordinates.
+    for s in sg.symops
+        R = latvecs * s.R * inv(latvecs)
         # Due to possible imperfections in the lattice vectors, only require
         # that R is approximately orthogonal
-        @assert norm(R*R' - I) < cryst.symprec "Lattice vectors and symmetry operations are incompatible."
+        @assert norm(R*R' - I) < symprec "Lattice vectors and symmetry operations are incompatible."
     end
 
     # TODO: Check that space group is closed and that symops have inverse?
@@ -472,8 +477,7 @@ function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::
     idealized = idealize_wyckoff.(Ref(sg), positions; symprec)
     wyckoffs = [w for (w, _) in idealized]
     orbits = [crystallographic_orbit(r; sg.symops, symprec) for (_, r) in idealized]
-    multiplicities = [w.multiplicity * abs(det(sg.setting.R)) for w in wyckoffs]
-    validate_orbits(positions, orbits; symprec, multiplicities, wyckoffs)
+    validate_orbits(positions, orbits; symprec, wyckoffs)
 
     all_positions = reduce(vcat, orbits)
     all_types = repeat_multiple(types, length.(orbits))
@@ -488,11 +492,8 @@ function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::
 end
 
 function get_wyckoff(cryst::Crystal, i::Int)
-    (; classes, positions, sg, symprec) = cryst
-    wyckoff, _ = idealize_wyckoff(sg, positions[i]; symprec)
-    cell_multiplicity = count(==(classes[i]), classes)
-    @assert wyckoff.multiplicity ≈ cell_multiplicity / abs(det(sg.setting.R))
-    return wyckoff
+    w, _ = idealize_wyckoff(cryst.sg, cryst.positions[i]; cryst.symprec)
+    return w
 end
 
 
@@ -693,7 +694,7 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
         println(io, join(descr, ", "), ":")
 
         for i in findall(==(c), cryst.classes)
-            pos = fractional_vec3_to_string(cryst.positions[i])
+            pos = pos_to_string(cryst.positions[i])
             println(io, "   $i. $pos")
         end
     end

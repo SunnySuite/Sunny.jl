@@ -288,7 +288,7 @@ end
 function label_atoms(cryst; ismagnetic, sys)
     return map(1:natoms(cryst)) do i
         typ = cryst.types[i]
-        rstr = Sunny.fractional_vec3_to_string(cryst.positions[i])
+        rstr = Sunny.pos_to_string(cryst.positions[i])
         ret = []
 
         (; multiplicity, letter) = Sunny.get_wyckoff(cryst, i)

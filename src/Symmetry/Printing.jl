@@ -40,13 +40,35 @@ function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=1000) where
     number_to_simple_string(x; digits, atol)
 end
 
-# Convert atom position to string using, by default, at most 4 digits
-function fractional_vec3_to_string(v; digits=4, atol=1e-12)
+# Special handling for denominators (2, 3, 4, 6, 8) appearing in Wyckoff
+# positions.
+function fractional_coord_to_string(x; digits=4, atol=1e-12)
+    if is_approx_integer(x; atol)
+        return string(round(Int, x))
+    end
+
+    for c in (2, 3, 4, 6, 8)
+        n = round(Int, x * c)
+        if isapprox(x, n/c; atol=1e-8)
+            return "$n/$c"
+        end
+    end
+
+    return number_to_simple_string(x; digits, atol)
+end
+
+# Appropriate for coordinates in fractions of the lattice vectors
+function pos_to_string(v; digits=4, atol=1e-12)
+    v = fractional_coord_to_string.(v; digits, atol)
+    return "["*join(v, ", ")*"]"
+end
+
+function vec3_to_string(v; digits=4, atol=1e-12)
     v = number_to_math_string.(v; digits, atol, max_denom=12)
     return "["*join(v, ", ")*"]"
 end
 
-function fractional_mat3_to_string(m; digits=4, atol=1e-12)
+function mat3_to_string(m; digits=4, atol=1e-12)
     rowstrs = map(eachrow(m)) do r
         r = number_to_math_string.(r; digits, atol, max_denom=12)
         join(r, " ")
@@ -152,9 +174,9 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
             println(io, "Distance $dist_str, coordination $m_i (from atom $(b.i)) and $m_j (from atom $(b.j))")
         end
         if isempty(cryst.types[b.i]) && isempty(cryst.types[b.j])
-            println(io, "Connects $(fractional_vec3_to_string(ri)) to $(fractional_vec3_to_string(rj))")
+            println(io, "Connects $(pos_to_string(ri)) to $(pos_to_string(rj))")
         else
-            println(io, "Connects '$(cryst.types[b.i])' at $(fractional_vec3_to_string(ri)) to '$(cryst.types[b.j])' at $(fractional_vec3_to_string(rj))")
+            println(io, "Connects '$(cryst.types[b.i])' at $(pos_to_string(ri)) to '$(cryst.types[b.j])' at $(pos_to_string(rj))")
         end
 
         basis = basis_for_symmetry_allowed_couplings(cryst, b; b_ref)
@@ -220,9 +242,9 @@ function print_site(cryst::Crystal, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout
     wyckstr = "$multiplicity$letter"
 
     if isempty(cryst.types[i])
-        println(io, "Position $(fractional_vec3_to_string(r)), Wyckoff $wyckstr")
+        println(io, "Position $(pos_to_string(r)), Wyckoff $wyckstr")
     else
-        println(io, "Type '$(cryst.types[i])', position $(fractional_vec3_to_string(r)), Wyckoff $wyckstr")
+        println(io, "Type '$(cryst.types[i])', position $(pos_to_string(r)), Wyckoff $wyckstr")
     end
 
     digits = 14

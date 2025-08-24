@@ -57,7 +57,7 @@ function print_irreducible_bz_paths(cryst::Crystal)
     end
 
     pt_strs = map(collect(keys(points))) do k
-        "$k = " * fractional_vec3_to_string(points[k])
+        "$k = " * vec3_to_string(points[k])
     end
     path_strs = [join(String.(path), ", ") for path in paths]
 
