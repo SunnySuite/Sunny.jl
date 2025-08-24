@@ -34,7 +34,7 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
                 sz = "("*join(diag_strs, ", ")*")"
                 error("Use `resize_supercell(sys, $sz)` to get compatible system")
             else
-                shp = fractional_mat3_to_string(suggested_shape)
+                shp = mat3_to_string(suggested_shape)
                 error("Use `reshape_supercell(sys, $shp)` to get compatible system")
             end
         else

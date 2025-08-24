@@ -42,7 +42,7 @@
             w = Sunny.WyckoffExpr(pos)
             θ = 10 * randn(3)
             r = w.F * θ + w.c
-            @test letter == Sunny.find_wyckoff_for_position(sgnum, r; symprec=1e-8).letter
+            @test letter == Sunny.idealize_wyckoff(sgnum, r; symprec=1e-8)[1].letter
         end
     end
 end
@@ -173,22 +173,22 @@ end
     x = 0.15
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.751] in Wyckoff 6h at symprec=0.001"
+    msg = "Equivalent positions [0.15, 0.3, 1/4] and [-0.15, -0.3, 0.751] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.752] in Wyckoff 6h at symprec=0.001"
+    msg = "Near-equivalent positions [0.15, 0.3, 1/4] and [-0.15, -0.3, 0.752] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 5e-3]]
     Crystal(latvecs, positions, 194; symprec=1e-3) # No error
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.751] at symprec=0.001"
+    msg = "Overlapping positions [0.85, 0.7, 3/4] and [0.85, 0.7, 0.751] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.752] at symprec=0.001"
+    msg = "Near-overlapping positions [0.85, 0.7, 3/4] and [0.85, 0.7, 0.752] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 5e-3]]
@@ -222,7 +222,7 @@ end
     @test primitive_cell(cryst2) ≈ I
 
     # Check equivalence of positions
-    @test cryst.latvecs * cryst.positions[1] ≈ [0, 0, 0]
+    @test cryst.latvecs * cryst.positions[1] == [0, 0, 0]
     @test cryst.latvecs * cryst.positions[2] ≈ cryst2.latvecs[:, 1]
     @test cryst.latvecs * cryst.positions[3] ≈ cryst2.latvecs[:, 1] + cryst2.latvecs[:, 2]
 
