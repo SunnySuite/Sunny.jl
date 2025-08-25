@@ -22,7 +22,8 @@ end
     cryst = @test_logs (:warn, msg) Crystal(filename)
     @test Sunny.get_wyckoff(cryst, 1).letter == 'a'
     @test Sunny.get_wyckoff(cryst, 3).letter == 'd'
-    # Idealization of site positions
+
+    # Idealization of site positions. Maybe a bit lucky this works.
     @test cryst.positions ≈ [[0, 0, 0], [1/2, 1/2, 0], [0, 1/3, 1/4], [1/2, 5/6, 1/4], [1/2, 1/6, 3/4], [0, 2/3, 3/4]]
 end
 
