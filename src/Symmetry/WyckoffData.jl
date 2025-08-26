@@ -1,9 +1,3 @@
-struct Wyckoff
-    multiplicity :: Int
-    letter       :: Char
-    sitesym      :: String
-end
-
 # Expression for one Wyckoff position, F θ + c, where θ = [α, β, γ] are free
 # parameters.
 struct WyckoffExpr
@@ -11,11 +5,23 @@ struct WyckoffExpr
     c :: Vec3
 end
 
+struct Wyckoff
+    multiplicity :: Int
+    letter       :: Char
+    sitesym      :: String
+    expr         :: WyckoffExpr # In ITA standard setting
+    θ            :: Vec3
+end
+
 # Extracts (F, c) from expressions of the form (F θ + c), where θ = [x, y, z].
 function WyckoffExpr(str::String)
     s = SymOp(strip(str, ['(', ')']))
     @assert all(in((-2, -1, 0, 1, 2)), s.R)
     return WyckoffExpr(s.R, s.T)
+end
+
+function wyckoff_string(w::Wyckoff)
+    return string(w.multiplicity) * w.letter
 end
 
 # For symop (R, T), a position transforms as r → R r + T. It follows that
@@ -70,21 +76,33 @@ function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; symprec=1e-8)
     return nothing
 end
 
+
+# Adapt r in custom sg.setting to its ideal position for Wyckoff w
+function idealize_position(sg::Spacegroup, r::Vec3, w::Wyckoff; symprec)
+    # Map Wyckoff expression to custom setting
+    expr0 = transform(inv(sg.setting), w.expr)
+
+    # Search for a match over the Wyckoff orbit in custom setting
+    for expr in crystallographic_orbit(expr0; sg.symops)
+        r_ideal = expr.F * w.θ + expr.c
+        if is_periodic_copy(r, r_ideal; symprec)
+            return r_ideal + Vec3(round.(r - r_ideal, RoundNearest))
+        end
+    end
+
+    error("Position $(pos_to_string(r)) does not belong to Wyckoff $(w.multiplicity)$(w.letter) in the provided setting")
+end
+
+
+# Find Wyckoff for position r. Assume spacegroup sgnum in standard setting.
 function idealize_wyckoff(sgnum::Int, r::Vec3; symprec)
     Rs, Ts = Spglib.get_symmetry_from_database(standard_setting[sgnum])
     symops = SymOp.(Rs, Ts)
-
-    for (multiplicity, letter, sitesym, pos) in reverse(wyckoff_table[sgnum])
-        for w in crystallographic_orbit(WyckoffExpr(pos); symops)
-            θ = position_to_wyckoff_params(r, w; symprec)
+    for (multiplicity, letter, sitesym, expr0) in reverse(wyckoff_table[sgnum])
+        for expr in crystallographic_orbit(WyckoffExpr(expr0); symops)
+            θ = position_to_wyckoff_params(r, expr; symprec)
             if !isnothing(θ)
-                # Idealized Wyckoff position
-                r_ideal = w.F * θ + w.c
-                # Periodic image that is closest to r
-                r_ideal += Vec3(round.(r - r_ideal, RoundNearest))
-                # Vectors should now match at symprec
-                @assert isapprox(r, r_ideal; atol=√3*symprec)
-                return (Wyckoff(multiplicity, letter, sitesym), r_ideal)
+                return Wyckoff(multiplicity, letter, sitesym, expr, θ)
             end
         end
     end
@@ -94,9 +112,7 @@ end
 
 function idealize_wyckoff(sg::Spacegroup, r::Vec3; symprec)
     r_std = transform(sg.setting, r)
-    w, r_std_ideal = idealize_wyckoff(sg.number, r_std; symprec)
-    r_ideal = transform(inv(sg.setting), r_std_ideal)
-    return (w, r_ideal)
+    return idealize_wyckoff(sg.number, r_std; symprec)
 end
 
 

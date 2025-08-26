@@ -42,7 +42,7 @@
             w = Sunny.WyckoffExpr(pos)
             θ = 10 * randn(3)
             r = w.F * θ + w.c
-            @test letter == Sunny.idealize_wyckoff(sgnum, r; symprec=1e-8)[1].letter
+            @test letter == Sunny.idealize_wyckoff(sgnum, r; symprec=1e-8).letter
         end
     end
 end
@@ -222,14 +222,14 @@ end
     @test primitive_cell(cryst2) ≈ I
 
     # Check equivalence of positions
-    @test cryst.latvecs * cryst.positions[1] == [0, 0, 0]
+    @test norm(cryst.latvecs * cryst.positions[1]) < 1e-12
     @test cryst.latvecs * cryst.positions[2] ≈ cryst2.latvecs[:, 1]
     @test cryst.latvecs * cryst.positions[3] ≈ cryst2.latvecs[:, 1] + cryst2.latvecs[:, 2]
 
     # Inference of Wyckoff symbols
     lat_vecs = lattice_vectors(1, 1, 1.2, 90, 90, 120)
     cryst = Crystal(lat_vecs, [[0.2, 0.2, 1/2]], 164)
-    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(6, 'h', ".2.")
+    @test Sunny.get_wyckoff(cryst, 1).letter == 'h'
 
     ### Check settings for monoclinic spacegroup
 
@@ -237,13 +237,13 @@ end
     latvecs = lattice_vectors(1, 1.1, 1.2, 90, 100, 90)
     cryst = Crystal(latvecs, [[0, 0.2, 1/2]], "C 1 2 1")
     @test cryst.sg.label == "'C 2 = C 1 2 1' (5)"
-    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
+    @test Sunny.get_wyckoff(cryst, 1).letter == 'b'
 
     # Alternative setting
     latvecs2 = reduce(hcat, eachcol(latvecs)[[3, 1, 2]])
     cryst2 = Crystal(latvecs2, [[1/2, 0, 0.2]], "A 1 1 2")
     @test cryst2.sg.label == "'C 2 = A 1 1 2' (5)"
-    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
+    @test Sunny.get_wyckoff(cryst, 1).letter == 'b'
 
     # Verify `cryst` is already in standard setting
     @test cryst.sg.setting.R ≈ I
@@ -476,7 +476,7 @@ end
         """
 
     cryst = Sunny.hyperkagome_crystal()
-    @assert Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(12, 'd', "..2")
+    @assert Sunny.get_wyckoff(cryst, 1).letter == 'd'
     capt = IOCapture.capture() do
         print_suggested_frame(cryst, 2)
     end

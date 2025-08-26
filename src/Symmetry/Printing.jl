@@ -238,9 +238,7 @@ function print_site(cryst::Crystal, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout
     class_i = cryst.classes[i]
     printstyled(io, "Atom $i\n"; bold=true, color=:underline)
 
-    (; multiplicity, letter) = get_wyckoff(cryst, i)
-    wyckstr = "$multiplicity$letter"
-
+    wyckstr = wyckoff_string(get_wyckoff(cryst, i))
     if isempty(cryst.types[i])
         println(io, "Position $(pos_to_string(r)), Wyckoff $wyckstr")
     else
