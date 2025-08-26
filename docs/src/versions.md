@@ -10,6 +10,8 @@
   ([PR #413](https://github.com/SunnySuite/Sunny.jl/pull/413)). 
 * Scale `symprec` prior to symmetry inference as expected by Spglib ([PR
   #405](https://github.com/SunnySuite/Sunny.jl/pull/405)).
+* Fixes to [`load_nxs`](@ref)([PR
+  #420](https://github.com/SunnySuite/Sunny.jl/pull/420)).
 
 ## v0.7.8
 (Jul 1, 2025)
