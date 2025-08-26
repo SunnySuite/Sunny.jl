@@ -346,12 +346,14 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     # tabulated spacegroup data.
     sg = idealize_spacegroup(sg; symprec)
 
-    # Idealize Wyckoff positions
-    # FIXME: loop over classes
-    for (i, r) in enumerate(positions)
-        w = idealize_wyckoff(sg, r; symprec)
-        @assert w.letter == d.wyckoffs[i]
-        positions[i] = idealize_position(sg, r, w; symprec)
+    # Idealize each orbit according to inferred Wyckoff.
+    for c in unique(classes)
+        inds = findall(==(c), classes)
+        w = idealize_wyckoff(sg, positions[first(inds)]; symprec)
+        for j in inds
+            @assert w.letter == d.wyckoffs[j]
+            positions[j] = idealize_position(sg, positions[j], w; symprec)
+        end
     end
 
     # Renumber class indices so that they are ascending, from 1..max_class.
