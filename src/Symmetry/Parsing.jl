@@ -92,9 +92,8 @@ function parse_op(str::AbstractString) :: SymOp
 end
 
 
-# Prefer crystallographic_orbit(::WyckoffExpr) in most cases due to its higher
-# precision. When parsing a CIF, however, the Wyckoff data may not yet be
-# available, so we fall back to the orbit of bare positions.
+# Cannot use crystallographic_orbit(::WyckoffExpr) because Wyckoffs and
+# spacegroup setting data may not be available during CIF loading.
 function crystallographic_orbit(position::Vec3; symops::Vector{SymOp}, symprec)
     orbit = Vec3[]
     for s = symops
