@@ -1,6 +1,5 @@
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
 Ewalder = "2efd4204-53b6-4d30-8cf4-11a055f037eb"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
