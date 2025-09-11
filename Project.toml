@@ -37,7 +37,7 @@ WGLMakiePrecompilesExt = ["Makie", "WGLMakie"]
 
 [compat]
 Brillouin = "0.5.19"
-CrystalInfoFramework = "0.8, 1"
+CrystalInfoFramework = "0.8, 1, 2"
 DynamicPolynomials = "0.6.0"
 ElasticArrays = "1.2.12"
 FFTW = "1.4.5"
