@@ -33,18 +33,6 @@ function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
         new_shape = cell_shape(sys) * diagm(Vec3(sys.dims))
         new_cryst = reshape_crystal(orig_crystal(sys), new_shape)
 
-        # Sort crystal positions so that their order matches sites in sys. Quadratic
-        # scaling in system size.
-        global_positions = global_position.(Ref(sys), vec(eachsite(sys)))
-        p = map(new_cryst.positions) do r
-            pos = new_cryst.latvecs * r
-            findfirst(global_positions) do refpos
-                isapprox(pos, refpos, atol=new_cryst.symprec)
-            end
-        end
-        @assert allunique(p)
-        permute_sites!(new_cryst, p)
-
         # Create a new system with dims (1,1,1). A clone happens in all cases.
         return reshape_supercell_aux(sys, new_cryst, (1,1,1))
     end

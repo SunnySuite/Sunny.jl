@@ -97,9 +97,9 @@ end
 function crystallographic_orbit(position::Vec3; symops::Vector{SymOp}, symprec)
     orbit = Vec3[]
     for s = symops
-        x = wrap_to_unit_cell(transform(s, position); symprec)
-        if !any(y -> is_periodic_copy(x, y; symprec), orbit)
-            push!(orbit, x)
+        x = transform(s, position)
+        if !any(y -> is_periodic_copy(x, y; atol=symprec), orbit)
+            push!(orbit, wrap_to_unit_cell(x; atol=symprec))
         end
     end
     return orbit

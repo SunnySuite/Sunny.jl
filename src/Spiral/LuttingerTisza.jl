@@ -103,7 +103,7 @@ function minimize_luttinger_tisza_exchange(sys::System; k_guess, maxiters=1000)
     if Optim.converged(res)
         k = Optim.minimizer(res)
         # Wrap components to [0, 1)
-        k = wrap_to_unit_cell(Vec3(k); symprec=1e-6)
+        k = wrap_to_unit_cell(Vec3(k); atol=1e-6)
         return k
     else
         error("Momentum optimization failed to converge within $maxiters iterations.")
