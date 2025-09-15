@@ -224,95 +224,44 @@ function sort_sites!(cryst::Crystal)
 end
 
 
-# Attempt to find a permutation matrix P (with sign flips) such that latvecs*P
-# has a more standard form.
-function permute_to_standardize_lattice_vectors(latvecs)
-    P = Mat3(I) # Iteratively build permutation matrix
-
-    # Clip small matrix elements to zero
-    latvecs = [abs(x) < 1e-12 ? 0 : x for x in latvecs]
-
-    # Conventionally, a1 should be aligned with x direction
-    a1, a2, a3 = eachcol(latvecs)
-    if iszero(a2[2]) && iszero(a2[3]) && norm(a2) ≈ norm(a1)
-        P = P * SA[0 1 0; 1 0 0; 0 0 1] # Permute (a1, a2)
-    elseif iszero(a3[2]) && iszero(a3[3]) && norm(a3) ≈ norm(a1)
-        P = P * SA[0 0 1; 0 1 0; 1 0 0] # Permute (a1, a3)
-    end
-
-    # Conventionally, a2 should be in xy plane
-    _, a2, a3 = eachcol(latvecs * P)
-    if iszero(a3[3]) && norm(a3) ≈ norm(a2)
-        P = P * SA[1 0 0; 0 0 1; 0 1 0] # Permute (a2, a3)
-    end
-
-    # Flip columns so that the diagonal elements are positive
-    signs = [a < 0 ? -1 : 1 for a in diag(latvecs*P)]
-    P = P * Diagonal(signs)
-
-    # To preserve volume-orientation, we may need to flip one lattice
-    # vector. Pick a2 arbitrarily.
-    @assert det(P) ≈ 1 || det(P) ≈ -1
-    if det(P) ≈ -1
-        P = P * Diagonal(SA[1,-1,1])
-    end
-
-    @assert det(P) ≈ 1
-    @assert P' ≈ inv(P)
-    return P
-end
-
-
 """
     standardize(cryst::Crystal)
 
 Return the symmetry-inferred, standardized crystal unit cell under ITA
 conventions.
 """
-function standardize(cryst::Crystal; idealize=true)
-    !isnothing(cryst.root) && error("Call this function on root crystal instead")
+function standardize(cryst::Crystal)
+    isnothing(cryst.root) || error("Call this function on root crystal instead")
 
-    (; symprec) = cryst
-    cell = Spglib.Cell(cryst.latvecs, cryst.positions, cryst.types)
-    (; lattice, positions, atoms) = spg_standardize_cell_scaled(cell, symprec; no_idealize=!idealize)
-    positions = Vec3.(positions)
-    lattice = Mat3(lattice)
+    # Lattice vectors of ITA standard cell
+    latvecs = lattice_vectors(lattice_params(cryst.latvecs / cryst.sg.setting.R)...)
 
-    # TODO: Reimplement. Use case is when loading mCIFs where the positions in
-    # Cartesian coordinates must be preserved.
-    if !idealize
-        # Even if we're not idealizing the site positions, it is still important
-        # to tune the lattice vectors so that the lattice system is exactly
-        # consistent with the spacegroup setting (e.g. 90° angles are expected
-        # for cubic and tetragonal spacegroups). This adjustment is needed to
-        # ensure that `latvecs * symop.R * inv(latvecs)` is exactly orthogonal
-        # for each symmetry operation of the spacegroup.
-        std_lattice = Mat3(spg_standardize_cell_scaled(cell, symprec; no_idealize=false).lattice)
-        R = closest_unitary(lattice / std_lattice)
-        isapprox(R*std_lattice, lattice; rtol=cryst.symprec) || error("Lattice vectors inconsistent at symprec=$symprec")
-        lattice = R * std_lattice
-        # The spglib choice of idealized lattice vectors can sometimes be
-        # strange. For example, in a tetrahedral cell, (a1, a2) might be
-        # pointing along (y, -x), whereas (x, y) would be a more natural choice.
-        # Attempt to permute lattice vectors back to a standard order, with
-        # sign-flips as needed.
-        P = permute_to_standardize_lattice_vectors(lattice)
-        # These transformations preserve global positions, `lattice * r`
-        lattice = lattice * P
-        positions = [P' * r for r in positions]
+    # Map symmetry-distinct atoms to standard cell
+    inds = unique(i -> cryst.classes[i], eachindex(cryst.classes))
+    positions = transform.(Ref(cryst.sg.setting), cryst.positions[inds])
+    types = cryst.types[inds]
+
+    return Crystal(latvecs, positions, cryst.sg.number; types)
+end
+
+
+function conventionalize_setting(latvecs::Mat3, setting::SymOp, sgnum::Int)
+    symops = SymOp.(Spglib.get_symmetry_from_database(standard_setting[sgnum])...)
+    ϵ = 1e-2
+    γ = Vec3(1ϵ, 2ϵ, 3ϵ)
+
+    # Standard cell is ambiguous up to spacegroup symmetry operations
+    candidate_settings = symops .* Ref(setting)
+
+    # Prefer the standard lattice vectors A to be right-handed and aligned with
+    # Cartesian axes. To break ties, prefer small translation T.
+    return argmin(candidate_settings) do setting′
+        # Lattice vectors and translation in the new setting 
+        A = latvecs / setting′.R
+        T = setting′.T
+        # Score (lower better)
+        -sign(det(A)) - ϵ * tr(A * Diagonal(1 .- γ)) / norm(A) + ϵ^2 * norm(T - γ)
     end
-
-    ret = crystal_from_inferred_symmetry(lattice, positions, atoms; symprec)
-    sort_sites!(ret)
-
-    # TODO: Make this case work by avoiding Spglib.standardize_cell and using
-    # sg.setting data instead. It might come up if one is using an ITA setting
-    # that is not standard.
-    if ret.sg.number != cryst.sg.number
-        error("Inferred spacegroup $(ret.sg.number) doesn't match $(cryst.sg.number); are any atoms missing from chemical cell?")
-    end
-
-    return ret
 end
 
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec, check_cell=true)
@@ -338,12 +287,13 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     # classes = d.equivalent_atoms
     symops = SymOp.(d.rotations, d.translations)
     label = spacegroup_label(Int(d.hall_number))
-    number = d.spacegroup_number
+    sgnum = Int(d.spacegroup_number)
     setting = mapping_to_standard_setting_from_spglib_dataset(d)
-    sg = Spacegroup(symops, label, number, setting)
+    setting = conventionalize_setting(latvecs, setting, sgnum)
+    sg = Spacegroup(symops, label, sgnum, setting)
 
-    # See if the spacegroup setting match any Hall number and, if so, use
-    # tabulated spacegroup data.
+    # If the spacegroup setting matches a Hall number then use its tabulated
+    # spacegroup data.
     sg = idealize_spacegroup(sg; symprec)
 
     # Idealize the basis vectors for the lattice system
@@ -460,6 +410,7 @@ function validate_crystal(cryst::Crystal)
     # TODO: Check that space group is closed and that symops have inverse?
 end
 
+
 function repeat_multiple(vals, lens)
     reduce(vcat, map(vals, lens) do val, len
         fill(val, len)
@@ -493,6 +444,7 @@ function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::
 
     return ret
 end
+
 
 function get_wyckoff(cryst::Crystal, i::Int)
     return idealize_wyckoff(cryst.sg, cryst.positions[i]; cryst.symprec)
@@ -542,41 +494,25 @@ function check_shape_commensurate(cryst, shape)
     end
 end
 
-function reshape_crystal(cryst::Crystal, new_shape::Mat3)
-    # Check that desired lattice vectors are commensurate with root cell
-    check_shape_commensurate(cryst, new_shape)
-
-    # The `root.latvecs` defines the fractional coordinate system, but note that
-    # `cryst` may be formed as a subcrystal of `root`. For reshaping purposes,
-    # therefore, we must use `cryst.positions` and not `root.positions`, etc.
-    root = @something cryst.root cryst
-
-    # Lattice vectors of the new unit cell in global coordinates
-    new_latvecs = root.latvecs * new_shape
-
-    # Return this crystal if possible
-    new_latvecs ≈ cryst.latvecs && return cryst
-
-    # Symmetry precision needs to be rescaled for the new unit cell. Ideally we
-    # would have three separate rescalings (one per lattice vector), but we're
-    # forced to pick just one. Scale according to volume change.
-    new_symprec = root.symprec / cbrt(abs(det(new_shape)))
-
+function reshape_crystal_aux(cryst::Crystal, new_latvecs)
     # This matrix defines a mapping from fractional coordinates `x` in `cryst`
     # to fractional coordinates `y` in the new unit cell.
     B = new_latvecs \ cryst.latvecs
 
+    # Symmetry precision needs to be rescaled for the new unit cell. Use cube
+    # root of volume ratio.
+    volume_ratio = abs(det(B))
+    new_symprec = cryst.symprec * cbrt(volume_ratio)
+
     # Our goal is to loop over `cryst` cells (n1, n2, n3) and make sure we
     # completely cover `new_latvecs` cell, {0 ≤ y₁ ≤ 1, 0 ≤ y₂ ≤ 1, 0 ≤ y₃ ≤ 1}.
     # Due to the linear relationship `y = Bx`, the required range of (n1, n2,
-    # n3) is associated with inv(B). For example, `inv(B) * [1, 1, 1]` should be
-    # covered in the space of `x` sampling.
+    # n3) is associated with inv(B). In particular, the cells (n1, n2, n3) must
+    # cover all corners of the parallelpiped `inv(B) * [{0,1}, {0,1}, {0,1}]`.
     #
-    # It is not clear to me what the right formula is, and the
-    # `sum.(eachrow(...))` formula below is a conservative, heuristic guess.
-    # Fortunately, it is well protected against mistakes via the check on atom
-    # count. Any mistake will yield an assertion error: "Missing atoms in
-    # reshaped unit cell".
+    # The bounds `sum.(eachrow(...))` on `nmax` below is intended as a
+    # conservative, heuristic guess. Any mistake here will likely be detected as
+    # as mismatch between the ratio of atoms and the ratio of cell volumes.
     nmax = round.(Int, sum.(eachrow(abs.(inv(B))))) .+ 1
 
     new_positions = Vec3[]
@@ -601,6 +537,27 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
 
     # Check that we have the right number of atoms
     @assert abs(det(B)) * length(new_positions) ≈ natoms(cryst) "You hit a Sunny bug! Please report it to the developers."
+
+    return (; new_positions, new_types, new_classes, new_symprec)
+end
+
+function reshape_crystal(cryst::Crystal, new_shape::Mat3)
+    # Check that desired lattice vectors are commensurate with root cell
+    check_shape_commensurate(cryst, new_shape)
+
+    # The `root.latvecs` defines the fractional coordinate system, but note that
+    # `cryst` may be formed as a subcrystal of `root`. For reshaping purposes,
+    # therefore, we must use `cryst.positions` and not `root.positions`, etc.
+    root = @something cryst.root cryst
+
+    # Lattice vectors of the new unit cell in global coordinates
+    new_latvecs = root.latvecs * new_shape
+
+    # Return this crystal if possible
+    new_latvecs ≈ cryst.latvecs && return cryst
+
+    # Calculate atoms in new cell
+    (; new_positions, new_types, new_classes, new_symprec) = reshape_crystal_aux(cryst, new_latvecs)
 
     # Reciprocal lattice vectors of the new unit cell
     new_recipvecs = 2π*inv(new_latvecs)'
@@ -662,6 +619,7 @@ end
 
 # Avoids ambiguity error
 subcrystal(cryst::Crystal) = cryst
+
 
 function Base.show(io::IO, cryst::Crystal)
     spg = isempty(cryst.sg.label) ? "" : "$(cryst.sg.label), "

@@ -280,21 +280,14 @@ end
 
 
 @testitem "Standardize Crystal" begin
-    using LinearAlgebra
-
-    function test_standardize(cryst)
-        cryst2 = standardize(cryst; idealize=false)
-        @test cryst2.latvecs * cryst2.positions[1] ≈ cryst.latvecs * cryst.positions[1]
-        cryst3 = standardize(cryst)
-        @test norm(cryst3.positions[1]) < 1e-12
-    end
-
     cryst = Crystal([1 0 1; 1 1 0; 0 1 1], [[0.1, 0.2, 0.3]])
-    test_standardize(cryst)
+    cryst2 = standardize(cryst)
+    @test cryst2.positions ≈ [[0.0, 0.0, 0.0], [0.5, 0.5, 0.0], [0.5, 0.0, 0.5], [0.0, 0.5, 0.5]]
 
     msg = "Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`."
-    @test_logs (:warn, msg) cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
-    test_standardize(cryst)
+    cryst = @test_logs (:warn, msg) Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
+    cryst2 = standardize(cryst)
+    @test cryst2.positions ≈ [[0.0, 0.0, 0.0]]
 end
 
 

@@ -244,10 +244,10 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
 
     if from_mcif
         if !keep_supercell
-            # Disable idealization when loading an mCIF because a subsequent
-            # call to `set_dipoles_from_mcif!` must be able to search for atom
-            # positions using the mCIF setting.
-            return standardize(ret; idealize=false)
+            # Reshape to symmetry-inferred standard cell
+            new_latvecs = latvecs / ret.sg.setting.R
+            (; new_positions, new_types, new_symprec) = reshape_crystal_aux(ret, new_latvecs)
+            return Crystal(new_latvecs, new_positions; types=new_types, symprec=new_symprec)
         else
             @warn "Use `keep_supercell=true` for testing purposes only! Inferred symmetries \
                    are unreliable."
