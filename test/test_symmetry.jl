@@ -42,7 +42,7 @@
             w = Sunny.WyckoffExpr(pos)
             θ = 10 * randn(3)
             r = w.F * θ + w.c
-            @test letter == Sunny.find_wyckoff_for_position(sgnum, r; symprec=1e-8).letter
+            @test letter == Sunny.idealize_wyckoff(sgnum, r; symprec=1e-8).letter
         end
     end
 end
@@ -173,22 +173,22 @@ end
     x = 0.15
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.751] in Wyckoff 6h at symprec=0.001"
+    msg = "Equivalent positions [0.15, 0.3, 1/4] and [-0.15, -0.3, 0.751] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.752] in Wyckoff 6h at symprec=0.001"
+    msg = "Near-equivalent positions [0.15, 0.3, 1/4] and [-0.15, -0.3, 0.752] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 5e-3]]
     Crystal(latvecs, positions, 194; symprec=1e-3) # No error
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.751] at symprec=0.001"
+    msg = "Overlapping positions [-0.15, -0.3, 3/4] and [-0.15, -0.3, 0.751] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.752] at symprec=0.001"
+    msg = "Near-overlapping positions [-0.15, -0.3, 3/4] and [-0.15, -0.3, 0.752] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 5e-3]]
@@ -222,14 +222,14 @@ end
     @test primitive_cell(cryst2) ≈ I
 
     # Check equivalence of positions
-    @test cryst.latvecs * cryst.positions[1] ≈ [0, 0, 0]
+    @test norm(cryst.latvecs * cryst.positions[1]) < 1e-12
     @test cryst.latvecs * cryst.positions[2] ≈ cryst2.latvecs[:, 1]
     @test cryst.latvecs * cryst.positions[3] ≈ cryst2.latvecs[:, 1] + cryst2.latvecs[:, 2]
 
     # Inference of Wyckoff symbols
     lat_vecs = lattice_vectors(1, 1, 1.2, 90, 90, 120)
     cryst = Crystal(lat_vecs, [[0.2, 0.2, 1/2]], 164)
-    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(6, 'h', ".2.")
+    @test Sunny.get_wyckoff(cryst, 1).letter == 'h'
 
     ### Check settings for monoclinic spacegroup
 
@@ -237,13 +237,13 @@ end
     latvecs = lattice_vectors(1, 1.1, 1.2, 90, 100, 90)
     cryst = Crystal(latvecs, [[0, 0.2, 1/2]], "C 1 2 1")
     @test cryst.sg.label == "'C 2 = C 1 2 1' (5)"
-    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
+    @test Sunny.get_wyckoff(cryst, 1).letter == 'b'
 
     # Alternative setting
     latvecs2 = reduce(hcat, eachcol(latvecs)[[3, 1, 2]])
     cryst2 = Crystal(latvecs2, [[1/2, 0, 0.2]], "A 1 1 2")
     @test cryst2.sg.label == "'C 2 = A 1 1 2' (5)"
-    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
+    @test Sunny.get_wyckoff(cryst, 1).letter == 'b'
 
     # Verify `cryst` is already in standard setting
     @test cryst.sg.setting.R ≈ I
@@ -258,22 +258,36 @@ end
 end
 
 
+@testitem "Idealize setting and positions" begin
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 120)
+    positions = [[0.3333, 0.6667, 0.0]]
+    cryst = Crystal(latvecs, positions, 191; symprec=1e-3)
+    @test cryst.positions ≈ [[2/3, 1/3, 0], [1/3, 2/3, 0]]
+
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 120)
+    positions = [[0.6667, 0.3333, 0.0], [0.3333, 0.6667, 0.0]]
+    cryst = Crystal(latvecs, positions; symprec=1e-3)
+    @test cryst.positions ≈ [[2/3, 1/3, 0], [1/3, 2/3, 0]]
+
+    latvecs = lattice_vectors(9.091, 9.091, 13.285, 90.0, 90.0, 120.0)
+    z = 0.3333
+    # Idealizes to [1/3, 2/3, 2/3 + z] where z is held at low precision
+    positions = [[0.3333, 0.6667, 2/3 + z]] 
+    cryst = Crystal(latvecs, positions, 166; symprec=1e-3)
+    ref = [[2/3, 1/3, 1/3 - z], [1/3, 2/3, 2/3 + z - 1], [0, 0, 0 + z], [1/3, 2/3, 2/3 - z], [0, 0, 0 - z + 1], [2/3, 1/3, 1/3 + z]]
+    @test cryst.positions ≈ ref
+end
+
+
 @testitem "Standardize Crystal" begin
-    using LinearAlgebra
-
-    function test_standardize(cryst)
-        cryst2 = standardize(cryst; idealize=false)
-        @test cryst2.latvecs * cryst2.positions[1] ≈ cryst.latvecs * cryst.positions[1]
-        cryst3 = standardize(cryst)
-        @test norm(cryst3.positions[1]) < 1e-12
-    end
-
     cryst = Crystal([1 0 1; 1 1 0; 0 1 1], [[0.1, 0.2, 0.3]])
-    test_standardize(cryst)
+    cryst2 = standardize(cryst)
+    @test cryst2.positions ≈ [[0.0, 0.0, 0.0], [0.5, 0.5, 0.0], [0.5, 0.0, 0.5], [0.0, 0.5, 0.5]]
 
     msg = "Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`."
-    @test_logs (:warn, msg) cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
-    test_standardize(cryst)
+    cryst = @test_logs (:warn, msg) Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
+    cryst2 = standardize(cryst)
+    @test cryst2.positions ≈ [[0.0, 0.0, 0.0]]
 end
 
 
@@ -463,7 +477,7 @@ end
         """
 
     cryst = Sunny.hyperkagome_crystal()
-    @assert Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(12, 'd', "..2")
+    @assert Sunny.get_wyckoff(cryst, 1).letter == 'd'
     capt = IOCapture.capture() do
         print_suggested_frame(cryst, 2)
     end

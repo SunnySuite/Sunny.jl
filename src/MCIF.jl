@@ -19,12 +19,15 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
     supervecs = sys.crystal.latvecs .* sys.dims
     supervecs2 = lattice_vectors(a, b, c, α, β, γ)
 
-    # TODO: Tolerance to permutations (with sign flips) of lattice vectors
+    # Check consistency of supercells at appropriate tolerance. Error estimates
+    # when first loading the mCIF are tracked through reshapes in
+    # `sys.crystal.symprec`. TODO: Tolerance to permutations (with sign flips)
+    # of lattice vectors
     if !isapprox(supervecs, supervecs2; rtol=sys.crystal.symprec)
         tol = sys.crystal.symprec # Tolerance might need tuning
         orig_cryst = orig_crystal(sys)
 
-        primcell = @something primitive_cell(orig_cryst) Mat3(I)
+        primcell = primitive_cell(orig_cryst)
         primvecs = orig_cryst.latvecs * primcell
 
         suggestion = if all(isinteger.(rationalize.(primvecs \ supervecs2; tol)))
@@ -34,7 +37,7 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
                 sz = "("*join(diag_strs, ", ")*")"
                 error("Use `resize_supercell(sys, $sz)` to get compatible system")
             else
-                shp = fractional_mat3_to_string(suggested_shape)
+                shp = mat3_to_string(suggested_shape)
                 error("Use `reshape_supercell(sys, $shp)` to get compatible system")
             end
         else

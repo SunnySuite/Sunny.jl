@@ -51,21 +51,9 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    # Create single chemical cell that matches the full system size.
+    # Create single enlarged chemical cell that matches the full system size.
     new_shape = cell_shape(sys) * diagm(Vec3(sys.dims))
     new_cryst = reshape_crystal(orig_crystal(sys), new_shape)
-
-    # Sort crystal positions so that their order matches sites in sys. Quadratic
-    # scaling in system size.
-    global_positions = global_position.(Ref(sys), vec(eachsite(sys)))
-    p = map(new_cryst.positions) do r
-        pos = new_cryst.latvecs * r
-        findfirst(global_positions) do refpos
-            isapprox(pos, refpos, atol=new_cryst.symprec)
-        end
-    end
-    @assert allunique(p)
-    permute_sites!(new_cryst, p)
 
     # Create a new system with dims (1,1,1). A clone happens in all cases.
     sys = reshape_supercell_aux(sys, new_cryst, (1,1,1))

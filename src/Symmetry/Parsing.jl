@@ -92,6 +92,20 @@ function parse_op(str::AbstractString) :: SymOp
 end
 
 
+# Cannot use crystallographic_orbit(::WyckoffExpr) because Wyckoffs and
+# spacegroup setting data may not be available during CIF loading.
+function crystallographic_orbit(position::Vec3; symops::Vector{SymOp}, symprec)
+    orbit = Vec3[]
+    for s = symops
+        x = transform(s, position)
+        if !any(y -> is_periodic_copy(x, y; atol=symprec), orbit)
+            push!(orbit, wrap_to_unit_cell(x; atol=symprec))
+        end
+    end
+    return orbit
+end
+
+
 # Reads the crystal from a CIF or mCIF located at the path `filename`. See
 # extended doc string in Crystal.jl.
 function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing, override_symmetry=nothing)
@@ -230,10 +244,13 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
 
     if from_mcif
         if !keep_supercell
-            # Disable idealization when loading an mCIF because a subsequent
-            # call to `set_dipoles_from_mcif!` must be able to search for atom
-            # positions using the mCIF setting.
-            return standardize(ret; idealize=false)
+            # FIXME
+            # return standardize(ret)
+
+            # Reshape to symmetry-inferred standard cell
+            new_latvecs = ret.latvecs / ret.sg.setting.R
+            (; new_positions, new_types, new_symprec) = reshape_crystal_aux(ret, new_latvecs)
+            return Crystal(new_latvecs, new_positions; types=new_types, symprec=new_symprec)
         else
             @warn "Use `keep_supercell=true` for testing purposes only! Inferred symmetries \
                    are unreliable."

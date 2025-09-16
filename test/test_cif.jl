@@ -22,6 +22,9 @@ end
     cryst = @test_logs (:warn, msg) Crystal(filename)
     @test Sunny.get_wyckoff(cryst, 1).letter == 'a'
     @test Sunny.get_wyckoff(cryst, 3).letter == 'd'
+
+    # Idealization of site positions. A bit lucky that sg.setting is clean here.
+    @test cryst.positions ≈ [[0, 0, 0], [1/2, 1/2, 0], [0, 1/3, 1/4], [1/2, 5/6, 1/4], [1/2, 1/6, 3/4], [0, 2/3, 3/4]]
 end
 
 @testitem "Alpha quartz" begin
@@ -47,13 +50,13 @@ end
     cryst2 = Crystal(filename)
     cryst2 = subcrystal(cryst2, "Fe")
     sys2 = System(cryst2, [1 => Moment(s=3/2, g=-2)], :dipole)
-    msg = "Use `resize_supercell(sys, (1, 1, 2))` to get compatible system"    
+    msg = "Use `reshape_supercell(sys, [1 0 0; 0 0 -2; 0 1 0])` to get compatible system"
     @test_throws msg set_dipoles_from_mcif!(sys2, filename)
-    sys2 = resize_supercell(sys2, (1, 1, 2))
+    sys2 = reshape_supercell(sys2, [1 0 0; 0 0 -2; 0 1 0])
     set_dipoles_from_mcif!(sys2, filename)
 
     for site1 in eachsite(sys1)
-        # Note that lattice units vary for sys1 and sys2, so we must explicit
+        # Note that lattice units vary for sys1 and sys2, so we must explicitly
         # reference the lattice vectors for a given system.
         site2 = position_to_site(sys2, cryst2.latvecs \ global_position(sys1, site1))
         @test sys1.dipoles[site1] ≈ sys2.dipoles[site2]
@@ -72,12 +75,12 @@ end
     cryst2 = Crystal(filename)
     cryst2 = subcrystal(cryst2, "Tb3+")
     sys2 = System(cryst2, [1 => Moment(s=3/2, g=-2)], :dipole)
-    msg = "Use `reshape_supercell(sys, [1/2 -1/2 -2; 0 1/2 -2; 1/2 0 2])` to get compatible system"
+    msg = "Use `reshape_supercell(sys, [1/2 0 2; 0 1/2 -2; -1/2 1/2 2])` to get compatible system"
     @test_throws msg set_dipoles_from_mcif!(sys2, filename)
-    sys2 = reshape_supercell(sys2, [1/2 -1/2 -2; 0 1/2 -2; 1/2 0 2])
+    sys2 = reshape_supercell(sys2, [1/2 0 2; 0 1/2 -2; -1/2 1/2 2])
     set_dipoles_from_mcif!(sys2, filename)
 
     S0 = [0, 0, 3/2]
     @test vec(sys1.dipoles) ≈ [-S0, +S0, -S0, +S0, -S0, +S0]
-    @test vec(sys2.dipoles) ≈ [-S0, +S0, -S0, +S0, +S0, -S0]
+    @test vec(sys2.dipoles) ≈ [-S0, +S0, +S0, -S0, -S0, +S0]
 end

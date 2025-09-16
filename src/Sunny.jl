@@ -18,6 +18,7 @@ import HCubature: hcubature
 import CrystalInfoFramework as CIF
 import Spglib
 import RowEchelon: rref!
+import MatInt
 import Brillouin
 
 include("MathBasics.jl")
@@ -29,11 +30,11 @@ include("Operators/TensorOperators.jl")
 include("Operators/Symbolic.jl")
 export spin_matrices, stevens_matrices, to_product_space, rotate_operator, print_stevens_expansion
 
-include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
 include("Symmetry/MSymOp.jl")
 include("Symmetry/SpacegroupData.jl")
 include("Symmetry/WyckoffData.jl")
+include("Symmetry/LatticeUtils.jl")
 include("Symmetry/Crystal.jl")
 include("Symmetry/Bond.jl")
 include("Symmetry/SymmetryAnalysis.jl")
