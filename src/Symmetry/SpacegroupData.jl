@@ -20,23 +20,30 @@ end
 
 function suggestion_to_disambiguate_symbol(symbol)
     sgts = all_spacegroup_types_for_symbol(symbol)
+    numbers = [sgt.number for sgt in sgts]
     short_symbols = [sgt.international_short for sgt in sgts]
     full_symbols = [sgt.international_full for sgt in sgts]
     choices = [sgt.choice for sgt in sgts]
+    number = only(unique(numbers))
 
+    function options_str(symbols)
+        symbols = repr.(symbols)
+        symbols[1] = symbols[1] * " (standard)"
+        return join(symbols, ", ")
+    end
     if allunique(short_symbols)
-        # Short symbols preferred when unambiguous. For example,
-        # spacegroup 230 is better written "Pccm" than "P 2/c 2/c 2/m".
-        "Disambiguate with one of: " * repr(short_symbols)
+        # Short symbols preferred when unambiguous. For example, spacegroup 49
+        # is better written "Pccm" than "P 2/c 2/c 2/m".
+        "Spacegroup $number admits settings: " * options_str(short_symbols)
     elseif allunique(full_symbols)
-        # Sometimes full symbol is needed. Spacegroup 5 is abbreviated
-        # "C2", but requires "C 1 2 1", "A 1 2 1", ... to disambiguate.
-        "Disambiguate with one of: " * repr(full_symbols)
+        # Sometimes full symbol is needed. Spacegroup 5 is abbreviated "C2", but
+        # requires "C 1 2 1", "A 1 2 1", ... to disambiguate.
+        "Spacegroup $number admits settings: " * options_str(full_symbols)
     else
         # Origin choice "1" or "2" is sufficient to disambiguate
         @assert choices == ["1", "2"]
         @assert all(sgt -> in(sgt.number, standard_setting_differs_in_spglib), sgts)
-        "Disambiguate with additional argument: choice=\"1\" or choice=\"2\""
+        "Spacegroup $number admits origin shifts: choice=\"2\" (standard) or choice=\"1\""
     end
 end
 

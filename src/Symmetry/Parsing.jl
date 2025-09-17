@@ -108,11 +108,7 @@ end
 
 # Reads the crystal from a CIF or mCIF located at the path `filename`. See
 # extended doc string in Crystal.jl.
-function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing, override_symmetry=nothing)
-    if !isnothing(override_symmetry)
-        @warn "Ignoring deprecated `override_symmetry` option"
-    end
-
+function Crystal(filename::AbstractString; symprec=nothing, keep_supercell=false)
     cif = CIF.Cif(filename)
     # Accessor `oneof` assumes collections in CIF are unique
     cif = cif[first(keys(cif))]
@@ -237,25 +233,12 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
     # TODO: Check orbit lengths against _atom_site_symmetry_multiplicity data if
     # available.
 
-    # Infer symmetry from full list of atoms. Disable cell check because we will
-    # customize the warning message below.
-    ret = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
+    # Infer symmetry from full list of atoms. Warnings will be customized.
+    ret = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, suppress_warnings=true)
     sort_sites!(ret)
 
     if from_mcif
-        if !keep_supercell
-            # FIXME
-            # return standardize(ret)
-
-            # Reshape to symmetry-inferred standard cell
-            new_latvecs = ret.latvecs / ret.sg.setting.R
-            (; new_positions, new_types, new_symprec) = reshape_crystal_aux(ret, new_latvecs)
-            return Crystal(new_latvecs, new_positions; types=new_types, symprec=new_symprec)
-        else
-            @warn "Use `keep_supercell=true` for testing purposes only! Inferred symmetries \
-                   are unreliable."
-            return ret
-        end
+        return keep_supercell ? (ret, symprec) : standardize(ret)
     else
         symprec_str = number_to_simple_string(symprec; digits=2)
         suggest_symprec = isnothing(symprec0) ? " Try overriding `symprec` (inferred $symprec_str)." : ""
@@ -268,19 +251,8 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
         hall_number_inferred = hall_number_from_symops(ret.sg.number, ret.sg.symops; tol=symprec)
 
         if symops_consistent
-            if !isnothing(hall_number_inferred)
-                # The inferred ret.sg data (setting and symops) may be slightly
-                # perturbed from the ITA standard tables. This happens for
-                # test/cifs/UPt3.cif, with spacegroup 194. Wyckoff 6h has a site at
-                # position (x,2x,1/4). The CIF stores x and 2x using strings with
-                # truncated decimal expansions, 0.333 and 0.667. The ratio of these
-                # numbers slightly deviates from 2, causing Spglib to infer a
-                # slightly perturbed setting. Get clean symmetry data using tables
-                # for the inferred Hall number.
-                sg = Spacegroup(hall_number_inferred)
-                ret = crystal_from_spacegroup(latvecs, positions, classes, sg; symprec)
-            else
-                @info "Cell appears non-standard. Consider `standardize(cryst)` and then \
+            if isnothing(hall_number_inferred)
+                @warn "Cell appears non-standard. Consider `standardize(cryst)` and then \
                        `reshape_supercell(sys, shape)` for calculations on an arbitrarily \
                        shaped system."
             end
