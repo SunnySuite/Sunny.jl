@@ -20,7 +20,7 @@ function reshape_supercell(sys::System, shape)
     check_shape_commensurate(orig, shape)
     prim_cell = primitive_cell(orig)
     shape_in_prim = prim_cell \ shape
-    @assert all_integer(shape_in_prim; atol=1e-12)
+    @assert all_integer(shape_in_prim; tol=1e-12)
     shape_in_prim = round.(Int, shape_in_prim)
 
     # Unit cell for new system, in units of original unit cell.

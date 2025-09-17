@@ -18,7 +18,7 @@ end
     filename = joinpath(@__DIR__, "cifs", "FeI2_orth.cif")
     msg = "Inconsistent symmetry operations! This may occur with an incomplete CIF, \
            a non-standard setting, or failed inference. Try overriding `symprec` \
-           (inferred 5e-06)."
+           (inferred 5.0e-06)."
     cryst = @test_logs (:warn, msg) Crystal(filename)
     @test Sunny.get_wyckoff(cryst, 1).letter == 'a'
     @test Sunny.get_wyckoff(cryst, 3).letter == 'd'

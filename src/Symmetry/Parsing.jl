@@ -98,8 +98,8 @@ function crystallographic_orbit(position::Vec3; symops::Vector{SymOp}, symprec)
     orbit = Vec3[]
     for s = symops
         x = transform(s, position)
-        if !any(y -> is_periodic_copy(x, y; atol=symprec), orbit)
-            push!(orbit, wrap_to_unit_cell(x; atol=symprec))
+        if !any(y -> is_periodic_copy(x, y; tol=symprec), orbit)
+            push!(orbit, wrap_to_unit_cell(x))
         end
     end
     return orbit
@@ -265,7 +265,7 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
         end
 
         symops_consistent = isapprox(symops, ret.sg.symops; atol=symprec)
-        hall_number_inferred = hall_number_from_symops(ret.sg.number, ret.sg.symops; atol=symprec)
+        hall_number_inferred = hall_number_from_symops(ret.sg.number, ret.sg.symops; tol=symprec)
 
         if symops_consistent
             if !isnothing(hall_number_inferred)
