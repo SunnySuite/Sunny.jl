@@ -3,15 +3,21 @@
 ## v0.7.9
 (In development)
 
-* More robust loading of CIF files via [`Crystal`](@ref) constructor. Precision
-  parameter `symprec` is now inferred. The magnetic cell of an mCIF file will
-  always downfold to a standard chemical cell. As before, use
-  [`set_dipoles_from_mcif!`](@ref) to set dipoles on a reshaped [`System`](@ref)
-  ([PR #413](https://github.com/SunnySuite/Sunny.jl/pull/413)). 
-* Scale `symprec` prior to symmetry inference as expected by Spglib ([PR
-  #405](https://github.com/SunnySuite/Sunny.jl/pull/405)).
-* Fixes to [`load_nxs`](@ref)([PR
-  #420](https://github.com/SunnySuite/Sunny.jl/pull/420)).
+* Various symmetry analysis enhancements ([PRs
+  #405](https://github.com/SunnySuite/Sunny.jl/pull/405),
+  [#413](https://github.com/SunnySuite/Sunny.jl/pull/413),
+  [#421](https://github.com/SunnySuite/Sunny.jl/pull/421)). In particular, see
+  [PR #421](https://github.com/SunnySuite/Sunny.jl/pull/421) for **breaking
+  changes** regarding atom and site indexing conventions. When loading an CIF or
+  mCIF, precision parameter `symprec` can now usually be inferred. Loading an
+  mCIF now returns a standardized chemical cell and Cartesian coordinate system,
+  consistent with other paths for Sunny crystal specification. The lattice
+  vectors and positions of a loaded crystal are now idealized according to
+  spacegroup data. Indexing conventions of certain reshaped systems have
+  changed; continue to use [`position_to_site`](@ref) for robust indexing of
+  reshaped systems. Attempting to perform symmetry analysis on a crystal with a
+  larger-than-standard chemical cell will now error (rather than give a wrong
+  result).
 
 ## v0.7.8
 (Jul 1, 2025)

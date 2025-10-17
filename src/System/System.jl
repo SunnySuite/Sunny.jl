@@ -44,11 +44,11 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
         error("Mode must be `:SUN`, `:dipole`, or `:dipole_uncorrected`.")
     end
 
-    # The lattice vectors of `crystal` must be conventional (`crystal` cannot be
-    # reshaped).
-    if !isnothing(crystal.root)
-        @assert crystal.latvecs == crystal.root.latvecs
-    end
+    # Symops must be non-empty
+    validate_symops(crystal)
+
+    # Crystal lattice vectors must be standard (crystal not reshaped)
+    @assert isnothing(crystal.root) || crystal.latvecs == crystal.root.latvecs
 
     na = natoms(crystal)
 
@@ -276,9 +276,8 @@ end
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.dims)
 
-# The crystal originally used to construct a system. It is guaranteed to be
-# un-reshaped, and its lattice vectors define the "conventional" unit cell. It
-# may, however, be a subcrystal of `orig_crystal(sys).root`.
+# The crystal originally used to construct a system. Its lattice vectors define
+# the "conventional" unit cell.
 orig_crystal(sys) = something(sys.origin, sys).crystal
 
 """
@@ -308,11 +307,11 @@ site = position_to_site(sys, [4.5, 0.5, 0.5])
 println(sys.dipoles[site])
 ```
 """
-function position_to_site(sys::System, r)
+function position_to_site(sys::System, r; tol=1e-12)
     # convert to fractional coordinates of possibly reshaped crystal
     r = Vec3(r)
     new_r = sys.crystal.latvecs \ orig_crystal(sys).latvecs * r
-    i, offset = position_to_atom_and_offset(sys.crystal, new_r)
+    i, offset = position_to_atom_and_offset(sys.crystal, new_r; tol)
     cell = @. mod1(offset+1, sys.dims) # 1-based indexing with periodicity
     return to_cartesian((cell..., i))
 end

@@ -66,14 +66,14 @@ end
     latvecs = Sunny.Mat3(latvecs)
     positions = [Sunny.Vec3(1, 1, 1) / 8]
     types = [""]
-    cryst = Sunny.crystal_from_spacegroup(latvecs, positions, types, cryst.sg; cryst.symprec)
+    cryst = Sunny.crystal_from_spacegroup(latvecs, positions, types, cryst.sg; symprec=1e-8)
     ref_bonds = reference_bonds(cryst, 2.)
     dist2 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
     # Using international symbol
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
     positions = [[1, 1, 1] / 4]
-    @test_throws "Disambiguate with additional argument: choice=\"1\" or choice=\"2\"" Crystal(latvecs, positions, "F d -3 m")
+    @test_throws "Spacegroup 227 admits origin shifts: choice=\"2\" (standard) or choice=\"1\"" Crystal(latvecs, positions, "F d -3 m")
     cryst = Crystal(latvecs, positions, "F d -3 m"; choice="1")
     ref_bonds = reference_bonds(cryst, 2.)
     dist3 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
@@ -125,7 +125,7 @@ end
     mono_lat_params = (6, 7, 8, 90, 90, 40)
     latvecs = lattice_vectors(mono_lat_params...)
     positions = [[0,0,0]]
-    msg = """Disambiguate with one of: ["C 1 2 1", "A 1 2 1", "I 1 2 1", "A 1 1 2", "B 1 1 2", "I 1 1 2", "B 2 1 1", "C 2 1 1", "I 2 1 1"]"""
+    msg = "Spacegroup 5 admits settings: \"C 1 2 1\" (standard), \"A 1 2 1\", \"I 1 2 1\", \"A 1 1 2\", \"B 1 1 2\", \"I 1 1 2\", \"B 2 1 1\", \"C 2 1 1\", \"I 2 1 1\""
     @test_throws msg Crystal(latvecs, positions, "C2")
     cryst = Crystal(latvecs, positions, "C 2/c"; choice="c1")
     @test cell_type(cryst) == Sunny.monoclinic

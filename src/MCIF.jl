@@ -1,52 +1,104 @@
 """
-    set_dipoles_from_mcif!(sys::System, filename::AbstractString)
+    set_dipoles_from_mcif!(sys::System, filename::AbstractString; symprec=nothing)
 
-Load the magnetic supercell from data in the mCIF at `filename`. If the shape of
-`sys` is not consistent with that of the magnetic supercell, an error message
-will be thrown that gives instructions for calling [`reshape_supercell`](@ref).
+Load the magnetic moments from data in the mCIF at `filename`.
+
+The system shape must exactly match the magnetic cell described by the mCIF. If
+mismatched, an error message will provide instructions for calling
+[`reshape_supercell`](@ref).
 """
-function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
+function set_dipoles_from_mcif!(sys::System, filename::AbstractString; symprec=nothing)
+    cryst = orig_crystal(sys)
+    mcif_cryst, symprec = Crystal(filename; symprec, keep_supercell=true)
+
+    if mcif_cryst.sg.number != cryst.sg.number
+        error("Inferred mCIF spacegroup $(mcif_cryst.sg.number) differs from $(cryst.sg.number). Try changing `symprec`?")
+    end
+
+    # Standard lattice vectors of the two crystals (possibly different Cartesian
+    # coordinate systems)
+    stdvecs = cryst.latvecs * inv(cryst.sg.setting.R)
+    mcif_stdvecs = mcif_cryst.latvecs * inv(mcif_cryst.sg.setting.R)
+
+    # Orthogonal transformation that maps between Cartesian coordinate systems
+    R = stdvecs / mcif_stdvecs
+    @assert R' * R ≈ I
+
+    # System lattice vectors
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.dims))
+
+    # mCIF lattice vectors rotated into consistent Cartesian frame
+    mcif_supervecs_rotated = R * mcif_cryst.latvecs
+
+    # Verify mcif_supervecs are integer multiple of cryst primitive cells.
+    primvecs = cryst.latvecs * primitive_cell(cryst)
+    @assert all_integer(primvecs \ mcif_supervecs_rotated; tol=1e-12)
+
+    # Check consistency of supercells at appropriate tolerance.
+    if !isapprox(supervecs, mcif_supervecs_rotated)
+        suggested_shape = rationalize.(cryst.latvecs \ mcif_supervecs_rotated; tol=1e-12)
+        if isdiag(suggested_shape)
+            diag_strs = number_to_math_string.(diag(suggested_shape))
+            sz = "("*join(diag_strs, ", ")*")"
+            error("Use `resize_supercell(sys, $sz)` to get compatible system")
+        else
+            shp = mat3_to_string(suggested_shape)
+            error("Use `reshape_supercell(sys, $shp)` to get compatible system")
+        end
+    end
+
+    (; magn_operations, magn_centerings, moments, positions) = parse_mcif_data(filename)
+
+    # Map from mcif_cryst positions to cryst positions. This works by
+    # round-tripping through the "ITA standard" chemical cell.
+    map_mcif_coord = MSymOp(inv(cryst.sg.setting) * mcif_cryst.sg.setting)
+
+    # Use the zero vector as a marker for unvisited sites
+    fill!(sys.dipoles, zero(Vec3))
+
+    for (r, μ) in zip(positions, moments)
+        for s1 in magn_operations, s2 in magn_centerings
+            # Symmetry operation that composes centering and then a
+            # crystallographic operation
+            s = s1 * s2
+
+            # Apply symmetry operation to position, and then map to original
+            # fractional coordinates
+            r_new = transform(map_mcif_coord * s, r)
+
+            # Apply symmetry operation to magnetic moment, and then map to
+            # Cartesian coordinates. Because the moment is a pseudo-vector, it
+            # is invariant to an inversion in space. For this reason, remove the
+            # determinant of s.R. If the parity s.p = ±1 is negative, this
+            # implies time reversal, which reverses the magnetic dipole.
+            μ_new = transform_dipole(s, μ)
+            μ_new = supervecs * μ_new
+
+            site = try
+                # Since we are using mCIF positions and magn symops directly,
+                # allow for finite symprec in the position lookup.
+                position_to_site(sys, r_new; tol=symprec)
+            catch _
+                rethrow(ErrorException("Magnetic symops inconsistent with spacegroup symmetry"))
+            end
+
+            # Get spin dipole by inverting the `magnetic_moment` transformation
+            dipole = - sys.gs[site] \ μ_new
+            s_prev = sys.dipoles[site]
+            set_dipole!(sys, dipole, site)
+            s_prev == zero(Vec3) || s_prev ≈ sys.dipoles[site] || error("Magnetic symops internally inconsistent")
+        end
+    end
+
+    any(iszero, sys.dipoles) && error("Magnetic orbits do not cover all sites")
+    return
+end
+
+
+function parse_mcif_data(filename)
     cif = CIF.Cif(filename)
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
-
-    a = parse_cif_float(cif["_cell_length_a"][1])
-    b = parse_cif_float(cif["_cell_length_b"][1])
-    c = parse_cif_float(cif["_cell_length_c"][1])
-    α = parse_cif_float(cif["_cell_angle_alpha"][1])
-    β = parse_cif_float(cif["_cell_angle_beta"][1])
-    γ = parse_cif_float(cif["_cell_angle_gamma"][1])
-    supervecs = sys.crystal.latvecs .* sys.dims
-    supervecs2 = lattice_vectors(a, b, c, α, β, γ)
-
-    # Check consistency of supercells at appropriate tolerance. Error estimates
-    # when first loading the mCIF are tracked through reshapes in
-    # `sys.crystal.symprec`. TODO: Tolerance to permutations (with sign flips)
-    # of lattice vectors
-    if !isapprox(supervecs, supervecs2; rtol=sys.crystal.symprec)
-        tol = sys.crystal.symprec # Tolerance might need tuning
-        orig_cryst = orig_crystal(sys)
-
-        primcell = primitive_cell(orig_cryst)
-        primvecs = orig_cryst.latvecs * primcell
-
-        suggestion = if all(isinteger.(rationalize.(primvecs \ supervecs2; tol)))
-            suggested_shape = rationalize.(orig_cryst.latvecs \ supervecs2; tol)
-            suggestion = if isdiag(suggested_shape)
-                diag_strs = number_to_math_string.(diag(suggested_shape))
-                sz = "("*join(diag_strs, ", ")*")"
-                error("Use `resize_supercell(sys, $sz)` to get compatible system")
-            else
-                shp = mat3_to_string(suggested_shape)
-                error("Use `reshape_supercell(sys, $shp)` to get compatible system")
-            end
-        else
-            error("""System dimensions are incompatible with mCIF cell,
-                         System: $supervecs
-                         mCIF:   $supervecs2
-                     """)
-        end
-    end
 
     oneof(fields...) = findfirstval(in(keys(cif)), fields)
     # The first entry is the IUCR standard field name. If missing, search for
@@ -78,57 +130,11 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
     xs = parse_cif_float.(geom_table[:, "_atom_site_fract_x"])
     ys = parse_cif_float.(geom_table[:, "_atom_site_fract_y"])
     zs = parse_cif_float.(geom_table[:, "_atom_site_fract_z"])
+
+    # All positions in given in fractional coordinates of the mCIF cell, i.e.,
+    # supervecs
     idxs = indexin(labels, all_labels)
     positions = Vec3.(zip(xs[idxs], ys[idxs], zs[idxs]))
 
-    set_dipoles_from_mcif_aux!(sys; positions, moments, magn_operations, magn_centerings)
-end
-
-# The keyword parameters follow the mCIF format. As a consequence, all (x,y,z)
-# components are provided in the coordinate system defined by the lattice
-# vectors of the supercell. Similarly, the symmetry operations act in this
-# coordinate system.
-function set_dipoles_from_mcif_aux!(sys; positions, moments, magn_operations, magn_centerings)
-    supervecs = sys.crystal.latvecs .* sys.dims
-    
-    # Use the zero vector as a marker for unvisited sites
-    fill!(sys.dipoles, zero(Vec3))
-
-    for (r, μ) in zip(positions, moments)
-        for s1 in magn_operations, s2 in magn_centerings
-            # Symmetry operation that composes centering an then a
-            # crystallographic operation
-            s = s1 * s2
-
-            # Apply symmetry operation to position, and then map to original
-            # fractional coordinates
-            r_new = s.R * r + s.T
-            r_new = orig_crystal(sys).latvecs \ supervecs * r_new
-
-            # Apply symmetry operation to magnetic moment, and then map to
-            # Cartesian coordinates. Because the moment is a pseudo-vector, it
-            # is invariant to an inversion in space. For this reason, remove the
-            # determinant of s.R. If the parity s.p = ±1 is negative, this
-            # implies time reversal, which reverses the magnetic dipole.
-            μ_new = (s.R * det(s.R) * s.p) * μ
-            μ_new = supervecs * μ_new
-
-            site = try 
-                position_to_site(sys, r_new)
-            catch _
-                rethrow(ErrorException("mCIF position $r_new is missing in the chemical cell"))
-            end
-
-            # Get spin dipole by inverting the `magnetic_moment` transformation
-            dipole = - sys.gs[site] \ μ_new
-            s_prev = sys.dipoles[site]
-            set_dipole!(sys, dipole, site)
-            s_prev == zero(Vec3) || s_prev ≈ sys.dipoles[site] || error("Conflicting dipoles at site $site")
-        end
-    end
-
-    unvisited = [site for site in eachsite(sys) if iszero(sys.dipoles[site])]
-    if !isempty(unvisited)
-        error("Missing dipoles for sites $(collect(Tuple.(unvisited)))")
-    end
+    return (; magn_operations, magn_centerings, moments, positions)
 end

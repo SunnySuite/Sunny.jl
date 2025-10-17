@@ -76,20 +76,21 @@ function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; tol)
 end
 
 
-# Adapt r in custom sg.setting to its ideal position for Wyckoff w
-function idealize_position(sg::Spacegroup, r::Vec3, w::Wyckoff; tol)
-    # Map Wyckoff expression to custom setting
-    expr0 = transform(inv(sg.setting), w.expr)
+# Adapt r to its ideal Wyckoff position in a custom sg.setting
+function idealize_position(sg::Spacegroup, letter::Char, r::Vec3; tol)
+    # Imperfect position in standard setting
+    r0 = transform(sg.setting, r)
 
-    # Search for a match over the Wyckoff orbit in custom setting
-    for expr in crystallographic_orbit(expr0; sg.symops)
-        r_ideal = expr.F * w.θ + expr.c
-        if is_periodic_copy(r, r_ideal; tol)
-            return r_ideal + Vec3(round.(r - r_ideal, RoundNearest))
-        end
-    end
+    # Idealized position in standard setting
+    w = find_wyckoff(sg, r; tol)
+    @assert w.letter == letter
+    r0_ideal = w.expr.F * w.θ + w.expr.c
 
-    error("Position $(pos_to_string(r)) does not belong to Wyckoff $(w.multiplicity)$(w.letter) in the provided setting")
+    # Closest periodic image
+    r0_ideal += round.(Int, r0 - r0_ideal)
+
+    # Map back to custom setting
+    return transform(inv(sg.setting), r0_ideal)
 end
 
 

@@ -32,7 +32,7 @@ end
     msg = "Cell appears non-standard. Consider `standardize(cryst)` and then \
            `reshape_supercell(sys, shape)` for calculations on an arbitrarily shaped \
            system."
-    cryst = @test_logs (:info, msg) Crystal(filename)
+    cryst = @test_logs (:warn, msg) Crystal(filename)
     @test cryst.sg.number == 154
     @test Sunny.get_wyckoff(cryst, 1).letter == 'a'
     @test Sunny.get_wyckoff(cryst, 4).letter == 'c'
@@ -41,46 +41,28 @@ end
 @testitem "mCIF ZnFe2O4" begin
     filename = joinpath(@__DIR__, "cifs", "ZnFe2O4_jana.cif")
 
-    msg = "Use `keep_supercell=true` for testing purposes only! Inferred symmetries are unreliable."
-    cryst1 = @test_logs (:warn, msg) Crystal(filename; keep_supercell=true)
-    cryst1 = subcrystal(cryst1, "Fe")
-    sys1 = System(cryst1, [1 => Moment(s=3/2, g=-2)], :dipole)
-    set_dipoles_from_mcif!(sys1, filename)
-
-    cryst2 = Crystal(filename)
-    cryst2 = subcrystal(cryst2, "Fe")
-    sys2 = System(cryst2, [1 => Moment(s=3/2, g=-2)], :dipole)
+    cryst = subcrystal(Crystal(filename), "Fe")
+    sys = System(cryst, [1 => Moment(s=3/2, g=-2)], :dipole)
     msg = "Use `reshape_supercell(sys, [1 0 0; 0 0 -2; 0 1 0])` to get compatible system"
-    @test_throws msg set_dipoles_from_mcif!(sys2, filename)
-    sys2 = reshape_supercell(sys2, [1 0 0; 0 0 -2; 0 1 0])
-    set_dipoles_from_mcif!(sys2, filename)
+    @test_throws msg set_dipoles_from_mcif!(sys, filename)
+    sys = reshape_supercell(sys, [1 0 0; 0 0 -2; 0 1 0])
+    set_dipoles_from_mcif!(sys, filename)
 
-    for site1 in eachsite(sys1)
-        # Note that lattice units vary for sys1 and sys2, so we must explicitly
-        # reference the lattice vectors for a given system.
-        site2 = position_to_site(sys2, cryst2.latvecs \ global_position(sys1, site1))
-        @test sys1.dipoles[site1] ≈ sys2.dipoles[site2]
-    end
+    # println(join(Sunny.vec3_to_string.(sys.dipoles[:]; digits=6), ", "))
+    ref = [[-3/√8, 0, -3/√8], [3/√8, 0, 3/√8], [-3/√8, 0, -3/√8], [3/√8, 0, 3/√8], [3/√8, 0, 3/√8], [-3/√8, 0, -3/√8], [3/√8, 0, 3/√8], [-3/√8, 0, -3/√8], [-1.01643, -0.428651, -1.01643], [1.01643, 0.428651, 1.01643], [-1.01643, 0.428651, -1.01643], [1.01643, -0.428651, 1.01643], [1.01643, 0.428651, 1.01643], [-1.01643, -0.428651, -1.01643], [1.01643, -0.428651, 1.01643], [-1.01643, 0.428651, -1.01643], [-1.01643, -0.428651, 1.01643], [1.01643, 0.428651, -1.01643], [-1.01643, 0.428651, 1.01643], [1.01643, -0.428651, -1.01643], [1.01643, 0.428651, -1.01643], [-1.01643, -0.428651, 1.01643], [1.01643, -0.428651, -1.01643], [-1.01643, 0.428651, 1.01643], [-3/√8, 0, 3/√8], [3/√8, 0, -3/√8], [-3/√8, 0, 3/√8], [3/√8, 0, -3/√8], [3/√8, 0, -3/√8], [-3/√8, 0, 3/√8], [3/√8, 0, -3/√8], [-3/√8, 0, 3/√8]]
+    @test isapprox(sys.dipoles[:], ref; rtol=1e-6)
 end
 
 @testitem "mCIF TbSb" begin
     filename = joinpath(@__DIR__, "cifs", "TbSb_isodistort.mcif")
 
-    msg = "Use `keep_supercell=true` for testing purposes only! Inferred symmetries are unreliable."
-    cryst1 = @test_logs (:warn, msg) Crystal(filename; keep_supercell=true)
-    cryst1 = subcrystal(cryst1, "Tb3+")
-    sys1 = System(cryst1, [1 => Moment(s=3/2, g=-2)], :dipole)
-    set_dipoles_from_mcif!(sys1, filename)
-
-    cryst2 = Crystal(filename)
-    cryst2 = subcrystal(cryst2, "Tb3+")
-    sys2 = System(cryst2, [1 => Moment(s=3/2, g=-2)], :dipole)
+    cryst = subcrystal(Crystal(filename), "Tb3+")
+    sys = System(cryst, [1 => Moment(s=3/2, g=-2)], :dipole)
     msg = "Use `reshape_supercell(sys, [1/2 0 2; 0 1/2 -2; -1/2 1/2 2])` to get compatible system"
-    @test_throws msg set_dipoles_from_mcif!(sys2, filename)
-    sys2 = reshape_supercell(sys2, [1/2 0 2; 0 1/2 -2; -1/2 1/2 2])
-    set_dipoles_from_mcif!(sys2, filename)
+    @test_throws msg set_dipoles_from_mcif!(sys, filename)
+    sys = reshape_supercell(sys, [1/2 0 2; 0 1/2 -2; -1/2 1/2 2])
+    set_dipoles_from_mcif!(sys, filename)
 
-    S0 = [0, 0, 3/2]
-    @test vec(sys1.dipoles) ≈ [-S0, +S0, -S0, +S0, -S0, +S0]
-    @test vec(sys2.dipoles) ≈ [-S0, +S0, +S0, -S0, -S0, +S0]
+    S0 = (√3/2) * [1, -1, 1]
+    @test vec(sys.dipoles) ≈ [-S0, +S0, +S0, -S0, -S0, +S0]
 end

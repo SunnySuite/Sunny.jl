@@ -27,6 +27,9 @@ end
 
 # Like `reference_bonds` but supply a number of bonds
 function reference_bonds_upto(cryst, nbonds, ndims)
+    # Don't show bonds if symmetry information is missing
+    isempty(cryst.sg.symops) && return Bond[]
+
     # Calculate heuristic maximum distance
     min_a = minimum(norm.(eachcol(cryst.latvecs)))
     nclasses = length(unique(cryst.classes))
@@ -295,7 +298,7 @@ function label_atoms(cryst; ismagnetic, sys)
         typstr = isempty(typ) ? "" : "'$typ', "
         push!(ret, typstr * "Wyckoff $wyckstr, $rstr")
 
-        if ismagnetic
+        if ismagnetic && !isempty(cryst.sg.symops)
             if isnothing(sys)
                 # See similar logic in print_site()
                 refatoms = [b.i for b in Sunny.reference_bonds(cryst, 0.0)]
@@ -488,18 +491,20 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndim
         error("Parameter `refbonds` must be an integer or a `Bond` list.")
     end
 
-    refbonds_dists = [Sunny.global_distance(cryst, b) for b in refbonds]
+    # Smallest bond length between magnetic ions (or a characteristic scale)
+    ℓ0 = if isempty(refbonds)
+        @assert isempty(cryst.sg.symops)
+        characteristic_length_between_atoms(cryst)
+    else
+        minimum(Sunny.global_distance(cryst, b) for b in refbonds)
+    end
 
     # Radius of the magnetic ions. Sets a length scale for other objects too.
     ionradius = let
-        # The root crystal may contain non-magnetic ions. If present, these
-        # should reduce the characteristic length scale.
-        ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
-        # If there exists a very short bond distance, then appropriately reduce the
-        # length scale
-        ℓ0 = min(ℓ0, 0.8minimum(refbonds_dists))
-        # Small enough to fit everything
-        0.2ℓ0
+        # Characteristic distance between non-magnetic ions
+        ℓ = characteristic_length_between_atoms(something(cryst.root, cryst))
+        # The smallest relevant distance scale
+        0.2 * min(ℓ, 0.8ℓ0)
     end
 
     fig = Makie.Figure(; size)
@@ -524,7 +529,6 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndim
     Makie.onany(button.clicks, menu.selection; update=true) do _, mselect
         orthographic = mselect == "Orthographic"
         # Zoom out a little bit extra according to nn bond distance
-        ℓ0=minimum(refbonds_dists)
         orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, ndims, ℓ0)
         compass && register_compass_callbacks(axcompass, ax)
     end

@@ -21,16 +21,16 @@ function is_periodic_copy(b1::BondPos, b2::BondPos; tol=1e-12)
     return norm(n - D1) < tol && norm(n - D2) < tol
 end
 
-function position_to_atom(cryst::Crystal, r::Vec3)
-    return findfirst(r′ -> is_periodic_copy(r, r′), cryst.positions)
+function position_to_atom(cryst::Crystal, r::Vec3; tol=1e-12)
+    return findfirst(r′ -> is_periodic_copy(r, r′; tol), cryst.positions)
 end
 
-function position_to_atom_and_offset(cryst::Crystal, r::Vec3)
-    i = position_to_atom(cryst, r)
+function position_to_atom_and_offset(cryst::Crystal, r::Vec3; tol=1e-12)
+    i = position_to_atom(cryst, r; tol)
     isnothing(i) && error("Position $r not found in crystal")
 
     offset = round.(Int, r - wrap_to_unit_cell(r))
-    @assert isapprox(cryst.positions[i]+offset, r; atol=1e-12)
+    @assert isapprox(cryst.positions[i]+offset, r; atol=tol)
     return (i, offset)
 end
 
@@ -52,6 +52,8 @@ end
 # General a list of all symmetries that transform i2 into i1. (Convention for
 # definition of `s` is consistent with symmetries_between_bonds())
 function symmetries_between_atoms(cryst::Crystal, i1::Int, i2::Int)
+    validate_symops(cryst)
+
     ret = SymOp[]
     r1 = cryst.positions[i1]
     r2 = cryst.positions[i2]
@@ -84,6 +86,8 @@ end
 
 # Generate list of all symmetries that transform b2 into b1, along with parity
 function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
+    validate_symops(cryst)
+
     # Fail early if two bonds describe different real-space distances
     # (dimensionless error tolerance is measured relative to the minimum lattice
     # constant ℓ)
