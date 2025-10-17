@@ -193,6 +193,7 @@ function permute_sites!(cryst::Crystal, p)
     cryst.positions .= cryst.positions[p]
     cryst.classes .= cryst.classes[p]
     cryst.types .= cryst.types[p]
+    return cryst
 end
 
 # Sort the sites according to class and fractional coordinates. Any changes here
@@ -220,7 +221,7 @@ function sort_sites!(cryst::Crystal)
         @assert false "Symmetry-equivalent positions $(pos_to_string(ri)) and $(pos_to_string(rj))"
     end
     p = sort(eachindex(cryst.positions), lt=less_than)
-    permute_sites!(cryst, p)
+    return permute_sites!(cryst, p)
 end
 
 
@@ -411,8 +412,9 @@ function validate_crystal(cryst::Crystal)
 end
 
 
+# repeat_multiple(["a", "b"], [2, 3]) == ["a", "a", "b", "b", "b"]
 function repeat_multiple(vals, lens)
-    reduce(vcat, map(vals, lens) do val, len
+    return reduce(vcat, map(vals, lens) do val, len
         fill(val, len)
     end)
 end
@@ -483,9 +485,9 @@ end
 
 
 function check_shape_commensurate(cryst, shape)
-    prim_cell = @something primitive_cell(cryst) Mat3(I)
+    prim_cell = primitive_cell(cryst)
     shape_in_prim = prim_cell \ shape
-    if !all_integer(shape_in_prim; atol=cryst.symprec)
+    if !all_integer(shape_in_prim; atol=1e-12)
         if prim_cell ≈ I
             error("Elements of `shape` must be integer. Received $shape.")
         else
@@ -494,49 +496,60 @@ function check_shape_commensurate(cryst, shape)
     end
 end
 
-function reshape_crystal_aux(cryst::Crystal, new_latvecs)
-    # This matrix defines a mapping from fractional coordinates `x` in `cryst`
-    # to fractional coordinates `y` in the new unit cell.
-    B = new_latvecs \ cryst.latvecs
 
-    # Symmetry precision needs to be rescaled for the new unit cell. Use cube
-    # root of volume ratio.
-    volume_ratio = abs(det(B))
-    new_symprec = cryst.symprec * cbrt(volume_ratio)
+# Indices of atoms in the primitive cell
+function primitive_atoms(cryst::Crystal)
+    P = primitive_cell(cryst)
+    P ≈ I && return collect(1:natoms(cryst))
+    invP = inv(P)
 
-    # Our goal is to loop over `cryst` cells (n1, n2, n3) and make sure we
-    # completely cover `new_latvecs` cell, {0 ≤ y₁ ≤ 1, 0 ≤ y₂ ≤ 1, 0 ≤ y₃ ≤ 1}.
-    # Due to the linear relationship `y = Bx`, the required range of (n1, n2,
-    # n3) is associated with inv(B). In particular, the cells (n1, n2, n3) must
-    # cover all corners of the parallelpiped `inv(B) * [{0,1}, {0,1}, {0,1}]`.
-    #
-    # The bounds `sum.(eachrow(...))` on `nmax` below is intended as a
-    # conservative, heuristic guess. Any mistake here will likely be detected as
-    # as mismatch between the ratio of atoms and the ratio of cell volumes.
-    nmax = round.(Int, sum.(eachrow(abs.(inv(B))))) .+ 1
-
-    new_positions = Vec3[]
-    new_types     = String[]
-    new_classes   = Int[]
-
-    for i in 1:natoms(cryst)
-        for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]
-            x = cryst.positions[i] + Vec3(n1, n2, n3)
-            y = B*x
-
-            # Check whether the new position y (in fractional coordinates
-            # associated with `new_latvecs`) is within the new unit cell. All
-            # coordinates in [-ϵ, 1-ϵ).
-            if all(-new_symprec .<= y .< 1 - new_symprec)
-                push!(new_positions, y)
-                push!(new_types, cryst.types[i])
-                push!(new_classes, cryst.classes[i])
-            end
+    atoms = Int[]
+    for (i, ri) in enumerate(cryst.positions)
+        if all(rj -> !is_periodic_copy(invP * ri, invP * rj), cryst.positions[atoms])
+            push!(atoms, i)
         end
     end
 
-    # Check that we have the right number of atoms
-    @assert abs(det(B)) * length(new_positions) ≈ natoms(cryst) "You hit a Sunny bug! Please report it to the developers."
+    @assert length(atoms) / natoms(cryst) ≈ abs(det(P))
+    return atoms
+end
+
+function reshape_crystal_aux(cryst::Crystal, new_latvecs)
+    # Rescale symmetry precision with cube root of volume ratio
+    volume_ratio = abs(det(new_latvecs / cryst.latvecs))
+    new_symprec = cryst.symprec / cbrt(volume_ratio)
+
+    # Atom indices within the primitive cell and associated positions
+    prim_inds = primitive_atoms(cryst)
+    prim_global_positions = Ref(cryst.latvecs) .* cryst.positions[prim_inds]
+
+    # new_shape_in_prim defines the new supercell in multiples of primitive
+    # cells. Since the primitive cell is the smallest discrete unit, all
+    # elements of the shape matrix are integer.
+    prim_shape = primitive_cell(cryst)
+    prim_latvecs = cryst.latvecs * prim_shape
+    new_shape_in_prim = prim_latvecs \ new_latvecs
+    @assert all_integer(new_shape_in_prim; atol=1e-12)
+    new_shape_in_prim = round.(Int, new_shape_in_prim)
+
+    # Factorize shape matrix as lower triangular H (column Hermite normal form)
+    # times unimodular U.
+    H = MatInt.col_hermite(new_shape_in_prim)
+    @assert istril(H) && all(diag(H) .> 0)
+
+    # Create a grid of shifted copies of the primitive cell and map them into
+    # fractional coordinates for new_latvecs. The diagonal elements of H
+    # determine the appropriate grid dimensions.
+    new_positions = Vec3[]
+    for n in Iterators.product(0:H[1,1]-1, 0:H[2,2]-1, 0:H[3,3]-1)
+        x = [new_latvecs \ (r + prim_latvecs * collect(n)) for r in prim_global_positions]
+        append!(new_positions, wrap_to_unit_cell.(x; atol=new_symprec))
+    end
+
+    ncopies = round(Int, abs(det(new_shape_in_prim)))
+    @assert length(new_positions) == length(prim_inds) * ncopies
+    new_types = repeat(cryst.types[prim_inds], ncopies)
+    new_classes = repeat(cryst.classes[prim_inds], ncopies)
 
     return (; new_positions, new_types, new_classes, new_symprec)
 end
@@ -545,9 +558,7 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     # Check that desired lattice vectors are commensurate with root cell
     check_shape_commensurate(cryst, new_shape)
 
-    # The `root.latvecs` defines the fractional coordinate system, but note that
-    # `cryst` may be formed as a subcrystal of `root`. For reshaping purposes,
-    # therefore, we must use `cryst.positions` and not `root.positions`, etc.
+    # root.latvecs defines the fractional coordinate system used by new_shape
     root = @something cryst.root cryst
 
     # Lattice vectors of the new unit cell in global coordinates
@@ -570,7 +581,11 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     # Empty symops list indicates that this information has been lost.
     new_sg = Spacegroup(SymOp[], root.sg.label, root.sg.number, sg_setting)
 
-    return Crystal(root, new_latvecs, new_recipvecs, new_positions, new_types, new_classes, new_sg, new_symprec)
+    ret = Crystal(root, new_latvecs, new_recipvecs, new_positions, new_types, new_classes, new_sg, new_symprec)
+    sort_sites!(ret)
+    validate_crystal(ret)
+
+    return ret
 end
 
 

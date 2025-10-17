@@ -18,6 +18,7 @@ import HCubature: hcubature
 import CrystalInfoFramework as CIF
 import Spglib
 import RowEchelon: rref!
+import MatInt
 import Brillouin
 
 include("MathBasics.jl")

@@ -244,8 +244,11 @@ function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing
 
     if from_mcif
         if !keep_supercell
+            # FIXME
+            # return standardize(ret)
+
             # Reshape to symmetry-inferred standard cell
-            new_latvecs = latvecs / ret.sg.setting.R
+            new_latvecs = ret.latvecs / ret.sg.setting.R
             (; new_positions, new_types, new_symprec) = reshape_crystal_aux(ret, new_latvecs)
             return Crystal(new_latvecs, new_positions; types=new_types, symprec=new_symprec)
         else

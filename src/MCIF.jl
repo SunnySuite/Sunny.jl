@@ -27,7 +27,7 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
         tol = sys.crystal.symprec # Tolerance might need tuning
         orig_cryst = orig_crystal(sys)
 
-        primcell = @something primitive_cell(orig_cryst) Mat3(I)
+        primcell = primitive_cell(orig_cryst)
         primvecs = orig_cryst.latvecs * primcell
 
         suggestion = if all(isinteger.(rationalize.(primvecs \ supervecs2; tol)))

@@ -82,5 +82,5 @@ end
 
     S0 = [0, 0, 3/2]
     @test vec(sys1.dipoles) ≈ [-S0, +S0, -S0, +S0, -S0, +S0]
-    @test vec(sys2.dipoles) ≈ [-S0, +S0, -S0, +S0, +S0, -S0]
+    @test vec(sys2.dipoles) ≈ [-S0, +S0, +S0, -S0, -S0, +S0]
 end
