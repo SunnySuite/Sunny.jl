@@ -3,21 +3,22 @@
 ## v0.7.9
 (In development)
 
-* Various symmetry analysis enhancements ([PRs
+* Enhancements to crystal construction and symmetry analysis ([PRs
   #405](https://github.com/SunnySuite/Sunny.jl/pull/405),
   [#413](https://github.com/SunnySuite/Sunny.jl/pull/413),
   [#421](https://github.com/SunnySuite/Sunny.jl/pull/421)). In particular, see
   [PR #421](https://github.com/SunnySuite/Sunny.jl/pull/421) for **breaking
   changes** regarding atom and site indexing conventions. When loading an CIF or
-  mCIF, precision parameter `symprec` can now usually be inferred. Loading an
-  mCIF now returns a standardized chemical cell and Cartesian coordinate system,
-  consistent with other paths for Sunny crystal specification. The lattice
-  vectors and positions of a loaded crystal are now idealized according to
-  spacegroup data. Indexing conventions of certain reshaped systems have
-  changed; continue to use [`position_to_site`](@ref) for robust indexing of
-  reshaped systems. Attempting to perform symmetry analysis on a crystal with a
-  larger-than-standard chemical cell will now error (rather than give a wrong
-  result).
+  mCIF, precision parameter `symprec` is now inferred. Loading an mCIF now
+  returns a chemical cell with standardized Cartesian coordinate system (``a_1``
+  aligned with ``x``). The lattice vectors and positions of a loaded crystal are
+  now idealized according to spacegroup data. Indexing conventions of certain
+  reshaped systems have changed; continue to use [`position_to_site`](@ref) for
+  robust indexing of reshaped systems. Attempting to perform symmetry analysis
+  on a crystal with a larger-than-standard chemical cell will now error rather
+  than give a wrong result.
+* Fixes to [`load_nxs`](@ref)([PR
+  #420](https://github.com/SunnySuite/Sunny.jl/pull/420)).
 
 ## v0.7.8
 (Jul 1, 2025)
