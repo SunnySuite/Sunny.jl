@@ -238,37 +238,32 @@ function standardize(cryst::Crystal)
     return Crystal(latvecs, positions, cryst.sg.number; types)
 end
 
-function score_setting(setting::SymOp; latvecs::Mat3)
-    # Translation wrapped to [-0.5, 0.5]
-    T = mod.(setting.T .+ 0.5, 1) .- 0.5
 
+function score_setting(setting::SymOp; latvecs::Mat3)
     # Lattice vectors in proposed setting
     A = latvecs / setting.R
 
     # Rotation with respect to idealized Cartesian frame
     R = A / lattice_vectors(lattice_params(A)...)
-    @assert R' * R ≈ I
-
     (n, θ) = matrix_to_axis_angle(R * det(R))
-    @assert 0 <= θ <= π + 1e-12
+    @assert 0 <= θ <= π
 
-    # Lexicographic score (decreasing priority, lower is better)
-    score = (
-        -sign(det(R)),                 # no reflection
-        -(norm(T) < 1e-12),            # no translation
-        -(abs(θ) < 1e-12),             # no rotation
-        # -(abs(θ) ≈ π),               # exactly π rotation (causes new failures!)
-        abs(θ),                        # small rotation
-        norm(T + Vec3(0, -1e-2, -4e-2)), # small translation (positive breaks ties)
-        -abs(n[3] + 1e-2),             # z-axis favored (clockwise breaks ties)
-        -abs(n[2] + 1e-2),             # y-axis ...
-        -abs(n[1] + 1e-2),             # x-axis ...
+    # Quantize so that floats can be compared without precision artifacts
+    θ = round(θ; digits=12)
+    n = round.(n; digits=12)
+    T = round.(setting.T; digits=12)
+
+    # Lexicographic score in decreasing priority
+    return (
+        -sign(det(A)),              # no reflection
+        -(norm(T) < 1e-12),         # no translation
+        -(abs(θ) < 1e-12),          # no rotation
+        abs(θ),                     # small rotation
+        norm(T),                    # small translation
+        -abs.(reverse(n) .+ 1e-12), # break ties by favoring z-axis rotation, clockwise
+        +abs.(reverse(T) .- 1e-12), # break ties by favoring small a3 translation, positive
     )
-
-    # Quantize score to avoid precision artifacts
-    return round.(score; digits=12)
 end
-
 
 function conventionalize_setting(latvecs::Mat3, setting::SymOp, sgnum::Int)
     symops = SymOp.(Spglib.get_symmetry_from_database(standard_setting[sgnum])...)
@@ -276,8 +271,14 @@ function conventionalize_setting(latvecs::Mat3, setting::SymOp, sgnum::Int)
         return setting
     end
 
-    # Standard cell is ambiguous up to spacegroup symmetry operations.
-    candidate_settings = symops .* Ref(setting)
+    # The `setting` is ambiguous because `s * setting` is another valid setting
+    # for each symop `s`. Build list of candidates. Without loss of generality,
+    # wrap components of translation vector T to (-0.5, 0.5].
+    candidate_settings = unique(map(symops) do s
+        (; R, T) = s * setting
+        T = mod.(T .+ (0.5 - 1e-12), 1) .- (0.5 - 1e-12)
+        SymOp(R, T)
+    end)
 
     scores = score_setting.(candidate_settings; latvecs)
     p = sortperm(scores)
