@@ -96,7 +96,7 @@ function q_space_path(cryst::Crystal, qs, n; labels=nothing)
     push!(markers, 1+length(path))
     push!(path, qs[end])
 
-    labels = @something labels fractional_vec3_to_string.(qs)
+    labels = @something labels vec3_to_string.(qs)
     xticks = (markers, labels)
     return QPath(path, xticks)
 end

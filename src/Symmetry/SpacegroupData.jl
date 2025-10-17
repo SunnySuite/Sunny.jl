@@ -354,3 +354,14 @@ function Spacegroup(hall_number::Int)
     setting = mapping_to_standard_setting(hall_number)
     return Spacegroup(symops, label, number, setting)
 end
+
+function idealize_spacegroup(sg; symprec)
+    for sgt in all_spacegroup_types_for_symbol(sg.number)
+        hall_number = Int(sgt.hall_number)
+        hall_setting = mapping_to_standard_setting(hall_number)
+        if isapprox(hall_setting, sg.setting; atol=symprec)
+            return Spacegroup(hall_number)
+        end
+    end
+    return sg
+end

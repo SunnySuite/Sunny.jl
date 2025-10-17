@@ -183,7 +183,7 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
     orthogonal_axes_counts = filter(x -> abs(x[1]⋅z_dir) < 1e-12, axes_counts)
 
     if isempty(orthogonal_axes_counts)
-        @info "Could not find a symmetry axis orthogonal to $(fractional_vec3_to_string(z_dir))."
+        @info "Could not find a symmetry axis orthogonal to $(vec3_to_string(z_dir))."
         x_dir = (z_dir ≈ Vec3(1,0,0)) ? Vec3(0,0,1) : Vec3(1,0,0)
         x_dir = normalize(x_dir - (x_dir⋅z_dir)*z_dir)
     else

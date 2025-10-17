@@ -173,22 +173,22 @@ end
     x = 0.15
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.751] in Wyckoff 6h at symprec=0.001"
+    msg = "Equivalent positions [0.15, 0.3, 1/4] and [-0.15, -0.3, 0.751] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.752] in Wyckoff 6h at symprec=0.001"
+    msg = "Near-equivalent positions [0.15, 0.3, 1/4] and [-0.15, -0.3, 0.752] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 5e-3]]
     Crystal(latvecs, positions, 194; symprec=1e-3) # No error
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.751] at symprec=0.001"
+    msg = "Overlapping positions [0.85, 0.7, 3/4] and [0.85, 0.7, 0.751] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.752] at symprec=0.001"
+    msg = "Near-overlapping positions [0.85, 0.7, 3/4] and [0.85, 0.7, 0.752] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 5e-3]]
