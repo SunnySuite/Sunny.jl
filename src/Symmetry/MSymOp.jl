@@ -36,7 +36,7 @@ end
 
 function Base.inv(s::MSymOp)
     Rinv = inv(s.R)
-    MSymOp(Rinv, -Rinv*s.T, s.p)
+    return MSymOp(Rinv, -Rinv*s.T, s.p)
 end
 
 function transform(s::MSymOp, r)
