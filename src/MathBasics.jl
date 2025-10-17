@@ -71,10 +71,10 @@ end
 # decomposition of AF, then (QF, FRF) is the QL decomposition of A.
 function ql_slow(A)
     AF = reduce(hcat, reverse(eachcol(A)))
-    Q, R = qr(AF)
-    # TODO: Perform these reversals in-place
-    QF = reduce(hcat, reverse(eachcol(collect(Q))))
-    RF = reduce(hcat, reverse(eachcol(collect(R))))
-    FRF = reduce(vcat, reverse(transpose.(eachrow(collect(RF)))))
+    QR = qr(AF)
+    QF = Matrix(QR.Q) # QR.Q is a compact representation
+    FRF = QR.R
+    reverse!(QF, dims=2)
+    reverse!(FRF)
     return QF, FRF
 end
