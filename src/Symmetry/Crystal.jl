@@ -469,9 +469,10 @@ end
 # Builds a crystal from an explicit set of symmetry operations and a minimal set
 # of positions
 function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, sg::Spacegroup; symprec)
-    wyckoffs = find_wyckoff_for_position.(Ref(sg), positions; symprec)
+    idealized = idealize_wyckoff.(Ref(sg), positions; symprec)
+    wyckoffs = [w for (w, _) in idealized]
+    orbits = [crystallographic_orbit(r; sg.symops, symprec) for (_, r) in idealized]
     multiplicities = [w.multiplicity * abs(det(sg.setting.R)) for w in wyckoffs]
-    orbits = crystallographic_orbit.(positions; sg.symops, symprec)
     validate_orbits(positions, orbits; symprec, multiplicities, wyckoffs)
 
     all_positions = reduce(vcat, orbits)
@@ -488,7 +489,7 @@ end
 
 function get_wyckoff(cryst::Crystal, i::Int)
     (; classes, positions, sg, symprec) = cryst
-    wyckoff = find_wyckoff_for_position(sg, positions[i]; symprec)
+    wyckoff, _ = idealize_wyckoff(sg, positions[i]; symprec)
     cell_multiplicity = count(==(classes[i]), classes)
     @assert wyckoff.multiplicity ≈ cell_multiplicity / abs(det(sg.setting.R))
     return wyckoff
