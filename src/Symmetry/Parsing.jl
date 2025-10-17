@@ -230,8 +230,15 @@ function Crystal(filename::AbstractString; symprec=nothing, keep_supercell=false
     all_positions = reduce(vcat, orbits)
     all_types = repeat_multiple(classes, length.(orbits))
 
-    # TODO: Check orbit lengths against _atom_site_symmetry_multiplicity data if
-    # available.
+    # Check orbit lengths against _atom_site_symmetry_multiplicity data if available.
+    atom_site_symmetry_multiplicity = get(cif, "_atom_site_symmetry_multiplicity", nothing)
+    if !isnothing(atom_site_symmetry_multiplicity)
+        mismatches = (length.(orbits) .!= parse.(Int64, atom_site_symmetry_multiplicity))
+        if any(mismatches)
+            @warn "Inferred orbit lengths do not match _atom_site_symmetry_multiplicity\
+            for sites $(findall(mismatches))."
+        end
+    end
 
     # Infer symmetry from full list of atoms. Warnings will be customized.
     ret = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, suppress_warnings=true)
