@@ -268,6 +268,14 @@ end
     positions = [[0.6667, 0.3333, 0.0], [0.3333, 0.6667, 0.0]]
     cryst = Crystal(latvecs, positions; symprec=1e-3)
     @test cryst.positions ≈ [[2/3, 1/3, 0], [1/3, 2/3, 0]]
+
+    latvecs = lattice_vectors(9.091, 9.091, 13.285, 90.0, 90.0, 120.0)
+    z = 0.3333
+    # Idealizes to [1/3, 2/3, 2/3 + z] where z is held at low precision
+    positions = [[0.3333, 0.6667, 2/3 + z]] 
+    cryst = Crystal(latvecs, positions, 166; symprec=1e-3)
+    ref = [[2/3, 1/3, 1/3 - z], [1/3, 2/3, 2/3 + z - 1], [0, 0, 0 + z], [1/3, 2/3, 2/3 - z], [0, 0, 0 - z + 1], [2/3, 1/3, 1/3 + z]]
+    @test cryst.positions ≈ ref
 end
 
 
