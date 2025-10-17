@@ -163,19 +163,19 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
             n ≈ Vec3(0,0,1) && return 0
             n ≈ Vec3(1,0,0) && return 1
             n ≈ Vec3(0,1,0) && return 2
-        
+
             # Look for [1,1,1] axis
             n ≈ Vec3(1,1,1)/√3 && return 3
-        
+
             # Look for [±1,±1,±1] axis
             abs.(n) ≈ Vec3(1,1,1)/√3 && return 4
-        
+
             # Try to minimize the number of zeros, thus preferring axes in the
             # (x,y) plane, etc.
             return 10 * count(n_i -> abs(n_i) > 1e-12, n)
         end
     end
-    
+
     z_dir = select_axis(axes_counts)
 
     # Collect all symmetry axes orthogonal to the primary axis, along with their

@@ -278,6 +278,51 @@ end
     @test cryst.positions ≈ ref
 end
 
+@testitem "Conventional settings" begin
+    misses = Int[]
+
+    for hall in 1:530
+        latvecs = if Sunny.cell_type(hall) == Sunny.hexagonal
+            lattice_vectors(1, 1, 1, 90, 90, 120)
+        else
+            lattice_vectors(1, 1, 1, 90, 90, 90)
+        end
+
+        sgnum = Int(Sunny.all_spacegroup_types[hall].number)
+        setting = Sunny.mapping_to_standard_setting(hall)
+
+        sg = Sunny.Spacegroup(hall)
+        setting′ = Sunny.conventionalize_setting(latvecs, setting, sgnum)
+
+        # The `setting` defines the map from the given crystal cell to an ITA
+        # "standard" one. Crystallographically, the choice is not unique:
+        # left-applying any symop to `setting` would give another one that is
+        # also valid. The setting convention _does_, however, matter for a
+        # `cryst` loaded from an mCIF. Specifically, `cryst.sg.setting` will
+        # define the indexing convention for a system that has been reshaped to
+        # match the magnetic cell of that mCIF. For this reason, we need a fixed
+        # and unambiguous convention. The function `conventionalize_setting`
+        # includes heuristics that aim for consistency with the table
+        # `mapping_to_standard_setting`, which was sourced from PyXTal.
+        if !(sg.setting ≈ setting′)
+            push!(misses, hall)
+        end
+    end
+
+    # Any ITA standard setting must conventionalize to itself. Conversely, all
+    # misses must be non-standard settings.
+    @test all(misses) do hall
+        Sunny.standard_setting_for_hall_number(hall) != hall
+    end
+
+    # The simple heuristics in `conventionalize_setting` miss for the 54 Hall
+    # numbers listed below. These misses are to some extent arbitrary (depending
+    # on the choices made in the PyXTal-sourced table). Attempts to reduce this
+    # miss-count were only successful with significant complication to the
+    # heuristics, which does not seem worthwhile. The purpose of this test is to
+    # ensures consistency of the `conventionalize_setting` behavior.
+    @test misses == [5, 11, 14, 15, 59, 65, 68, 69, 111, 114, 118, 121, 127, 136, 141, 153, 163, 172, 175, 184, 189, 195, 201, 207, 211, 214, 217, 220, 225, 232, 237, 240, 242, 243, 252, 255, 265, 277, 282, 299, 302, 305, 308, 312, 315, 317, 320, 324, 328, 330, 340, 344, 347, 527]
+end
 
 @testitem "Standardize Crystal" begin
     cryst = Crystal([1 0 1; 1 1 0; 0 1 1], [[0.1, 0.2, 0.3]])
@@ -443,7 +488,7 @@ end
                             B -B  A]
         Allowed anisotropy in Stevens operators:
             c₁*(𝒪[2,-2]+2𝒪[2,-1]-2𝒪[2,1]) +
-            c₂*(7𝒪[4,-3]+2𝒪[4,-2]-𝒪[4,-1]+𝒪[4,1]+7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
+            c₂*(-7𝒪[4,-3]-2𝒪[4,-2]+𝒪[4,-1]-𝒪[4,1]-7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
             c₄*(-11𝒪[6,-6]-8𝒪[6,-3]+𝒪[6,-2]-8𝒪[6,-1]+8𝒪[6,1]-8𝒪[6,3]) + c₅*(-𝒪[6,0]+21𝒪[6,4]) + c₆*(9𝒪[6,-6]+24𝒪[6,-5]+5𝒪[6,-2]+8𝒪[6,-1]-8𝒪[6,1]-24𝒪[6,5])
         """
 

@@ -19,8 +19,8 @@ function characteristic_length_between_atoms(cryst::Crystal)
         error("Internal error")
     end
 
-    # An upper bound is the norm of the smallest lattice vector.
-    ℓ0 = minimum(norm.(eachcol(cryst.latvecs)))
+    # An upper bound is the smallest singular value of the lattice vectors
+    ℓ0 = minimum(svdvals(cryst.latvecs))
 
     return min(ℓ0, ℓ)
 end
@@ -31,7 +31,7 @@ function reference_bonds_upto(cryst, nbonds, ndims)
     isempty(cryst.sg.symops) && return Bond[]
 
     # Calculate heuristic maximum distance
-    min_a = minimum(norm.(eachcol(cryst.latvecs)))
+    min_a = minimum(svdvals(cryst.latvecs))
     nclasses = length(unique(cryst.classes))
     max_dist = 2 * min_a * (nbonds / (nclasses*natoms(cryst)))^(1/ndims)
 

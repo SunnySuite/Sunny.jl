@@ -158,7 +158,7 @@ function idealize_latvecs(sg::Spacegroup, latvecs; tol)
     R = closest_unitary(latvecs / latvecs′)
     latvecs′ = R * latvecs′
     if !isapprox(latvecs, latvecs′; rtol=tol)
-        error("Lattice parameters $params appear incompatible with spacegroup $sg in standard setting")
+        error("Lattice parameters $params appear incompatible with spacegroup $(sg.label) in standard setting")
     end
 
     return latvecs′

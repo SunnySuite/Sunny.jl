@@ -130,13 +130,12 @@ end
 
 # Sunny crystal specification is agnostic to length units. Spglib, however,
 # expects lattice vector magnitudes to be order one. The wrappers below do the
-# following: (1) Identify a natural length scale as the smallest singular value
-# of the lattice vectors as a matrix, (2) Non-dimensionalize the lattice vectors
-# using this length, (3) Perform Spglib symmetry analysis, (4) Re-introduce
-# length dimensions in the appropriate return values. See discussion and
-# limitations in PR #405.
+# following: (1) Non-dimensionalize the lattice vectors using a natural length
+# scale, (2) Perform Spglib symmetry analysis, (3) Re-introduce length
+# dimensions in the appropriate return values.
 function dimensionless_spg_cell(cell)
     (; lattice, positions, atoms, magmoms) = cell
+    # See https://github.com/spglib/spglib/issues/595 for discussion of a0
     a0 = minimum(svdvals(Mat3(lattice)))
     cell = Spglib.Cell(lattice/a0, positions, atoms, magmoms)
     return (; cell, a0)
@@ -239,24 +238,55 @@ function standardize(cryst::Crystal)
     return Crystal(latvecs, positions, cryst.sg.number; types)
 end
 
+function score_setting(setting::SymOp; latvecs::Mat3)
+    # Translation wrapped to [-0.5, 0.5]
+    T = mod.(setting.T .+ 0.5, 1) .- 0.5
+
+    # Lattice vectors in proposed setting
+    A = latvecs / setting.R
+
+    # Rotation with respect to idealized Cartesian frame
+    R = A / lattice_vectors(lattice_params(A)...)
+    @assert R' * R ≈ I
+
+    (n, θ) = matrix_to_axis_angle(R * det(R))
+    @assert 0 <= θ <= π + 1e-12
+
+    # Lexicographic score (decreasing priority, lower is better)
+    score = (
+        -sign(det(R)),                 # no reflection
+        -(norm(T) < 1e-12),            # no translation
+        -(abs(θ) < 1e-12),             # no rotation
+        # -(abs(θ) ≈ π),               # exactly π rotation (causes new failures!)
+        abs(θ),                        # small rotation
+        norm(T + Vec3(0, -1e-2, -4e-2)), # small translation (positive breaks ties)
+        -abs(n[3] + 1e-2),             # z-axis favored (clockwise breaks ties)
+        -abs(n[2] + 1e-2),             # y-axis ...
+        -abs(n[1] + 1e-2),             # x-axis ...
+    )
+
+    # Quantize score to avoid precision artifacts
+    return round.(score; digits=12)
+end
+
 
 function conventionalize_setting(latvecs::Mat3, setting::SymOp, sgnum::Int)
     symops = SymOp.(Spglib.get_symmetry_from_database(standard_setting[sgnum])...)
-    ϵ = 1e-2
-    γ = Vec3(1ϵ, 2ϵ, 3ϵ)
+    if length(symops) == 1
+        return setting
+    end
 
-    # Standard cell is ambiguous up to spacegroup symmetry operations
+    # Standard cell is ambiguous up to spacegroup symmetry operations.
     candidate_settings = symops .* Ref(setting)
 
-    # Prefer the standard lattice vectors A to be right-handed and aligned with
-    # Cartesian axes. To break ties, prefer small translation T.
-    return argmin(candidate_settings) do setting′
-        # Lattice vectors and translation in the new setting 
-        A = latvecs / setting′.R
-        T = setting′.T
-        # Score (lower better)
-        -sign(det(A)) - ϵ * tr(A * Diagonal(1 .- γ)) / norm(A) + ϵ^2 * norm(T - γ)
+    scores = score_setting.(candidate_settings; latvecs)
+    p = sortperm(scores)
+
+    if !allunique(scores)
+        @warn "Could not select standard cell unambiguously"
     end
+
+    return candidate_settings[p[1]]
 end
 
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec, suppress_warnings=false)
@@ -275,8 +305,8 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     setting = mapping_to_standard_setting_from_spglib_dataset(d)
     setting = conventionalize_setting(latvecs, setting, sgnum)
 
-    # Spglib-inferred symops are unreliable for large cells. Include just the
-    # identity symop (spacegroup P1) to signal the problem.
+    # Spglib-inferred symops are unreliable for large cells. Empty the list to
+    # prevent faulty symmetry analysis.
     if length(positions) > d.n_std_atoms
         if !suppress_warnings
             types_str = allunique(types) ? "" : " Alternatively, break site symmetry with `types=[...]`."

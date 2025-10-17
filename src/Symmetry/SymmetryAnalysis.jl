@@ -92,7 +92,7 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
     if b1 != b2
         d1 = global_distance(cryst, b1)
         d2 = global_distance(cryst, b2)
-        atol = 1e-12 * minimum(svdvals(cryst.latvecs))
+        atol = 1e-12 * opnorm(cryst.latvecs)
         if !isapprox(d1, d2; atol)
             return Tuple{SymOp, Bool}[]
         end
@@ -158,7 +158,7 @@ end
 
 # Returns all bonds in `cryst` for which `bond.i == i`
 function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
-    atol = 1e-12 * minimum(svdvals(cryst.latvecs))
+    atol = 1e-12 * opnorm(cryst.latvecs)
     max_dist += atol
     min_dist -= atol
 

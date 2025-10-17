@@ -256,6 +256,13 @@ function hall_number_from_symops(sgnum, symops; tol)
     if isempty(sgts)
         # Cannot be matched to any of the Hall number settings
         return nothing
+    elseif length(sgts) > 1
+        # ITA settings for spacegroup 68 cannot be disambiguated from symops.
+        # Pick one of the two options arbitrarily.
+        @assert sgnum == 68
+        hall_numbers = [sgt.hall_number for sgt in sgts]
+        @assert hall_numbers in ([322, 324], [326, 328], [330, 332])
+        return Int(sgts[end].hall_number)
     else
         return Int(only(sgts).hall_number)
     end
