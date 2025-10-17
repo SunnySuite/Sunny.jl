@@ -258,6 +258,19 @@ end
 end
 
 
+@testitem "Idealize setting and positions" begin
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 120)
+    positions = [[0.3333, 0.6667, 0.0]]
+    cryst = Crystal(latvecs, positions, 191; symprec=1e-3)
+    @test cryst.positions ≈ [[2/3, 1/3, 0], [1/3, 2/3, 0]]
+
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 120)
+    positions = [[0.6667, 0.3333, 0.0], [0.3333, 0.6667, 0.0]]
+    cryst = Crystal(latvecs, positions; symprec=1e-3)
+    @test cryst.positions ≈ [[2/3, 1/3, 0], [1/3, 2/3, 0]]
+end
+
+
 @testitem "Standardize Crystal" begin
     using LinearAlgebra
 
