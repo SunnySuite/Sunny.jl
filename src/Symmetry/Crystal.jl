@@ -222,6 +222,7 @@ function sort_sites!(cryst::Crystal)
 end
 
 
+# FIXME: DELETE
 # Attempt to find a permutation matrix P (with sign flips) such that latvecs*P
 # has a more standard form.
 function permute_to_standardize_lattice_vectors(latvecs)
@@ -262,12 +263,10 @@ end
 
 
 """
-    standardize(cryst::Crystal; idealize=true)
+    standardize(cryst::Crystal)
 
-Return the symmetry-inferred standardized crystal unit cell. If `idealize=true`,
-then the lattice vectors and site positions will be adapted. See "definitions
-and conventions" of the [spglib
-documentation](https://spglib.readthedocs.io/en/stable/) for more information.
+Return the symmetry-inferred, standardized crystal unit cell under ITA
+conventions.
 """
 function standardize(cryst::Crystal; idealize=true)
     !isnothing(cryst.root) && error("Call this function on root crystal instead")
@@ -278,6 +277,7 @@ function standardize(cryst::Crystal; idealize=true)
     positions = Vec3.(positions)
     lattice = Mat3(lattice)
 
+    # FIXME: DELETE
     if !idealize
         # Even if we're not idealizing the site positions, it is still important
         # to tune the lattice vectors so that the lattice system is exactly
@@ -317,7 +317,6 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     # Print a warning if non-conventional lattice vectors are detected.
     try cell_type(latvecs) catch e @warn e.msg end
 
-    recipvecs = 2π*Mat3(inv(latvecs)')
     positions = wrap_to_unit_cell.(positions; symprec)
     validate_positions(positions; symprec)
 
@@ -345,6 +344,10 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     # See if the spacegroup setting match any Hall number and, if so, use
     # tabulated spacegroup data.
     sg = idealize_spacegroup(sg; symprec)
+
+    # Idealize the basis vectors for the lattice system
+    latvecs = idealize_latvecs(sg, latvecs; symprec)
+    recipvecs = 2π*Mat3(inv(latvecs)')
 
     # Idealize each orbit according to inferred Wyckoff.
     for c in unique(classes)
@@ -465,6 +468,9 @@ end
 # Builds a crystal from an explicit set of symmetry operations and a minimal set
 # of positions
 function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, sg::Spacegroup; symprec)
+    latvecs = idealize_latvecs(sg, latvecs; symprec)
+    recipvecs = 2π*inv(latvecs)'
+
     wyckoffs = idealize_wyckoff.(Ref(sg), positions; symprec)
     orbits = map(wyckoffs) do w
         # Transform Wyckoff expression into custom setting
@@ -480,7 +486,6 @@ function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::
     all_types = repeat_multiple(types, length.(orbits))
     all_classes = repeat_multiple(eachindex(orbits), length.(orbits))
 
-    recipvecs = 2π*Mat3(inv(latvecs)')
     ret = Crystal(nothing, latvecs, recipvecs, all_positions, all_types, all_classes, sg, symprec)
     sort_sites!(ret)
     validate_crystal(ret)
@@ -598,7 +603,7 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     @assert abs(det(B)) * length(new_positions) ≈ natoms(cryst) "You hit a Sunny bug! Please report it to the developers."
 
     # Reciprocal lattice vectors of the new unit cell
-    new_recipvecs = 2π * Mat3(inv(new_latvecs)')
+    new_recipvecs = 2π*inv(new_latvecs)'
 
     # Note that latvecs_std = latvecs * R⁻¹ = new_latvecs * new_R⁻¹ is an
     # invariant quantity. Using new_latvecs = latvecs * new_shape, this implies

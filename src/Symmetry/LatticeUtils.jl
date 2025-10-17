@@ -115,8 +115,51 @@ function cell_type(latvecs::Mat3)
     if α ≈ β ≈ 90 || β ≈ γ ≈ 90 || α ≈ γ ≈ 90
         return monoclinic
     end
-    
+
     return triclinic
+end
+
+function idealize_latvecs(sg::Spacegroup, latvecs; symprec)
+    # Cell type for standard setting
+    cell = cell_type(standard_setting[sg.number])
+
+    # Lattice vectors in standard setting
+    latvecs_std = latvecs / sg.setting.R
+    params = lattice_params(latvecs_std)
+    (a, b, c, α, β, γ) = params
+
+    if cell == cubic
+        a = b = c = Statistics.mean((a, b, c))
+        α = β = γ = 90
+    elseif cell == tetragonal
+        a = b = Statistics.mean((a, b))
+        α = β = γ = 90
+    elseif cell == orthorhombic
+        α = β = γ = 90
+    elseif cell == hexagonal
+        a = b = Statistics.mean((a, b))
+        α = β = 90
+        γ = 120
+    elseif cell == monoclinic
+        α = γ = 90
+    else
+        @assert cell == triclinic
+    end
+
+    # Idealized lattice vectors in standard setting
+    latvecs_std′ = lattice_vectors(a, b, c, α, β, γ)
+
+    # Convert back to custom setting
+    latvecs′ = latvecs_std′ * sg.setting.R
+
+    # Globally rotate the Cartesian frame to get the best match with the
+    # original latvecs. A reflection det(R) = ±1 may also be applied here, as it
+    # leaves the lattice parameters (lengths and angles) invariant.
+    R = closest_unitary(latvecs / latvecs′)
+    latvecs′ = R * latvecs′
+    isapprox(latvecs, latvecs′; rtol=symprec) || error("Lattice parameters $params appear incompatible with spacegroup $sg in standard setting")
+
+    return latvecs′
 end
 
 function all_compatible_cells(cell::CellType)
@@ -138,4 +181,3 @@ function all_compatible_cells(cell::CellType)
         error()
     end
 end
-
