@@ -10,10 +10,9 @@ units of angstrom. In most cases, `symprec` can be omitted. If provided, it will
 specify the precision of the dimensionless site position data (commonly between
 1e-2 and 1e-5).
 
-If reading an mCIF, the magnetic cell will be converted to an inferred
-conventional chemical cell and returned. Use this crystal to build an
-appropriately shaped [`System`](@ref) and then load the magnetic order with
-[`set_dipoles_from_mcif!`](@ref).
+In case of an mCIF, returns the standardized chemical cell. Use this crystal to
+build an appropriately shaped [`System`](@ref) and then load the magnetic order
+with [`set_dipoles_from_mcif!`](@ref).
 
     Crystal(latvecs, positions; types=nothing, symprec=1e-5)
 
@@ -223,8 +222,11 @@ end
 """
     standardize(cryst::Crystal)
 
-Return the symmetry-inferred, standardized crystal unit cell under ITA
-conventions.
+Converts the provided crystal to an equivalent one that is standardized
+following ITA conventions [1].
+
+1. [International Tables of Crystallography, Volume A
+   (2016)](https://doi.org/10.1107/97809553602060000114).
 """
 function standardize(cryst::Crystal)
     # Lattice vectors of ITA standard cell
@@ -235,7 +237,16 @@ function standardize(cryst::Crystal)
     positions = transform.(Ref(cryst.sg.setting), cryst.positions[inds])
     types = cryst.types[inds]
 
-    return Crystal(latvecs, positions, cryst.sg.number; types)
+    # Construct ITA standard cell for spacegroup number
+    ret = Crystal(latvecs, positions, cryst.sg.number; types)
+
+    # Verify consistency of Wyckoffs
+    foreach(inds, positions) do i, r
+        i′ = position_to_atom(ret, r)
+        @assert get_wyckoff(cryst, i).letter == get_wyckoff(ret, i′).letter
+    end
+
+    return ret
 end
 
 
