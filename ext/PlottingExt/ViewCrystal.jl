@@ -219,15 +219,15 @@ function draw_bonds(; ax, visible, ionradius, exchange_mag, cryst, interactions,
     # String for each bond b′. Like print_bond(b′), but shorter.
     bond_labels = map(bonds) do b
         dist = Sunny.global_distance(cryst, b)
-        dist_str = Sunny.number_to_simple_string(dist; digits=4, atol=1e-12)
+        dist_str = Sunny.number_to_simple_string(dist; digits=4, tol=1e-12)
 
         if isnothing(interactions)
             basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b; b_ref=refbond)
-            basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
+            basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4)
             J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J:  ")
             antisym_basis_idxs = findall(J -> J ≈ -J', basis)
             if !isempty(antisym_basis_idxs)
-                antisym_basis_strs = Sunny.coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits=4, atol=1e-12)
+                antisym_basis_strs = Sunny.coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits=4)
                 dmvecstr = join([antisym_basis_strs[2,3], antisym_basis_strs[3,1], antisym_basis_strs[1,2]], ", ")
                 J_matrix_str *= "\nDM: [$dmvecstr]"
             end
@@ -301,7 +301,7 @@ function label_atoms(cryst; ismagnetic, sys)
                 refatoms = [b.i for b in Sunny.reference_bonds(cryst, 0.0)]
                 i_ref = Sunny.findfirstval(i_ref -> Sunny.is_related_by_symmetry(cryst, i, i_ref), refatoms)
                 R_site = Sunny.rotation_between_sites(cryst, i, i_ref)
-                push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, prefix="Aniso: ", digits=8, atol=1e-12))
+                push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, prefix="Aniso: ", digits=8))
             else
                 site = Sunny.map_atom_to_other_system(cryst, i, sys)
                 stvexp = Sunny.get_stevens_expansion_at(sys, site)

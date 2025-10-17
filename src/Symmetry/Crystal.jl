@@ -138,12 +138,6 @@ function dimensionless_cell(cell)
     cell = Spglib.Cell(lattice/a0, positions, atoms, magmoms)
     return (; cell, a0)
 end
-function spg_standardize_cell_scaled(cell, symprec; no_idealize)
-    (; cell, a0) = dimensionless_cell(cell)
-    ret = Spglib.standardize_cell(cell, symprec; no_idealize)
-    ret.lattice .*= a0
-    return ret
-end
 function spg_get_dataset_scaled(cell, symprec)
     (; cell, a0) = dimensionless_cell(cell)
     ret = Spglib.get_dataset(cell, symprec)
@@ -206,12 +200,11 @@ function sort_sites!(cryst::Crystal)
             return ci < cj
         end
 
-        # Sort in order of (a3, a2, a1). Use relatively loose `symprec`
-        # tolerance for comparison even though positions have been idealized.
+        # Sort in order of (a3, a2, a1).
         ri = cryst.positions[i]
         rj = cryst.positions[j]
         for k = 3:-1:1
-            if !is_integer(ri[k]-rj[k]; atol=cryst.symprec)
+            if !is_integer(ri[k]-rj[k]; tol=1e-12)
                 return ri[k] < rj[k]
             end
         end
@@ -295,19 +288,19 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
 
     # If the spacegroup setting matches a Hall number then use its tabulated
     # spacegroup data.
-    sg = idealize_spacegroup(sg; symprec)
+    sg = idealize_spacegroup(sg; tol=symprec)
 
     # Idealize the basis vectors for the lattice system
-    latvecs = idealize_latvecs(sg, latvecs; symprec)
+    latvecs = idealize_latvecs(sg, latvecs; tol=symprec)
     recipvecs = 2π*Mat3(inv(latvecs)')
 
     # Idealize each orbit according to inferred Wyckoff.
     for c in unique(classes)
         inds = findall(==(c), classes)
-        w = idealize_wyckoff(sg, positions[first(inds)]; symprec)
+        w = find_wyckoff(sg, positions[first(inds)]; tol=symprec)
         for j in inds
             @assert w.letter == d.wyckoffs[j]
-            positions[j] = idealize_position(sg, positions[j], w; symprec)
+            positions[j] = idealize_position(sg, positions[j], w; tol=symprec)
         end
     end
 
@@ -348,8 +341,8 @@ end
 function validate_positions(positions::Vector{Vec3}; symprec)
     for i in eachindex(positions), j in i+1:length(positions)
         ri, rj = positions[[i, j]]
-        overlapping = is_periodic_copy(ri, rj; atol=1.001symprec)
-        too_close = is_periodic_copy(ri, rj; atol=4.001symprec)
+        overlapping = is_periodic_copy(ri, rj; tol=1.001symprec)
+        too_close = is_periodic_copy(ri, rj; tol=4.001symprec)
         if overlapping || too_close
             descriptor = overlapping ? "Overlapping" : "Near-overlapping"
             ri_str, rj_str = pos_to_string.((ri, rj))
@@ -364,8 +357,8 @@ function validate_orbits(positions::Vector{Vec3}, orbits::Vector{Vector{Vec3}}; 
     # Check that orbits are distinct
     for i in eachindex(positions), j in i+1:length(positions)
         ri, rj = positions[[i, j]]
-        overlapping = any(is_periodic_copy.(Ref(ri), orbits[j]; atol=1.001symprec))
-        too_close = any(is_periodic_copy.(Ref(ri), orbits[j]; atol=4.001symprec))
+        overlapping = any(is_periodic_copy.(Ref(ri), orbits[j]; tol=1.001symprec))
+        too_close = any(is_periodic_copy.(Ref(ri), orbits[j]; tol=4.001symprec))
         if overlapping || too_close
             descriptor = overlapping ? "Equivalent" : "Near-equivalent"
             ri_str, rj_str = pos_to_string.((ri, rj))
@@ -383,7 +376,7 @@ function validate_orbits(positions::Vector{Vec3}, orbits::Vector{Vector{Vec3}}; 
 end
 
 function validate_crystal(cryst::Crystal)
-    (; latvecs, positions, types, classes, sg, symprec) = cryst
+    (; latvecs, positions, types, classes, sg) = cryst
 
     for i in eachindex(positions)
         # Atoms of the same class must have the same type
@@ -405,7 +398,7 @@ function validate_crystal(cryst::Crystal)
         R = latvecs * s.R * inv(latvecs)
         # Due to possible imperfections in the lattice vectors, only require
         # that R is approximately orthogonal
-        @assert norm(R*R' - I) < symprec "Lattice vectors and symmetry operations are incompatible."
+        @assert norm(R*R' - I) < 1e-12 "Lattice vectors and symmetry operations are incompatible."
     end
 
     # TODO: Check that space group is closed and that symops have inverse?
@@ -422,16 +415,16 @@ end
 # Builds a crystal from an explicit set of symmetry operations and a minimal set
 # of positions
 function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, sg::Spacegroup; symprec)
-    latvecs = idealize_latvecs(sg, latvecs; symprec)
+    latvecs = idealize_latvecs(sg, latvecs; tol=symprec)
     recipvecs = 2π*inv(latvecs)'
 
-    wyckoffs = idealize_wyckoff.(Ref(sg), positions; symprec)
+    wyckoffs = find_wyckoff.(Ref(sg), positions; tol=symprec)
     orbits = map(wyckoffs) do w
         # Transform Wyckoff expression into custom setting
         expr0 = transform(inv(sg.setting), w.expr)
         # Map orbit Vector{WyckoffExpr} to Vector{Vec3}
         map(crystallographic_orbit(expr0; sg.symops)) do (; F, c)
-            wrap_to_unit_cell(F * w.θ + c; atol=symprec)
+            wrap_to_unit_cell(F * w.θ + c)
         end
     end
     validate_orbits(positions, orbits; symprec, wyckoffs)
@@ -449,7 +442,7 @@ end
 
 
 function get_wyckoff(cryst::Crystal, i::Int)
-    return idealize_wyckoff(cryst.sg, cryst.positions[i]; cryst.symprec)
+    return find_wyckoff(cryst.sg, cryst.positions[i]; tol=1e-12)
 end
 
 
@@ -487,7 +480,7 @@ end
 function check_shape_commensurate(cryst, shape)
     prim_cell = primitive_cell(cryst)
     shape_in_prim = prim_cell \ shape
-    if !all_integer(shape_in_prim; atol=1e-12)
+    if !all_integer(shape_in_prim; tol=1e-12)
         if prim_cell ≈ I
             error("Elements of `shape` must be integer. Received $shape.")
         else
@@ -529,7 +522,7 @@ function reshape_crystal_aux(cryst::Crystal, new_latvecs)
     prim_shape = primitive_cell(cryst)
     prim_latvecs = cryst.latvecs * prim_shape
     new_shape_in_prim = prim_latvecs \ new_latvecs
-    @assert all_integer(new_shape_in_prim; atol=1e-12)
+    @assert all_integer(new_shape_in_prim; tol=1e-12)
     new_shape_in_prim = round.(Int, new_shape_in_prim)
 
     # Factorize shape matrix as lower triangular H (column Hermite normal form)
@@ -543,7 +536,7 @@ function reshape_crystal_aux(cryst::Crystal, new_latvecs)
     new_positions = Vec3[]
     for n in Iterators.product(0:H[1,1]-1, 0:H[2,2]-1, 0:H[3,3]-1)
         x = [new_latvecs \ (r + prim_latvecs * collect(n)) for r in prim_global_positions]
-        append!(new_positions, wrap_to_unit_cell.(x; atol=new_symprec))
+        append!(new_positions, wrap_to_unit_cell.(x))
     end
 
     ncopies = round(Int, abs(det(new_shape_in_prim)))

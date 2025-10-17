@@ -1,24 +1,24 @@
 # Wrap x into the range [0,1). To account for finite precision, wrap 1-ϵ to -ϵ.
-function wrap_to_unit_cell(x::Float64; atol=1e-12)
-    return mod(x+atol, 1) - atol
+function wrap_to_unit_cell(x::Float64; tol=1e-12)
+    return mod(x+tol, 1) - tol
 end
 
-function wrap_to_unit_cell(r::Vec3; atol=1e-12)
-    return wrap_to_unit_cell.(r; atol)
+function wrap_to_unit_cell(r::Vec3; tol=1e-12)
+    return wrap_to_unit_cell.(r; tol)
 end
 
-function is_periodic_copy(r1::Vec3, r2::Vec3; atol=1e-12)
-    return all_integer(r1-r2; atol)
+function is_periodic_copy(r1::Vec3, r2::Vec3; tol=1e-12)
+    return all_integer(r1-r2; tol)
 end
 
-function is_periodic_copy(b1::BondPos, b2::BondPos; atol=1e-12)
+function is_periodic_copy(b1::BondPos, b2::BondPos; tol=1e-12)
     # Displacements between the two bonds
     D1 = b2.ri - b1.ri
     D2 = b2.rj - b1.rj
     # Round components of D1 to nearest integers
     n = round.(D1, RoundNearest)
     # If both n ≈ D1 and n ≈ D2, then the bonds are equivalent by translation
-    return norm(n - D1) < atol && norm(n - D2) < atol
+    return norm(n - D1) < tol && norm(n - D2) < tol
 end
 
 function position_to_atom(cryst::Crystal, r::Vec3)

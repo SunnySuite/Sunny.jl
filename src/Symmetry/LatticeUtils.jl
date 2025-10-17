@@ -119,7 +119,7 @@ function cell_type(latvecs::Mat3)
     return triclinic
 end
 
-function idealize_latvecs(sg::Spacegroup, latvecs; symprec)
+function idealize_latvecs(sg::Spacegroup, latvecs; tol)
     # Cell type for standard setting
     cell = cell_type(standard_setting[sg.number])
 
@@ -157,7 +157,9 @@ function idealize_latvecs(sg::Spacegroup, latvecs; symprec)
     # leaves the lattice parameters (lengths and angles) invariant.
     R = closest_unitary(latvecs / latvecs′)
     latvecs′ = R * latvecs′
-    isapprox(latvecs, latvecs′; rtol=symprec) || error("Lattice parameters $params appear incompatible with spacegroup $sg in standard setting")
+    if !isapprox(latvecs, latvecs′; rtol=tol)
+        error("Lattice parameters $params appear incompatible with spacegroup $sg in standard setting")
+    end
 
     return latvecs′
 end

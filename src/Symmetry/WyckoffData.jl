@@ -55,10 +55,10 @@ end
 # involving b = r - c, and arbitrary integers Δb. Given candidate Δb, one can
 # use the pseudo-inverse of F to find least squares solution θ, and then check
 # whether it satisfies the original linear system of equations.
-function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; atol)
+function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; tol)
     (; F, c) = w
     # Wrapping components to [0, 1] simplifies the search in the next step.
-    b = wrap_to_unit_cell(r - c; atol)
+    b = wrap_to_unit_cell(r - c; tol)
     # If F were arbitrary, one would need to search over all offsets Δb ∈ ℕ³.
     # Fortunately, the actual matrices are constrained: matrix elements Fᵢⱼ are
     # in {0, ±1, ±2} for hexagonal crystal systems, and in {0, ±1} for all other
@@ -68,7 +68,7 @@ function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; atol)
     for Δb in Iterators.product((-1, 0), (-1, 0), (-1, 0))
         Δb = Vec3(Δb)
         θ = pinv(F) * (b + Δb)
-        if isapprox(F * θ, b + Δb; atol)
+        if isapprox(F * θ, b + Δb; atol=tol)
             return θ
         end
     end
@@ -77,14 +77,14 @@ end
 
 
 # Adapt r in custom sg.setting to its ideal position for Wyckoff w
-function idealize_position(sg::Spacegroup, r::Vec3, w::Wyckoff; symprec)
+function idealize_position(sg::Spacegroup, r::Vec3, w::Wyckoff; tol)
     # Map Wyckoff expression to custom setting
     expr0 = transform(inv(sg.setting), w.expr)
 
     # Search for a match over the Wyckoff orbit in custom setting
     for expr in crystallographic_orbit(expr0; sg.symops)
         r_ideal = expr.F * w.θ + expr.c
-        if is_periodic_copy(r, r_ideal; atol=symprec)
+        if is_periodic_copy(r, r_ideal; tol)
             return r_ideal + Vec3(round.(r - r_ideal, RoundNearest))
         end
     end
@@ -94,12 +94,12 @@ end
 
 
 # Find Wyckoff for position r. Assume spacegroup sgnum in standard setting.
-function idealize_wyckoff(sgnum::Int, r::Vec3; symprec)
+function find_wyckoff(sgnum::Int, r::Vec3; tol)
     Rs, Ts = Spglib.get_symmetry_from_database(standard_setting[sgnum])
     symops = SymOp.(Rs, Ts)
     for (multiplicity, letter, sitesym, expr0) in reverse(wyckoff_table[sgnum])
         for expr in crystallographic_orbit(WyckoffExpr(expr0); symops)
-            θ = position_to_wyckoff_params(r, expr; atol=symprec)
+            θ = position_to_wyckoff_params(r, expr; tol)
             if !isnothing(θ)
                 return Wyckoff(multiplicity, letter, sitesym, expr, θ)
             end
@@ -109,9 +109,9 @@ function idealize_wyckoff(sgnum::Int, r::Vec3; symprec)
     @assert false
 end
 
-function idealize_wyckoff(sg::Spacegroup, r::Vec3; symprec)
+function find_wyckoff(sg::Spacegroup, r::Vec3; tol)
     r_std = transform(sg.setting, r)
-    return idealize_wyckoff(sg.number, r_std; symprec)
+    return find_wyckoff(sg.number, r_std; tol)
 end
 
 

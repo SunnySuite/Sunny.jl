@@ -90,7 +90,7 @@ especially in the limit of small `damping`.
 =#
 
 """
-    ImplicitMidpoint(dt::Float64; atol=1e-12) where N
+    ImplicitMidpoint(dt::Float64; tol=1e-12) where N
 
 The implicit midpoint method for integrating the Landau-Lifshitz spin dynamics
 or its generalization to SU(_N_) coherent states [1]. One call to the
@@ -108,12 +108,17 @@ mutable struct ImplicitMidpoint <: AbstractIntegrator
     dt      :: Float64
     damping :: Float64
     kT      :: Float64
-    atol    :: Float64
+    tol     :: Float64
 
-    function ImplicitMidpoint(dt=NaN; damping=0, kT=0, atol=1e-12)
+    function ImplicitMidpoint(dt=NaN; damping=0, kT=0, tol=1e-12, atol=nothing)
         dt <= 0      && error("Select positive dt")
         kT < 0       && error("Select nonnegative kT")
         damping < 0  && error("Select nonnegative damping")
+
+        if !isnothing(atol)
+            @warn "`atol` argument is deprecated! Use `tol` instead."
+            tol = atol
+        end
 
         # Noise in the implicit midpoint method can be problematic, because rare
         # events can lead to very slow convergence of the fixed point
@@ -121,12 +126,12 @@ mutable struct ImplicitMidpoint <: AbstractIntegrator
         # noise to a restricted magnitude? For now, simply disable the feature.
         iszero(kT) || error("ImplicitMidpoint with a Langevin thermostat is not currently supported.")
 
-        return new(dt, damping, kT, atol)
+        return new(dt, damping, kT, tol)
     end
 end
 
 function Base.copy(dyn::ImplicitMidpoint)
-    ImplicitMidpoint(dyn.dt; dyn.damping, dyn.kT, dyn.atol)
+    ImplicitMidpoint(dyn.dt; dyn.damping, dyn.kT, dyn.tol)
 end
 
 
@@ -250,9 +255,9 @@ function Base.show(io::IO, integrator::Langevin)
 end
 
 function Base.show(io::IO, integrator::ImplicitMidpoint)
-    (; dt, atol) = integrator
+    (; dt, tol) = integrator
     dt = isnan(integrator.dt) ? "<missing>" : repr(dt)
-    println(io, "ImplicitMidpoint($dt; atol=$atol)")
+    println(io, "ImplicitMidpoint($dt; tol=$tol)")
 end
 
 
@@ -355,8 +360,7 @@ function step!(sys::System{N}, integrator::Langevin) where N
 end
 
 
-# Variants of the implicit midpoint method
-
+# Return early for speed
 function fast_isapprox(x, y; atol)
     acc = 0.
     for i in eachindex(x)
@@ -379,7 +383,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
     check_timestep_available(integrator)
 
     S = sys.dipoles
-    atol = integrator.atol * √length(S)
+    atol = integrator.tol * √length(S)
 
     (ΔS, Ŝ, S′, S″, ξ, ∇E) = get_dipole_buffers(sys, 6)
 
@@ -400,7 +404,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
         # If converged, then we can return
         if fast_isapprox(S′, S″; atol)
             # Normalization here should not be necessary in principle, but it
-            # could be useful in practice for finite `atol`.
+            # could be useful in practice for finite `tol`.
             @. S = normalize_dipole(S″, sys.κs)
             return
         end
@@ -408,7 +412,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
         S′, S″ = S″, S′
     end
 
-    error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
+    error("Spherical midpoint method failed to converge to tolerance $(integrator.tol) after $max_iters iterations.")
 end
 
 
@@ -422,7 +426,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     check_timestep_available(integrator)
 
     Z = sys.coherents
-    atol = integrator.atol * √length(Z)
+    atol = integrator.tol * √length(Z)
 
     (ΔZ, Z̄, Z′, Z″, ζ, HZ) = get_coherent_buffers(sys, 6)
     fill_noise!(sys.rng, ζ, integrator)

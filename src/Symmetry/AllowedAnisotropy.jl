@@ -29,7 +29,7 @@ function is_stevens_expansion_valid(cryst, i, b)
     return is_anisotropy_valid(cryst, i, stvexp)
 end
 
-function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R_global::Mat3, atol::Float64)
+function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R_global::Mat3, tol::Float64)
     # The symmetry operations for the point group at atom i.
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
 
@@ -80,23 +80,23 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # an over-complete set of symmetry-allowed operators that are guaranteed to
     # be Hermitian. Create a widened real matrix from these two parts, and
     # eliminate linearly-dependent vectors from the column space.
-    B = colspace(hcat(real(B), imag(B)); atol)
+    B = colspace(hcat(real(B), imag(B)); atol=tol)
 
     # Find linear combination of columns that sparsifies B
-    B = sparsify_columns(B; atol)
+    B = sparsify_columns(B; atol=tol)
 
     # Scale each column to make the final expression prettier
     return map(eachcol(B)) do b
         b /= argmax(abs, b)
-        if any(x -> atol < abs(x) < sqrt(atol), b)
-            @info """Found a very small but nonzero expansion coefficient.
-                        This may indicate a slightly misaligned reference frame."""
+        if any(x -> tol < abs(x) < sqrt(tol), b)
+            @info "Found a very small but nonzero expansion coefficient. \n
+                   This may indicate a slightly misaligned reference frame."
         end
 
         # Magnify by up to 60× if it makes all coefficients integer
-        denoms = denominator.(rationalize.(b; tol=atol))
+        denoms = denominator.(rationalize.(b; tol))
         if all(<=(60), denoms)
-            factor = lcm(denominator.(rationalize.(b; tol=atol)))
+            factor = lcm(denominator.(rationalize.(b; tol)))
             if factor <= 60
                 b .*= factor
             end

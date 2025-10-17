@@ -32,12 +32,12 @@ function diffnorm2(a, b)
     return acc
 end
 
-function is_integer(x; atol)
-    return abs(x - round(x)) < atol
+function is_integer(x; tol)
+    return abs(x - round(x)) < tol
 end
 
-function all_integer(xs; atol)
-    return all(is_integer(x; atol) for x in xs)
+function all_integer(xs; tol)
+    return all(is_integer(x; tol) for x in xs)
 end
 
 # Periodic variant of Base.isapprox. When comparing lattice quantities like

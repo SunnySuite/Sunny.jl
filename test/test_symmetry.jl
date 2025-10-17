@@ -42,7 +42,7 @@
             w = Sunny.WyckoffExpr(pos)
             θ = 10 * randn(3)
             r = w.F * θ + w.c
-            @test letter == Sunny.idealize_wyckoff(sgnum, r; symprec=1e-8).letter
+            @test letter == Sunny.find_wyckoff(sgnum, r; tol=1e-12).letter
         end
     end
 end
@@ -173,22 +173,22 @@ end
     x = 0.15
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Equivalent positions [0.15, 0.3, 1/4] and [-0.15, -0.3, 0.751] in Wyckoff 6h at symprec=0.001"
+    msg = "Equivalent positions [0.1500, 0.3000, 1/4] and [-0.1500, -0.3000, 0.7510] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-equivalent positions [0.15, 0.3, 1/4] and [-0.15, -0.3, 0.752] in Wyckoff 6h at symprec=0.001"
+    msg = "Near-equivalent positions [0.1500, 0.3000, 1/4] and [-0.1500, -0.3000, 0.7520] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 5e-3]]
     Crystal(latvecs, positions, 194; symprec=1e-3) # No error
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Overlapping positions [-0.15, -0.3, 3/4] and [-0.15, -0.3, 0.751] at symprec=0.001"
+    msg = "Overlapping positions [-0.1500, -0.3000, 3/4] and [-0.1500, -0.3000, 0.7510] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-overlapping positions [-0.15, -0.3, 3/4] and [-0.15, -0.3, 0.752] at symprec=0.001"
+    msg = "Near-overlapping positions [-0.1500, -0.3000, 3/4] and [-0.1500, -0.3000, 0.7520] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 5e-3]]
@@ -274,7 +274,7 @@ end
     # Idealizes to [1/3, 2/3, 2/3 + z] where z is held at low precision
     positions = [[0.3333, 0.6667, 2/3 + z]] 
     cryst = Crystal(latvecs, positions, 166; symprec=1e-3)
-    ref = [[2/3, 1/3, 1/3 - z], [1/3, 2/3, 2/3 + z - 1], [0, 0, 0 + z], [1/3, 2/3, 2/3 - z], [0, 0, 0 - z + 1], [2/3, 1/3, 1/3 + z]]
+    ref = [[2/3, 1/3, 1/3 - z], [0, 0, 0 + z], [1/3, 2/3, 2/3 - z], [2/3, 1/3, 1/3 + z], [0, 0, 0 - z + 1], [1/3, 2/3, 2/3 + z]]
     @test cryst.positions ≈ ref
 end
 
@@ -408,13 +408,6 @@ end
                                   D+F -C-E    A]
         Allowed DM vector: [E F -E]
 
-        Bond(1, 3, [-1, 0, 0])
-        Distance 0.7071067812, coordination 6
-        Connects [0, 0, 0] to [-1/2, 1/2, 0]
-        Allowed exchange matrix: [A D C
-                                  D A C
-                                  C C B]
-
         Bond(1, 3, [0, 0, 0])
         Distance 0.7071067812, coordination 6
         Connects [0, 0, 0] to [1/2, 1/2, 0]
@@ -422,8 +415,15 @@ end
                                   D A C
                                   C C B]
 
+        Bond(1, 3, [-1, 0, 0])
+        Distance 0.7071067812, coordination 6
+        Connects [0, 0, 0] to [-1/2, 1/2, 0]
+        Allowed exchange matrix: [A D C
+                                  D A C
+                                  C C B]
+
         Bond(1, 2, [-1, 0, 0])
-        Distance 0.790569415, coordination 12
+        Distance 0.7905694150, coordination 12
         Connects [0, 0, 0] to [-3/4, 1/4, 0]
         Allowed exchange matrix: [A  D -F
                                   D  B  E

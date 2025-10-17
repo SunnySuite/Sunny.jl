@@ -240,10 +240,10 @@ end
 
 # Given a spacegroup number and a table of symops, try to infer the affine map
 # that transforms to the ITA standard setting.
-function hall_number_from_symops(sgnum, symops; atol)
+function hall_number_from_symops(sgnum, symops; tol)
     sgts = filter(all_spacegroup_types_for_symbol(sgnum)) do sgt
         Rs, Ts = Spglib.get_symmetry_from_database(sgt.hall_number)
-        isapprox(SymOp.(Rs, Ts), symops; atol)
+        isapprox(SymOp.(Rs, Ts), symops; atol=tol)
     end
 
     if isempty(sgts)
@@ -355,11 +355,11 @@ function Spacegroup(hall_number::Int)
     return Spacegroup(symops, label, number, setting)
 end
 
-function idealize_spacegroup(sg; symprec)
+function idealize_spacegroup(sg; tol)
     for sgt in all_spacegroup_types_for_symbol(sg.number)
         hall_number = Int(sgt.hall_number)
         hall_setting = mapping_to_standard_setting(hall_number)
-        if isapprox(hall_setting, sg.setting; atol=symprec)
+        if isapprox(hall_setting, sg.setting; atol=tol)
             return Spacegroup(hall_number)
         end
     end
