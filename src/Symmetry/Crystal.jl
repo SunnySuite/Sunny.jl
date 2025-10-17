@@ -213,10 +213,9 @@ function sort_sites!(cryst::Crystal)
             end
         end
 
-        # Should never get here because `validate_positions` or
-        # `validate_orbits` should already have passed. But report something
-        # meaningful just in case.
-        error("Symmetry-equivalent positions $r1 and $r2")
+        # This should be impossible after the `validate_positions` or
+        # `validate_orbits` check.
+        @assert false "Symmetry-equivalent positions $(pos_to_string(ri)) and $(pos_to_string(rj))"
     end
     p = sort(eachindex(cryst.positions), lt=less_than)
     permute_sites!(cryst, p)
@@ -348,10 +347,11 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     sg = idealize_spacegroup(sg; symprec)
 
     # Idealize Wyckoff positions
-    for i in eachindex(positions)
-        w, r = idealize_wyckoff(sg, positions[i]; symprec)
+    # FIXME: loop over classes
+    for (i, r) in enumerate(positions)
+        w = idealize_wyckoff(sg, r; symprec)
         @assert w.letter == d.wyckoffs[i]
-        positions[i] = r
+        positions[i] = idealize_position(sg, r, w; symprec)
     end
 
     # Renumber class indices so that they are ascending, from 1..max_class.
@@ -388,18 +388,7 @@ function is_spacegroup_type_consistent(sgt, latvecs)
 end
 
 
-function crystallographic_orbit(position::Vec3; symops::Vector{SymOp}, symprec)
-    orbit = Vec3[]
-    for s = symops
-        x = wrap_to_unit_cell(transform(s, position); symprec)
-        if !any(y -> is_periodic_copy(x, y; symprec), orbit)
-            push!(orbit, x)
-        end
-    end
-    return orbit
-end
-
-function validate_positions(positions; symprec)
+function validate_positions(positions::Vector{Vec3}; symprec)
     for i in eachindex(positions), j in i+1:length(positions)
         ri, rj = positions[[i, j]]
         overlapping = is_periodic_copy(ri, rj; symprec=1.001symprec)
@@ -413,7 +402,7 @@ function validate_positions(positions; symprec)
     end
 end
 
-function validate_orbits(positions, orbits; symprec, wyckoffs=nothing)
+function validate_orbits(positions::Vector{Vec3}, orbits::Vector{Vector{Vec3}}; symprec, wyckoffs=nothing)
     @assert size(positions) == size(orbits)
     # Check that orbits are distinct
     for i in eachindex(positions), j in i+1:length(positions)
@@ -427,8 +416,8 @@ function validate_orbits(positions, orbits; symprec, wyckoffs=nothing)
             if isnothing(wyckoffs)
                 error("$descriptor positions $ri_str and $rj_str at symprec=$symprec_str")
             else
-                (; multiplicity, letter) = wyckoffs[i]
-                error("$descriptor positions $ri_str and $rj_str in Wyckoff $multiplicity$letter at symprec=$symprec_str")
+                wyckstr = wyckoff_string(wyckoffs[i])
+                error("$descriptor positions $ri_str and $rj_str in Wyckoff $wyckstr at symprec=$symprec_str")
             end
         end
     end
@@ -474,9 +463,15 @@ end
 # Builds a crystal from an explicit set of symmetry operations and a minimal set
 # of positions
 function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, sg::Spacegroup; symprec)
-    idealized = idealize_wyckoff.(Ref(sg), positions; symprec)
-    wyckoffs = [w for (w, _) in idealized]
-    orbits = [crystallographic_orbit(r; sg.symops, symprec) for (_, r) in idealized]
+    wyckoffs = idealize_wyckoff.(Ref(sg), positions; symprec)
+    orbits = map(wyckoffs) do w
+        # Transform Wyckoff expression into custom setting
+        expr0 = transform(inv(sg.setting), w.expr)
+        # Map orbit Vector{WyckoffExpr} to Vector{Vec3}
+        map(crystallographic_orbit(expr0; sg.symops)) do (; F, c)
+            wrap_to_unit_cell(F * w.θ + c; symprec)
+        end
+    end
     validate_orbits(positions, orbits; symprec, wyckoffs)
 
     all_positions = reduce(vcat, orbits)
@@ -492,8 +487,7 @@ function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::
 end
 
 function get_wyckoff(cryst::Crystal, i::Int)
-    w, _ = idealize_wyckoff(cryst.sg, cryst.positions[i]; cryst.symprec)
-    return w
+    return idealize_wyckoff(cryst.sg, cryst.positions[i]; cryst.symprec)
 end
 
 
@@ -686,8 +680,9 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
         if cryst.types[i] != ""
             push!(descr, "Type '$(cryst.types[i])'")
         end
-        (; multiplicity, letter, sitesym) = get_wyckoff(cryst, i)
-        push!(descr, "Wyckoff $multiplicity$letter (site sym. '$sitesym')")
+
+        w = get_wyckoff(cryst, i)
+        push!(descr, "Wyckoff $(wyckoff_string(w)) (site sym. '$(w.sitesym)')")
         if isempty(descr)
             push!(descr, "Class $c")
         end

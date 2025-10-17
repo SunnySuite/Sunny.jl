@@ -92,6 +92,21 @@ function parse_op(str::AbstractString) :: SymOp
 end
 
 
+# Prefer crystallographic_orbit(::WyckoffExpr) in most cases due to its higher
+# precision. When parsing a CIF, however, the Wyckoff data may not yet be
+# available, so we fall back to the orbit of bare positions.
+function crystallographic_orbit(position::Vec3; symops::Vector{SymOp}, symprec)
+    orbit = Vec3[]
+    for s = symops
+        x = wrap_to_unit_cell(transform(s, position); symprec)
+        if !any(y -> is_periodic_copy(x, y; symprec), orbit)
+            push!(orbit, x)
+        end
+    end
+    return orbit
+end
+
+
 # Reads the crystal from a CIF or mCIF located at the path `filename`. See
 # extended doc string in Crystal.jl.
 function Crystal(filename::AbstractString; keep_supercell=false, symprec=nothing, override_symmetry=nothing)

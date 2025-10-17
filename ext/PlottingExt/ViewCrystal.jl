@@ -291,8 +291,7 @@ function label_atoms(cryst; ismagnetic, sys)
         rstr = Sunny.pos_to_string(cryst.positions[i])
         ret = []
 
-        (; multiplicity, letter) = Sunny.get_wyckoff(cryst, i)
-        wyckstr = "$multiplicity$letter"
+        wyckstr = Sunny.wyckoff_string(Sunny.get_wyckoff(cryst, i))
         typstr = isempty(typ) ? "" : "'$typ', "
         push!(ret, typstr * "Wyckoff $wyckstr, $rstr")
 
