@@ -42,7 +42,7 @@
             w = Sunny.WyckoffExpr(pos)
             θ = 10 * randn(3)
             r = w.F * θ + w.c
-            @test letter == Sunny.find_wyckoff_for_position(sgnum, r; symprec=1e-8).letter
+            @test letter == Sunny.find_wyckoff(sgnum, r; tol=1e-12).letter
         end
     end
 end
@@ -66,14 +66,14 @@ end
     latvecs = Sunny.Mat3(latvecs)
     positions = [Sunny.Vec3(1, 1, 1) / 8]
     types = [""]
-    cryst = Sunny.crystal_from_spacegroup(latvecs, positions, types, cryst.sg; cryst.symprec)
+    cryst = Sunny.crystal_from_spacegroup(latvecs, positions, types, cryst.sg; symprec=1e-8)
     ref_bonds = reference_bonds(cryst, 2.)
     dist2 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
     # Using international symbol
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
     positions = [[1, 1, 1] / 4]
-    @test_throws "Disambiguate with additional argument: choice=\"1\" or choice=\"2\"" Crystal(latvecs, positions, "F d -3 m")
+    @test_throws "Spacegroup 227 admits origin shifts: choice=\"2\" (standard) or choice=\"1\"" Crystal(latvecs, positions, "F d -3 m")
     cryst = Crystal(latvecs, positions, "F d -3 m"; choice="1")
     ref_bonds = reference_bonds(cryst, 2.)
     dist3 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
@@ -125,7 +125,7 @@ end
     mono_lat_params = (6, 7, 8, 90, 90, 40)
     latvecs = lattice_vectors(mono_lat_params...)
     positions = [[0,0,0]]
-    msg = """Disambiguate with one of: ["C 1 2 1", "A 1 2 1", "I 1 2 1", "A 1 1 2", "B 1 1 2", "I 1 1 2", "B 2 1 1", "C 2 1 1", "I 2 1 1"]"""
+    msg = "Spacegroup 5 admits settings: \"C 1 2 1\" (standard), \"A 1 2 1\", \"I 1 2 1\", \"A 1 1 2\", \"B 1 1 2\", \"I 1 1 2\", \"B 2 1 1\", \"C 2 1 1\", \"I 2 1 1\""
     @test_throws msg Crystal(latvecs, positions, "C2")
     cryst = Crystal(latvecs, positions, "C 2/c"; choice="c1")
     @test cell_type(cryst) == Sunny.monoclinic
@@ -173,22 +173,22 @@ end
     x = 0.15
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.751] in Wyckoff 6h at symprec=0.001"
+    msg = "Equivalent positions [0.1500, 0.3000, 1/4] and [-0.1500, -0.3000, 0.7510] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-equivalent positions [0.15, 3/10, 1/4] and [-0.15, -3/10, 0.752] in Wyckoff 6h at symprec=0.001"
+    msg = "Near-equivalent positions [0.1500, 0.3000, 1/4] and [-0.1500, -0.3000, 0.7520] in Wyckoff 6h at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 5e-3]]
     Crystal(latvecs, positions, 194; symprec=1e-3) # No error
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 1e-3]]
-    msg = "Overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.751] at symprec=0.001"
+    msg = "Overlapping positions [-0.1500, -0.3000, 3/4] and [-0.1500, -0.3000, 0.7510] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 2e-3]]
-    msg = "Near-overlapping positions [0.85, 7/10, 3/4] and [0.85, 7/10, 0.752] at symprec=0.001"
+    msg = "Near-overlapping positions [-0.1500, -0.3000, 3/4] and [-0.1500, -0.3000, 0.7520] at symprec=0.001"
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 5e-3]]
@@ -222,14 +222,14 @@ end
     @test primitive_cell(cryst2) ≈ I
 
     # Check equivalence of positions
-    @test cryst.latvecs * cryst.positions[1] ≈ [0, 0, 0]
+    @test norm(cryst.latvecs * cryst.positions[1]) < 1e-12
     @test cryst.latvecs * cryst.positions[2] ≈ cryst2.latvecs[:, 1]
     @test cryst.latvecs * cryst.positions[3] ≈ cryst2.latvecs[:, 1] + cryst2.latvecs[:, 2]
 
     # Inference of Wyckoff symbols
     lat_vecs = lattice_vectors(1, 1, 1.2, 90, 90, 120)
     cryst = Crystal(lat_vecs, [[0.2, 0.2, 1/2]], 164)
-    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(6, 'h', ".2.")
+    @test Sunny.get_wyckoff(cryst, 1).letter == 'h'
 
     ### Check settings for monoclinic spacegroup
 
@@ -237,13 +237,13 @@ end
     latvecs = lattice_vectors(1, 1.1, 1.2, 90, 100, 90)
     cryst = Crystal(latvecs, [[0, 0.2, 1/2]], "C 1 2 1")
     @test cryst.sg.label == "'C 2 = C 1 2 1' (5)"
-    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
+    @test Sunny.get_wyckoff(cryst, 1).letter == 'b'
 
     # Alternative setting
     latvecs2 = reduce(hcat, eachcol(latvecs)[[3, 1, 2]])
     cryst2 = Crystal(latvecs2, [[1/2, 0, 0.2]], "A 1 1 2")
     @test cryst2.sg.label == "'C 2 = A 1 1 2' (5)"
-    @test Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(2, 'b', "2")
+    @test Sunny.get_wyckoff(cryst, 1).letter == 'b'
 
     # Verify `cryst` is already in standard setting
     @test cryst.sg.setting.R ≈ I
@@ -258,22 +258,81 @@ end
 end
 
 
-@testitem "Standardize Crystal" begin
-    using LinearAlgebra
+@testitem "Idealize setting and positions" begin
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 120)
+    positions = [[0.3333, 0.6667, 0.0]]
+    cryst = Crystal(latvecs, positions, 191; symprec=1e-3)
+    @test cryst.positions ≈ [[2/3, 1/3, 0], [1/3, 2/3, 0]]
 
-    function test_standardize(cryst)
-        cryst2 = standardize(cryst; idealize=false)
-        @test cryst2.latvecs * cryst2.positions[1] ≈ cryst.latvecs * cryst.positions[1]
-        cryst3 = standardize(cryst)
-        @test norm(cryst3.positions[1]) < 1e-12
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 120)
+    positions = [[0.6667, 0.3333, 0.0], [0.3333, 0.6667, 0.0]]
+    cryst = Crystal(latvecs, positions; symprec=1e-3)
+    @test cryst.positions ≈ [[2/3, 1/3, 0], [1/3, 2/3, 0]]
+
+    latvecs = lattice_vectors(9.091, 9.091, 13.285, 90.0, 90.0, 120.0)
+    z = 0.3333
+    # Idealizes to [1/3, 2/3, 2/3 + z] where z is held at low precision
+    positions = [[0.3333, 0.6667, 2/3 + z]] 
+    cryst = Crystal(latvecs, positions, 166; symprec=1e-3)
+    ref = [[2/3, 1/3, 1/3 - z], [0, 0, 0 + z], [1/3, 2/3, 2/3 - z], [2/3, 1/3, 1/3 + z], [0, 0, 0 - z + 1], [1/3, 2/3, 2/3 + z]]
+    @test cryst.positions ≈ ref
+end
+
+@testitem "Conventional settings" begin
+    misses = Int[]
+
+    for hall in 1:530
+        latvecs = if Sunny.cell_type(hall) == Sunny.hexagonal
+            lattice_vectors(1, 1, 1, 90, 90, 120)
+        else
+            lattice_vectors(1, 1, 1, 90, 90, 90)
+        end
+
+        sgnum = Int(Sunny.all_spacegroup_types[hall].number)
+        setting = Sunny.mapping_to_standard_setting(hall)
+
+        sg = Sunny.Spacegroup(hall)
+        setting′ = Sunny.conventionalize_setting(latvecs, setting, sgnum)
+
+        # The `setting` defines the map from the given crystal cell to an ITA
+        # "standard" one. Crystallographically, the choice is not unique:
+        # left-applying any symop to `setting` would give another one that is
+        # also valid. The setting convention _does_, however, matter for a
+        # `cryst` loaded from an mCIF. Specifically, `cryst.sg.setting` will
+        # define the indexing convention for a system that has been reshaped to
+        # match the magnetic cell of that mCIF. For this reason, we need a fixed
+        # and unambiguous convention. The function `conventionalize_setting`
+        # includes heuristics that aim for consistency with the table
+        # `mapping_to_standard_setting`, which was sourced from PyXTal.
+        if !(sg.setting ≈ setting′)
+            push!(misses, hall)
+        end
     end
 
+    # Any ITA standard setting must conventionalize to itself. Conversely, all
+    # misses must be non-standard settings.
+    @test all(misses) do hall
+        Sunny.standard_setting_for_hall_number(hall) != hall
+    end
+
+    # The simple heuristics in `conventionalize_setting` miss for the 54 Hall
+    # numbers listed below. These misses are to some extent arbitrary (depending
+    # on the choices made in the PyXTal-sourced table). Attempts to reduce this
+    # miss-count were only successful with significant complication to the
+    # heuristics, which does not seem worthwhile. The purpose of this test is to
+    # ensures consistency of the `conventionalize_setting` behavior.
+    @test misses == [5, 11, 14, 15, 59, 65, 68, 69, 111, 114, 118, 121, 127, 136, 141, 153, 163, 172, 175, 184, 189, 195, 201, 207, 211, 214, 217, 220, 225, 232, 237, 240, 242, 243, 252, 255, 265, 277, 282, 299, 302, 305, 308, 312, 315, 317, 320, 324, 328, 330, 340, 344, 347, 527]
+end
+
+@testitem "Standardize Crystal" begin
     cryst = Crystal([1 0 1; 1 1 0; 0 1 1], [[0.1, 0.2, 0.3]])
-    test_standardize(cryst)
+    cryst2 = standardize(cryst)
+    @test cryst2.positions ≈ [[0.0, 0.0, 0.0], [0.5, 0.5, 0.0], [0.5, 0.0, 0.5], [0.0, 0.5, 0.5]]
 
     msg = "Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`."
-    @test_logs (:warn, msg) cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
-    test_standardize(cryst)
+    cryst = @test_logs (:warn, msg) Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
+    cryst2 = standardize(cryst)
+    @test cryst2.positions ≈ [[0.0, 0.0, 0.0]]
 end
 
 
@@ -394,13 +453,6 @@ end
                                   D+F -C-E    A]
         Allowed DM vector: [E F -E]
 
-        Bond(1, 3, [-1, 0, 0])
-        Distance 0.7071067812, coordination 6
-        Connects [0, 0, 0] to [-1/2, 1/2, 0]
-        Allowed exchange matrix: [A D C
-                                  D A C
-                                  C C B]
-
         Bond(1, 3, [0, 0, 0])
         Distance 0.7071067812, coordination 6
         Connects [0, 0, 0] to [1/2, 1/2, 0]
@@ -408,8 +460,15 @@ end
                                   D A C
                                   C C B]
 
+        Bond(1, 3, [-1, 0, 0])
+        Distance 0.7071067812, coordination 6
+        Connects [0, 0, 0] to [-1/2, 1/2, 0]
+        Allowed exchange matrix: [A D C
+                                  D A C
+                                  C C B]
+
         Bond(1, 2, [-1, 0, 0])
-        Distance 0.790569415, coordination 12
+        Distance 0.7905694150, coordination 12
         Connects [0, 0, 0] to [-3/4, 1/4, 0]
         Allowed exchange matrix: [A  D -F
                                   D  B  E
@@ -429,7 +488,7 @@ end
                             B -B  A]
         Allowed anisotropy in Stevens operators:
             c₁*(𝒪[2,-2]+2𝒪[2,-1]-2𝒪[2,1]) +
-            c₂*(7𝒪[4,-3]+2𝒪[4,-2]-𝒪[4,-1]+𝒪[4,1]+7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
+            c₂*(-7𝒪[4,-3]-2𝒪[4,-2]+𝒪[4,-1]-𝒪[4,1]-7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
             c₄*(-11𝒪[6,-6]-8𝒪[6,-3]+𝒪[6,-2]-8𝒪[6,-1]+8𝒪[6,1]-8𝒪[6,3]) + c₅*(-𝒪[6,0]+21𝒪[6,4]) + c₆*(9𝒪[6,-6]+24𝒪[6,-5]+5𝒪[6,-2]+8𝒪[6,-1]-8𝒪[6,1]-24𝒪[6,5])
         """
 
@@ -463,7 +522,7 @@ end
         """
 
     cryst = Sunny.hyperkagome_crystal()
-    @assert Sunny.get_wyckoff(cryst, 1) == Sunny.Wyckoff(12, 'd', "..2")
+    @assert Sunny.get_wyckoff(cryst, 1).letter == 'd'
     capt = IOCapture.capture() do
         print_suggested_frame(cryst, 2)
     end

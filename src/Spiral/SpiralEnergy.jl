@@ -261,7 +261,7 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
 
     if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
         # For aesthetics, wrap k components to [1-ϵ, -ϵ)
-        return wrap_to_unit_cell(k; symprec=1e-6)
+        return wrap_to_unit_cell(k; tol=1e-6)
     else
         println(res)
         error("Optimization failed to converge within $maxiters iterations.")

@@ -13,6 +13,10 @@ function MSymOp(str::AbstractString)
     return MSymOp(R, T, p)
 end
 
+function MSymOp(s::SymOp)
+    return MSymOp(s.R, s.T, +1)
+end
+
 function Base.show(io::IO, s::MSymOp)
     print(io, repr(MSymOp), "(\"")
     show(io, "text/plain", s)
@@ -27,5 +31,21 @@ function Base.show(io::IO, ::MIME"text/plain", s::MSymOp)
 end
 
 function Base.:*(s1::MSymOp, s2::MSymOp)
-    MSymOp(s1.R * s2.R, s1.T + s1.R * s2.T, s1.p*s2.p)
+    return MSymOp(s1.R * s2.R, s1.T + s1.R * s2.T, s1.p*s2.p)
+end
+
+function Base.inv(s::MSymOp)
+    Rinv = inv(s.R)
+    return MSymOp(Rinv, -Rinv*s.T, s.p)
+end
+
+function transform(s::MSymOp, r)
+    return s.R * r + s.T
+end
+
+# The magnetic dipole is a pseudo-vector. It is invariant to space-inversion, so
+# remove the determinant of s.R. The dipole does flip under time-reversal, which
+# is marked by s.p = -1.
+function transform_dipole(s::MSymOp, μ)
+    return s.R * det(s.R) * s.p * μ
 end

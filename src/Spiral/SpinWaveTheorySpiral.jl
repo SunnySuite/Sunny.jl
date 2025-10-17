@@ -240,7 +240,7 @@ end
 function gs_as_scalar(sys::System, measure::MeasureSpec)
     return if is_apply_g(sys, measure)
         map(sys.gs) do g
-            g = to_float_or_mat3(g; atol=1e-12)
+            g = to_float_or_mat3(g)
             g isa Float64 || error("Anisotropic g-tensor not supported for spiral calculation")
             g
         end

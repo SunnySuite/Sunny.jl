@@ -14,14 +14,9 @@ function bond_parity(bond)
     return bond_delta > (0, 0, 0, 0)
 end
 
-# Convert J to Union{Float64, Mat3}. If J is _exactly_ the identity matrix, we
-# can compactly represent it using a single float. If J is near (but not
-# exactly) the identity matrix, retain the full matrix representation. This
-# could hypothetically be important to preserve symmetry breaking effects. For
-# example, a user might select J=diagm([a,a,a+ϵ]) for infinitesimal ϵ to favor
-# the z direction.
-function to_float_or_mat3(J; atol=0.0)
-    if J isa Number || isapprox(J, J[1] * I; atol)
+# Convert J to Union{Float64, Mat3}
+function to_float_or_mat3(J; rtol=1e-12)
+    if J isa Number || isapprox(J, J[1] * I; rtol)
         J = Float64(first(J))
     else
         J = Mat3(J)

@@ -20,23 +20,30 @@ end
 
 function suggestion_to_disambiguate_symbol(symbol)
     sgts = all_spacegroup_types_for_symbol(symbol)
+    numbers = [sgt.number for sgt in sgts]
     short_symbols = [sgt.international_short for sgt in sgts]
     full_symbols = [sgt.international_full for sgt in sgts]
     choices = [sgt.choice for sgt in sgts]
+    number = only(unique(numbers))
 
+    function options_str(symbols)
+        symbols = repr.(symbols)
+        symbols[1] = symbols[1] * " (standard)"
+        return join(symbols, ", ")
+    end
     if allunique(short_symbols)
-        # Short symbols preferred when unambiguous. For example,
-        # spacegroup 230 is better written "Pccm" than "P 2/c 2/c 2/m".
-        "Disambiguate with one of: " * repr(short_symbols)
+        # Short symbols preferred when unambiguous. For example, spacegroup 49
+        # is better written "Pccm" than "P 2/c 2/c 2/m".
+        "Spacegroup $number admits settings: " * options_str(short_symbols)
     elseif allunique(full_symbols)
-        # Sometimes full symbol is needed. Spacegroup 5 is abbreviated
-        # "C2", but requires "C 1 2 1", "A 1 2 1", ... to disambiguate.
-        "Disambiguate with one of: " * repr(full_symbols)
+        # Sometimes full symbol is needed. Spacegroup 5 is abbreviated "C2", but
+        # requires "C 1 2 1", "A 1 2 1", ... to disambiguate.
+        "Spacegroup $number admits settings: " * options_str(full_symbols)
     else
         # Origin choice "1" or "2" is sufficient to disambiguate
         @assert choices == ["1", "2"]
         @assert all(sgt -> in(sgt.number, standard_setting_differs_in_spglib), sgts)
-        "Disambiguate with additional argument: choice=\"1\" or choice=\"2\""
+        "Spacegroup $number admits origin shifts: choice=\"2\" (standard) or choice=\"1\""
     end
 end
 
@@ -240,15 +247,22 @@ end
 
 # Given a spacegroup number and a table of symops, try to infer the affine map
 # that transforms to the ITA standard setting.
-function hall_number_from_symops(sgnum, symops; atol)
+function hall_number_from_symops(sgnum, symops; tol)
     sgts = filter(all_spacegroup_types_for_symbol(sgnum)) do sgt
         Rs, Ts = Spglib.get_symmetry_from_database(sgt.hall_number)
-        isapprox(SymOp.(Rs, Ts), symops; atol)
+        isapprox(SymOp.(Rs, Ts), symops; atol=tol)
     end
 
     if isempty(sgts)
         # Cannot be matched to any of the Hall number settings
         return nothing
+    elseif length(sgts) > 1
+        # ITA settings for spacegroup 68 cannot be disambiguated from symops.
+        # Pick one of the two options arbitrarily.
+        @assert sgnum == 68
+        hall_numbers = [sgt.hall_number for sgt in sgts]
+        @assert hall_numbers in ([322, 324], [326, 328], [330, 332])
+        return Int(sgts[end].hall_number)
     else
         return Int(only(sgts).hall_number)
     end
@@ -353,4 +367,15 @@ function Spacegroup(hall_number::Int)
     number = Int(all_spacegroup_types[hall_number].number)
     setting = mapping_to_standard_setting(hall_number)
     return Spacegroup(symops, label, number, setting)
+end
+
+function idealize_spacegroup(sg; tol)
+    for sgt in all_spacegroup_types_for_symbol(sg.number)
+        hall_number = Int(sgt.hall_number)
+        hall_setting = mapping_to_standard_setting(hall_number)
+        if isapprox(hall_setting, sg.setting; atol=tol)
+            return Spacegroup(hall_number)
+        end
+    end
+    return sg
 end

@@ -36,8 +36,8 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
         k = (Tuple(m) .- 1) ./ sys.dims
         k = [ki > 1/2 ? ki-1 : ki for ki in k]
 
-        kstr = fractional_vec3_to_string(k)
-        
+        kstr = vec3_to_string(k)
+
         if weight[m] < 0.01
             break
         end
@@ -188,7 +188,7 @@ function suggest_magnetic_supercell_aux(ks)
     # all_As = ([A1 A2 A3] for (A1, A2, A3) in Iterators.product(ns, ns, ns))
     # @assert minimum(score, all_As) == best_score
 
-    kstrs = join(map(fractional_vec3_to_string, ks), ", ")
+    kstrs = join(map(vec3_to_string, ks), ", ")
     println("""Possible magnetic supercell in multiples of lattice vectors:
                
                    $(repr(best_A))
@@ -207,7 +207,7 @@ function check_commensurate(sys; k)
         commensurate = commensurate && iszero(mod(sys.dims[i], denom))
     end
     if !commensurate
-        @warn "Wavevector $(fractional_vec3_to_string(k)) is incommensurate with system."
+        @warn "Wavevector $(vec3_to_string(k)) is incommensurate with system."
     end
 end
 
