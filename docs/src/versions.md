@@ -9,14 +9,14 @@
   [#421](https://github.com/SunnySuite/Sunny.jl/pull/421)). In particular, see
   [PR #421](https://github.com/SunnySuite/Sunny.jl/pull/421) for **breaking
   changes** regarding atom and site indexing conventions. When loading an CIF or
-  mCIF, precision parameter `symprec` is now inferred. Loading an mCIF now
-  returns a chemical cell with standardized Cartesian coordinate system (``a_1``
-  aligned with ``x``). The lattice vectors and positions of a loaded crystal are
-  now idealized according to spacegroup data. Indexing conventions of certain
-  reshaped systems have changed; continue to use [`position_to_site`](@ref) for
-  robust indexing of reshaped systems. Attempting to perform symmetry analysis
-  on a crystal with a larger-than-standard chemical cell will now error rather
-  than give a wrong result.
+  mCIF, precision parameter `symprec` is now inferred. Loading an mCIF as a
+  chemical cell now employs a standardized Cartesian coordinate system (``𝐚_1``
+  aligned with ``x``, and so on). The lattice vectors and positions of a loaded
+  crystal are now idealized according to spacegroup data. Indexing conventions
+  of certain reshaped systems have changed; continue to use
+  [`position_to_site`](@ref) for robust indexing of reshaped systems. Attempting
+  to perform symmetry analysis on a crystal with a larger-than-standard chemical
+  cell will now error rather than give a wrong result.
 * Fixes to [`load_nxs`](@ref)([PR
   #420](https://github.com/SunnySuite/Sunny.jl/pull/420)).
 
