@@ -41,7 +41,7 @@ function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
 end
 
 function Base.isapprox(s1::SymOp, s2::SymOp; atol=1e-8)
-    T1, T2 = wrap_to_unit_cell.((s1.T, s2.T); symprec=atol)
+    T1, T2 = wrap_to_unit_cell.((s1.T, s2.T); atol)
     return isapprox(s1.R, s2.R; atol=atol*√9) && isapprox(T1, T2; atol=atol*√3)
 end
 

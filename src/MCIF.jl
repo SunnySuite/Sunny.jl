@@ -19,7 +19,10 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
     supervecs = sys.crystal.latvecs .* sys.dims
     supervecs2 = lattice_vectors(a, b, c, α, β, γ)
 
-    # TODO: Tolerance to permutations (with sign flips) of lattice vectors
+    # Check consistency of supercells at appropriate tolerance. Error estimates
+    # when first loading the mCIF are tracked through reshapes in
+    # `sys.crystal.symprec`. TODO: Tolerance to permutations (with sign flips)
+    # of lattice vectors
     if !isapprox(supervecs, supervecs2; rtol=sys.crystal.symprec)
         tol = sys.crystal.symprec # Tolerance might need tuning
         orig_cryst = orig_crystal(sys)

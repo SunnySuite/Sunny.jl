@@ -195,8 +195,8 @@ function permute_sites!(cryst::Crystal, p)
     cryst.types .= cryst.types[p]
 end
 
-# Sort the sites according to class and fractional coordinates. This is an
-# internal function.
+# Sort the sites according to class and fractional coordinates. Any changes here
+# would likely break indexing of user scripts. This is an internal function.
 function sort_sites!(cryst::Crystal)
     function less_than(i, j)
         ci = cryst.classes[i]
@@ -204,9 +204,11 @@ function sort_sites!(cryst::Crystal)
         if ci != cj
             return ci < cj
         end
+
+        # Sort in order of (a3, a2, a1). Use relatively loose `symprec`
+        # tolerance for comparison even though positions have been idealized.
         ri = cryst.positions[i]
         rj = cryst.positions[j]
-
         for k = 3:-1:1
             if !is_integer(ri[k]-rj[k]; atol=cryst.symprec)
                 return ri[k] < rj[k]
@@ -222,7 +224,6 @@ function sort_sites!(cryst::Crystal)
 end
 
 
-# FIXME: DELETE
 # Attempt to find a permutation matrix P (with sign flips) such that latvecs*P
 # has a more standard form.
 function permute_to_standardize_lattice_vectors(latvecs)
@@ -277,7 +278,8 @@ function standardize(cryst::Crystal; idealize=true)
     positions = Vec3.(positions)
     lattice = Mat3(lattice)
 
-    # FIXME: DELETE
+    # TODO: Reimplement. Use case is when loading mCIFs where the positions in
+    # Cartesian coordinates must be preserved.
     if !idealize
         # Even if we're not idealizing the site positions, it is still important
         # to tune the lattice vectors so that the lattice system is exactly
@@ -317,7 +319,6 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     # Print a warning if non-conventional lattice vectors are detected.
     try cell_type(latvecs) catch e @warn e.msg end
 
-    positions = wrap_to_unit_cell.(positions; symprec)
     validate_positions(positions; symprec)
 
     cell = Spglib.Cell(latvecs, positions, types)
@@ -396,8 +397,8 @@ end
 function validate_positions(positions::Vector{Vec3}; symprec)
     for i in eachindex(positions), j in i+1:length(positions)
         ri, rj = positions[[i, j]]
-        overlapping = is_periodic_copy(ri, rj; symprec=1.001symprec)
-        too_close = is_periodic_copy(ri, rj; symprec=4.001symprec)
+        overlapping = is_periodic_copy(ri, rj; atol=1.001symprec)
+        too_close = is_periodic_copy(ri, rj; atol=4.001symprec)
         if overlapping || too_close
             descriptor = overlapping ? "Overlapping" : "Near-overlapping"
             ri_str, rj_str = pos_to_string.((ri, rj))
@@ -412,8 +413,8 @@ function validate_orbits(positions::Vector{Vec3}, orbits::Vector{Vector{Vec3}}; 
     # Check that orbits are distinct
     for i in eachindex(positions), j in i+1:length(positions)
         ri, rj = positions[[i, j]]
-        overlapping = any(is_periodic_copy.(Ref(ri), orbits[j]; symprec=1.001symprec))
-        too_close = any(is_periodic_copy.(Ref(ri), orbits[j]; symprec=4.001symprec))
+        overlapping = any(is_periodic_copy.(Ref(ri), orbits[j]; atol=1.001symprec))
+        too_close = any(is_periodic_copy.(Ref(ri), orbits[j]; atol=4.001symprec))
         if overlapping || too_close
             descriptor = overlapping ? "Equivalent" : "Near-equivalent"
             ri_str, rj_str = pos_to_string.((ri, rj))
@@ -477,7 +478,7 @@ function crystal_from_spacegroup(latvecs::Mat3, positions::Vector{Vec3}, types::
         expr0 = transform(inv(sg.setting), w.expr)
         # Map orbit Vector{WyckoffExpr} to Vector{Vec3}
         map(crystallographic_orbit(expr0; sg.symops)) do (; F, c)
-            wrap_to_unit_cell(F * w.θ + c; symprec)
+            wrap_to_unit_cell(F * w.θ + c; atol=symprec)
         end
     end
     validate_orbits(positions, orbits; symprec, wyckoffs)
@@ -588,9 +589,8 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
             y = B*x
 
             # Check whether the new position y (in fractional coordinates
-            # associated with `new_latvecs`) is within the new unit cell.
-            # Account for finite symprec ϵ by checking the bounds [-ϵ,1-ϵ). See
-            # related comment in `wrap_to_unit_cell`.
+            # associated with `new_latvecs`) is within the new unit cell. All
+            # coordinates in [-ϵ, 1-ϵ).
             if all(-new_symprec .<= y .< 1 - new_symprec)
                 push!(new_positions, y)
                 push!(new_types, cryst.types[i])

@@ -1,37 +1,36 @@
-# Wrap x into the range [0,1). To account for finite precision, wrap 1-ϵ to -ϵ,
-# where ϵ=symprec is a tolerance parameter.
-function wrap_to_unit_cell(x::Float64; symprec)
-    return mod(x+symprec, 1) - symprec
+# Wrap x into the range [0,1). To account for finite precision, wrap 1-ϵ to -ϵ.
+function wrap_to_unit_cell(x::Float64; atol=1e-12)
+    return mod(x+atol, 1) - atol
 end
 
-function wrap_to_unit_cell(r::Vec3; symprec)
-    return wrap_to_unit_cell.(r; symprec)
+function wrap_to_unit_cell(r::Vec3; atol=1e-12)
+    return wrap_to_unit_cell.(r; atol)
 end
 
-function is_periodic_copy(r1::Vec3, r2::Vec3; symprec)
-    return all_integer(r1-r2; atol=symprec)
+function is_periodic_copy(r1::Vec3, r2::Vec3; atol=1e-12)
+    return all_integer(r1-r2; atol)
 end
 
-function is_periodic_copy(b1::BondPos, b2::BondPos; symprec)
+function is_periodic_copy(b1::BondPos, b2::BondPos; atol=1e-12)
     # Displacements between the two bonds
     D1 = b2.ri - b1.ri
     D2 = b2.rj - b1.rj
     # Round components of D1 to nearest integers
     n = round.(D1, RoundNearest)
     # If both n ≈ D1 and n ≈ D2, then the bonds are equivalent by translation
-    return norm(n - D1) < symprec && norm(n - D2) < symprec
+    return norm(n - D1) < atol && norm(n - D2) < atol
 end
 
 function position_to_atom(cryst::Crystal, r::Vec3)
-    return findfirst(r′ -> is_periodic_copy(r, r′; cryst.symprec), cryst.positions)
+    return findfirst(r′ -> is_periodic_copy(r, r′), cryst.positions)
 end
 
 function position_to_atom_and_offset(cryst::Crystal, r::Vec3)
     i = position_to_atom(cryst, r)
     isnothing(i) && error("Position $r not found in crystal")
-    # See comment in wrap_to_unit_cell() regarding shift by symprec
-    offset = @. round(Int, r+cryst.symprec, RoundDown)
-    @assert isapprox(cryst.positions[i]+offset, r; atol=cryst.symprec)
+
+    offset = round.(Int, r - wrap_to_unit_cell(r))
+    @assert isapprox(cryst.positions[i]+offset, r; atol=1e-12)
     return (i, offset)
 end
 
@@ -42,7 +41,7 @@ function symmetries_for_pointgroup_of_atom(cryst::Crystal, i::Int)
     r = cryst.positions[i]
     for s in cryst.sg.symops
         r′ = transform(s, r)
-        if is_periodic_copy(r, r′; cryst.symprec)
+        if is_periodic_copy(r, r′)
             push!(ret, s)
         end
     end
@@ -57,7 +56,7 @@ function symmetries_between_atoms(cryst::Crystal, i1::Int, i2::Int)
     r1 = cryst.positions[i1]
     r2 = cryst.positions[i2]
     for s in cryst.sg.symops
-        if is_periodic_copy(r1, transform(s, r2); cryst.symprec)
+        if is_periodic_copy(r1, transform(s, r2))
             push!(ret, s)
         end
     end
@@ -92,7 +91,7 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
         ℓ = minimum(norm, eachcol(cryst.latvecs))
         d1 = global_distance(cryst, b1) / ℓ
         d2 = global_distance(cryst, b2) / ℓ
-        if abs(d1-d2) > cryst.symprec
+        if abs(d1-d2) > 1e-12
             return Tuple{SymOp, Bool}[]
         end
     end
@@ -100,9 +99,9 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
     ret = Tuple{SymOp, Bool}[]
     for s in cryst.sg.symops
         b2′ = transform(s, b2)
-        if is_periodic_copy(b1, b2′; cryst.symprec)
+        if is_periodic_copy(b1, b2′)
             push!(ret, (s, true))
-        elseif is_periodic_copy(b1, reverse(b2′); cryst.symprec)
+        elseif is_periodic_copy(b1, reverse(b2′))
             push!(ret, (s, false))
         end
     end
@@ -157,10 +156,9 @@ end
 
 # Returns all bonds in `cryst` for which `bond.i == i`
 function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
-    # be a little generous with the minimum and maximum distances
     ℓ = minimum(norm, eachcol(cryst.latvecs))
-    max_dist += 4 * cryst.symprec * ℓ
-    min_dist -= 4 * cryst.symprec * ℓ
+    max_dist += 4 * 1e-12 * ℓ
+    min_dist -= 4 * 1e-12 * ℓ
 
     idxs, offsets = all_offsets_within_distance(cryst.latvecs, cryst.positions, cryst.positions[i]; min_dist, max_dist)
 
