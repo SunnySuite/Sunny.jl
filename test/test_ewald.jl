@@ -30,9 +30,10 @@
     enable_dipole_dipole!(sys, 1.0; demag=0)
     @test isapprox(energy_per_site(sys), -1/6; atol=1e-13)
 
-    # Create a random box
+    # Create a random box. Slight shifts away from zero to quiet Ewalder
+    # warnings about coordinates that wrap to -ϵ.
     latvecs = lattice_vectors(1.1,0.9,0.8,92,85,95)
-    positions = [[0,0,0], [0.1,0,0], [0.6,0.4,0.5]]
+    positions = [[0, 0.01, 0.01], [0.1, 0.01, 0.01], [0.6,0.4,0.5]]
     cryst = Crystal(latvecs, positions)
     Random.seed!(0) # Don't have sys.rng yet
     moments = [

@@ -19,16 +19,19 @@ function characteristic_length_between_atoms(cryst::Crystal)
         error("Internal error")
     end
 
-    # An upper bound is the norm of the smallest lattice vector.
-    ℓ0 = minimum(norm.(eachcol(cryst.latvecs)))
+    # An upper bound is the smallest singular value of the lattice vectors
+    ℓ0 = minimum(svdvals(cryst.latvecs))
 
     return min(ℓ0, ℓ)
 end
 
 # Like `reference_bonds` but supply a number of bonds
 function reference_bonds_upto(cryst, nbonds, ndims)
+    # Don't show bonds if symmetry information is missing
+    isempty(cryst.sg.symops) && return Bond[]
+
     # Calculate heuristic maximum distance
-    min_a = minimum(norm.(eachcol(cryst.latvecs)))
+    min_a = minimum(svdvals(cryst.latvecs))
     nclasses = length(unique(cryst.classes))
     max_dist = 2 * min_a * (nbonds / (nclasses*natoms(cryst)))^(1/ndims)
 
@@ -219,15 +222,15 @@ function draw_bonds(; ax, visible, ionradius, exchange_mag, cryst, interactions,
     # String for each bond b′. Like print_bond(b′), but shorter.
     bond_labels = map(bonds) do b
         dist = Sunny.global_distance(cryst, b)
-        dist_str = Sunny.number_to_simple_string(dist; digits=4, atol=1e-12)
+        dist_str = Sunny.number_to_simple_string(dist; digits=4, tol=1e-12)
 
         if isnothing(interactions)
             basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b; b_ref=refbond)
-            basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
+            basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4)
             J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J:  ")
             antisym_basis_idxs = findall(J -> J ≈ -J', basis)
             if !isempty(antisym_basis_idxs)
-                antisym_basis_strs = Sunny.coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits=4, atol=1e-12)
+                antisym_basis_strs = Sunny.coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits=4)
                 dmvecstr = join([antisym_basis_strs[2,3], antisym_basis_strs[3,1], antisym_basis_strs[1,2]], ", ")
                 J_matrix_str *= "\nDM: [$dmvecstr]"
             end
@@ -288,21 +291,20 @@ end
 function label_atoms(cryst; ismagnetic, sys)
     return map(1:natoms(cryst)) do i
         typ = cryst.types[i]
-        rstr = Sunny.fractional_vec3_to_string(cryst.positions[i])
+        rstr = Sunny.pos_to_string(cryst.positions[i])
         ret = []
 
-        (; multiplicity, letter) = Sunny.get_wyckoff(cryst, i)
-        wyckstr = "$multiplicity$letter"
+        wyckstr = Sunny.wyckoff_string(Sunny.get_wyckoff(cryst, i))
         typstr = isempty(typ) ? "" : "'$typ', "
         push!(ret, typstr * "Wyckoff $wyckstr, $rstr")
 
-        if ismagnetic
+        if ismagnetic && !isempty(cryst.sg.symops)
             if isnothing(sys)
                 # See similar logic in print_site()
                 refatoms = [b.i for b in Sunny.reference_bonds(cryst, 0.0)]
                 i_ref = Sunny.findfirstval(i_ref -> Sunny.is_related_by_symmetry(cryst, i, i_ref), refatoms)
                 R_site = Sunny.rotation_between_sites(cryst, i, i_ref)
-                push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, prefix="Aniso: ", digits=8, atol=1e-12))
+                push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, prefix="Aniso: ", digits=8))
             else
                 site = Sunny.map_atom_to_other_system(cryst, i, sys)
                 stvexp = Sunny.get_stevens_expansion_at(sys, site)
@@ -489,18 +491,20 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndim
         error("Parameter `refbonds` must be an integer or a `Bond` list.")
     end
 
-    refbonds_dists = [Sunny.global_distance(cryst, b) for b in refbonds]
+    # Smallest bond length between magnetic ions (or a characteristic scale)
+    ℓ0 = if isempty(refbonds)
+        @assert isempty(cryst.sg.symops)
+        characteristic_length_between_atoms(cryst)
+    else
+        minimum(Sunny.global_distance(cryst, b) for b in refbonds)
+    end
 
     # Radius of the magnetic ions. Sets a length scale for other objects too.
     ionradius = let
-        # The root crystal may contain non-magnetic ions. If present, these
-        # should reduce the characteristic length scale.
-        ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
-        # If there exists a very short bond distance, then appropriately reduce the
-        # length scale
-        ℓ0 = min(ℓ0, 0.8minimum(refbonds_dists))
-        # Small enough to fit everything
-        0.2ℓ0
+        # Characteristic distance between non-magnetic ions
+        ℓ = characteristic_length_between_atoms(something(cryst.root, cryst))
+        # The smallest relevant distance scale
+        0.2 * min(ℓ, 0.8ℓ0)
     end
 
     fig = Makie.Figure(; size)
@@ -525,7 +529,6 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndim
     Makie.onany(button.clicks, menu.selection; update=true) do _, mselect
         orthographic = mselect == "Orthographic"
         # Zoom out a little bit extra according to nn bond distance
-        ℓ0=minimum(refbonds_dists)
         orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, ndims, ℓ0)
         compass && register_compass_callbacks(axcompass, ax)
     end

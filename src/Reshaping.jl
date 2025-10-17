@@ -18,9 +18,9 @@ function reshape_supercell(sys::System, shape)
 
     orig = orig_crystal(sys)
     check_shape_commensurate(orig, shape)
-    prim_cell = @something primitive_cell(orig) Mat3(I)
+    prim_cell = primitive_cell(orig)
     shape_in_prim = prim_cell \ shape
-    @assert all_integer(shape_in_prim; atol=orig.symprec)
+    @assert all_integer(shape_in_prim; tol=1e-12)
     shape_in_prim = round.(Int, shape_in_prim)
 
     # Unit cell for new system, in units of original unit cell.
@@ -183,16 +183,13 @@ function repeat_periodically_as_spiral(sys::System, counts::NTuple{3,Int}; k, ax
     # Original positions units of supervecs (components between 0 and 1)
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
 
-    # Tightened symprec suitable for scaled positions
-    symprec = sys.crystal.symprec / minimum(sys.dims)
-
     # Copy per-site quantities
     for new_site in eachsite(new_sys)
         # Positions of new_sys in units of supervecs
         new_r = supervecs \ global_position(new_sys, new_site)
 
         # Find index into original sys corresponding to a periodic copy of new_r
-        site = findfirst(r -> is_periodic_copy(new_r, r; symprec), rs)
+        site = findfirst(r -> is_periodic_copy(new_r, r), rs)
 
         # Offset of periodic image in global coordinates
         offset = supervecs * (new_r - rs[site])

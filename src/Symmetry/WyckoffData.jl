@@ -1,14 +1,16 @@
-struct Wyckoff
-    multiplicity :: Int
-    letter       :: Char
-    sitesym      :: String
-end
-
 # Expression for one Wyckoff position, F θ + c, where θ = [α, β, γ] are free
 # parameters.
 struct WyckoffExpr
     F :: Mat3
     c :: Vec3
+end
+
+struct Wyckoff
+    multiplicity :: Int
+    letter       :: Char
+    sitesym      :: String
+    expr         :: WyckoffExpr # In ITA standard setting
+    θ            :: Vec3
 end
 
 # Extracts (F, c) from expressions of the form (F θ + c), where θ = [x, y, z].
@@ -18,20 +20,23 @@ function WyckoffExpr(str::String)
     return WyckoffExpr(s.R, s.T)
 end
 
+function wyckoff_string(w::Wyckoff)
+    return string(w.multiplicity) * w.letter
+end
+
 # For symop (R, T), a position transforms as r → R r + T. It follows that
 # Wyckoff position r = F θ + c transforms as F → R F and c → R c + T.
 function transform(symop::SymOp, w::WyckoffExpr)
     (; R, T) = symop
     F′ = R * w.F
-    T′ = wrap_to_unit_cell(R * w.c + T; symprec=1e-12)
+    T′ = wrap_to_unit_cell(R * w.c + T)
     return WyckoffExpr(F′, T′)
 end
 
 # Checks if F θ + c = F′ θ + c′ mod 1, for all θ. Equivalent to the condition
 # that F = F′ and c = c′ mod 1.
 function is_periodic_copy(w1::WyckoffExpr, w2::WyckoffExpr)
-    atol = 1e-12 # FP precision because all coefficients are perfect fractions
-    return isapprox(w1.F, w2.F; atol) && is_periodic_copy(w1.c, w2.c; symprec=atol)
+    return isapprox(w1.F, w2.F) && is_periodic_copy(w1.c, w2.c)
 end
 
 function crystallographic_orbit(w::WyckoffExpr; symops::Vector{SymOp})
@@ -50,10 +55,10 @@ end
 # involving b = r - c, and arbitrary integers Δb. Given candidate Δb, one can
 # use the pseudo-inverse of F to find least squares solution θ, and then check
 # whether it satisfies the original linear system of equations.
-function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; symprec=1e-8)
+function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; tol)
     (; F, c) = w
     # Wrapping components to [0, 1] simplifies the search in the next step.
-    b = wrap_to_unit_cell(r - c; symprec)
+    b = wrap_to_unit_cell(r - c; tol)
     # If F were arbitrary, one would need to search over all offsets Δb ∈ ℕ³.
     # Fortunately, the actual matrices are constrained: matrix elements Fᵢⱼ are
     # in {0, ±1, ±2} for hexagonal crystal systems, and in {0, ±1} for all other
@@ -63,22 +68,41 @@ function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; symprec=1e-8)
     for Δb in Iterators.product((-1, 0), (-1, 0), (-1, 0))
         Δb = Vec3(Δb)
         θ = pinv(F) * (b + Δb)
-        if isapprox(F * θ, b + Δb; atol=symprec)
+        if isapprox(F * θ, b + Δb; atol=tol)
             return θ
         end
     end
     return nothing
 end
 
-function find_wyckoff_for_position(sgnum::Int, r::Vec3; symprec)
+
+# Adapt r to its ideal Wyckoff position in a custom sg.setting
+function idealize_position(sg::Spacegroup, letter::Char, r::Vec3; tol)
+    # Imperfect position in standard setting
+    r0 = transform(sg.setting, r)
+
+    # Idealized position in standard setting
+    w = find_wyckoff(sg, r; tol)
+    @assert w.letter == letter
+    r0_ideal = w.expr.F * w.θ + w.expr.c
+
+    # Closest periodic image
+    r0_ideal += round.(Int, r0 - r0_ideal)
+
+    # Map back to custom setting
+    return transform(inv(sg.setting), r0_ideal)
+end
+
+
+# Find Wyckoff for position r. Assume spacegroup sgnum in standard setting.
+function find_wyckoff(sgnum::Int, r::Vec3; tol)
     Rs, Ts = Spglib.get_symmetry_from_database(standard_setting[sgnum])
     symops = SymOp.(Rs, Ts)
-
-    for (multiplicity, letter, sitesym, pos) in reverse(wyckoff_table[sgnum])
-        for w in crystallographic_orbit(WyckoffExpr(pos); symops)
-            θ = position_to_wyckoff_params(r, w; symprec)
+    for (multiplicity, letter, sitesym, expr0) in reverse(wyckoff_table[sgnum])
+        for expr in crystallographic_orbit(WyckoffExpr(expr0); symops)
+            θ = position_to_wyckoff_params(r, expr; tol)
             if !isnothing(θ)
-                return Wyckoff(multiplicity, letter, sitesym)
+                return Wyckoff(multiplicity, letter, sitesym, expr, θ)
             end
         end
     end
@@ -86,9 +110,9 @@ function find_wyckoff_for_position(sgnum::Int, r::Vec3; symprec)
     @assert false
 end
 
-function find_wyckoff_for_position(sg::Spacegroup, r::Vec3; symprec)
+function find_wyckoff(sg::Spacegroup, r::Vec3; tol)
     r_std = transform(sg.setting, r)
-    return find_wyckoff_for_position(sg.number, r_std; symprec)
+    return find_wyckoff(sg.number, r_std; tol)
 end
 
 

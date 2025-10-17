@@ -122,7 +122,7 @@ function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
     end
 
     if norm(offset) > 1e-12
-        label1 = labels[begin] * " + " * Sunny.fractional_vec3_to_string(offset)
+        label1 = labels[begin] * " + " * Sunny.vec3_to_string(offset)
         labels = (label1, labels[2:end]...)
     end
 

@@ -1,54 +1,72 @@
-function is_approx_integer(x::T; atol) where T <: Real
-    abs(round(x) - x) < atol
-end
-
-function number_to_simple_string(x::T; digits, atol=1e-12) where T <: Real
-    if is_approx_integer(x; atol)
+function number_to_simple_string(x::Real; digits, tol=1e-12)
+    if is_integer(x; tol)
         return string(round(Int, x))
     else
-        fmt = Printf.Format("%.$(digits)g")
+        fmt = Printf.Format("%#.$(digits)g")
         return Printf.format(fmt, x)
     end
 end
 
 # Convert number to string using simple math formulas where possible.
-function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=1000) where T <: Real
+function number_to_math_string(x::Real; digits=4, tol=1e-12, max_denom=1000)
     sign = x < 0 ? "-" : ""
 
     # Try to return an exact integer
-    is_approx_integer(x; atol) && return string(round(Int, x))
+    is_integer(x; tol) && return string(round(Int, x))
 
     # If already in rational form, print that
     x isa Rational && return string(x.num)*"/"*string(x.den)
 
     # Try to return an exact rational
-    r = rationalize(x; tol=atol)
+    r = rationalize(x; tol)
     r.den <= max_denom && return string(r.num)*"/"*string(r.den)
 
     # Try to return an exact sqrt
-    is_approx_integer(x^2; atol) && return sign*"√"*string(round(Int, x^2))
+    is_integer(x^2; tol) && return sign*"√"*string(round(Int, x^2))
 
     # Try to return an exact sqrt rational
-    r = rationalize(x^2; tol=atol)
+    r = rationalize(x^2; tol)
     if r.den <= max_denom
-        num_str = is_approx_integer(sqrt(r.num); atol) ? string(round(Int, sqrt(r.num))) : "√"*string(r.num)
-        den_str = is_approx_integer(sqrt(r.den); atol) ? string(round(Int, sqrt(r.den))) : "√"*string(r.den)
+        num_str = is_integer(sqrt(r.num); tol) ? string(round(Int, sqrt(r.num))) : "√"*string(r.num)
+        den_str = is_integer(sqrt(r.den); tol) ? string(round(Int, sqrt(r.den))) : "√"*string(r.den)
         return sign * num_str * "/" * den_str
     end
-    
+
     # Give up and print digits of floating point number
-    number_to_simple_string(x; digits, atol)
+    number_to_simple_string(x; digits, tol)
 end
 
-# Convert atom position to string using, by default, at most 4 digits
-function fractional_vec3_to_string(v; digits=4, atol=1e-12)
-    v = number_to_math_string.(v; digits, atol, max_denom=12)
+# Special handling for denominators (2, 3, 4, 6, 8) appearing in Wyckoff
+# positions.
+function fractional_coord_to_string(x::Real; digits=4, tol=1e-12)
+    if is_integer(x; tol)
+        return string(round(Int, x))
+    end
+
+    for c in (2, 3, 4, 6, 8)
+        n = round(Int, x * c)
+        if isapprox(x, n/c; atol=tol)
+            return "$n/$c"
+        end
+    end
+
+    return number_to_simple_string(x; digits, tol)
+end
+
+# Appropriate for coordinates in fractions of the lattice vectors
+function pos_to_string(v; digits=4, tol=1e-12)
+    v = fractional_coord_to_string.(v; digits, tol)
     return "["*join(v, ", ")*"]"
 end
 
-function fractional_mat3_to_string(m; digits=4, atol=1e-12)
+function vec3_to_string(v; digits=4, tol=1e-12)
+    v = number_to_math_string.(v; digits, tol, max_denom=12)
+    return "["*join(v, ", ")*"]"
+end
+
+function mat3_to_string(m; digits=4, tol=1e-12)
     rowstrs = map(eachrow(m)) do r
-        r = number_to_math_string.(r; digits, atol, max_denom=12)
+        r = number_to_math_string.(r; digits, tol, max_denom=12)
         join(r, " ")
     end
     return "["*join(rowstrs, "; ")*"]"
@@ -56,11 +74,11 @@ end
 
 # Like number_to_math_string(), but outputs a string that can be prefixed to a
 # variable name.
-function coefficient_to_math_string(x::T; digits=4, atol=1e-12) where T <: Real
-    abs(x) < atol && error("Coefficient cannot be zero.")
-    isapprox(x, 1.0; atol) && return ""
-    isapprox(x, -1.0; atol) && return "-"
-    ret = number_to_math_string(x; digits, atol)
+function coefficient_to_math_string(x::T; digits=4, tol=1e-12) where T <: Real
+    abs(x) < tol && error("Coefficient cannot be zero.")
+    isapprox(x, 1.0; atol=tol) && return ""
+    isapprox(x, -1.0; atol=tol) && return "-"
+    ret = number_to_math_string(x; digits, tol)
 
     # Wrap fractions in parenthesis
     if contains(ret, '/')
@@ -79,13 +97,13 @@ function coefficient_to_math_string(x::T; digits=4, atol=1e-12) where T <: Real
 end
 
 # Converts a list of basis elements for a J matrix into a nice string summary
-function coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
+function coupling_basis_strings(coup_basis; digits, tol=1e-12) :: Matrix{String}
     J = [String[] for _ in 1:3, _ in 1:3]
     for (letter, basis_mat) in coup_basis
         for idx in eachindex(basis_mat)
             coeff = basis_mat[idx]
-            if abs(coeff) > atol
-                coeff_str = coefficient_to_math_string(coeff; digits, atol)
+            if abs(coeff) > tol
+                coeff_str = coefficient_to_math_string(coeff; digits, tol)
                 push!(J[idx], coeff_str * letter)
             end
         end
@@ -133,8 +151,6 @@ parameters `A`, `B`, etc.
 function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
     # How many digits to use in printing coefficients
     digits = 14
-    # Tolerance below which coefficients are dropped
-    atol = 1e-12
 
     if b.i == b.j && iszero(b.n)
         print_site(cryst, b.i; i_ref=b.i, io)
@@ -145,25 +161,25 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
         printstyled(io, "Bond($(b.i), $(b.j), $(b.n))"; bold=true, color=:underline)
         println(io)
         (m_i, m_j) = (coordination_number(cryst, b.i, b), coordination_number(cryst, b.j, b))
-        dist_str = number_to_simple_string(global_distance(cryst, b); digits=10, atol=1e-12)
+        dist_str = number_to_simple_string(global_distance(cryst, b); digits=10)
         if m_i == m_j
             println(io, "Distance $dist_str, coordination $m_i")
         else
             println(io, "Distance $dist_str, coordination $m_i (from atom $(b.i)) and $m_j (from atom $(b.j))")
         end
         if isempty(cryst.types[b.i]) && isempty(cryst.types[b.j])
-            println(io, "Connects $(fractional_vec3_to_string(ri)) to $(fractional_vec3_to_string(rj))")
+            println(io, "Connects $(pos_to_string(ri)) to $(pos_to_string(rj))")
         else
-            println(io, "Connects '$(cryst.types[b.i])' at $(fractional_vec3_to_string(ri)) to '$(cryst.types[b.j])' at $(fractional_vec3_to_string(rj))")
+            println(io, "Connects '$(cryst.types[b.i])' at $(pos_to_string(ri)) to '$(cryst.types[b.j])' at $(pos_to_string(rj))")
         end
 
         basis = basis_for_symmetry_allowed_couplings(cryst, b; b_ref)
-        basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+        basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits)
         println(io, formatted_matrix(basis_strs; prefix="Allowed exchange matrix: "))
 
         antisym_basis_idxs = findall(J -> J ≈ -J', basis)
         if !isempty(antisym_basis_idxs)
-            antisym_basis_strs = coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits, atol)
+            antisym_basis_strs = coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits)
             println(io, "Allowed DM vector: [$(antisym_basis_strs[2,3]) $(antisym_basis_strs[3,1]) $(antisym_basis_strs[1,2])]")
         end
     end
@@ -196,7 +212,7 @@ anisotropies.
 """
 function print_suggested_frame(cryst::Crystal, i::Int)
     R = suggest_frame_for_atom(cryst, i)
-    R_strs = [number_to_math_string(x; digits=14, atol=1e-12) for x in R]
+    R_strs = [number_to_math_string(x; digits=14, tol=1e-12) for x in R]
     println(formatted_matrix(R_strs; prefix="R = "))
 end
 
@@ -216,21 +232,17 @@ function print_site(cryst::Crystal, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout
     class_i = cryst.classes[i]
     printstyled(io, "Atom $i\n"; bold=true, color=:underline)
 
-    (; multiplicity, letter) = get_wyckoff(cryst, i)
-    wyckstr = "$multiplicity$letter"
-
+    wyckstr = wyckoff_string(get_wyckoff(cryst, i))
     if isempty(cryst.types[i])
-        println(io, "Position $(fractional_vec3_to_string(r)), Wyckoff $wyckstr")
+        println(io, "Position $(pos_to_string(r)), Wyckoff $wyckstr")
     else
-        println(io, "Type '$(cryst.types[i])', position $(fractional_vec3_to_string(r)), Wyckoff $wyckstr")
+        println(io, "Type '$(cryst.types[i])', position $(pos_to_string(r)), Wyckoff $wyckstr")
     end
 
     digits = 14
-    atol = 1e-12
-
     R_site = rotation_between_sites(cryst, i, i_ref)
-    println(io, allowed_g_tensor_string(cryst, i_ref; R_global, R_site, digits, atol))
-    println(io, allowed_anisotropy_string(cryst, i_ref; R_global, R_site, digits, atol, ks))
+    println(io, allowed_g_tensor_string(cryst, i_ref; R_global, R_site, digits))
+    println(io, allowed_anisotropy_string(cryst, i_ref; R_global, R_site, digits, ks))
 end
 
 
@@ -246,22 +258,22 @@ function rotation_between_sites(cryst, i, i_ref)
     end
 end
 
-function allowed_g_tensor_string(cryst, i_ref; R_global=Mat3(I), R_site, prefix="Allowed g-tensor: ", digits, atol)
+function allowed_g_tensor_string(cryst, i_ref; R_global=Mat3(I), R_site, prefix="Allowed g-tensor: ", digits, tol=1e-12)
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i_ref, i_ref, [0, 0, 0]); R_global)
     basis = map(basis) do b
         R_site * b * R_site' # == transform_coupling_by_symmetry(b, R_site, true)
     end
-    basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+    basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, tol)
     return formatted_matrix(basis_strs; prefix)
 end
 
-function allowed_anisotropy_string(cryst::Crystal, i_ref::Int; R_global::Mat3, R_site::Mat3, digits, atol, ks)
+function allowed_anisotropy_string(cryst::Crystal, i_ref::Int; R_global::Mat3, R_site::Mat3, digits, tol=1e-12, ks)
     prefix="    "
 
     lines = String[]
     cnt = 1
     for k in ks
-        B = basis_for_symmetry_allowed_anisotropies(cryst, i_ref; k, R_global, atol)
+        B = basis_for_symmetry_allowed_anisotropies(cryst, i_ref; k, R_global, tol)
 
         # B is an allowed basis for i_ref, but we want to print the allowed
         # basis for i. These sites are symmetry equivalent under the rotation
@@ -277,8 +289,8 @@ function allowed_anisotropy_string(cryst::Crystal, i_ref::Int; R_global::Mat3, R
                 # reverse b elements to print q-components in ascending order, q=-k...k
                 ops = String[]
                 for (b_q, q) in zip(reverse(b), -k:k)
-                    if abs(b_q) > atol
-                        coeff = coefficient_to_math_string(b_q; digits, atol)
+                    if abs(b_q) > tol
+                        coeff = coefficient_to_math_string(b_q; digits, tol)
                         push!(ops, coeff*"𝒪[$k,$q]")
                     end
                 end

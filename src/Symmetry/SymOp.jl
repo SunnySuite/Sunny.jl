@@ -15,18 +15,18 @@ function Base.show(io::IO, s::SymOp)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
-    atol = 1e-12
+    tol = 1e-12
     digits = 2
     for i in 1:3
         terms = []
         for (Rij, a) in zip(s.R[i,:], ["x", "y", "z"])
-            if abs(Rij) > atol
-                push!(terms, coefficient_to_math_string(Rij; atol, digits) * a)
+            if abs(Rij) > tol
+                push!(terms, coefficient_to_math_string(Rij; tol, digits) * a)
             end
         end
         Ti = s.T[i]
-        if abs(Ti) > atol
-            push!(terms, number_to_math_string(Ti; atol, digits))
+        if abs(Ti) > tol
+            push!(terms, number_to_math_string(Ti; tol, digits))
         end
         terms_str = if isempty(terms)
             "0"
@@ -40,8 +40,8 @@ function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
     end
 end
 
-function Base.isapprox(s1::SymOp, s2::SymOp; atol=1e-8)
-    T1, T2 = wrap_to_unit_cell.((s1.T, s2.T); symprec=atol)
+function Base.isapprox(s1::SymOp, s2::SymOp; atol=1e-12)
+    T1, T2 = wrap_to_unit_cell.((s1.T, s2.T); tol=atol)
     return isapprox(s1.R, s2.R; atol=atol*√9) && isapprox(T1, T2; atol=atol*√3)
 end
 
@@ -55,7 +55,7 @@ function Base.issubset(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; ato
 end
 
 # Approximate equality of groups
-function Base.isapprox(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; atol=1e-8)
+function Base.isapprox(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; atol=1e-12)
     return issubset(g1, g2; atol) && issubset(g2, g1; atol)
 end
 
