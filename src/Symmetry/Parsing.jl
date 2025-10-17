@@ -238,7 +238,7 @@ function Crystal(filename::AbstractString; symprec=nothing, keep_supercell=false
     sort_sites!(ret)
 
     if from_mcif
-        return keep_supercell ? (ret, symprec) : standardize(ret)
+        return keep_supercell ? (; mcif_cryst=ret, symprec) : standardize(ret)
     else
         symprec_str = number_to_simple_string(symprec; digits=2)
         suggest_symprec = isnothing(symprec0) ? " Try overriding `symprec` (inferred $symprec_str)." : ""

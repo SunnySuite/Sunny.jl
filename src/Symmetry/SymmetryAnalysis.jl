@@ -89,13 +89,11 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
     validate_symops(cryst)
 
     # Fail early if two bonds describe different real-space distances
-    # (dimensionless error tolerance is measured relative to the minimum lattice
-    # constant ℓ)
     if b1 != b2
-        ℓ = minimum(norm, eachcol(cryst.latvecs))
-        d1 = global_distance(cryst, b1) / ℓ
-        d2 = global_distance(cryst, b2) / ℓ
-        if abs(d1-d2) > 1e-12
+        d1 = global_distance(cryst, b1)
+        d2 = global_distance(cryst, b2)
+        atol = 1e-12 * minimum(svdvals(cryst.latvecs))
+        if !isapprox(d1, d2; atol)
             return Tuple{SymOp, Bool}[]
         end
     end
@@ -160,9 +158,9 @@ end
 
 # Returns all bonds in `cryst` for which `bond.i == i`
 function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
-    ℓ = minimum(norm, eachcol(cryst.latvecs))
-    max_dist += 4 * 1e-12 * ℓ
-    min_dist -= 4 * 1e-12 * ℓ
+    atol = 1e-12 * minimum(svdvals(cryst.latvecs))
+    max_dist += atol
+    min_dist -= atol
 
     idxs, offsets = all_offsets_within_distance(cryst.latvecs, cryst.positions, cryst.positions[i]; min_dist, max_dist)
 

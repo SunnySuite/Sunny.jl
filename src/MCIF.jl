@@ -9,7 +9,7 @@ mismatched, an error message will provide instructions for calling
 """
 function set_dipoles_from_mcif!(sys::System, filename::AbstractString; symprec=nothing)
     cryst = orig_crystal(sys)
-    mcif_cryst, symprec = Crystal(filename; symprec, keep_supercell=true)
+    (; mcif_cryst, symprec) = Crystal(filename; symprec, keep_supercell=true)
 
     if mcif_cryst.sg.number != cryst.sg.number
         error("Inferred mCIF spacegroup $(mcif_cryst.sg.number) differs from $(cryst.sg.number). Try changing `symprec`?")

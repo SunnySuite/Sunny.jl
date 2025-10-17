@@ -90,7 +90,7 @@ especially in the limit of small `damping`.
 =#
 
 """
-    ImplicitMidpoint(dt::Float64; tol=1e-12) where N
+    ImplicitMidpoint(dt::Float64; tol=1e-12)
 
 The implicit midpoint method for integrating the Landau-Lifshitz spin dynamics
 or its generalization to SU(_N_) coherent states [1]. One call to the
@@ -164,7 +164,7 @@ estimates of averaged observables may scale like `dt`. This implies that the
 `tol` argument may actually scale like the _square_ of the true numerical error,
 and should be selected with this in mind.
 """
-function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMidpoint}; tol) where N
+function suggest_timestep(sys::System, integrator::Union{Langevin, ImplicitMidpoint}; tol)
     (; dt) = integrator
     dt_bound = suggest_timestep_aux(sys, integrator; tol)
 
