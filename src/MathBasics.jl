@@ -69,10 +69,10 @@ end
 # Returns the QL decomposition `Q, L = ql(A)` satisfying `Q * L ≈ A` with Q
 # orthogonal and L lower-triangular. 
 #
-# Let (Q, R) be the usual QR decomposition of A. Let F be the matrix with 1's on
-# the antidiagonal. Then AF is the matrix A with columns reversed, and FRF is
-# the matrix R with all elements reversed. Then (; Q=QF, L=FRF) is the desired
-# QL decomposition of A.
+# Let (Q, R) be the usual QR decomposition of A. Let F be the matrix with ones
+# on the antidiagonal. Then AF is the matrix A with columns reversed and FRF is
+# the matrix R with all elements reversed. With this notation, the return value
+# (; Q=QF, L=FRF) gives the desired QL decomposition of A.
 function ql(A)
     AF = reverse!(Matrix(A); dims=2)
     (; Q, R) = qr!(AF)
