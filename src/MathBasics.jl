@@ -74,7 +74,7 @@ end
 # the matrix R with all elements reversed. Then (; Q=QF, L=FRF) is the desired
 # QL decomposition of A.
 function ql(A)
-    AF = reverse!(copy(A); dims=2)
+    AF = reverse!(Matrix(A); dims=2)
     (; Q, R) = qr!(AF)
     QF = reverse!(Matrix(Q); dims=2)
     FRF = reverse!(R)
