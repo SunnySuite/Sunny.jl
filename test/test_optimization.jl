@@ -49,8 +49,8 @@ end
         step!(sys_dip, integrator)
         step!(sys_sun, integrator)
     end
-    @test minimize_energy!(sys_dip) > 0
-    @test minimize_energy!(sys_sun) > 0
+    @test has_converged(minimize_energy!(sys_dip))
+    @test has_converged(minimize_energy!(sys_sun))
 
     @test is_z_polarized(sys_dip)
     @test is_z_polarized(sys_sun)
@@ -59,8 +59,8 @@ end
     randomize_spins!(sys_dip)
     randomize_spins!(sys_sun)
 
-    @test minimize_energy!(sys_dip) > 0
-    @test minimize_energy!(sys_sun) > 0
+    @test has_converged(minimize_energy!(sys_dip))
+    @test has_converged(minimize_energy!(sys_sun))
 
     @test is_z_polarized(sys_dip)
     @test is_z_polarized(sys_sun)
@@ -85,8 +85,8 @@ end
     randomize_spins!(sys_dip)
     randomize_spins!(sys_sun)
 
-    @test minimize_energy!(sys_dip) > 0
-    @test minimize_energy!(sys_sun) > 0
+    @test has_converged(minimize_energy!(sys_dip))
+    @test has_converged(minimize_energy!(sys_sun))
 end
 
 
