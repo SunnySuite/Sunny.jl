@@ -1,3 +1,29 @@
+struct MinimizationResult
+    converged :: Bool
+    iterations :: Int
+    data :: Optim.OptimizationResults
+end
+
+function Base.show(io::IO, ::MIME"text/plain", res::MinimizationResult)
+    (; converged, iterations, data) = res
+    Δx = number_to_simple_string(Optim.x_abschange(data); digits=2)
+    g_res = number_to_simple_string(Optim.g_residual(data); digits=2)
+    if converged
+        println(io, "Converged in $iterations iterations")
+    else
+        printstyled(io, "Non-converged", underline=true)
+        println(io, " after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
+    end
+end
+
+"""
+    converged(res::MinimizationResult)
+
+Checks for convergence as marked by the return value of
+[`minimize_energy!`](@ref). For more detail, see the field `res.data`.
+"""
+Optim.converged(res::MinimizationResult) = res.converged
+
 
 # Returns the stereographic projection u(α) = (2v + (1-v²)n)/(1+v²), which
 # involves the orthographic projection v = (1-nn̄)α. The input `n` must be
@@ -92,14 +118,17 @@ end
 
 
 """
-    minimize_energy!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
-                     kwargs...) where N
+    minimize_energy!(sys::System; maxiters=1000, method=Optim.ConjugateGradient(),
+                     kwargs...)
 
 Optimizes the spin configuration in `sys` to minimize energy. A total of
 `maxiters` iterations will be attempted. The `method` parameter will be used in
 the `optimize` function of the [Optim.jl
 package](https://github.com/JuliaNLSolvers/Optim.jl). Any remaining `kwargs`
 will be included in the `Options` constructor of Optim.jl.
+
+The return value stores optimization statistics. Use [`converged`](@ref) to
+check for convergence.
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
                           kwargs...) where N
@@ -132,9 +161,8 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
     # a natural energy scale. Disable check on `x_reltol` because `x = [zeros]`
     # is a valid configuration (all spins aligned with the stereographic
     # projection axes). This leaves only the check on `x_abstol`. Since Optim.jl
-    # uses the default (p=2) norm, the acceptable x-tolerance scales like the
-    # square root of the number of optimization parameters.
-    x_abstol = 1e-14 * √length(αs)
+    # uses the p=Inf norm, the x-tolerance is a dimensionless number.
+    x_abstol = 1e-12
     options = Optim.Options(; iterations=subiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
     local res
     for iter in 1 : div(maxiters, subiters, RoundUp)
@@ -144,7 +172,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         # failure if the step Δx vanishes, but for CG this is actually success.
         if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
             cnt = (iter-1)*subiters + res.iterations
-            return cnt
+            return MinimizationResult(true, cnt, res)
         end
 
         # Reset stereographic projection based on current state
@@ -152,7 +180,5 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         αs .*= 0
     end
 
-    f_abschange, x_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(res), Optim.x_abschange(res), Optim.g_residual(res)); digits=2)
-    @warn "Non-converged after $maxiters iterations: |ΔE|=$f_abschange, |Δx|=$x_abschange, |∂E/∂x|=$g_residual"
-    return -1
+    return MinimizationResult(false, maxiters, res)
 end
