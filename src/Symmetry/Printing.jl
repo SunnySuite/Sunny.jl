@@ -35,7 +35,7 @@ function number_to_math_string(x::Real; digits=4, tol=1e-12, max_denom=1000)
     end
 
     # Give up and print digits of floating point number
-    number_to_simple_string(x; digits, tol)
+    return number_to_simple_string(x; digits, tol)
 end
 
 # Special handling for denominators (2, 3, 4, 6, 8) appearing in Wyckoff
