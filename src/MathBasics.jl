@@ -66,15 +66,17 @@ function findfirstval(f, a)
     return isnothing(i) ? nothing : a[i]
 end
 
-# Let F be the matrix with 1's on the antidiagonal. Then AF (or FA) is the
-# matrix A with columns (or rows) reversed. If (Q, R) = AF is the QR
-# decomposition of AF, then (QF, FRF) is the QL decomposition of A.
-function ql_slow(A)
-    AF = reduce(hcat, reverse(eachcol(A)))
-    Q, R = qr(AF)
-    # TODO: Perform these reversals in-place
-    QF = reduce(hcat, reverse(eachcol(collect(Q))))
-    RF = reduce(hcat, reverse(eachcol(collect(R))))
-    FRF = reduce(vcat, reverse(transpose.(eachrow(collect(RF)))))
-    return QF, FRF
+# Returns the QL decomposition `Q, L = ql(A)` satisfying `Q * L ≈ A` with Q
+# orthogonal and L lower-triangular. 
+#
+# Let (Q, R) be the usual QR decomposition of A. Let F be the matrix with ones
+# on the antidiagonal. Then AF is the matrix A with columns reversed and FRF is
+# the matrix R with all elements reversed. With this notation, the return value
+# (; Q=QF, L=FRF) gives the desired QL decomposition of A.
+function ql(A)
+    AF = reverse!(Matrix(A); dims=2)
+    (; Q, R) = qr!(AF)
+    QF = reverse!(Matrix(Q); dims=2)
+    FRF = reverse!(R)
+    return (; Q=QF, L=FRF)
 end
