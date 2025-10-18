@@ -139,11 +139,11 @@ function Crystal(filename::AbstractString; symprec=nothing, keep_supercell=false
 
     types = nothing
     if "_atom_site_type_symbol" in keys(cif)
-        types = String.(geo_table[:, "_atom_site_type_symbol"])
+        types = String.(cif["_atom_site_type_symbol"])
     end
 
     if "_atom_site_label" in keys(cif)
-        labels = String.(geo_table[:, "_atom_site_label"])
+        labels = String.(cif["_atom_site_label"])
     else
         labels = types
     end
@@ -224,14 +224,21 @@ function Crystal(filename::AbstractString; symprec=nothing, keep_supercell=false
     # fudge factor and 1e-8 lower bound give some safety margin.
     symprec = @something symprec0 max(10*symprec, 1e-8)
 
-    # Fill atom positions by symmetry and infer symmetry operations
+    # Fill crystallographic orbits using symmetry operations.
     orbits = crystallographic_orbit.(positions; symops, symprec)
     validate_orbits(positions, orbits; symprec)
     all_positions = reduce(vcat, orbits)
     all_types = repeat_multiple(classes, length.(orbits))
 
-    # TODO: Check orbit lengths against _atom_site_symmetry_multiplicity data if
-    # available.
+    # Check orbit lengths against multiplicity data if available.
+    if "_atom_site_symmetry_multiplicity" in keys(cif)
+        multiplicities = parse.(Int, cif["_atom_site_symmetry_multiplicity"])
+        mismatches = findall(length.(orbits) .!= multiplicities)
+        if !isempty(mismatches)
+            mismatch_str = join(mismatches, ", ")
+            @warn "Inferred orbit lengths do not match multiplicity table for sites: $mismatch_str."
+        end
+    end
 
     # Infer symmetry from full list of atoms. Warnings will be customized.
     ret = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, suppress_warnings=true)
