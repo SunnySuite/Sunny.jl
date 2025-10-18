@@ -49,8 +49,8 @@ end
         step!(sys_dip, integrator)
         step!(sys_sun, integrator)
     end
-    @test has_converged(minimize_energy!(sys_dip))
-    @test has_converged(minimize_energy!(sys_sun))
+    @test converged(minimize_energy!(sys_dip))
+    @test converged(minimize_energy!(sys_sun))
 
     @test is_z_polarized(sys_dip)
     @test is_z_polarized(sys_sun)
@@ -59,8 +59,8 @@ end
     randomize_spins!(sys_dip)
     randomize_spins!(sys_sun)
 
-    @test has_converged(minimize_energy!(sys_dip))
-    @test has_converged(minimize_energy!(sys_sun))
+    @test converged(minimize_energy!(sys_dip))
+    @test converged(minimize_energy!(sys_sun))
 
     @test is_z_polarized(sys_dip)
     @test is_z_polarized(sys_sun)
@@ -85,8 +85,8 @@ end
     randomize_spins!(sys_dip)
     randomize_spins!(sys_sun)
 
-    @test has_converged(minimize_energy!(sys_dip))
-    @test has_converged(minimize_energy!(sys_sun))
+    @test converged(minimize_energy!(sys_dip))
+    @test converged(minimize_energy!(sys_sun))
 end
 
 
@@ -101,7 +101,7 @@ end
     minimize_energy!(sys2)
     energy_per_site(sys2)
     @test energy_per_site(sys2) ≈ -0.8889
-    
+
     set_vacancy_at!(sys2, (1, 1, 1, 1))
     randomize_spins!(sys2)
     minimize_energy!(sys2)

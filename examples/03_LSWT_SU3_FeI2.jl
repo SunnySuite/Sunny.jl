@@ -156,8 +156,8 @@ sys = resize_supercell(sys, (4, 4, 4))
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-# The positive step-count above indicates successful convergence to a local
-# energy minimum. Defects, however, are visually apparent.
+# Despite successful convergence to a local energy minimum, defects are visually
+# apparent.
 
 plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
