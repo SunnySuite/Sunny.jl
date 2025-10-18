@@ -183,8 +183,7 @@ function __init__()
     end
 end
 
-# Access to PlottingExt module for developer convenience
-PlottingExt() = Base.get_extension(@__MODULE__, :PlottingExt)
+# Access package extensions with, e.g., Base.get_extension(Sunny, :PlottingExt)
 
 
 ### Precompile workloads
