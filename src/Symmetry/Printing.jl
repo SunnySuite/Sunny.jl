@@ -9,7 +9,8 @@ end
 
 # Convert number to string using simple math formulas where possible.
 function number_to_math_string(x::Real; digits=4, tol=1e-12, max_denom=1000)
-    sign = x < 0 ? "-" : ""
+    # Avoid spurious forms like "0/1" and "√0" for tiny x
+    abs(x) ≤ sqrt(tol) && return number_to_simple_string(x; digits, tol)
 
     # Try to return an exact integer
     is_integer(x; tol) && return string(round(Int, x))
@@ -19,21 +20,22 @@ function number_to_math_string(x::Real; digits=4, tol=1e-12, max_denom=1000)
 
     # Try to return an exact rational
     r = rationalize(x; tol)
-    r.den <= max_denom && return string(r.num)*"/"*string(r.den)
+    r.den ≤ max_denom && return string(r.num)*"/"*string(r.den)
 
     # Try to return an exact sqrt
+    sign = x < 0 ? "-" : ""
     is_integer(x^2; tol) && return sign*"√"*string(round(Int, x^2))
 
     # Try to return an exact sqrt rational
     r = rationalize(x^2; tol)
-    if r.den <= max_denom
+    if r.den ≤ max_denom
         num_str = is_integer(sqrt(r.num); tol) ? string(round(Int, sqrt(r.num))) : "√"*string(r.num)
         den_str = is_integer(sqrt(r.den); tol) ? string(round(Int, sqrt(r.den))) : "√"*string(r.den)
         return sign * num_str * "/" * den_str
     end
 
     # Give up and print digits of floating point number
-    number_to_simple_string(x; digits, tol)
+    return number_to_simple_string(x; digits, tol)
 end
 
 # Special handling for denominators (2, 3, 4, 6, 8) appearing in Wyckoff
