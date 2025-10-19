@@ -1,18 +1,29 @@
-struct EnergyMinimizationResult
-    converged::Bool
-    iterations::Int32
-    f_abschange::Real
-    x_abschange::Real
-    g_residual::Real
+struct MinimizationResult
+    converged :: Bool
+    iterations :: Int
+    data :: Optim.OptimizationResults
 end
 
-function Base.show(io::IO, ::MIME"text/plain", emr::EnergyMinimizationResult)
-    println(io, "$(emr.converged ? "Converged" : "Non-converged") after $(emr.iterations) iterations: |ΔE|=$(emr.f_abschange), |Δx|=$(emr.x_abschange), |∂E/∂x|=$(emr.g_residual)")
+function Base.show(io::IO, ::MIME"text/plain", res::MinimizationResult)
+    (; converged, iterations, data) = res
+    Δx = number_to_simple_string(Optim.x_abschange(data); digits=2)
+    g_res = number_to_simple_string(Optim.g_residual(data); digits=2)
+    if converged
+        println(io, "Converged in $iterations iterations")
+    else
+        printstyled(io, "Non-converged", underline=true)
+        println(io, " after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
+    end
 end
 
-function has_converged(emr::EnergyMinimizationResult)
-    return emr.converged
-end
+"""
+    converged(res::MinimizationResult)
+
+Checks for convergence as marked by the return value of
+[`minimize_energy!`](@ref). For more detail, see the field `res.data`.
+"""
+Optim.converged(res::MinimizationResult) = res.converged
+
 
 # Returns the stereographic projection u(α) = (2v + (1-v²)n)/(1+v²), which
 # involves the orthographic projection v = (1-nn̄)α. The input `n` must be
@@ -107,14 +118,17 @@ end
 
 
 """
-    minimize_energy!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
-                     kwargs...) where N
+    minimize_energy!(sys::System; maxiters=1000, method=Optim.ConjugateGradient(),
+                     kwargs...)
 
 Optimizes the spin configuration in `sys` to minimize energy. A total of
 `maxiters` iterations will be attempted. The `method` parameter will be used in
 the `optimize` function of the [Optim.jl
 package](https://github.com/JuliaNLSolvers/Optim.jl). Any remaining `kwargs`
 will be included in the `Options` constructor of Optim.jl.
+
+The return value stores optimization statistics. Use [`converged`](@ref) to
+check for convergence.
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
                           kwargs...) where N
@@ -150,8 +164,6 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
     # uses the p=Inf norm, the x-tolerance is a dimensionless number.
     x_abstol = 1e-12
     options = Optim.Options(; iterations=subiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
-    converged = false
-    cnt = maxiters
     local res
     for iter in 1 : div(maxiters, subiters, RoundUp)
         res = Optim.optimize(f, g!, αs, method, options)
@@ -159,19 +171,14 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         # Exit if converged. Note that Hager-Zhang line search could report
         # failure if the step Δx vanishes, but for CG this is actually success.
         if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
-            converged = true
             cnt = (iter-1)*subiters + res.iterations
-            break
+            return MinimizationResult(true, cnt, res)
         end
 
         # Reset stereographic projection based on current state
         ns .= normalize.(iszero(N) ? sys.dipoles : sys.coherents)
         αs .*= 0
     end
-    emr = EnergyMinimizationResult(converged, cnt, Optim.f_abschange(res), Optim.x_abschange(res), Optim.g_residual(res))
-    if !emr.converged
-        f_abschange, x_abschange, g_residual = number_to_simple_string.((emr.f_abschange, emr.x_abschange, emr.g_residual); digits=2)
-    @warn "Non-converged after $maxiters iterations: |ΔE|=$f_abschange, |Δx|=$x_abschange, |∂E/∂x|=$g_residual"
-    end
-    return emr
+
+    return MinimizationResult(false, maxiters, res)
 end

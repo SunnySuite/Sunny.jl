@@ -10,7 +10,7 @@ import FFTW
 import DynamicPolynomials as DP
 import Printf: Printf, @printf, @sprintf
 import Random: Random, randn!
-import Optim
+import Optim: Optim, converged
 import JLD2
 import HCubature: hcubature
 
@@ -78,7 +78,7 @@ include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!, suggest_timestep
 
 include("Optimization.jl")
-export minimize_energy!, EnergyMinimizationResult, has_converged
+export minimize_energy!, converged
 
 include("MCIF.jl")
 export set_dipoles_from_mcif!

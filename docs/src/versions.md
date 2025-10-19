@@ -18,6 +18,9 @@ This is a **major release** with breaking interface changes.
   cell will error rather than give a wrong result.
 * When loading a CIF or mCIF, the precision parameter `symprec` becomes optional
   ([PR #413](https://github.com/SunnySuite/Sunny.jl/pull/413)).
+* The return value of [`minimize_energy!`](@ref) becomes a rich struct. Use
+  [`converged`](@ref) to check for convergence ([PR
+  #430](https://github.com/SunnySuite/Sunny.jl/pull/430)).
 * Fixes to [`load_nxs`](@ref) ([PR
   #420](https://github.com/SunnySuite/Sunny.jl/pull/420)).
 
