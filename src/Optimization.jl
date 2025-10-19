@@ -6,23 +6,14 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", res::MinimizationResult)
     (; converged, iterations, data) = res
-    Δx = number_to_simple_string(Optim.x_abschange(data); digits=2)
-    g_res = number_to_simple_string(Optim.g_residual(data); digits=2)
+    Δx = number_to_simple_string(Optim.x_abschange(data); digits=3)
+    g_res = number_to_simple_string(Optim.g_residual(data); digits=3)
     if converged
         println(io, "Converged in $iterations iterations")
     else
-        printstyled(io, "Non-converged", underline=true)
-        println(io, " after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
+        println(io, "Non-converged after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
     end
 end
-
-"""
-    converged(res::MinimizationResult)
-
-Checks for convergence as marked by the return value of
-[`minimize_energy!`](@ref). For more detail, see the field `res.data`.
-"""
-Optim.converged(res::MinimizationResult) = res.converged
 
 
 # Returns the stereographic projection u(α) = (2v + (1-v²)n)/(1+v²), which
@@ -127,8 +118,8 @@ the `optimize` function of the [Optim.jl
 package](https://github.com/JuliaNLSolvers/Optim.jl). Any remaining `kwargs`
 will be included in the `Options` constructor of Optim.jl.
 
-The return value stores optimization statistics. Use [`converged`](@ref) to
-check for convergence.
+Convergence status is stored in the field `ret.converged` of the return value
+`ret`. Additional optimization statistics are stored in the field `ret.data`.
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
                           kwargs...) where N
@@ -180,5 +171,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         αs .*= 0
     end
 
-    return MinimizationResult(false, maxiters, res)
+    mr = MinimizationResult(false, maxiters, res)
+    @warn repr("text/plain", mr)
+    return mr
 end

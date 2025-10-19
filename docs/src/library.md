@@ -31,7 +31,6 @@ Units
 add_sample!
 clone_correlations
 clone_system
-converged
 dispersion
 dmvec
 domain_average
