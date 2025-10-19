@@ -1,3 +1,18 @@
+struct EnergyMinimizationResult
+    converged::Bool
+    iterations::Int32
+    f_abschange::Real
+    x_abschange::Real
+    g_residual::Real
+end
+
+function Base.show(io::IO, ::MIME"text/plain", emr::EnergyMinimizationResult)
+    println(io, "$(emr.converged ? "Converged" : "Non-converged") after $(emr.iterations) iterations: |ΔE|=$(emr.f_abschange), |Δx|=$(emr.x_abschange), |∂E/∂x|=$(emr.g_residual)")
+end
+
+function has_converged(emr::EnergyMinimizationResult)
+    return emr.converged
+end
 
 # Returns the stereographic projection u(α) = (2v + (1-v²)n)/(1+v²), which
 # involves the orthographic projection v = (1-nn̄)α. The input `n` must be
@@ -135,6 +150,8 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
     # uses the p=Inf norm, the x-tolerance is a dimensionless number.
     x_abstol = 1e-12
     options = Optim.Options(; iterations=subiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
+    converged = false
+    cnt = maxiters
     local res
     for iter in 1 : div(maxiters, subiters, RoundUp)
         res = Optim.optimize(f, g!, αs, method, options)
@@ -142,16 +159,19 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         # Exit if converged. Note that Hager-Zhang line search could report
         # failure if the step Δx vanishes, but for CG this is actually success.
         if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
+            converged = true
             cnt = (iter-1)*subiters + res.iterations
-            return cnt
+            break
         end
 
         # Reset stereographic projection based on current state
         ns .= normalize.(iszero(N) ? sys.dipoles : sys.coherents)
         αs .*= 0
     end
-
-    f_abschange, x_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(res), Optim.x_abschange(res), Optim.g_residual(res)); digits=2)
+    emr = EnergyMinimizationResult(converged, cnt, Optim.f_abschange(res), Optim.x_abschange(res), Optim.g_residual(res))
+    if !emr.converged
+        f_abschange, x_abschange, g_residual = number_to_simple_string.((emr.f_abschange, emr.x_abschange, emr.g_residual); digits=2)
     @warn "Non-converged after $maxiters iterations: |ΔE|=$f_abschange, |Δx|=$x_abschange, |∂E/∂x|=$g_residual"
-    return -1
+    end
+    return emr
 end
