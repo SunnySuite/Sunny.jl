@@ -245,7 +245,7 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     g!(G, params) = spiral_g!(G, sys, axis, params, λ)
 
     # See `minimize_energy!` for discussion of the tolerance settings.
-    x_abstol = 1e-14 * √length(params)
+    x_abstol = 1e-12
     options = Optim.Options(; iterations=maxiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN)
 
     # First, optimize with regularization λ that pushes spins away from
