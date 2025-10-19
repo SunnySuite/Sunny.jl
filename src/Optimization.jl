@@ -132,9 +132,8 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
     # a natural energy scale. Disable check on `x_reltol` because `x = [zeros]`
     # is a valid configuration (all spins aligned with the stereographic
     # projection axes). This leaves only the check on `x_abstol`. Since Optim.jl
-    # uses the default (p=2) norm, the acceptable x-tolerance scales like the
-    # square root of the number of optimization parameters.
-    x_abstol = 1e-14 * √length(αs)
+    # uses the p=Inf norm, the x-tolerance is a dimensionless number.
+    x_abstol = 1e-12
     options = Optim.Options(; iterations=subiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
     local res
     for iter in 1 : div(maxiters, subiters, RoundUp)
