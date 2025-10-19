@@ -1,22 +1,23 @@
 # Version History
 
-## v0.7.9
+## v0.8.0
 (In development)
 
-* Enhancements to crystal construction and symmetry analysis ([PRs
-  #405](https://github.com/SunnySuite/Sunny.jl/pull/405),
-  [#413](https://github.com/SunnySuite/Sunny.jl/pull/413),
-  [#421](https://github.com/SunnySuite/Sunny.jl/pull/421)). In particular, see
-  [PR #421](https://github.com/SunnySuite/Sunny.jl/pull/421) for **breaking
-  changes** regarding atom and site indexing conventions. When loading an CIF or
-  mCIF, precision parameter `symprec` is now inferred. Loading an mCIF as a
-  chemical cell now employs a standardized Cartesian coordinate system, as would
-  be obtained from [`lattice_vectors`](@ref). Crystal lattice vectors and
-  positions are now idealized according to spacegroup data. Indexing conventions
-  of certain reshaped systems have changed; use [`position_to_site`](@ref) for
-  robust indexing of reshaped systems. Attempting to perform symmetry analysis
-  on a crystal with a larger-than-standard chemical cell will now error rather
-  than give a wrong result.
+This is a **major release** with breaking interface changes.
+
+* Significant enhancements to crystal construction and symmetry analysis, which
+  may **reorder certain atom and site indices** ([PR
+  #405](https://github.com/SunnySuite/Sunny.jl/pull/405)). Crystal lattice
+  vectors and positions are now idealized according to spacegroup data. In rare
+  cases, this will cause re-indexing of atoms in the crystal. Site indexing
+  conventions for certain reshaped systems may also change; use
+  [`position_to_site`](@ref) for robust indexing of reshaped systems. Loading an
+  mCIF as a chemical cell now employs a standardized Cartesian coordinate
+  system, as would be obtained from [`lattice_vectors`](@ref). Attempting to
+  perform symmetry analysis on a crystal with a larger-than-standard chemical
+  cell will error rather than give a wrong result.
+* When loading a CIF or mCIF, the precision parameter `symprec` becomes optional
+  ([PR #413](https://github.com/SunnySuite/Sunny.jl/pull/413)).
 * Fixes to [`load_nxs`](@ref) ([PR
   #420](https://github.com/SunnySuite/Sunny.jl/pull/420)).
 
