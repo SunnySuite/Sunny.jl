@@ -26,7 +26,7 @@ At low-temperatures, Sunny supports the usual linear spin wave theory of spin di
 
 Browse the **[Tutorials](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4)**. For traditional linear spin wave theory, see also the [SpinW ports](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW01_FM_Heseinberg_chain.html).
 
-See [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia) for installation instructions. See [Release Notes](https://sunnysuite.github.io/Sunny.jl/dev/changelog) for new features and breaking changes.
+See [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia) for installation instructions. See [Release Notes](https://sunnysuite.github.io/Sunny.jl/dev/versions) for new features and breaking changes.
 
 ## Related packages
 

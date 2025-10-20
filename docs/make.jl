@@ -135,7 +135,7 @@ Documenter.makedocs(;
             "parallelism.md",
             # "writevtk.md",
         ],
-        "changelog.md",
+        "versions.md",
     ],
     format = Documenter.HTML(;
         # Using `prettyurls = get(ENV, "CI", nothing) == "true"` instead would
