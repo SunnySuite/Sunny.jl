@@ -10,12 +10,12 @@ function newton_with_backtracking(fgh!, x0; f_reltol=NaN, x_reltol=NaN, g_abstol
 
     # Evaluate objective function f, gradient, and Hessian.
     f = fgh!(0.0, g, H, x)
-    norm(g) < g_abstol && return x
+    maximum(abs, g) < g_abstol && return x
 
     function has_converged(x, candidate_x, f, candidate_f, g)
         return (!isnan(x_reltol) && isapprox(x, candidate_x; rtol=x_reltol)) ||
                (!isnan(f_reltol) && isapprox(f, candidate_f; rtol=f_reltol)) ||
-               (!isnan(g_abstol) && norm(g) < g_abstol)
+               (!isnan(g_abstol) && maximum(abs, g) < g_abstol)
     end
 
     for k in 1:maxiters

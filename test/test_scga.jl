@@ -118,7 +118,7 @@ end
     positions = [[0, 0, 0], [0.5, 0, 0]]
     types = ["Ni2", "Fe3"]
     cryst = Crystal(latvecs, positions; types)
-    moments = [1 => Moment(; s=1, g=1),2 => Moment(; s=5/2, g=1)]
+    moments = [1 => Moment(; s=1, g=1), 2 => Moment(; s=5/2, g=1)]
     sys = System(cryst, moments, :dipole)
     J1 = 1
     set_exchange!(sys, J1, Bond(1, 2, [0, 0, 0]))
@@ -129,7 +129,7 @@ end
     res = Sunny.intensities_static(scga, qs)
     # println(round.(res.data; digits=10))
     golden_data = [5.2798224086, 4.8642933106, 16.3317444291, 4.8642933106, 5.2798224086]
-    @test isapprox(golden_data, res.data; rtol=1e-8)
+    @test isapprox(golden_data, res.data; rtol=1e-7)
 end
 
 @testitem "SCGA Kitchen sink" begin
