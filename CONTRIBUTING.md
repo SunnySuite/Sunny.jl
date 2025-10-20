@@ -1,6 +1,6 @@
 ## Contributing to Sunny.jl
 
-Thanks for helping to improve Sunny.jl! Please join us on the [Sunny Slack
+Thanks for helping to improve Sunny! Please join us on the [Sunny Slack
 server](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA).
 
 - See the `#helpdesk` channel for usage questions.
