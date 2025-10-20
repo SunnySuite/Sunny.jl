@@ -32,6 +32,16 @@ function diffnorm2(a, b)
     return acc
 end
 
+# Calculates norm(a - b, Inf) without allocating
+function maxdiff(a, b)
+    @assert size(a) == size(b) "Non-matching dimensions"
+    ret = 0.0
+    for i in eachindex(a)
+        ret = max(abs(a[i] - b[i]), ret)
+    end
+    return ret
+end
+
 function is_integer(x; tol)
     return abs(x - round(x)) < tol
 end
