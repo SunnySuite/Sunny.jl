@@ -3,10 +3,9 @@
 Thanks for helping to improve Sunny! Please join us on the [Sunny Slack
 server](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA).
 
-- Ask usage questions on the `#helpdesk` channel. Knowing what's unclear will
-  help us to improve the documentation.
+- Ask usage questions on the `#helpdesk` channel.
 - Code development will likely require coordination. Join us on the
-  `#developers` channel for planning. See also the [Tips for
+  `#developers` channel. See also the [Tips for
   developers](https://github.com/SunnySuite/Sunny.jl/wiki/Tips-for-developers)
   Wiki page.
 - File GitHub issues for bugs or feature requests. Each issue should ideally
