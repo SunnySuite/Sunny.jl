@@ -1,3 +1,20 @@
+struct MinimizationResult
+    converged :: Bool
+    iterations :: Int
+    data :: Optim.OptimizationResults
+end
+
+function Base.show(io::IO, ::MIME"text/plain", res::MinimizationResult)
+    (; converged, iterations, data) = res
+    Δx = number_to_simple_string(Optim.x_abschange(data); digits=3)
+    g_res = number_to_simple_string(Optim.g_residual(data); digits=3)
+    if converged
+        println(io, "Converged in $iterations iterations")
+    else
+        println(io, "Non-converged after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
+    end
+end
+
 
 # Returns the stereographic projection u(α) = (2v + (1-v²)n)/(1+v²), which
 # involves the orthographic projection v = (1-nn̄)α. The input `n` must be
@@ -92,14 +109,17 @@ end
 
 
 """
-    minimize_energy!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
-                     kwargs...) where N
+    minimize_energy!(sys::System; maxiters=1000, method=Optim.ConjugateGradient(),
+                     kwargs...)
 
 Optimizes the spin configuration in `sys` to minimize energy. A total of
 `maxiters` iterations will be attempted. The `method` parameter will be used in
 the `optimize` function of the [Optim.jl
 package](https://github.com/JuliaNLSolvers/Optim.jl). Any remaining `kwargs`
 will be included in the `Options` constructor of Optim.jl.
+
+Convergence status is stored in the field `ret.converged` of the return value
+`ret`. Additional optimization statistics are stored in the field `ret.data`.
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
                           kwargs...) where N
@@ -143,7 +163,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         # failure if the step Δx vanishes, but for CG this is actually success.
         if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
             cnt = (iter-1)*subiters + res.iterations
-            return cnt
+            return MinimizationResult(true, cnt, res)
         end
 
         # Reset stereographic projection based on current state
@@ -151,7 +171,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         αs .*= 0
     end
 
-    f_abschange, x_abschange, g_residual = number_to_simple_string.((Optim.f_abschange(res), Optim.x_abschange(res), Optim.g_residual(res)); digits=2)
-    @warn "Non-converged after $maxiters iterations: |ΔE|=$f_abschange, |Δx|=$x_abschange, |∂E/∂x|=$g_residual"
-    return -1
+    mr = MinimizationResult(false, maxiters, res)
+    @warn repr("text/plain", mr)
+    return mr
 end

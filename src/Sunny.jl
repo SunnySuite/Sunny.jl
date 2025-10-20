@@ -78,7 +78,7 @@ include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!, suggest_timestep
 
 include("Optimization.jl")
-export minimize_energy! 
+export minimize_energy!
 
 include("MCIF.jl")
 export set_dipoles_from_mcif!
