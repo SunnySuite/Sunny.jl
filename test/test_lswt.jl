@@ -86,7 +86,7 @@ end
     A = [1 1 1; -1 1 0; 0 0 1]
     sys = reshape_supercell(sys, A)
     randomize_spins!(sys)
-    @test minimize_energy!(sys) > 0
+    @test minimize_energy!(sys).converged
 
     q = rand(Float64, 3)
     swt = SpinWaveTheory(sys; measure=nothing)
