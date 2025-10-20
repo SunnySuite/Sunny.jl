@@ -265,10 +265,10 @@
 (Nov 8, 2023)
 
 This release initiates some **major enhancements** to the user interface in
-support of generalized SU(_N_) spin models. See [this documentation
-page](https://sunnysuite.github.io/Sunny.jl/dev/renormalization.html) for an
-illustration of the new features. Most existing Sunny 0.5 models will continue
-to work with deprecation warnings, but these will become hard errors Sunny v0.6.
+support of generalized SU(_N_) spin models. See [this documentation page](@ref
+"Interaction Renormalization") for an illustration of the new features. Most
+existing Sunny 0.5 models will continue to work with deprecation warnings, but
+these will become hard errors Sunny v0.6.
 
 * General pair couplings are now supported in [`set_pair_coupling!`](@ref) and
   [`set_pair_coupling_at!`](@ref). `:SUN` mode supports interactions of any
@@ -287,7 +287,7 @@ to work with deprecation warnings, but these will become hard errors Sunny v0.6.
   [`plot_spins`](@ref) to trigger redrawing of the frame. The argument `colorfn`
   to `plot_spins` supports animation of colors. See [example usage for a
   Heisenberg
-  ferromagnetic.](https://github.com/SunnySuite/Sunny.jl/blob/main/examples/extra/heisenberg_animation.jl)
+  ferromagnet](https://github.com/SunnySuite/Sunny.jl/blob/main/examples/extra/heisenberg_animation.jl).
 * Add [`set_spin_rescaling!`](@ref) feature, which supports improved spectral
   measurements at finite-$T$. This follows the method proposed in [Dahlbom et
   al., [arXiv:2310.19905]](https://arxiv.org/abs/2310.19905).
