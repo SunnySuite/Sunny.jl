@@ -19,6 +19,7 @@ ImplicitMidpoint
 Langevin
 LocalSampler
 Moment
+Param
 SampledCorrelations
 SampledCorrelationsStatic
 SCGA
@@ -42,6 +43,7 @@ energy_per_site
 excitations
 excitations!
 gaussian
+get_param
 global_position
 intensities
 intensities_bands
@@ -90,6 +92,8 @@ set_onsite_coupling!
 set_onsite_coupling_at!
 set_pair_coupling!
 set_pair_coupling_at!
+set_param!
+set_params!
 set_spin_rescaling!
 set_vacancy_at!
 spin_label

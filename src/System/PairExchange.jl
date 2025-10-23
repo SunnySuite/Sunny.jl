@@ -29,7 +29,6 @@ function Base.iszero(c::PairCoupling)
 end
 
 function Base.:+(c1::PairCoupling, c2::PairCoupling)
-    @assert c1.isculled == c2.isculled
     @assert c1.bond == c2.bond
 
     scalar = c1.scalar + c2.scalar
@@ -50,33 +49,9 @@ function Base.:+(c1::PairCoupling, c2::PairCoupling)
     PairCoupling(c1.bond, scalar, bilin, biquad, general)
 end
 
-# Internal function only
-function replace_coupling!(list, coupling::PairCoupling; accum=false)
-    (; bond) = coupling
-
-    # Find and remove existing couplings for this bond
-    idxs = findall(c -> c.bond == bond, list)
-    existing = list[idxs]
-    deleteat!(list, idxs)
-
-    # If the new coupling is exactly zero, and we're not accumulating, then
-    # return early
-    iszero(coupling) && !accum && return
-
-    # Optionally accumulate to an existing PairCoupling
-    if accum && !isempty(existing)
-        coupling += only(existing)
-    end
-
-    # Add to the list and sort by isculled. Sorting after each insertion will
-    # introduce quadratic scaling in length of `couplings`. If this becomes
-    # slow, we could swap two PairCouplings instead of performing a full sort.
-    push!(list, coupling)
-    sort!(list, by=c->c.isculled)
-
-    return
+function Base.:*(pc::PairCoupling, x::Real)
+    return PairCoupling(pc.bond, pc.scalar * x, pc.bilin * x, pc.biquad * x, pc.general * x)
 end
-
 
 # If A ≈ α B, then return the scalar α. Otherwise, return A.
 function proportionality_factor(A, B; atol=1e-12)
@@ -158,6 +133,13 @@ function Base.:+(op1::TensorDecomposition, op2::TensorDecomposition)
     =#
 end
 
+function Base.:*(op::TensorDecomposition, x::Real)
+    data = map(op.data) do (A, B)
+        (A*x, B)
+    end
+    return TensorDecomposition(op.gen1, op.gen2, data)
+end
+
 function Base.isapprox(op1::TensorDecomposition, op2::TensorDecomposition; kwargs...)
     isempty(op1.data) == isempty(op2.data) && return true
     op1′ = sum(kron(A, B) for (A, B) in op1.data)
@@ -200,12 +182,15 @@ function check_allowable_dipole_coupling(tensordec, mode)
     end
 end
 
-function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition, bond::Bond)
+function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5},
+                                tensordec::TensorDecomposition, bond::Bond, param)
+    @assert is_homogeneous(sys)
+
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
-        set_pair_coupling_aux!(sys.origin, scalar, bilin, biquad, tensordec, bond)
-        transfer_interactions!(sys, sys.origin)
+        set_pair_coupling_aux!(sys.origin, scalar, bilin, biquad, tensordec, bond, param)
+        transfer_params_from_origin!(sys)
         return
     end
 
@@ -228,11 +213,10 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
                  Use `print_bond(cryst, $bond)` for more information.""")
     end
 
-    # Print a warning if an interaction already exists for bond
-    ints = interactions_homog(sys)
-    if any(x -> x.bond == bond, ints[bond.i].pair)
-        warn_coupling_override("Overriding coupling for $bond.")
-    end
+    # Get ModelParam to be filled
+    bond_matches(param) = any(pc.bond == bond for pc in param.pairs)
+    param = @something param get_default_param(sys, bond_matches)
+    param = replace_model_param!(sys, param, repr(bond))
 
     # General interactions require SU(N) mode
     check_allowable_dipole_coupling(tensordec, sys.mode)
@@ -250,14 +234,17 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
             bilin′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, bilin)
             biquad′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, biquad)
             tensordec′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, tensordec)
-            replace_coupling!(ints[i].pair, PairCoupling(bond′, scalar, bilin′, biquad′, tensordec′))
+            pc = PairCoupling(bond′, scalar, bilin′, biquad′, tensordec′)
+            push!(param.pairs, pc)
         end
     end
+
+    repopulate_couplings_from_params!(sys)
 end
 
 
 """
-    set_pair_coupling!(sys::System, op, bond)
+    set_pair_coupling!(sys::System, op, bond, param=nothing)
 
 Sets an arbitrary coupling `op` along `bond`. This coupling will be propagated
 to equivalent bonds in consistency with crystal symmetry. Any previous
@@ -278,9 +265,12 @@ Si, Sj = to_product_space(S, S)
 set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 ```
 
+The optional trailing [`Param`](@ref) argument labels the coupling and allows to
+mutably update the coupling strength.
+
 See also [`spin_matrices`](@ref), [`to_product_space`](@ref).
 """
-function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_parts=true) where N
+function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond, param=nothing; extract_parts=true) where N
     is_homogeneous(sys) || error("Use `set_pair_coupling_at!` for an inhomogeneous system.")
 
     op ≈ op' || error("Operator is not Hermitian")
@@ -303,11 +293,11 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_pa
 
     scalar, bilin, biquad, tensordec = decompose_general_coupling(op, Ni, Nj; extract_parts)
 
-    set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond)
+    set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond, param)
     return
 end
 
-function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=true) where N
+function set_pair_coupling!(sys::System{N}, fn::Function, bond, param=nothing; extract_parts=true) where N
     if sys.mode == :dipole_uncorrected
         error("General coupling not currently supported for mode :dipole_uncorrected. \
                Use set_exchange! with option `biquad` for scalar biquadratic.")
@@ -316,7 +306,7 @@ function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=tr
     si = spin_label(sys, bond.i)
     sj = spin_label(sys, bond.j)
     Si, Sj = to_product_space(spin_matrices.([si, sj])...)
-    set_pair_coupling!(sys, fn(Si, Sj), bond; extract_parts)
+    set_pair_coupling!(sys, fn(Si, Sj), bond, param; extract_parts)
     return
 end
 
@@ -349,7 +339,7 @@ function adapt_for_biquad(scalar, bilin, biquad, sys, site1, site2)
 end
 
 """
-    set_exchange!(sys::System, J, bond::Bond; biquad=0)
+    set_exchange!(sys::System, J, bond::Bond, param=nothing; biquad=0)
 
 Sets an exchange interaction ``𝐒_i⋅J 𝐒_j`` along the specified `bond`. This
 interaction will be propagated to equivalent bonds in consistency with crystal
@@ -381,12 +371,15 @@ J = [2 3 0;
      0 0 2]
 set_exchange!(sys, J, bond)
 ```
+
+The optional trailing [`Param`](@ref) argument labels the coupling and allows to
+mutably update the coupling strength.
 """
-function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.0) where N
+function set_exchange!(sys::System{N}, J, bond::Bond, param=nothing; biquad=0.0) where N
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
     sys_orig = something(sys.origin, sys)
     scalar, bilin, biquad = adapt_for_biquad(0.0, J, biquad, sys_orig, (1, 1, 1, bond.i), (1, 1, 1, bond.j))
-    set_pair_coupling_aux!(sys, scalar, bilin, biquad, zero(TensorDecomposition), bond)
+    set_pair_coupling_aux!(sys, scalar, bilin, biquad, zero(TensorDecomposition), bond, param)
     return
 end
 
@@ -433,6 +426,32 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
     end
 end
 
+# Internal function only
+function replace_coupling!(pairs, coupling::PairCoupling; accum=false)
+    (; bond) = coupling
+
+    # Find and remove existing couplings for this bond
+    inds = findall(pc -> pc.bond == bond, pairs)
+    existing = pairs[inds]
+    deleteat!(pairs, inds)
+
+    # If the new coupling is exactly zero, and we're not accumulating, then
+    # return early
+    iszero(coupling) && !accum && return
+
+    # Optionally accumulate to an existing PairCoupling
+    if accum && !isempty(existing)
+        coupling += only(existing)
+    end
+
+    # Add to the list and sort by isculled. Sorting after each insertion will
+    # introduce quadratic scaling in length of `couplings`. If this becomes
+    # slow, we could swap two PairCouplings instead of performing a full sort.
+    push!(pairs, coupling)
+    sort!(pairs, by=pc->pc.isculled)
+
+    return
+end
 
 function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition, site1::Site, site2::Site, offset)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
@@ -536,8 +555,8 @@ end
 
 # Find the PairCoupling object for bond `b`
 function search_pair_couplings_for_bond(pairs::Vector{PairCoupling}, b::Bond)
-    indices = findall(pc -> pc.bond == b, pairs)
-    isempty(indices) ? nothing : pairs[only(indices)]
+    inds = findall(pc -> pc.bond == b, pairs)
+    isempty(inds) ? nothing : pairs[only(inds)]
 end
 
 function get_exchange_from_interactions(inter::Interactions, bond::Bond)
