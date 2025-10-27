@@ -1,5 +1,5 @@
 
-# `A exp(-a s^2) + B exp(-b s^2) + C exp(-c s^2) + D exp(-d s^2) + E`
+# A exp(-a s^2) + B exp(-b s^2) + C exp(-c s^2) + D exp(-d s^2) + E
 struct ExpandedBesselIntegral
     A :: Float64
     a :: Float64
@@ -43,20 +43,20 @@ magnitude of the scattering vector, ``|𝐪|``.
 The parameter `ion` must be one of the following strings:
 
 ```
-Am2, Am3, Am4, Am5, Am6, Am7, Au1, Au2, Au3, Au4, Au5, Ce2, Co0, Co1, Co2, Co3,
-Co4, Cr0, Cr1, Cr2, Cr3, Cr4, Cu0, Cu1, Cu2, Cu3, Cu4, Dy2, Dy3, Er2, Er3, Eu2,
-Eu3, Fe0, Fe1, Fe2, Fe3, Fe4, Gd2, Gd3, Hf2, Hf3, Ho2, Ho3, Ir0a, Ir0b, Ir0c,
-Ir1a, Ir1b, Ir2, Ir3, Ir4, Ir5, Ir6, Mn0, Mn1, Mn2, Mn3, Mn4, Mn5, Mo0, Mo1, Nb0,
-Nb1, Nd2, Nd3, Ni0, Ni1, Ni2, Ni3, Ni4, Np3, Np4, Np5, Np6, Os0a, Os0b, Os0c,
-Os1a, Os1b, Os2, Os3, Os4, Os5, Os6, Os7, Pd0, Pd1, Pr3, Pt1, Pt2, Pt3, Pt4,
-Pt5, Pt6, Pu3, Pu4, Pu5, Pu6, Re0a, Re0b, Re0c, Re1a, Re1b, Re2, Re3, Re4, Re5,
-Re6, Rh0, Rh1, Ru0, Ru1, Sc0, Sc1, Sc2, Sm2, Sm3, Ta2, Ta3, Ta4, Tb2, Tb3, Tc0,
-Tc1, Ti0, Ti1, Ti2, Ti3, Tm2, Tm3, U3, U4, U5, V0, V1, V2, V3, V4, W0a, W0b,
-W0c, W1a, W1b, W2c, W3, W4, W5, Y0, Yb2, Yb3, Zr0, Zr1
+Am2, Am3, Am4, Am5, Am6, Am7, Au1, Au2, Au3, Au4, Au5, Ce2, Ce3, Co0, Co1, Co2,
+Co3, Co4, Cr0, Cr1, Cr2, Cr3, Cr4, Cu0, Cu1, Cu2, Cu3, Cu4, Dy2, Dy3, Er2, Er3,
+Eu2, Eu3, Fe0, Fe1, Fe2, Fe3, Fe4, Gd2, Gd3, Hf2, Hf3, Ho2, Ho3, Ir0a, Ir0b,
+Ir0c, Ir1a, Ir1b, Ir2, Ir3, Ir4, Ir5, Ir6, Mn0, Mn1, Mn2, Mn3, Mn4, Mn5, Mo0,
+Mo1, Nb0, Nb1, Nd2, Nd3, Ni0, Ni1, Ni2, Ni3, Ni4, Np3, Np4, Np5, Np6, Os0a,
+Os0b, Os0c, Os1a, Os1b, Os2, Os3, Os4, Os5, Os6, Os7, Pd0, Pd1, Pr3, Pt1, Pt2,
+Pt3, Pt4, Pt5, Pt6, Pu3, Pu4, Pu5, Pu6, Re0a, Re0b, Re0c, Re1a, Re1b, Re2, Re3,
+Re4, Re5, Re6, Rh0, Rh1, Ru0, Ru1, Sc0, Sc1, Sc2, Sm2, Sm3, Ta2, Ta3, Ta4, Tb2,
+Tb3, Tc0, Tc1, Ti0, Ti1, Ti2, Ti3, Tm2, Tm3, U3, U4, U5, V0, V1, V2, V3, V4,
+W0a, W0b, W0c, W1a, W1b, W2c, W3, W4, W5, Y0, Yb2, Yb3, Zr0, Zr1
 ```
 
 The trailing number denotes ionization state. For example, `"Fe0"` denotes a
-neutral iron atom, while `"Fe2"` denotes `Fe²⁺`. If multiple electronic
+neutral iron atom, while `"Fe2"` denotes Fe²⁺. If multiple electronic
 configurations are possible, they will be distinguished by a trailing letter
 (`a`, `b`, ...). Omitting this letter will print an informative error,
 
@@ -87,9 +87,11 @@ and
 ⟨j_2(s)⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2.
 ```
 
-For 3d, 4d, rare earth, and actinide ions, Sunny uses the revised tables of P.
-J. Brown, as documented in the McPhase package [2]. For 5d ions, Sunny uses the
-tables of Kobayashi, Nagao, Ito [3].
+Sunny uses form factor tables as documented in the McPhase package [1]. For 3d
+and 4d transition atoms and ions, rare-earth ions (4f), and actinide ions (5f),
+the coefficients follow the Neutron Data Booklet [2]. The fit for Ce³⁺ follows
+Lisher and Forsyth [3]. Additional 5d transition elements (Hf-Au) follow
+Kobayashi, Nagao, and Ito [4].
 
 Two special, ``𝐪``-independent form factor values are available:
 `one(FormFactor)` and `zero(FormFactor)`. The first idealizes the magnetic ion
@@ -98,12 +100,14 @@ magnetic ion.
 
 ## References
 
-1. [P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 _Magnetic Form
+1. Coefficient tables in [McPhase
+   documentation](https://mcphase.github.io/webpage/manual/node148.html#ffacts).
+2. [P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 _Magnetic Form
    Factors_ (2003)](https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html).
-2. Coefficient tables in [McPhase
-   documentation](https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html).
-3. [K. Kobayashi, T. Nagao, M. Ito, _Radial integrals for the magnetic form
-   factor of 5d transition elements_, Acta Cryst. A, **67**, 473–480
+3. [Lisher and Forsyth, _Analytic approximations to form factors_, Acta Cryst. A
+   **27**, 545-549 (1971)](https://doi.org/10.1107/S0567739471001219).
+4. [K. Kobayashi, T. Nagao, M. Ito, _Radial integrals for the magnetic form
+   factor of 5d transition elements_, Acta Cryst. A **67**, 473–480
    (2011)](https://doi.org/10.1107/S010876731102633X).
 """
 function FormFactor(ion::String; g_lande=2)
@@ -155,7 +159,7 @@ end
 
 
 const radial_integral_coefficients = Dict(
-    # 3d electrons of transition atoms and ions (P. J. Brown)
+    # 3d transition elements (P. J. Brown)
     "Sc0" => ([0.2512, 90.0296, 0.3290, 39.4021, 0.4235, 14.3222, 0, 0, -0.0043], [10.8172, 54.3270, 4.7353, 14.8471, 0.6071, 4.2180, 0, 0, 0.0011], ""),
     "Sc1" => ([0.4889, 51.1603, 0.5203, 14.0764, -0.0286, 0.1792, 0, 0, 0.0185],  [8.5021, 34.2851, 3.2116, 10.9940, 0.4244, 3.6055, 0, 0, 0.0009], ""),
     "Sc2" => ([0.5048, 31.4035, 0.5186, 10.9897, -0.0241, 1.1831, 0, 0, 0.0000],  [4.3683, 28.6544, 3.7231, 10.8233, 0.6074, 3.6678, 0, 0, 0.0014], ""),
@@ -200,7 +204,7 @@ const radial_integral_coefficients = Dict(
     "Cu3" => ([0.0031, 34.9074, 0.3582, 10.9138, 0.6531, 3.8279, 0, 0, -0.0147],  [1.2797, 8.4502, 1.0315, 3.2796, 0.2401, 1.2498, 0, 0, 0.0015], ""),
     "Cu4" => ([-0.0132, 30.6817, 0.2801, 11.1626, 0.7490, 3.8172, 0, 0, -0.0165], [0.9568, 7.4481, 0.9099, 3.3964, 0.3729, 1.4936, 0, 0, 0.0049], ""),
 
-    # 4d electrons of transition atoms and ions (P. J. Brown)
+    # 4d transition elements (P. J. Brown)
     "Y0" =>  ([0.5915, 67.6081, 1.5123, 17.9004, -1.1130, 14.1359, 0, 0, 0.0080], [14.4084, 44.6577, 5.1045, 14.9043, -0.0535, 3.3189, 0, 0, 0.0028], ""),
     "Zr0" => ([0.4106, 59.9961, 1.0543, 18.6476, -0.4751, 10.5400, 0, 0, 0.0106], [10.1378, 35.3372, 4.7734, 12.5453, -0.0489, 2.6721, 0, 0, 0.0036], ""),
     "Zr1" => ([0.4532, 59.5948, 0.7834, 21.4357, -0.2451, 9.0360, 0, 0, 0.0098],  [11.8722, 34.9200, 4.0502, 12.1266, -0.0632, 2.8278, 0, 0, 0.0034], ""),
@@ -216,8 +220,8 @@ const radial_integral_coefficients = Dict(
     "Rh1" => ([0.3342, 29.7564, 1.2209, 9.4384, -0.5755, 5.3320, 0, 0, 0.0210],   [4.0260, 18.9497, 3.1663, 6.9998, -0.0296, 0.4862, 0, 0, 0.0127], ""),
     "Pd0" => ([0.2003, 29.3633, 1.1446, 9.5993, -0.3689, 4.0423, 0, 0, 0.0251],   [3.3105, 14.7265, 2.6332, 5.8618, -0.0437, 1.1303, 0, 0, 0.0053], ""),
     "Pd1" => ([0.5033, 24.5037, 1.9982, 6.9082, -1.5240, 5.5133, 0, 0, 0.0213],   [4.2749, 17.9002, 2.7021, 6.3541, -0.0258, 0.6999, 0, 0, 0.0071], ""),
-    
-    # 5d electrons of rare earth ions (P. J. Brown)
+
+    # 4f rare earth elements (P. J. Brown)
     "Ce2" => ([0.2953, 17.6846, 0.2923, 6.7329, 0.4313, 5.3827, 0, 0, -0.0194],   [0.9809, 18.0630, 1.8413, 7.7688, 0.9905, 2.8452, 0, 0, 0.0120], ""),
     "Nd2" => ([0.1645, 25.0453, 0.2522, 11.9782, 0.6012, 4.9461, 0, 0, -0.0180],  [1.4530, 18.3398, 1.6196, 7.2854, 0.8752, 2.6224, 0, 0, 0.0126], ""),
     "Nd3" => ([0.0540, 25.0293, 0.3101, 12.1020, 0.6575, 4.7223, 0, 0, -0.0216],  [0.6751, 18.3421, 1.6272, 7.2600, 0.9644, 2.6016, 0, 0, 0.0150], ""),
@@ -241,7 +245,7 @@ const radial_integral_coefficients = Dict(
     "Yb3" => ([0.0416, 16.0949, 0.2849, 7.8341, 0.6961, 2.6725, 0, 0, -0.0229],   [0.1570, 18.5553, 0.8484, 6.5403, 0.8880, 2.0367, 0, 0, 0.0318], ""),
     "Pr3" => ([0.0504, 24.9989, 0.2572, 12.0377, 0.7142, 5.0039, 0, 0, -0.0219],  [0.8734, 18.9876, 1.5594, 6.0872, 0.8142, 2.4150, 0, 0, 0.0111], ""),
 
-    # 5d electrons of actinide ions (P. J. Brown)
+    # 5f actinide elements (P. J. Brown)
     "U3" =>  ([0.5058, 23.2882, 1.3464, 7.0028, -0.8724, 4.8683, 0, 0, 0.0192],   [4.1582, 16.5336, 2.4675, 5.9516, -0.0252, 0.7646, 0, 0, 0.0057], ""),
     "U4" =>  ([0.3291, 23.5475, 1.0836, 8.4540, -0.4340, 4.1196, 0, 0, 0.0214],   [3.7449, 13.8944, 2.6453, 4.8634, -0.5218, 3.1919, 0, 0, 0.0009], ""),
     "U5" =>  ([0.3650, 19.8038, 3.2199, 6.2818, -2.6077, 5.3010, 0, 0, 0.0233],   [3.0724, 12.5460, 2.3076, 5.2314, -0.0644, 1.4738, 0, 0, 0.0035], ""),
@@ -260,7 +264,10 @@ const radial_integral_coefficients = Dict(
     "Am6" => ([0.2302, 16.9533, 1.4864, 6.1159, -0.7457, 3.5426, 0, 0, 0.0294],   [1.6778, 11.3372, 2.4531, 4.7247, -0.2043, 0.0337, 0, 0, 0.1892], ""),
     "Am7" => ([0.3601, 12.7299, 1.9640, 5.1203, -1.3560, 3.7142, 0, 0, 0.0316],   [1.8845, 9.1606, 2.0746, 4.0422, -0.1318, 1.7227, 0, 0, 0.0020], ""),
 
-    # 5d electrons of transition atoms and ions from Hf to Re. (Kobayashi, Nagao, Ito)
+    # Plus Ce³⁺ in 4f¹ (Lisher and Forsyth)
+    "Ce3" => ([0.2291, 18.18, 0.7897, 5.807, -0.0191, 0.0, 0.0, 0.0, 0.0],        [2.1284,  8.9174, 1.1229, 2.8371,  0.01108, 0.0, 0.0, 0.0, 0.0], ""),
+
+    # 5d transition elements from Hf to Re. (Kobayashi, Nagao, Ito)
     "Hf2"  => ([0.4229, 50.465, 0.7333, 23.865, -0.3798, 4.051, 0.2252, 2.497, -0.0018],   [9.6670, 33.435, 5.2429, 13.529, -0.5533, 1.402, 0.4934, 1.254, -0.0033],  "6s⁰5d²"),
     "Hf3"  => ([0.3555, 40.954, 0.8483, 21.726, -0.4116, 4.305, 0.2101, 2.349, -0.0023],   [7.5646, 27.367, 5.0743, 12.402, -0.4133, 1.742, 0.3163, 1.437, -0.0012],  "6s⁰5d¹"),
     "Ta2"  => ([0.3976, 45.095, 0.7746, 21.028, -0.6098, 3.471, 0.4395, 2.570, -0.0020],   [8.1746, 29.871, 4.9405, 12.188, -1.1294, 1.254, 1.0658, 1.181, -0.0046],  "6s⁰5d³"),
@@ -286,7 +293,7 @@ const radial_integral_coefficients = Dict(
     "Re5"  => ([0.3143, 23.522, 1.0276, 13.505, -0.7438, 3.393, 0.4059, 2.030, -0.0041],   [3.8162, 16.843, 4.1400, 8.605, -4.0882, 1.443, 3.9333, 1.408, -0.0012],   "6s⁰5d²"),
     "Re6"  => ([0.2146, 22.496, 1.1616, 13.064, -1.0455, 3.162, 0.6734, 2.196, -0.0041],   [3.3349, 15.341, 4.1015, 8.213, -2.3511, 1.531, 2.1651, 1.459, -0.0003],   "6s⁰5d¹"),
 
-    # 5d electrons of transition atoms and ions from Os to Au. (Kobayashi, Nagao, Ito)
+    # 5d transition elements from Os to Au. (Kobayashi, Nagao, Ito)
     "Os0a" => ([0.3676, 54.835, 0.7793, 17.716, -2.0669, 2.418, 1.9224, 2.247, -0.0034],   [5.5418, 48.893, 6.0803, 17.984, 2.2542, 6.853, -0.5285, 4.095, 0.0040],   "6s⁰5d⁸"),
     "Os0b" => ([0.3571, 47.458, 0.8123, 16.770, -1.2072, 2.556, 1.0404, 2.211, -0.0033],   [4.6511, 41.610, 5.8194, 16.062, 6.7172, 5.447, -5.2689, 4.986, 0.0043],   "6s¹5d⁷"),
     "Os0c" => ([0.3467, 41.778, 0.8458, 15.918, -5.6370, 2.459, 5.4472, 2.381, -0.0032],   [3.7421, 37.491, 5.6137, 15.256, 10.0488, 5.293, -8.5683, 4.991, 0.0046],  "6s²5d⁶"),
