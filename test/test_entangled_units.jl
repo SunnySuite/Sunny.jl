@@ -109,11 +109,12 @@ end
     add_sample!(ssf, esys)
     @test all(x -> isapprox(x, 0.0; atol=1e-12), ssf.sc.parent.data)
 
-    # Remove any optimization noise to make the dynamics below fully repeatable
+    # Test classical dynamics and perform golden test.
+
+    # Remove optimization noise for reproducibility
     randomize_spins!(esys)
     set_coherent!(esys, [0, 1/√2, -1/√2, 0], (1, 1, 1, 1))
 
-    # Test classical dynamics and perform golden test.
     esys = repeat_periodically(esys, (8, 1, 1))
     energies = range(0, 2, 5)
     dt = 0.1
@@ -126,8 +127,14 @@ end
     end
     add_sample!(sc, esys)
     res = intensities(sc, qs; energies, kT=0.05)
-    intensities_ref = [0.047614832748034186; 0.24767988465544913; 0.01779072121898864; 0.0037208693822031644; 0.014790643152215031;;]
-    @test isapprox(res.data, intensities_ref)
+
+    # The revised SVD in Julia 1.11 leads to slight differences in the
+    # decomposition of "general" pair interactions, which amplify dynamically.
+    @static if v"1.10" <= VERSION < v"1.11"
+        @test res.data ≈ [0.048921434630783356; 0.210889224234417; -0.008510613962195454; 0.0015281806623530139; 0.0017370496602666513;;]
+    elseif v"1.11" <= VERSION
+        @test res.data ≈ [0.047614832748034186; 0.24767988465544913; 0.01779072121898864; 0.0037208693822031644; 0.014790643152215031;;]
+    end
 end
 
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
