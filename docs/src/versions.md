@@ -20,6 +20,9 @@
 * The return value of [`minimize_energy!`](@ref) becomes a struct that stores
   optimization statistics ([#430](@ref)).
 * Fixes to [`load_nxs`](@ref) ([#420](@ref)).
+* Add `interpolate` option to [`plot_intensities`](@ref). Selecting
+  `interpolate=true` will significantly reduce file sizes of PDF exports
+  containing 2D heatmap data ([#411](@ref)).
 
 ## v0.7.8
 (Jul 1, 2025)

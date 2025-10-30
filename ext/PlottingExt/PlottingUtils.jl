@@ -27,6 +27,38 @@ const seaborn_muted = [
     Makie.RGBf(0.5098039215686274,0.7764705882352941,0.8862745098039215),
 ]
 
+# Numbers adapted from :thermal colormap defined in matplotlib/cmocean
+reverse_thermal_fade = let
+    data = [
+        (Makie.RGBAf(1.00, 1.00, 0.60, 0.00), 0.00),
+        (Makie.RGBAf(0.97, 0.95, 0.40, 0.30), 0.01),
+        (Makie.RGBAf(0.97, 0.95, 0.40, 0.50), 0.05),
+        (Makie.RGBAf(0.94, 0.90, 0.31, 0.70), 0.10),
+        (Makie.RGBAf(0.98, 0.80, 0.23, 0.90), 0.20),
+        (Makie.RGBAf(0.86, 0.60, 0.39, 0.95), 0.30),
+        (Makie.RGBAf(0.67, 0.40, 0.51, 1.00), 0.40),
+        (Makie.RGBAf(0.51, 0.31, 0.55, 1.00), 0.52),
+        (Makie.RGBAf(0.37, 0.24, 0.60, 1.00), 0.65),
+        (Makie.RGBAf(0.18, 0.20, 0.60, 1.00), 0.77),
+        (Makie.RGBAf(0.04, 0.18, 0.36, 1.00), 0.89),
+        (Makie.RGBAf(0.01, 0.13, 0.20, 1.00), 1.00),
+    ]
+    Makie.cgrad(getindex.(data, 1), getindex.(data, 2))
+end
+
+blue_white_red_fade = let
+    data = [
+        (Makie.RGBAf(0.00, 0.00, 1.00, 1.00), 0.00),
+        (Makie.RGBAf(0.80, 0.80, 1.00, 1.00), 0.45),
+        (Makie.RGBAf(1.00, 1.00, 1.00, 0.00), 0.495),
+        (Makie.RGBAf(1.00, 1.00, 1.00, 0.00), 0.505),
+        (Makie.RGBAf(1.00, 0.80, 0.80, 1.00), 0.55),
+        (Makie.RGBAf(1.00, 0.00, 0.00, 1.00), 1.00),
+    ]
+    Makie.cgrad(getindex.(data, 1), getindex.(data, 2))
+end
+
+
 # Colors from Jmol table, https://jmol.sourceforge.net/jscolors/
 atom_colors = let
     pairs = [
