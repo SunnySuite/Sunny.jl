@@ -98,7 +98,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, limits=(nothing, ylims), axis...)
         heatmap_aux!(ax, (1, size(data, 2)), ylims, data'; colorrange, colormap, interpolate=true)
         for i in axes(res.disp, 1)
-            Makie.lines!(ax, res.disp[i,:]/unit_energy; color=:lightskyblue3)
+            Makie.lines!(ax, res.disp[i,:]/unit_energy; color=(:lightskyblue3, 0.75))
         end
         return ax
     else
