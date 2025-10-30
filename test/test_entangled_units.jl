@@ -109,6 +109,10 @@ end
     add_sample!(ssf, esys)
     @test all(x -> isapprox(x, 0.0; atol=1e-12), ssf.sc.parent.data)
 
+    # Remove any optimization noise to make the dynamics below fully repeatable
+    randomize_spins!(esys)
+    set_coherent!(esys, [0, 1/√2, -1/√2, 0], (1, 1, 1, 1))
+
     # Test classical dynamics and perform golden test.
     esys = repeat_periodically(esys, (8, 1, 1))
     energies = range(0, 2, 5)
@@ -122,15 +126,7 @@ end
     end
     add_sample!(sc, esys)
     res = intensities(sc, qs; energies, kT=0.05)
-
-    # Julia 1.11 slightly changes the SVD, which leads to a different
-    # decomposition of "general" pair interactions. Small numerical differences
-    # can be amplified over a long dynamical trajectory.
-    @static if v"1.10" <= VERSION < v"1.11"
-        intensities_ref = [0.03781658031882558; 0.16151778881111165; -0.0037168273786800762; 0.003932155182202315; 0.004622186821935108;;]
-    elseif v"1.11" <= VERSION
-        intensities_ref = [0.06308051766790573; 0.3382120639629263; 0.01923042197493646; -0.0008116785050247188; 0.013219669220764382;;]
-    end
+    intensities_ref = [0.047614832748034186; 0.24767988465544913; 0.01779072121898864; 0.0037208693822031644; 0.014790643152215031;;]
     @test isapprox(res.data, intensities_ref)
 end
 
