@@ -527,28 +527,53 @@ function polarize_spins!(sys::System{N}, dir) where N
     end
 end
 
-"""
-    set_spin_rescaling!(sys, α)
-
-Sets an internal rescaling parameter ``α``. In dipole mode, this fixes each spin
-magnitude ``|S| = α s``, where ``s`` is the [`spin_label`](@ref) of the relevant
-magnetic moment. In SU(N) mode, this fixes each coherent state magnitude, ``|Z|
-= √α``, which leads to an effective renormalization of all local expectation
-values, ``⟨A⟩ → α ⟨A⟩``. By default ``α = 1``.
-"""
-function set_spin_rescaling!(sys::System{0}, α)
-    for site in eachsite(sys)
-        sys.κs[site] = α * (sys.Ns[site]-1)/2
-        set_dipole!(sys, sys.dipoles[site], site)
-    end
+function set_spin_rescaling_aux!(sys::System{0}, α::Real, site::Site)
+    sys.κs[site] = α * (sys.Ns[site]-1)/2
+    set_dipole!(sys, sys.dipoles[site], site)
+end
+function set_spin_rescaling_aux!(sys::System{N}, α::Real, site::Site) where N
+    sys.κs[site] = α
+    set_coherent!(sys, sys.coherents[site], site)
 end
 
-function set_spin_rescaling!(sys::System{N}, κ) where N
-    sys.κs .= κ
+"""
+    set_spin_rescaling_at!(sys, α, site)
+
+Rescales the spin magnitude of a single [`Site`](@ref). See
+[`set_spin_rescaling!`](@ref) for interpretation of the scaling factor `α`. The
+system must support inhomogeneous interactions via [`to_inhomogeneous`](@ref).
+"""
+function set_spin_rescaling_at!(sys::System, α::Real, site::Site)
+    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+    site = to_cartesian(site)
+    if iszero(α)
+        error("Use `set_vacancy_at!` to fully remove a magnetic moment.")
+    end
+    set_spin_rescaling_aux!(sys, α, site)
+end
+
+"""
+    set_spin_rescaling!(sys, [i1 => α1, i2 => α2, …])
+
+Sets an internal rescaling parameter ``α`` for each symmetry-distinct sublattice
+`i`. In dipole mode, this fixes each spin magnitude ``|S| = α s``, where ``s``
+is the [`spin_label`](@ref) of the relevant magnetic moment. In SU(N) mode, this
+fixes each coherent state magnitude, ``|Z| = √α``, which leads to an effective
+renormalization of local expectation values, ``⟨A⟩ → α ⟨A⟩``.
+"""
+function set_spin_rescaling!(sys::System, pairs::Vector{Pair{Int, Real}})
+    αs = propagate_atom_data(orig_crystal(sys), sys.crystal, pairs)
     for site in eachsite(sys)
-        set_coherent!(sys, sys.coherents[site], site)
+        set_spin_rescaling_aux!(sys, αs[to_atom(site)], site)
     end
 end
+function set_spin_rescaling!(sys::System, α::Real)
+    idxs = unique_indices(orig_crystal(sys))
+    expr = "[" * join(repr.(idxs) .* " => α", ", ") * "]"
+    @warn "Deprecated syntax! Use instead `set_spin_rescaling!(sys, $expr)`"
+    set_spin_rescaling!(sys, idxs .=> α)
+end
+
 
 """
     set_spin_rescaling_for_static_sum_rule!(sys)

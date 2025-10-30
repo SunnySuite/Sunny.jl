@@ -23,6 +23,9 @@
 * Add `interpolate` option to [`plot_intensities`](@ref). Selecting
   `interpolate=true` will significantly reduce file sizes of PDF exports
   containing 2D heatmap data ([#411](@ref)).
+* Modify [`set_spin_rescaling!`](@ref) to expect one scale factor per
+  symmetry-distinct sublattice. Introduce [`set_spin_rescaling_at!`](@ref)
+  ([#444](@ref)).
 
 ## v0.7.8
 (Jul 1, 2025)

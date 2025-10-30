@@ -23,27 +23,51 @@ struct Moment
 end
 
 
+# Given `pairs` that map reference atoms to values in `cryst`, return a full
+# vector of values for all atoms in `new_cryst`.
+function propagate_atom_data(cryst, new_cryst, pairs::Vector{Pair{Int, T}}; check_consistent=(i, v)->true, transform=(i, j, v)->v) where T
+    for (i, v) in pairs
+        1 <= i <= natoms(cryst) || error("Atom $i outside the valid range 1:$(natoms(cryst))")
+        check_consistent(i, v)
+    end
+
+    # Reference data with respect to original crystal
+    ref_atoms = [i for (i, _) in pairs]
+    ref_classes = cryst.classes[ref_atoms]
+
+    # One value for each atom in the original crystal
+    data = map(enumerate(cryst.classes)) do (i, c)
+        idxs = findall(==(c), ref_classes)
+        isempty(idxs) && error("Not all sites are specified; consider including atom $i.")
+        length(idxs) > 1 && error("Atoms $(ref_atoms[idxs]) are symmetry equivalent.")
+        (j, v) = pairs[only(idxs)]
+        transform(i, j, v)
+    end
+
+    # Map this data to the new crystal if distinct
+    if new_cryst == cryst
+        return data
+    else
+        return map(new_cryst.positions) do new_r
+            r = cryst.latvecs \ new_cryst.latvecs * new_r
+            data[position_to_atom(cryst, r)]
+        end
+    end
+end
+
+
 # Propagates each atom-moment pair to every symmetry-equivalent atom in the
 # crystal. Throws an error if two symmetry-equivalent atoms are provided in
 # `moments`, or if some atoms remain unspecified.
 function propagate_moments(cryst::Crystal, moments::Vector{Pair{Int, Moment}})
-    # Verify that all g tensors are consistent with the the site symmetries
-    for (i, m) in moments
-        1 <= i <= natoms(cryst) || error("Atom $i outside the valid range 1:$(natoms(cryst))")
-        if !is_coupling_valid(cryst, Bond(i, i, [0,0,0]), m.g)
+    function check_consistent(i, v)
+        if !is_coupling_valid(cryst, Bond(i, i, [0,0,0]), v.g)
             error("g-tensor on site $i is symmetry inconsistent; see `print_site(cryst, $i)` for more information.")
         end
     end
-
-    ref_atoms = [i for (i, _) in moments]
-    ref_classes = cryst.classes[ref_atoms]
-
-    return map(enumerate(cryst.classes)) do (i, c)
-        js = findall(==(c), ref_classes)
-        isempty(js) && error("Not all sites are specified; consider including atom $i.")
-        length(js) > 1 && error("Atoms $(ref_atoms[js]) are symmetry equivalent.")
-        (j, m) = moments[only(js)]
-        g = transform_coupling_for_bonds(cryst, Bond(i, i, [0,0,0]), Bond(j, j, [0,0,0]), m.g)
-        Moment(; m.s, g)
+    function transform(i, j, v)
+        g = transform_coupling_for_bonds(cryst, Bond(i, i, [0,0,0]), Bond(j, j, [0,0,0]), v.g)
+        Moment(; v.s, g)
     end
+    return propagate_atom_data(cryst, cryst, moments; check_consistent, transform)
 end
