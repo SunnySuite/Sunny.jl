@@ -42,20 +42,7 @@ In the limit of very large `magnitude`, this function coincides with
 Consider also [`Langevin`](@ref) sampling, which is rejection free.
 """
 function propose_delta(magnitude)
-    function ret(sys::System{N}, site) where N
-        κ = sys.κs[site]
-        if N == 0
-            S = sys.dipoles[site] + magnitude * κ * randn(sys.rng, Vec3)
-            S = normalize_dipole(S, κ)
-            return SpinState(S, CVec{0}())        
-        else
-            Z = sys.coherents[site] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
-            Z = normalize_ket(Z, κ)
-            S = expected_spin(Z)
-            return SpinState(S, Z)
-        end
-    end
-    return ret
+    return (sys, site) -> perturbed_spin(sys, site, magnitude)
 end
 
 """
