@@ -140,3 +140,36 @@ end
     # q values to get sum rule.
     @test sum(res.data) * sc.Δω / length(qs) ≈ (s*g)^2
 end
+
+@testitem "Powder broadening" begin
+    # Create dummy PowderIntensites with uniform intensities in |q|
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0, 0, 0]])
+    radii = collect(range(0, 10; length=100))
+    energies = [0, 0.5, 1.0]
+    data = repeat([0.5, 1.0, 2.0], 1, length(radii))
+    res = Sunny.PowderIntensities(cryst, radii, energies, data)
+
+    # Check that isotropic Gaussian broadening leaves intensities uniform
+    res2 = Sunny.broaden_powder_intensities(res; fwhm=2.0)
+    @test res.data ≈ res2.data
+
+
+    # Create dummy PowderIntensities with Dirac-δ distribution in |q|
+    data = zero(res.data)
+    data[:, 10] = [4, 5, 6]
+    res = Sunny.PowderIntensities(cryst, radii, energies, data)
+
+    # Perform isotropic broadening
+    res2 = Sunny.broaden_powder_intensities(res; fwhm=2.0)
+
+    # Check that the integrated intensity ∫ ρ (4πq²) dq = 1 is invariant under
+    # broadening
+    function integrated_intensity(ρs, qs)
+        dq = qs[2] - qs[1]
+        sum(4π * q^2 * dq * ρ for (ρ, q) in zip(ρs, qs))
+    end
+    I1 = [integrated_intensity(res.data[i, :], radii) for i in axes(res.data, 1)]
+    I2 = [integrated_intensity(res2.data[i, :], radii) for i in axes(res2.data, 1)]
+    @test I1 ≈ I2
+end
