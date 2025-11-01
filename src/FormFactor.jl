@@ -38,9 +38,9 @@ end
 
 The magnetic form factor for a given magnetic ion and charge state. When passed
 to [`intensities`](@ref), it rescales structure factor intensities based on the
-magnitude of the scattering vector, ``|𝐪|``. If the crystal
-[`lattice_vectors`](@ref) were constructed with length [`Units`](@ref) other
-than Å, then the relevant `length` symbol must be specified here.
+magnitude of the scattering vector ``|𝐪|``. The default length unit is Å. If
+[`lattice_vectors`](@ref) for the relevant [`Crystal`](@ref) have a different
+unit, then that `length` symbol must be specified here (cf. [`Units`](@ref)).
 
 The parameter `ion` must be one of the following strings:
 
@@ -130,11 +130,10 @@ function FormFactor(ion::String; g_lande=2, length=:angstrom)
 
     (j0, j2, config) = radial_integral_coefficients[ion]
 
-    # The Gaussian exponents a, b, c, d are tabulated in units of Å². Convert
-    # these quantities to the specified length units.
+    # The tables are in units of Å². Convert to arbitrary `length` unit.
     Å² = Units(:meV, length).angstrom^2
-    j0[[2, 4, 6, 8]] .*= Å²
-    j2[[2, 4, 6, 8]] .*= Å²
+    j0 = j0 .* [1, Å², 1, Å², 1, Å², 1, Å², 1] # Scale just (⋅, a, ⋅, b, ⋅, c, ⋅, d, ⋅) of j0
+    j2 = j2 .* Å²                              # Scale all  (A, a, B, b, C, c, D, d, E) of j2
 
     j0 = ExpandedBesselIntegral(j0...)
     j2 = ExpandedBesselIntegral(j2...)
