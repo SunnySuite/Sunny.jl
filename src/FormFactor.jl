@@ -34,11 +34,13 @@ function Base.zero(::Type{FormFactor})
 end
 
 """
-    FormFactor(ion::String; g_lande=2)
+    FormFactor(ion::String; g_lande=2, length=:angstrom)
 
 The magnetic form factor for a given magnetic ion and charge state. When passed
 to [`intensities`](@ref), it rescales structure factor intensities based on the
-magnitude of the scattering vector, ``|𝐪|``.
+magnitude of the scattering vector ``|𝐪|``. The default length unit is Å. If
+[`lattice_vectors`](@ref) for the relevant [`Crystal`](@ref) have a different
+unit, then that `length` symbol must be specified here (cf. [`Units`](@ref)).
 
 The parameter `ion` must be one of the following strings:
 
@@ -110,7 +112,7 @@ magnetic ion.
    factor of 5d transition elements_, Acta Cryst. A **67**, 473–480
    (2011)](https://doi.org/10.1107/S010876731102633X).
 """
-function FormFactor(ion::String; g_lande=2)
+function FormFactor(ion::String; g_lande=2, length=:angstrom)
     if !haskey(radial_integral_coefficients, ion)
         if !haskey(radial_integral_coefficients, ion*"a")
             error("Form factor requires species name and charge state, e.g. \"Fe2\" for Fe²⁺")
@@ -127,9 +129,15 @@ function FormFactor(ion::String; g_lande=2)
     end
 
     (j0, j2, config) = radial_integral_coefficients[ion]
+
+    # The tables are in units of Å². Convert to arbitrary `length` unit.
+    Å² = Units(:meV, length).angstrom^2
+    j0 = j0 .* [1, Å², 1, Å², 1, Å², 1, Å², 1] # Scale just (⋅, a, ⋅, b, ⋅, c, ⋅, d, ⋅) of j0
+    j2 = j2 .* Å²                              # Scale all  (A, a, B, b, C, c, D, d, E) of j2
+
     j0 = ExpandedBesselIntegral(j0...)
     j2 = ExpandedBesselIntegral(j2...)
-    FormFactor(j0, j2, config, g_lande)
+    return FormFactor(j0, j2, config, g_lande)
 end
 
 function Base.convert(::Type{FormFactor}, x::String)
