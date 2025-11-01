@@ -86,7 +86,7 @@ function broaden_powder_intensities(res::PowderIntensities; fwhm)
                 ρ = (σ^2 / (2q*k)) * (G(k-q) - G(k+q))
             end
             C[j] += ρ * 4π*k^2 * dk
-            broadened_data[:, j] += source_intensity * ρ
+            broadened_data[:, j] += source_intensity * ρ * dk
         end
     end
 
