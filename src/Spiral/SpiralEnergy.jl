@@ -221,7 +221,7 @@ unless otherwise provided.
 See also [`suggest_magnetic_supercell`](@ref) to find a system shape that is
 approximately commensurate with the returned propagation wavevector ``𝐤``.
 """
-function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3), kwargs...)
+function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3), δ=1e-8, kwargs...)
     axis = normalize(axis)
 
     sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")
@@ -232,7 +232,7 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     # is a weaker constraint.
     check_rotational_symmetry(sys; axis, θ=0.01)
 
-    perturb_spins!(sys, 1e-8)
+    perturb_spins!(sys, δ)
 
     params = [inverse_stereographic_projection(normalize(S), axis) for S in vec(sys.dipoles)]
     push!(params, Vec3(k_guess))

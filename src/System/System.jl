@@ -494,6 +494,7 @@ function randomize_spins!(sys::System{N}) where N
 end
 
 function perturb_spins!(sys::System{N}, magnitude) where N
+    iszero(magnitude) && return
     for site in eachsite(sys)
         setspin!(sys, perturbed_spin(sys, site, magnitude), site)
     end

@@ -121,11 +121,11 @@ will be included in the `Options` constructor of Optim.jl.
 Convergence status is stored in the field `ret.converged` of the return value
 `ret`. Additional optimization statistics are stored in the field `ret.data`.
 """
-function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
-                          kwargs...) where N
+function minimize_energy!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
+                          subiters=10, δ=1e-8, kwargs...) where N
     # Perturbation of sufficient magnitude to "almost surely" push away from an
     # unstable stationary point (e.g. local maximum or saddle).
-    perturb_spins!(sys, 1e-8)
+    perturb_spins!(sys, δ)
 
     # Allocate buffers for optimization:
     #   - Each `ns[site]` defines a direction for stereographic projection.

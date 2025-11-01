@@ -112,7 +112,7 @@ function lanczos(mulA!, mulS!, v; min_iters, resolution=Inf, lhs=zeros(length(v)
     @assert isapprox(imag(vSv), 0; atol) # Hermitian S
     @assert isapprox(real(vSv), 1; atol) # Normalized v
 
-    # Slight correction to normalization if needed.
+    # Try to improve normalization precision.
     @. v /= sqrt(real(vSv))
     @. Sv /= sqrt(real(vSv))
 
