@@ -112,7 +112,6 @@ end
     # Test classical dynamics and perform golden test.
 
     # Remove optimization noise for reproducibility
-    randomize_spins!(esys)
     set_coherent!(esys, [0, 1/√2, -1/√2, 0], (1, 1, 1, 1))
 
     esys = repeat_periodically(esys, (8, 1, 1))
