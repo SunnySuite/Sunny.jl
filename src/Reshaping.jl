@@ -1,4 +1,3 @@
-
 """
     reshape_supercell(sys::System, shape)
 
@@ -14,7 +13,7 @@ with [`resize_supercell`](@ref).
 See also [`repeat_periodically`](@ref).
 """
 function reshape_supercell(sys::System, shape)
-    is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
+    is_homogeneous(sys) || error("Cannot reshape inhomogeneous system.")
 
     orig = orig_crystal(sys)
     check_shape_commensurate(orig, shape)
@@ -32,30 +31,61 @@ function reshape_supercell(sys::System, shape)
 end
 
 
-# Transfer interactions from `src` to reshaped `sys`.
-#
-# Frequently `src` will refer to `sys.origin`, associated with the original
-# crystal, which will make symmetry analysis available. In this case, the
-# process to set a new interaction is to first modify `sys.origin`, and then to
-# call this function.
-function transfer_interactions!(sys::System, src::System)
+# Transfer interactions from `sys.origin` to reshaped `sys`.
+function transfer_params_from_origin!(sys::System)
+    @assert is_homogeneous(sys)
+    (; origin) = sys
+
+    # Map atom in origin crystal to vector of atoms in new crystal
+    origin_to_new = Dict(i => Int[] for i in 1:natoms(origin.crystal))
+    for new_i in 1:natoms(sys.crystal)
+        i = map_atom_to_other_crystal(sys.crystal, new_i, origin.crystal)
+        # Append `new_i` to the vector at `origin_to_new[i]`
+        push!(origin_to_new[i], new_i)
+    end
+
+    empty!(sys.params)
+
+    for param in origin.params
+        new_onsites = empty(param.onsites)
+        for (i, oc) in param.onsites
+            for new_i in origin_to_new[i]
+                push!(new_onsites, (new_i, oc))
+            end
+        end
+
+        new_pairs = PairCoupling[]
+        for pc in param.pairs
+            i_old = pc.bond.i
+            for new_i in origin_to_new[i_old]
+                new_bond = map_bond_to_other_crystal(origin.crystal, pc.bond, sys.crystal, new_i)
+                push!(new_pairs, PairCoupling(new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
+            end
+        end
+
+        push!(sys.params, ModelParam(param.label, param.val; onsites=new_onsites, pairs=new_pairs))
+    end
+
+    repopulate_couplings_from_params!(sys)
+    return
+end
+
+# This function exists to support SpinWaveTheory reshaping from inhomogeneous
+# `src` to a homogeneous `sys` containing a single large cell.
+function transfer_interactions_from_inhomogeneous!(sys::System, src::System)
+    @assert is_homogeneous(sys) && !is_homogeneous(src)
+
+    empty!(sys.params)
     new_ints = interactions_homog(sys)
 
     for new_i in 1:natoms(sys.crystal)
-        # Find `src` interaction either through an atom index or a site index
-        if is_homogeneous(src)
-            i = map_atom_to_other_crystal(sys.crystal, new_i, src.crystal)
-        else
-            i = map_atom_to_other_system(sys.crystal, new_i, src)
-        end
-        src_int = src.interactions_union[i]
+        site = map_atom_to_other_system(sys.crystal, new_i, src)
+        int = src.interactions_union[site]
 
-        # Copy onsite couplings
-        new_ints[new_i].onsite = src_int.onsite
+        new_ints[new_i].onsite = int.onsite
 
-        # Copy pair couplings
         new_pc = PairCoupling[]
-        for pc in src_int.pair
+        for pc in int.pair
             new_bond = map_bond_to_other_crystal(src.crystal, pc.bond, sys.crystal, new_i)
             push!(new_pc, PairCoupling(new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
         end
@@ -72,6 +102,7 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     new_κs               = zeros(Float64, new_dims..., new_na)
     new_gs               = zeros(Mat3, new_dims..., new_na)
     new_ints             = empty_interactions(sys.mode, new_na, N)
+    new_params           = ModelParam[]
     new_ewald            = nothing
     new_extfield         = zeros(Vec3, new_dims..., new_na)
     new_dipoles          = zeros(Vec3, new_dims..., new_na)
@@ -84,13 +115,21 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     # reshaped system will also update interactions in its `origin` system.
     orig_sys = clone_system(@something sys.origin sys)
 
-    new_sys = System(orig_sys, sys.mode, new_cryst, new_dims, new_Ns, new_κs, new_gs, new_ints, new_ewald,
-        new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
+    new_sys = System(orig_sys, sys.mode, new_cryst, new_dims, new_Ns, new_κs, new_gs,
+                     new_params, new_ints, new_ewald, new_extfield, new_dipoles,
+                     new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
 
-    # Transfer interactions. In the case of an inhomogeneous system, the
-    # interactions in `sys` have detached from `orig`, so we use the latest
-    # ones.
-    transfer_interactions!(new_sys, sys)
+    if is_homogeneous(sys)
+        # Transfer params from `new_sys.origin`, which will then be used to fill
+        # interactions.
+        transfer_params_from_origin!(new_sys)
+    else
+        # Inhomogeneous interactions must be transferred directly. This path
+        # only exists to support SpinWaveTheory reshaping.
+        @assert new_sys.dims == (1, 1, 1)
+        @assert length(eachsite(new_sys)) == length(eachsite(sys))
+        transfer_interactions_from_inhomogeneous!(new_sys, sys)
+    end
 
     # Copy per-site quantities
     for new_site in eachsite(new_sys)
@@ -135,6 +174,7 @@ reshape_supercell(sys, [dims[1] 0 0; 0 dims[2] 0; 0 0 dims[3]])
 See also [`reshape_supercell`](@ref) and [`repeat_periodically`](@ref).
 """
 function resize_supercell(sys::System, dims::NTuple{3,Int})
+    is_homogeneous(sys) || error("Cannot resize inhomogeneous system.")
     return reshape_supercell(sys, diagm(Vec3(dims)))
 end
 
@@ -149,6 +189,7 @@ See also [`repeat_periodically_as_spiral`](@ref), which rotates the spins
 between periodic copies.
 """
 function repeat_periodically(sys::System, counts::NTuple{3,Int})
+    is_homogeneous(sys) || error("Cannot repeat inhomogeneous system.")
     all(>=(1), counts) || error("Require at least one count in each direction.")
     return reshape_supercell_aux(sys, sys.crystal, counts .* sys.dims)
 end

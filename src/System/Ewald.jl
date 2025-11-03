@@ -255,13 +255,6 @@ employs real-space pair couplings with truncation at the specified `cutoff`
 distance. The implicit demagnetization factor is 1/3, as appropriate for a
 spherical sample in vacuum. If the cutoff is relatively small, then this
 function may be faster than `enable_dipole_dipole!`.
-
-!!! warning "Mutation of existing couplings"  
-    This function will modify existing bilinear couplings between spins by
-    adding dipole-dipole interactions. It must therefore be called _after_ all
-    other pair couplings have been specified. Conversely, any calls to
-    `set_exchange!`, `set_pair_coupling!`, etc. will irreversibly delete the
-    dipole-dipole interactions that have been introduced by this function.
 """
 function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, μ0_μB²=nothing) where N
     if isnothing(μ0_μB²)
@@ -271,12 +264,17 @@ function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, �
 
     if !isnothing(sys.origin)
         modify_exchange_with_truncated_dipole_dipole!(sys.origin, cutoff, μ0_μB²)
-        transfer_interactions!(sys, sys.origin)
+        transfer_params_from_origin!(sys)
         return
     end
 
-    is_homogeneous(sys) || error("Currently requires homogeneous system")
-    ints = interactions_homog(sys)
+    # To support inhomogeneous systems, we would need a code path that modifies
+    # the interactions on each site. See previous implementation in
+    # https://github.com/SunnySuite/Sunny.jl/pull/416).
+    is_homogeneous(sys) || error("System must be homogeneous")
+
+    label = :TruncatedDipoleDipole
+    param = replace_model_param!(sys, label => 1.0, repr(label))
 
     for bond in reference_bonds(sys.crystal, cutoff)
         for i in 1:natoms(sys.crystal)
@@ -286,8 +284,11 @@ function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, �
                 iszero(r) && continue
                 r̂ = normalize(r)
                 bilin = (μ0_μB²/4π) * sys.gs[i]' * ((I - 3r̂⊗r̂) / norm(r)^3) * sys.gs[j]
-                replace_coupling!(ints[i].pair, PairCoupling(bond′, 0.0, Mat3(bilin), 0.0, zero(TensorDecomposition)); accum=true)
+                pc = PairCoupling(bond′, 0.0, Mat3(bilin), 0.0, zero(TensorDecomposition))
+                push!(param.pairs, pc)
             end
         end
     end
+
+    repopulate_couplings_from_params!(sys)
 end

@@ -72,6 +72,19 @@ function Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion)
            (stvexp.c4 ≈ stvexp′.c4) && (stvexp.c6 ≈ stvexp′.c6)
 end
 
+function Base.:+(stvexp::StevensExpansion, stvexp′::StevensExpansion)
+    return StevensExpansion(max(stvexp.kmax, stvexp′.kmax),
+                            stvexp.c0 + stvexp′.c0,
+                            stvexp.c2 + stvexp′.c2,
+                            stvexp.c4 + stvexp′.c4,
+                            stvexp.c6 + stvexp′.c6)
+end
+
+function Base.:*(stvexp::StevensExpansion, x::Real)
+    (; kmax, c0, c2, c4, c6) = stvexp
+    return StevensExpansion(kmax, c0*x, c2*x, c4*x, c6*x)
+end
+
 function rotate_operator(stvexp::StevensExpansion, R)
     c2′ = rotate_stevens_coefficients(stvexp.c2, R)
     c4′ = rotate_stevens_coefficients(stvexp.c4, R)
@@ -101,7 +114,7 @@ end
 
 
 """
-    set_onsite_coupling!(sys::System, op, i::Int)
+    set_onsite_coupling!(sys::System, op, i, param=nothing)
 
 Set the single-ion anisotropy for the `i`th atom of every unit cell, as well as
 all symmetry-equivalent atoms. The operator `op` may be provided as an abstract
@@ -123,6 +136,9 @@ O = stevens_matrices(spin_label(sys, i))
 set_onsite_coupling!(sys, O[4,0] + 5*O[4,4], i)
 ```
 
+The optional trailing [`Param`](@ref) argument labels the coupling and allows to
+mutably update the coupling strength.
+
 !!! warning "Limitations arising from quantum spin operators"  
     Single-ion anisotropy is physically impossible for local moments with
     quantum spin ``s = 1/2``. Consider, for example, that any Pauli matrix
@@ -134,24 +150,18 @@ set_onsite_coupling!(sys, O[4,0] + 5*O[4,4], i)
     naïvely replaces quantum spin operators with classical moments. See the
     documentation page [Interaction Renormalization](@ref) for more information.
 """
-function set_onsite_coupling!(sys::System, op, i::Int)
+function set_onsite_coupling!(sys::System, op, i::Int, param=nothing)
     is_homogeneous(sys) || error("Use `set_onsite_coupling_at!` for an inhomogeneous system.")
-    ints = interactions_homog(sys)
 
-    # If `sys` has been reshaped, then operate first on `sys.origin`, which
-    # contains full symmetry information.
+    # If reshaped, write to origin and transfer params back
     if !isnothing(sys.origin)
-        set_onsite_coupling!(sys.origin, op, i)
-        transfer_interactions!(sys, sys.origin)
+        set_onsite_coupling!(sys.origin, op, i, param)
+        transfer_params_from_origin!(sys)
         return
     end
 
     @assert isnothing(sys.origin)
     (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
-
-    if !iszero(ints[i].onsite)
-        warn_coupling_override("Overriding anisotropy for atom $i.")
-    end
 
     onsite = onsite_coupling(sys, CartesianIndex(1, 1, 1, i), op)
 
@@ -159,6 +169,11 @@ function set_onsite_coupling!(sys::System, op, i::Int)
         error("""Symmetry-violating anisotropy: $op.
                  Use `print_site(cryst, $i)` for more information.""")
     end
+
+    # Get ModelParam to be filled
+    atom_matches(param) = any(j == i for (j, _) in param.onsites)
+    param = @something param get_default_param(sys, atom_matches)
+    param = replace_model_param!(sys, param, "atom $i")
 
     cryst = sys.crystal
     for j in all_symmetry_related_atoms(cryst, i)
@@ -175,13 +190,16 @@ function set_onsite_coupling!(sys::System, op, i::Int)
         # In moving from site i to j, a spin S rotates to Q S. Transform the
         # anisotropy operator using the inverse rotation Q' so that the energy
         # remains invariant when applied to the transformed spins.
-        ints[j].onsite = rotate_operator(onsite, Q')
+        onsite′ = rotate_operator(onsite, Q')
+        push!(param.onsites, (j, onsite′))
     end
+
+    repopulate_couplings_from_params!(sys)
 end
 
-function set_onsite_coupling!(sys::System, fn::Function, i::Int)
+function set_onsite_coupling!(sys::System, fn::Function, i::Int, param=nothing)
     S = spin_matrices(spin_label(sys, i))
-    set_onsite_coupling!(sys, fn(S), i)
+    set_onsite_coupling!(sys, fn(S), i, param)
 end
 
 

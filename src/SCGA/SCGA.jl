@@ -28,7 +28,7 @@ struct SCGA
     λs :: Vector{Float64}
 
     function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, kT::Real, dq::Float64)
-        sys.dims == (1, 1, 1) || error("System dims must be (1, 1, 1).")
+        sys.dims == (1, 1, 1) || error("Use system with dims=(1, 1, 1) for efficiency")
 
         measure = @something measure empty_measurespec(sys)
         if size(eachsite(sys)) != size(measure.observables)[2:5]
