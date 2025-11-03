@@ -9,10 +9,16 @@ function Base.show(io::IO, ::MIME"text/plain", res::MinimizationResult)
     Δx = number_to_simple_string(Optim.x_abschange(data); digits=3)
     g_res = number_to_simple_string(Optim.g_residual(data); digits=3)
     if converged
-        println(io, "Converged in $iterations iterations")
+        print(io, "Converged in $iterations iterations")
     else
-        println(io, "Non-converged after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
+        print(io, "Non-converged after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
     end
+end
+
+function Base.show(io::IO, res::MinimizationResult)
+    print(io, "MinimizationResult(")
+    show(io, MIME("text/plain"), res)
+    print(io, ")")
 end
 
 
