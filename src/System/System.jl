@@ -443,6 +443,20 @@ end
     return SpinState(S, Z)
 end
 
+@inline function perturbed_spin(sys::System{0}, site, magnitude)
+    κ = sys.κs[site]
+    S = sys.dipoles[site] + magnitude * κ * randn(sys.rng, Vec3)
+    S = normalize_dipole(S, κ)
+    return SpinState(S, CVec{0}())
+end
+@inline function perturbed_spin(sys::System{N}, site, magnitude) where N
+    κ = sys.κs[site]
+    Z = sys.coherents[site] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
+    Z = normalize_ket(Z, κ)
+    S = expected_spin(Z)
+    return SpinState(S, Z)
+end
+
 @inline function getspin(sys::System{N}, site) where N
     return SpinState(sys.dipoles[site], sys.coherents[site])
 end
@@ -479,6 +493,12 @@ function randomize_spins!(sys::System{N}) where N
     end
 end
 
+function perturb_spins!(sys::System{N}, magnitude) where N
+    iszero(magnitude) && return
+    for site in eachsite(sys)
+        setspin!(sys, perturbed_spin(sys, site, magnitude), site)
+    end
+end
 
 """
     set_coherent!(sys::System, Z, site::Site)
