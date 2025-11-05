@@ -13,13 +13,17 @@
 using Sunny, GLMakie
 
 # Set up minimal triangular lattice system. Include antiferromagnetic exchange
-# interactions between nearest neighbor bonds. Energy minimization yields the
-# magnetic ground state with 120° angles between spins in triangular plaquettes.
+# interactions between nearest neighbor bonds. An optional `seed` for random
+# number generation makes the calculations exactly reproducible on a fixed Julia
+# version.
 
 latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
 cryst = Crystal(latvecs, [[0, 0, 0]])
-sys = System(cryst, [1 => Moment(s=1/2, g=1)], :dipole; dims=(3, 3, 1))
+sys = System(cryst, [1 => Moment(s=1/2, g=1)], :dipole; dims=(3, 3, 1), seed=0)
 set_exchange!(sys, +1.0, Bond(1, 1, [1,0,0]))
+
+# Energy minimization yields the magnetic ground state with 120° angles between
+# spins in triangular plaquettes.
 
 randomize_spins!(sys)
 minimize_energy!(sys)
@@ -54,7 +58,7 @@ sys_inhom = to_inhomogeneous(repeat_periodically(sys, (10, 10, 1)))
 # 120° order.
 
 for (site1, site2, offset) in symmetry_equivalent_bonds(sys_inhom, Bond(1, 1, [1, 0, 0]))
-    noise = randn()/3
+    noise = randn(sys_inhom.rng)/3
     set_exchange_at!(sys_inhom, 1.0 + noise, site1, site2; offset)
 end
 
@@ -96,11 +100,11 @@ plot_intensities(res)
 # chemical cells.
 
 for site in eachsite(sys_inhom)
-    noise = randn()/6
+    noise = randn(sys_inhom.rng)/6
     sys_inhom.gs[site] = [1 0 0; 0 1 0; 0 0 1+noise]
 end
 randomize_spins!(sys_inhom)
-minimize_energy!(sys_inhom)
+minimize_energy!(sys_inhom, maxiters=5_000)
 
 swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
 res = intensities(swt, path; energies, kernel)
