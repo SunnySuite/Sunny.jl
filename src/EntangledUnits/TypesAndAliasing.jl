@@ -191,7 +191,8 @@ end
 # Sets the coherent state of a specified unit. The `site` refers to the
 # contracted lattice (i.e., to a "unit"). The function then updates all dipoles
 # in the uncontracted system that are determined by the coherent state. 
-function set_coherent!(esys::EntangledSystem, coherent, site) 
+function set_coherent!(esys::EntangledSystem, coherent, site)
+    site = to_cartesian(site)
     set_coherent!(esys.sys, coherent, site)
     a, b, c, unit = site.I
     for atom in atoms_in_unit(esys.contraction_info, unit)

@@ -221,7 +221,7 @@ unless otherwise provided.
 See also [`suggest_magnetic_supercell`](@ref) to find a system shape that is
 approximately commensurate with the returned propagation wavevector ``𝐤``.
 """
-function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
+function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3), δ=1e-8, kwargs...)
     axis = normalize(axis)
 
     sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")
@@ -232,13 +232,10 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     # is a weaker constraint.
     check_rotational_symmetry(sys; axis, θ=0.01)
 
-    L = natoms(sys.crystal)
+    perturb_spins!(sys, δ)
 
-    params = fill(zero(Vec3), L+1)
-    for i in 1:L
-        params[i] = inverse_stereographic_projection(normalize(sys.dipoles[i]), axis)
-    end
-    params[end] = k_guess
+    params = [inverse_stereographic_projection(normalize(S), axis) for S in vec(sys.dipoles)]
+    push!(params, Vec3(k_guess))
 
     local λ::Float64
     f(params) = spiral_f(sys, axis, params, λ)
@@ -246,7 +243,8 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
 
     # See `minimize_energy!` for discussion of the tolerance settings.
     x_abstol = 1e-12
-    options = Optim.Options(; iterations=maxiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN)
+    g_abstol = 1e-12 * characteristic_energy_scale(sys)
+    options = Optim.Options(; iterations=maxiters, g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
 
     # First, optimize with regularization λ that pushes spins away from
     # alignment with the spiral `axis`. See `spiral_f` for precise definition.

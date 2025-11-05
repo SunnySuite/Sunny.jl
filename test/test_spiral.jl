@@ -233,15 +233,8 @@ end
     axis = [1, 0, 0]
     set_exchange!(sys, diagm(0.8 * axis) + dmvec(D * axis), Bond(1, 1, [0, 0, 1]))
 
-    # TODO: Get to the bottom of this Optim.jl failure case
-    #=
-        sys.dipoles .= [[-0.7849258507107553, -0.39367187538995435, 0.4784494366314514]]
-        k = minimize_spiral_energy!(sys, axis; k_guess=[0.2, 0.4, 0.8])
-    =#
-
-    # TODO: Replace with randomize_spins! and k_guess=randn(3) when Optim.jl fixed
-    set_dipole!(sys, [-0.2, 0.4, 1.1], (1, 1, 1, 1))
-    k_guess = [0.2, 0.4, 0.8] # See failure below
+    randomize_spins!(sys)
+    k_guess=randn(3)
     k = minimize_spiral_energy!(sys, axis; k_guess)
     @test k[3] ≈ 3/4
 

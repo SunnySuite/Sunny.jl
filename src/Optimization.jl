@@ -9,10 +9,16 @@ function Base.show(io::IO, ::MIME"text/plain", res::MinimizationResult)
     Δx = number_to_simple_string(Optim.x_abschange(data); digits=3)
     g_res = number_to_simple_string(Optim.g_residual(data); digits=3)
     if converged
-        println(io, "Converged in $iterations iterations")
+        print(io, "Converged in $iterations iterations")
     else
-        println(io, "Non-converged after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
+        print(io, "Non-converged after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
     end
+end
+
+function Base.show(io::IO, res::MinimizationResult)
+    print(io, "MinimizationResult(")
+    show(io, MIME("text/plain"), res)
+    print(io, ")")
 end
 
 
@@ -97,7 +103,7 @@ end
 function optim_set_gradient!(G, sys::System{0}, αs, ns)
     (αs, G) = reinterpret.(reshape, Vec3, (αs, G))
     set_energy_grad_dipoles!(G, sys.dipoles, sys)            # G = dE/dS
-    @. G *= norm(sys.dipoles)                                # G = dE/dS * ds/du = dE/du
+    @. G *= norm(sys.dipoles)                                # G = dE/dS * dS/du = dE/du
     @. G = adjoint(vjp_stereographic_projection(G, αs, ns))  # G = dE/du du/dα = dE/dα
 end
 function optim_set_gradient!(G, sys::System{N}, αs, ns) where N
@@ -121,8 +127,12 @@ will be included in the `Options` constructor of Optim.jl.
 Convergence status is stored in the field `ret.converged` of the return value
 `ret`. Additional optimization statistics are stored in the field `ret.data`.
 """
-function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
-                          kwargs...) where N
+function minimize_energy!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
+                          subiters=10, δ=1e-8, kwargs...) where N
+    # Perturbation of sufficient magnitude to "almost surely" push away from an
+    # unstable stationary point (e.g. local maximum or saddle).
+    perturb_spins!(sys, δ)
+
     # Allocate buffers for optimization:
     #   - Each `ns[site]` defines a direction for stereographic projection.
     #   - Each `αs[:,site]` will be optimized in the space orthogonal to `ns[site]`.
@@ -147,21 +157,19 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
     # Repeatedly optimize using a small number (`subiters`) of steps, within
     # which the stereographic projection axes are fixed. Because we require
     # high-precision in the spin variables (x), disable check on the energy (f),
-    # which is much lower precision. Also disable check on the energy gradient
-    # (g) because this has units of energy, and it is not obvious how to select
-    # a natural energy scale. Disable check on `x_reltol` because `x = [zeros]`
+    # which is much lower precision. Disable check on x_reltol because x=[zeros]
     # is a valid configuration (all spins aligned with the stereographic
-    # projection axes). This leaves only the check on `x_abstol`. Since Optim.jl
-    # uses the p=Inf norm, the x-tolerance is a dimensionless number.
+    # projection axes). Optim interprets x_abstol and g_abstol in the p=Inf norm
+    # (largest vector component). Note that x is dimensionless and g=dE/dx has
+    # energy units.
     x_abstol = 1e-12
-    options = Optim.Options(; iterations=subiters, x_abstol, x_reltol=NaN, g_abstol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
+    g_abstol = 1e-12 * characteristic_energy_scale(sys)
+    options = Optim.Options(; iterations=subiters, g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
     local res
     for iter in 1 : div(maxiters, subiters, RoundUp)
         res = Optim.optimize(f, g!, αs, method, options)
 
-        # Exit if converged. Note that Hager-Zhang line search could report
-        # failure if the step Δx vanishes, but for CG this is actually success.
-        if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
+        if Optim.converged(res)
             cnt = (iter-1)*subiters + res.iterations
             return MinimizationResult(true, cnt, res)
         end

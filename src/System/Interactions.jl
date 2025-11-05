@@ -584,14 +584,27 @@ function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{V
     end
 end
 
+# Extract a characteristic energy scale from the magnitude of the energy
+# gradient on a typical site. This works well because ∇E retains a component
+# parallel to the spin (or coherent state).
+function characteristic_energy_scale(sys::System{0})
+    ∇Es, = get_dipole_buffers(sys, 1)
+    set_energy_grad_dipoles!(∇Es, sys.dipoles, sys)
+    return norm(∇E*κ for (∇E, κ) in zip(∇Es, sys.κs)) / sqrt(length(∇Es))
+end
+function characteristic_energy_scale(sys::System{N}) where N
+    ∇Es, = get_coherent_buffers(sys, 1)
+    set_energy_grad_coherents!(∇Es, sys.coherents, sys)
+    return norm(∇E*sqrt(κ) for (∇E, κ) in zip(∇Es, sys.κs)) / sqrt(length(∇Es))
+end
 
 # Internal testing functions
-function energy_grad_dipoles(sys::System{N}) where N
+function energy_grad_dipoles(sys::System)
     ∇E = zero(sys.dipoles)
     set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
     return ∇E
 end
-function energy_grad_coherents(sys::System{N}) where N
+function energy_grad_coherents(sys::System)
     ∇E = zero(sys.coherents)
     set_energy_grad_coherents!(∇E, sys.coherents, sys)
     return ∇E
@@ -600,7 +613,7 @@ end
 
 # Check that the interactions of `sys` are invariant under a rotation about axis
 # by angle θ.
-function check_rotational_symmetry(sys::System{N}; axis, θ) where N
+function check_rotational_symmetry(sys::System; axis, θ)
     # TODO: Employ absolute tolerance `atol` for all `isapprox` checks below.
     # This will better handle comparisons with zero. This will require special
     # implementation for isapprox(::StevensExpansion, ::StevensExpansion).
