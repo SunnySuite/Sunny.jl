@@ -24,6 +24,8 @@ end
 
 @testitem "Dimer Tests" begin
     import LinearAlgebra: norm
+    import Random
+
     J = 1.0
     J′ = 0.1
     latvecs = [1 0 0; 0 1 0; 0 0 2]
@@ -109,9 +111,12 @@ end
     add_sample!(ssf, esys)
     @test all(x -> isapprox(x, 0.0; atol=1e-12), ssf.sc.parent.data)
 
-    # Test classical dynamics and perform golden test.
+    ### Golden test for classical dynamics ###
 
-    # Remove optimization noise for reproducibility
+    # For exact reproducibility, reset the random number seed and use a specific
+    # initial condition.
+
+    Random.seed!(esys.sys.rng, 0)
     set_coherent!(esys, [0, 1/√2, -1/√2, 0], (1, 1, 1, 1))
 
     esys = repeat_periodically(esys, (8, 1, 1))
@@ -130,9 +135,9 @@ end
     # The revised SVD in Julia 1.11 leads to slight differences in the
     # decomposition of "general" pair interactions, which amplify dynamically.
     @static if v"1.10" <= VERSION < v"1.11"
-        @test res.data ≈ [0.048921434630783356; 0.210889224234417; -0.008510613962195454; 0.0015281806623530139; 0.0017370496602666513;;]
+        @test res.data ≈ [0.07024999729427889; 0.3789922833067086; 0.030874420326198797; 0.019063538871308898; 0.046744509745178346;;]
     elseif v"1.11" <= VERSION
-        @test res.data ≈ [0.047614832748034186; 0.24767988465544913; 0.01779072121898864; 0.0037208693822031644; 0.014790643152215031;;]
+        @test res.data ≈ [0.057576728058578996; 0.291813812342436; 0.006207013162191793; 0.0019171217111500483; 0.009779731118622022;;]
     end
 end
 
