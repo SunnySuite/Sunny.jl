@@ -85,6 +85,12 @@ function to_standard_rlu(sys::System, q_reshaped)
     return orig_crystal(sys).recipvecs \ (sys.crystal.recipvecs * q_reshaped)
 end
 
+# Given q in reciprocal lattice units (RLU) for the original crystal, return a
+# q_reshaped in RLU for the possibly-reshaped crystal.
+function to_reshaped_rlu(sys::System, q)
+    return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
+end
+
 function dynamical_matrix(swt::SpinWaveTheory, q_reshaped)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
