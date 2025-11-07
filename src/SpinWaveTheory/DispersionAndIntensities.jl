@@ -88,7 +88,7 @@ Each branch will contribute ``L`` excitations, where ``L`` is the number of
 spins in the magnetic cell. This yields a total of ``3L`` excitations for a
 given momentum transfer ``𝐪``.
 """
-function excitations!(T, tmp, swt::SpinWaveTheory, q_reshaped)
+function _excitations_imp!(T, tmp, swt::SpinWaveTheory, q_reshaped)
     L = nbands(swt)
     size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
 
@@ -99,6 +99,14 @@ function excitations!(T, tmp, swt::SpinWaveTheory, q_reshaped)
     catch _
         rethrow(ErrorException("Not an energy-minimum; wavevector q = $q unstable."))
     end
+end
+
+function excitations!(T, tmp, swt::SpinWaveTheory, reshaped_rlu, q)
+    return _excitations_imp!(T, tmp, swt, reshaped_rlu * q)
+end
+
+function excitations!(T, tmp, swt::SpinWaveTheory, q)
+    return _excitations_imp!(T, tmp, swt, to_reshaped_rlu(swt.sys, q))
 end
 
 """
@@ -176,7 +184,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
-        view(disp, :, iq) .= view(excitations!(T, H, swt, reshaped_rlu * q), 1:L)
+        view(disp, :, iq) .= view(excitations!(T, H, swt, reshaped_rlu, q), 1:L)
 
         for i in 1:Na, μ in 1:Nobs
             r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
