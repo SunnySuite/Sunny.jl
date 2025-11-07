@@ -88,11 +88,10 @@ Each branch will contribute ``L`` excitations, where ``L`` is the number of
 spins in the magnetic cell. This yields a total of ``3L`` excitations for a
 given momentum transfer ``𝐪``.
 """
-function excitations!(T, tmp, swt::SpinWaveTheory, q)
+function excitations!(T, tmp, swt::SpinWaveTheory, q_reshaped)
     L = nbands(swt)
     size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
 
-    q_reshaped = to_reshaped_rlu(swt.sys, q)
     dynamical_matrix!(tmp, swt, q_reshaped)
 
     try
@@ -171,10 +170,13 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     Avec_pref = zeros(ComplexF64, Nobs, Na)
     disp = zeros(Float64, L, Nq)
     intensity = zeros(eltype(measure), L, Nq)
+    # Given q in reciprocal lattice units (RLU) for the original crystal, return a
+    # q_reshaped in RLU for the possibly-reshaped crystal.
+    reshaped_rlu = inv(2π) * sys.crystal.latvecs' * orig_crystal(sys).recipvecs
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
-        view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
+        view(disp, :, iq) .= view(excitations!(T, H, swt, reshaped_rlu * q), 1:L)
 
         for i in 1:Na, μ in 1:Nobs
             r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
