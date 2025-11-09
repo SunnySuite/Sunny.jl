@@ -135,6 +135,18 @@ end
     sc_merged = merge_correlations([sc1, sc2])
     @test sc0.data ≈ sc_merged.data
     @test sc0.M ≈ sc_merged.M
+
+    # Test merging on SampledCorrelationStatic
+    sys = System(Sunny.bcc_crystal(), [1 => Moment(; s=1/2, g=2)], :dipole; dims=(2, 2, 2))
+    sc1 = Sunny.SampledCorrelationsStatic(sys; measure=ssf_perp(sys))
+    sc2 = Sunny.SampledCorrelationsStatic(sys; measure=ssf_perp(sys))
+    sc1.parent.data .= 1.0
+    sc1.parent.nsamples = 1
+    sc2.parent.data .= 1.0
+    sc2.parent.nsamples = 1
+
+    sc_merged = merge_correlations([sc1, sc2])
+    @test all(≈(1.0), sc_merged.parent.data)
 end
 
 @testitem "Sampled correlations reference" begin
