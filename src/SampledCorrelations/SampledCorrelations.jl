@@ -115,6 +115,10 @@ function clone_correlations(sc::SampledCorrelations)
     )
 end
 
+function clone_correlations(sc::SampledCorrelationsStatic)
+    return SampledCorrelationsStatic(clone_correlations(sc.parent))
+end
+
 """
     merge_correlations(scs::Vector{SampledCorrelations)
 

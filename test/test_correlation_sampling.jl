@@ -147,6 +147,11 @@ end
 
     sc_merged = merge_correlations([sc1, sc2])
     @test all(≈(1.0), sc_merged.parent.data)
+
+    # Test clone_correlations for SampledCorrelationsStatic
+    sc_merged_copy = clone_correlations(sc_merged)
+    @test sc_merged_copy.parent.nsamples ≈ sc_merged.parent.nsamples ≈ 2
+    @test all(≈(1.0), sc_merged_copy.parent.data)
 end
 
 @testitem "Sampled correlations reference" begin
