@@ -27,6 +27,24 @@ mutable struct SampledCorrelations
     const corr_ifft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned time IFFT for corrbuf 
 end
 
+function Base.show(io::IO, ::SampledCorrelations)
+    print(io, "SampledCorrelations")
+    # TODO: Add correlation info?
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
+    (; crystal, nsamples) = sc
+    nω = round(Int, size(sc.data)[7]/2)
+    sys_dims = size(sc.data[4:6])
+    printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
+    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
+    print(io,"[")
+    printstyled(io,"S(q,ω)"; bold=true)
+    print(io," | nω = $nω, Δω = $(round(sc.Δω, digits=4))")
+    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
+    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
+end
+
 function Base.getproperty(sc::SampledCorrelations, sym::Symbol)
     return sym == :sys_dims ? size(sc.samplebuf)[2:4] : getfield(sc, sym)
 end
@@ -39,6 +57,41 @@ function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
     else
         setfield!(sc, sym, val)
     end
+end
+
+"""
+    SampledCorrelationsStatic(sys::System; measure)
+
+An object to accumulate samples of static pair correlations. It is similar to
+[`SampledCorrelations`](@ref), but no time-integration will be performed on
+calls to [`add_sample!`](@ref). The resulting object can be used with
+[`intensities_static`](@ref) to calculate statistics from the classical
+Boltzmann distribution. Dynamical [`intensities`](@ref) data, however, will be
+unavailable. Similarly, classical-to-quantum corrections that rely on the
+excitation spectrum cannot be performed.
+"""
+struct SampledCorrelationsStatic
+    parent :: SampledCorrelations
+end
+
+function SampledCorrelationsStatic(sys::System; measure, calculate_errors=false)
+    parent = SampledCorrelations(sys; measure, energies=nothing, dt=NaN, calculate_errors)
+    return SampledCorrelationsStatic(parent)
+end
+
+function Base.show(io::IO, ::SampledCorrelationsStatic)
+    print(io, "SampledCorrelationsStatic")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelationsStatic)
+    (; crystal, nsamples) = sc.parent
+    sys_dims = size(sc.parent.data[4:6])
+    printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
+    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
+    print(io,"[")
+    printstyled(io,"S(q)"; bold=true)
+    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
+    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end
 
 """
@@ -62,6 +115,10 @@ function clone_correlations(sc::SampledCorrelations)
     )
 end
 
+function clone_correlations(sc::SampledCorrelationsStatic)
+    return SampledCorrelationsStatic(clone_correlations(sc.parent))
+end
+
 """
     merge_correlations(scs::Vector{SampledCorrelations)
 
@@ -83,6 +140,12 @@ function merge_correlations(scs::Vector{SampledCorrelations})
     end
     sc_merged
 end
+
+function merge_correlations(scs::Vector{SampledCorrelationsStatic})
+    sc_merged = merge_correlations([sc.parent for sc in scs]) 
+    return SampledCorrelationsStatic(sc_merged)
+end
+
 
 # Determine a step size and down sampling factor that results in precise
 # satisfaction of user-specified energy values.
@@ -203,58 +266,4 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
                              samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
     return sc
-end
-
-"""
-    SampledCorrelationsStatic(sys::System; measure)
-
-An object to accumulate samples of static pair correlations. It is similar to
-[`SampledCorrelations`](@ref), but no time-integration will be performed on
-calls to [`add_sample!`](@ref). The resulting object can be used with
-[`intensities_static`](@ref) to calculate statistics from the classical
-Boltzmann distribution. Dynamical [`intensities`](@ref) data, however, will be
-unavailable. Similarly, classical-to-quantum corrections that rely on the
-excitation spectrum cannot be performed.
-"""
-struct SampledCorrelationsStatic
-    parent :: SampledCorrelations
-end
-
-function SampledCorrelationsStatic(sys::System; measure, calculate_errors=false)
-    parent = SampledCorrelations(sys; measure, energies=nothing, dt=NaN, calculate_errors)
-    return SampledCorrelationsStatic(parent)
-end
-
-function Base.show(io::IO, ::SampledCorrelations)
-    print(io, "SampledCorrelations")
-    # TODO: Add correlation info?
-end
-
-function Base.show(io::IO, ::SampledCorrelationsStatic)
-    print(io, "SampledCorrelationsStatic")
-end
-
-
-function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
-    (; crystal, nsamples) = sc
-    nω = round(Int, size(sc.data)[7]/2)
-    sys_dims = size(sc.data[4:6])
-    printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
-    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
-    print(io,"[")
-    printstyled(io,"S(q,ω)"; bold=true)
-    print(io," | nω = $nω, Δω = $(round(sc.Δω, digits=4))")
-    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
-end
-
-function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelationsStatic)
-    (; crystal, nsamples) = sc.parent
-    sys_dims = size(sc.parent.data[4:6])
-    printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
-    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
-    print(io,"[")
-    printstyled(io,"S(q)"; bold=true)
-    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end
