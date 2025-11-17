@@ -620,7 +620,7 @@ rescaling.
 function set_spin_rescaling_for_static_sum_rule!(sys::System{N}) where N
     iszero(N) || error("Quantum dipole amplification requires :dipole or :dipole_uncorrected mode")
     for site in eachsite(sys)
-        s = sys.κs[site]
+        s = (sys.Ns[site]-1)/2
         sys.κs[site] = sqrt(s*(s+1))
         set_dipole!(sys, sys.dipoles[site], site)
     end
