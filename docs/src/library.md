@@ -89,6 +89,7 @@ set_onsite_coupling!
 set_onsite_coupling_at!
 set_pair_coupling!
 set_pair_coupling_at!
+set_spin_s_at!
 set_spin_rescaling!
 set_spin_rescaling_for_static_sum_rule!
 set_vacancy_at!

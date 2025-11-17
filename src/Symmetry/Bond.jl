@@ -29,6 +29,10 @@ function BondPos(cryst::Crystal, b::Bond)
     return BondPos(cryst.positions[b.i], cryst.positions[b.j]+b.n)
 end
 
+function Base.show(io::IO, b::Bond)
+    print(io, "Bond($(b.i), $(b.j), $(b.n))")
+end
+
 # The displacement vector ``𝐫_j - 𝐫_i`` in global coordinates between atoms
 # `b.i` and `b.j`, accounting for the integer offsets `b.n` between unit cells.
 function global_displacement(cryst::Crystal, b::BondPos)

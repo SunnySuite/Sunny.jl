@@ -18,12 +18,14 @@ end
     spin_matrices(s)
 
 Returns a triple of ``N×N`` spin matrices, where ``N = 2s+1``. These are the
-generators of SU(2) in the spin-`s` representation.
+generators of SU(2) in the spin-`s` representation. Any polynomial of these
+matrices can be passed to [`set_onsite_coupling!`](@ref).
 
 If `s == Inf`, then the return values are abstract symbols denoting
-infinite-dimensional matrices that commute. These can be useful for repeating
-historical studies, or modeling micromagnetic systems. A technical discussion
-appears in the Sunny documentation page: [Interaction Renormalization](@ref).
+infinite-dimensional operators that commute. This representation avoids
+quantum-to-classical renormalization factors, and is needed when the
+[`System`](@ref) is in `:dipole_uncorrected` mode. The documentation page
+[Interaction Renormalization](@ref) provides technical discussion.
 
 # Example
 ```julia

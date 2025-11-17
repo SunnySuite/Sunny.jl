@@ -202,3 +202,45 @@ end
     E_large_s = energy(sys)
     @test E_large_s ≈ biquad * (sys.dipoles[1]' * sys.dipoles[2])^2
 end
+
+@testitem "Inhomogeneous spin s" begin
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
+    positions = [[0, 0, 0], [0, 0, 0.5]]
+    cryst = Crystal(latvecs, positions, 1)
+
+    sys = System(cryst, [1 => Moment(; s=1, g=2), 2 => Moment(; s=3/2, g=2)], :dipole)
+    randomize_spins!(sys)
+
+    set_onsite_coupling!(sys, S -> S[3]^2, 1)
+    set_onsite_coupling!(sys, S -> S[3]^2, 2)
+    set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+    E = energy(sys)
+
+    # Energy is unchanged with to_inhomogeneous
+    sys2 = to_inhomogeneous(sys)
+    @test energy(sys2) ≈ E
+
+    # Same energy can be obtained by setting inhomogeneous interactions
+    sys3 = System(cryst, [1 => Moment(; s=1, g=2), 2 => Moment(; s=3/2, g=2)], :dipole)
+    sys3 = to_inhomogeneous(sys3)
+    sys3.dipoles .= sys.dipoles
+    set_onsite_coupling_at!(sys3, S -> S[3]^2, (1, 1, 1, 1))
+    set_onsite_coupling_at!(sys3, S -> S[3]^2, (1, 1, 1, 2))
+    set_exchange_at!(sys3, 1.0, (1, 1, 1, 1), (1, 1, 1, 2); offset=(0, 0, 0))
+    @test energy(sys3) ≈ E
+
+    # Calling `set_spin_s_at!` will remove onsite coupling but it can be
+    # restored
+    sys4 = System(cryst, [1 => Moment(; s=2, g=2), 2 => Moment(; s=3/2, g=2)], :dipole)
+    for site in eachsite(sys4)
+        set_dipole!(sys4, sys.dipoles[site], site)
+    end
+    set_onsite_coupling!(sys4, S -> S[3]^2, 1)
+    set_onsite_coupling!(sys4, S -> S[3]^2, 2)
+    set_exchange!(sys4, 1.0, Bond(1, 2, [0, 0, 0]))
+    sys4 = to_inhomogeneous(sys4)
+    msg = "Removing onsite coupling at site (1, 1, 1, 1)."
+    @test_logs (:warn, msg) set_spin_s_at!(sys4, 1.0, (1, 1, 1, 1))
+    set_onsite_coupling_at!(sys4, S -> S[3]^2, (1, 1, 1, 1))
+    @test energy(sys4) ≈ E
+end
