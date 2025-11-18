@@ -22,10 +22,9 @@ generators of SU(2) in the spin-`s` representation. Any polynomial of these
 matrices can be passed to [`set_onsite_coupling!`](@ref).
 
 If `s == Inf`, then the return values are abstract symbols denoting
-infinite-dimensional operators that commute. This representation avoids
-quantum-to-classical renormalization factors, and is needed when the
-[`System`](@ref) is in `:dipole_uncorrected` mode. The documentation page
-[Interaction Renormalization](@ref) provides technical discussion.
+infinite-dimensional operators that commute. This representation is needed when
+the [`System`](@ref) is in `:dipole_uncorrected` mode. See the documentation
+page [Interaction Renormalization](@ref) for technical discussion.
 
 # Example
 ```julia

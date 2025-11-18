@@ -1,7 +1,6 @@
 @testitem "Energy consistency" begin
     include("shared.jl")
 
-
     function make_system(; mode, inhomog)
         cryst = Sunny.diamond_crystal()
         sys = System(cryst, [1 => Moment(s=2, g=2)], mode; dims=(2, 2, 2), seed=0)
@@ -34,7 +33,6 @@
         end
     end
 
-
     # Tests that SphericalMidpoint conserves energy to a certain tolerance.
     function test_conservation(sys)
         NITERS = 1500
@@ -53,10 +51,8 @@
         ΔE = (maximum(energies) - minimum(energies)) / sqrt_size
         @test ΔE < 1e-3
     end
-
     test_conservation(make_system(; mode=:SUN, inhomog=false))
     test_conservation(make_system(; mode=:dipole, inhomog=true))
-
 
     # Tests that energy deltas are consistent with total energy
     function test_delta(sys)
@@ -76,7 +72,6 @@
             @test isapprox(ΔE, ΔE_ref; atol=1e-12)
         end
     end
-
     test_delta(make_system(; mode=:SUN, inhomog=true))
     test_delta(make_system(; mode=:dipole, inhomog=false))
 end

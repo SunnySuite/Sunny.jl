@@ -110,7 +110,7 @@ function of the local spin operators, as a polynomial of
 [`spin_matrices`](@ref), or as a linear combination of
 [`stevens_matrices`](@ref).
 
-In `:dipole` mode, the onsite couplings are subject to a quantum-to-classical
+In `:dipole` mode, the onsite couplings are subject to a classical-to-quantum
 renormalization. This procedure is designed so that local operators in `:dipole`
 and `:SUN` modes coincide when acting on spin states in the dipolar sector. Use
 `:dipole_uncorrected` mode to disable this renormalization. See the
