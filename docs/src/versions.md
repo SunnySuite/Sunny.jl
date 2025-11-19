@@ -17,10 +17,11 @@
   cell will error rather than give a wrong result.
 * When loading a CIF or mCIF, the precision parameter `symprec` becomes optional
   ([#413](@ref)).
-* Tune [`minimize_energy!`](@ref) parameters for enhanced robustness. A small
-  perturbation to the initial spin state breaks artificial symmetries
-  ([#442](@ref)). The return value becomes a struct that stores optimization
-  statistics ([#430](@ref)).
+* Various enhancements to [`minimize_energy!`](@ref). A small perturbation to
+  the initial spin state breaks accidental symmetries ([#442](@ref)). The return
+  value becomes a struct that stores optimization statistics ([#430](@ref)).
+  Convergence to the local minimum becomes faster and more robust
+  ([#453](@ref)).
 * Fixes to [`load_nxs`](@ref) ([#420](@ref)).
 * Add `interpolate` option to [`plot_intensities`](@ref). Selecting
   `interpolate=true` will significantly reduce file sizes of PDF exports

@@ -10,65 +10,112 @@
 # exchange constants and ``g``-factors. Including this disorder introduces
 # broadening of the spin wave spectrum.
 
-using Sunny, GLMakie, LinearAlgebra
-import Random
+using Sunny, GLMakie
 
-# Setup
-i = 23
-for i in 1:50
-    @show i
-    Random.seed!(i)
+# Set up minimal triangular lattice system. Include antiferromagnetic exchange
+# interactions between nearest neighbor bonds. An optional `seed` for random
+# number generation makes the calculations exactly reproducible on a fixed Julia
+# version.
 
-    latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
-    cryst = Crystal(latvecs, [[0, 0, 0]])
-    sys = System(cryst, [1 => Moment(s=1/2, g=1)], :dipole; dims=(3, 3, 1))
-    set_exchange!(sys, +1.0, Bond(1, 1, [1,0,0]))
+latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
+cryst = Crystal(latvecs, [[0, 0, 0]])
+sys = System(cryst, [1 => Moment(s=1/2, g=1)], :dipole; dims=(3, 3, 1), seed=0)
+set_exchange!(sys, +1.0, Bond(1, 1, [1,0,0]))
 
-    randomize_spins!(sys)
-    minimize_energy!(sys; g_abstol=1e-10).iterations |> println
-    # @show Sunny.minimize_energy2!(sys)
+# Energy minimization yields the magnetic ground state with 120° angles between
+# spins in triangular plaquettes.
 
-    sys_inhom = to_inhomogeneous(repeat_periodically(sys, (10, 10, 1)))
+randomize_spins!(sys)
+minimize_energy!(sys)
+plot_spins(sys; color=[S[3] for S in sys.dipoles], ndims=2)
 
-    for (site1, site2, offset) in symmetry_equivalent_bonds(sys_inhom, Bond(1, 1, [1, 0, 0]))
-        noise = randn()/3
-        set_exchange_at!(sys_inhom, 1.0 + noise, site1, site2; offset)
-    end
+# Select a ``𝐪``-space path for the spin wave calculations.
 
-    # randomize_spins!(sys_inhom)
-    minimize_energy!(sys_inhom; g_abstol=1e-10, maxiters=2_000).iterations |> println
+qs = [[0, 0, 0], [1/3, 1/3, 0], [1/2, 0, 0], [0, 0, 0]]
+labels = ["Γ", "K", "M", "Γ"]
+path = q_space_path(cryst, qs, 150; labels)
 
-    set_field!(sys_inhom, [0, 0, 7.5])
-    randomize_spins!(sys_inhom)
-    minimize_energy!(sys_inhom).iterations |> println
+# Perform a traditional spin wave calculation. The spectrum shows sharp modes
+# associated with coherent excitations about the K-point ordering wavevector,
+# ``𝐪 = [1/3, 1/3, 0]``.
 
-    for site in eachsite(sys_inhom)
-        noise = randn()/6
-        sys_inhom.gs[site] = [1 0 0; 0 1 0; 0 0 1+noise]
-    end
+kernel = lorentzian(fwhm=0.4)
+energies = range(0.0, 3.0, 150)
+swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
+res = intensities(swt, path; energies, kernel)
+plot_intensities(res)
 
-    randomize_spins!(sys_inhom)
-    minimize_energy!(sys_inhom).iterations |> println
-    # @show Sunny.minimize_energy2!(sys_inhom; maxiters=5_000)
-    # println(energy_per_site(sys_inhom))
+# Use [`repeat_periodically`](@ref) to enlarge the system by a factor of 10 in
+# each dimension. Use [`to_inhomogeneous`](@ref) to disable symmetry
+# constraints and allow for the addition of disordered interactions.
+
+sys_inhom = to_inhomogeneous(repeat_periodically(sys, (10, 10, 1)))
+
+# Iterate over all [`symmetry_equivalent_bonds`](@ref) for nearest neighbor
+# sites in the inhomogeneous system. Set the AFM exchange to include a noise
+# term that has a standard deviation of 1/3. The newly minimized energy
+# configuration allows for long wavelength modulations on top of the original
+# 120° order.
+
+for (site1, site2, offset) in symmetry_equivalent_bonds(sys_inhom, Bond(1, 1, [1, 0, 0]))
+    noise = randn(sys_inhom.rng)/3
+    set_exchange_at!(sys_inhom, 1.0 + noise, site1, site2; offset)
 end
 
-minimize_energy!(sys_inhom; subiters=30_000, maxiters=30_000)
-minimize_energy!(sys_inhom; maxiters=30_000)
+minimize_energy!(sys_inhom, maxiters=2_000)
+plot_spins(sys_inhom; color=[S[3] for S in sys_inhom.dipoles], ndims=2)
 
-s1 = reshape(copy(sys_inhom.dipoles), 30, 30)
+# Traditional spin wave theory with exact diagonalization becomes impractical
+# for large system sizes. Using [`SpinWaveTheoryKPM`](@ref), the cost of an
+# [`intensities`](@ref) calculation becomes _linear_ in the system size, with a
+# prefactor that inversely in the width of the line broadening `kernel`. Good
+# choices for the dimensionless error tolerance are `tol=0.05` (more speed) or
+# `tol=0.01` (more accuracy).
+#
+# Observe that disorder in the nearest-neighbor exchange serves to broaden the
+# discrete excitation bands into a continuum.
 
+swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
+res = intensities(swt, path; energies, kernel)
+plot_intensities(res)
 
-energies = map(range(0, 1.1, 100)) do c
-    @. sys_inhom.dipoles = 0.5 * normalize((1-c) * s0 + c * s1)
-    energy_per_site(sys_inhom)
+# Now apply a magnetic field of magnitude 7.5 (energy units) along the global
+# ``ẑ`` axis. This field fully polarizes the spins and opens a gap. The spin
+# wave spectrum shows a sharp mode at the Γ-point (zone center) that broadens
+# into a continuum along the K and M points (zone boundary).
+
+set_field!(sys_inhom, [0, 0, 7.5])
+randomize_spins!(sys_inhom)
+minimize_energy!(sys_inhom)
+
+energies = range(0.0, 9.0, 150)
+swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
+res = intensities(swt, path; energies, kernel)
+plot_intensities(res)
+
+# Add disorder to the ``z``-component of each magnetic moment ``g``-tensor. This
+# further broadens intensities, now across the entire path. Some intensity
+# modulation within the continuum is also apparent. This modulation is a
+# finite-size effect and would be mitigated by enlarging the system beyond 30×30
+# chemical cells.
+
+for site in eachsite(sys_inhom)
+    noise = randn(sys_inhom.rng)/6
+    sys_inhom.gs[site] = [1 0 0; 0 1 0; 0 0 1+noise]
 end
-plot(energies)
+randomize_spins!(sys_inhom)
+minimize_energy!(sys_inhom)
 
-heatmap(reshape([s[2] for s in s0], (30, 30)))
-heatmap(reshape([s[2] for s in s1], (30, 30)))
-heatmap(reshape([s[1] for s in (s1 - s0)], (30, 30)))
-heatmap(reshape([s[2] for s in (s1 - s0)], (30, 30)))
+swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
+res = intensities(swt, path; energies, kernel)
+plot_intensities(res)
 
-polarize_spins!(sys_inhom, [0, 0, -1])
-println(energy_per_site(sys_inhom))
+# For reference, the equivalent non-disordered system shows a single coherent
+# mode.
+
+set_field!(sys, [0, 0, 7.5])
+randomize_spins!(sys)
+minimize_energy!(sys)
+swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
+res = intensities(swt, path; energies, kernel)
+plot_intensities(res)
