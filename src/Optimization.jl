@@ -181,8 +181,10 @@ struct SpinManifold <: Optim.Manifold
     nspins :: Int  # Number of spins to normalize
 end
 
+optim_spin_view(sm::SpinManifold, x) = view(x, 1:(sm.nelems*sm.nspins))
+
 function Optim.retract!(sm::SpinManifold, x)
-    x′ = reshape(vec(x), sm.nelems, :)
+    x′ = reshape(optim_spin_view(sm, x), sm.nelems, :)
     for j in 1:sm.nspins
         xj = view(x′, :, j)
         xj ./= norm(xj)
@@ -191,8 +193,8 @@ function Optim.retract!(sm::SpinManifold, x)
 end
 
 function Optim.project_tangent!(sm::SpinManifold, g, x)
-    x = reshape(vec(x), sm.nelems, :)
-    g = reshape(vec(g), sm.nelems, :)
+    x = reshape(optim_spin_view(sm, x), sm.nelems, :)
+    g = reshape(optim_spin_view(sm, g), sm.nelems, :)
     for j in 1:sm.nspins
         xj = view(x, :, j)
         gj = view(g, :, j)
@@ -203,14 +205,14 @@ end
 
 function optim_load_spin_state!(sys::System{N}, x) where N
     if iszero(N)
-        x = reinterpret(reshape, Vec3, x)
-        for site in eachsite(sys)
-            set_dipole!(sys, x[site], site)
+        x = reinterpret(Vec3, view(x, 1:(3*nsites(sys))))
+        for (i, site) in enumerate(eachsite(sys))
+            set_dipole!(sys, x[i], site)
         end
     else
-        x = reinterpret(reshape, CVec{N}, x)
-        for site in eachsite(sys)
-            set_coherent!(sys, x[site], site)
+        x = reinterpret(CVec{N}, view(x, 1:(N*nsites(sys))))
+        for (i, site) in enumerate(eachsite(sys))
+            set_coherent!(sys, x[i], site)
         end
     end
 end
@@ -222,7 +224,7 @@ function optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_
         res = Optim.optimize(calc_f, calc_g!, x, method, options)
         x = Optim.minimizer(res)
         iters += Optim.iterations(res)
-        if iters >= maxiters || Optim.termination_code(res) != Optim.TerminationCode.FailedLinesearch
+        if Optim.converged(res) || iters >= maxiters
             return (res, iters)
         end
     end
@@ -251,10 +253,10 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
     # maximum or saddle).
     perturb_spins!(sys, δ)
 
-    if iszero(N)
-        x = collect(reinterpret(reshape, Float64, normalize_or_fallback.(sys.dipoles)))
+    x = if iszero(N)
+        collect(vec(reinterpret(Float64, normalize_or_fallback.(sys.dipoles))))
     else
-        x = collect(reinterpret(reshape, ComplexF64, normalize_or_fallback.(sys.coherents)))
+        collect(vec(reinterpret(ComplexF64, normalize_or_fallback.(sys.coherents))))
     end
 
     # Energy and gradient callback functions
@@ -265,14 +267,15 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
     function calc_g!(g, x)
         optim_load_spin_state!(sys, x)
         if iszero(N)
-            g = reinterpret(reshape, Vec3, g)
+            g = reshape(reinterpret(Vec3, g), size(sys.dipoles))
             set_energy_grad_dipoles!(g, sys.dipoles, sys)
-            @. g *= norm(sys.dipoles)   # Convert to sensitivity in scaled spin
+            @. g *= norm(sys.dipoles)   # Sensitivity to change in unit spin
         else
-            g = reinterpret(reshape, CVec{N}, g)
+            g = reshape(reinterpret(CVec{N}, g), size(sys.coherents))
             set_energy_grad_coherents!(g, sys.coherents, sys)
-            @. g *= norm(sys.coherents) # Convert to sensitivity in scaled spin
+            @. g *= norm(sys.coherents) # Sensitivity to change in unit ket
         end
+        return nothing
     end
 
     # Disable check on the energy f, because we require high precision in the
