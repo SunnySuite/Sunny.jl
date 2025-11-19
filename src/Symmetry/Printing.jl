@@ -160,7 +160,7 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
         ri = cryst.positions[b.i]
         rj = cryst.positions[b.j] + b.n
 
-        printstyled(io, "Bond($(b.i), $(b.j), $(b.n))"; bold=true, color=:underline)
+        printstyled(io, repr(b); bold=true, color=:underline)
         println(io)
         (m_i, m_j) = (coordination_number(cryst, b.i, b), coordination_number(cryst, b.j, b))
         dist_str = number_to_simple_string(global_distance(cryst, b); digits=10)

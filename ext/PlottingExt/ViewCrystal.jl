@@ -578,8 +578,7 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndim
         bonds = propagate_reference_bond_for_cell(cryst, refbond)
         color = fill(set_alpha(bond_color, 0.25), length(bonds))
         draw_bonds(; ax, visible=toggle.active, ionradius, exchange_mag, cryst, interactions, bonds, refbond, color)
-        bondstr = "Bond($(refbond.i), $(refbond.j), $(refbond.n))"
-        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
+        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(refbond); fontsize, halign=:left)]
     end
 
     # Show cell volume
