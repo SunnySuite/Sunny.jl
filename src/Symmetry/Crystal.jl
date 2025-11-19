@@ -351,42 +351,6 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     return ret
 end
 
-
-function is_spacegroup_type_consistent(sgt, latvecs)
-    cell = cell_type(latvecs)
-    hall_cell = cell_type(Int(sgt.hall_number))
-
-    if hall_cell == monoclinic
-        # Special handling of monoclinic space groups. There are three possible
-        # conventions for the unit cell, depending on which of α, β, or γ is
-        # special.
-        _, _, _, α, β, γ = lattice_params(latvecs)
-        choice = first(replace(sgt.choice, "-" => ""))
-        if (β ≈ 90) && (γ ≈ 90)
-            expected_choice = 'a'
-        elseif (α ≈ 90) && (γ ≈ 90)
-            expected_choice = 'b'
-        elseif (α ≈ 90) && (β ≈ 90)
-            expected_choice = 'c'
-        end
-        if choice != expected_choice
-            choice_to_index = Dict{Char,Int}('a' => 2, 'b' => 3, 'c' => 4)
-            suggest_sg = split(sgt.international_full)
-            i, j = choice_to_index[choice], choice_to_index[expected_choice]
-            suggest_sg[i], suggest_sg[j] = suggest_sg[j], suggest_sg[i]
-            suggest_sg = join(suggest_sg, ' ')
-            @warn "expected unique-axis based on spacegroup ($(expected_choice)) conflicts with unique-axis based on lattice vectors ($(choice)), suggested spacegroup: $(suggest_sg)."
-            return false
-        else
-            return true
-        end
-
-    else
-        return cell in all_compatible_cells(hall_cell)
-    end
-end
-
-
 function validate_positions(positions::Vector{Vec3}; symprec)
     for i in eachindex(positions), j in i+1:length(positions)
         ri, rj = positions[[i, j]]

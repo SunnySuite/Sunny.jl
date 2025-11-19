@@ -18,75 +18,93 @@ function all_spacegroup_types_for_symbol(symbol::String)
     return ret
 end
 
-function suggestion_to_disambiguate_symbol(symbol)
-    sgts = all_spacegroup_types_for_symbol(symbol)
-    numbers = [sgt.number for sgt in sgts]
+function suggest_alternative_symbols(sgts)
     short_symbols = [sgt.international_short for sgt in sgts]
     full_symbols = [sgt.international_full for sgt in sgts]
     choices = [sgt.choice for sgt in sgts]
-    number = only(unique(numbers))
+    mark_std = [is_hall_number_standard(sgt.hall_number) ? " (standard)" : "" for sgt in sgts]
 
-    function options_str(symbols)
-        symbols = repr.(symbols)
-        symbols[1] = symbols[1] * " (standard)"
-        return join(symbols, ", ")
-    end
     if allunique(short_symbols)
         # Short symbols preferred when unambiguous. For example, spacegroup 49
         # is better written "Pccm" than "P 2/c 2/c 2/m".
-        "Spacegroup $number admits settings: " * options_str(short_symbols)
+        return join(repr.(short_symbols) .* mark_std, " or ")
     elseif allunique(full_symbols)
         # Sometimes full symbol is needed. Spacegroup 5 is abbreviated "C2", but
         # requires "C 1 2 1", "A 1 2 1", ... to disambiguate.
-        "Spacegroup $number admits settings: " * options_str(full_symbols)
+        return join(repr.(full_symbols) .* mark_std, " or ")
     else
-        # Origin choice "1" or "2" is sufficient to disambiguate
+        # The only remaining ambiguity is origin choice
         @assert choices == ["1", "2"]
-        @assert all(sgt -> in(sgt.number, standard_setting_differs_in_spglib), sgts)
-        "Spacegroup $number admits origin shifts: choice=\"2\" (standard) or choice=\"1\""
+        return "choice=\"2\" (standard) or choice=\"1\""
     end
 end
 
 # Get the single SpacegroupType associated with symbol that is valid for
-# latvecs. Throw an error if the setting is ambiguous.
+# latvecs. Throw an informative error if the setting is ambiguous.
 function unique_spacegroup_type(symbol, latvecs; choice=nothing)
-    if symbol isa Int && isnothing(choice)
-        # If only spacegroup number provided, then use ITA standard setting
-        sgts = [all_spacegroup_types[standard_setting[symbol]]]
-    else
-        # Otherwise, look up all possible spacegroups and filter by `choice`
-        sgts = all_spacegroup_types_for_symbol(symbol)
-        if !isnothing(choice)
-            sgts = filter(sgts) do sgt
-                sgt.choice == choice
-            end
-            isempty(sgts) && error("Unknown setting choice \"$choice\" for spacegroup $symbol")
-            @assert length(sgts) == 1
+    # All settings for symbol
+    sgts = all_spacegroup_types_for_symbol(symbol)
+    number = only(unique(sgt.number for sgt in sgts))
+    hall_std = standard_setting[number]
+
+    # Filter by `choice` if provided
+    if !isnothing(choice)
+        sgts = filter(sgts) do sgt
+            sgt.choice == choice
+        end
+        isempty(sgts) && error("Unknown setting choice \"$choice\" for spacegroup $symbol")
+        @assert length(sgts) == 1
+    end
+
+    # Filter by compatibility of lattice system
+    cell = cell_type(latvecs)
+    allowed_cells = unique(cell_type.(sgts))
+    sgts = filter(sgts) do sgt
+        return cell in all_compatible_cells(cell_type(sgt))
+    end
+    if isempty(sgts)
+        expected = join(repr.(allowed_cells), " or ")
+        error("Expected $expected lattice system but got $cell.")
+    end
+
+    # For monoclinic lattice systems, filter by axis setting
+    if cell_type(hall_std) == monoclinic
+        _, _, _, α, β, γ = lattice_params(latvecs)
+        letter = if β≈90 && γ≈90
+            'a'
+        elseif α≈90 && γ≈90
+            'b'
+        else @assert α≈90 && β≈90
+            'c'
+        end
+        sgts = filter(sgts) do sgt
+            return letter == first(replace(sgt.choice, "-" => ""))
+        end
+        if isempty(sgts)
+            error("Incompatible monoclinic axis setting $letter for symbol \"$symbol\"")
         end
     end
 
-    # Validate lattice vectors to give a good error message
-    cell = cell_type(latvecs)
-    hall_cells = [cell_type(Int(sgt.hall_number)) for sgt in sgts]
-    compatible_cells = union(all_compatible_cells.(hall_cells)...)
-    if !(cell in compatible_cells)
-        expected = join(repr.(unique(hall_cells)), " or ")
-        error("Expected $expected cell but found $cell.")
-    end
-
-    # Check consistency with shape of latvecs
-    sgts = filter(sgts) do sgt
-        is_spacegroup_type_consistent(sgt, latvecs)
-    end
-    if isempty(sgts)
-        error("Incompatible $cell cell shape")
-    end
-
-    if length(sgts) == 1
-        return only(sgts)
-    elseif length(sgts) > 1
-        @assert isnothing(choice)
-        error(suggestion_to_disambiguate_symbol(symbol))
+    if symbol isa Integer && isnothing(choice)
+        # If symbol is provided as an integer spacegroup number (without a
+        # setting choice), then return the ITA standard setting if compatible.
+        # Otherwise, error.
+        if hall_std in (sgt.hall_number for sgt in sgts)
+            return all_spacegroup_types[hall_std]
+        else
+            alt = suggest_alternative_symbols(sgts)
+            error("Cell is nonstandard for spacegroup $number; consider $alt")
+        end
+    else
+        # If there is an unambiguous setting for this symbol, return it.
+        # Otherwise, error.
+        if length(sgts) == 1
+            return only(sgts)
+        else
+            @assert isnothing(choice)
+            alt = suggest_alternative_symbols(sgts)
+            error("Symbol \"$symbol\" is ambiguous; consider $alt")
+        end
     end
 end
 
@@ -143,6 +161,11 @@ end
 # Map a Hall number to the standard setting as a Hall number
 function standard_setting_for_hall_number(hall_number)
     standard_setting[all_spacegroup_types[hall_number].number]
+end
+
+# Is the Hall number an ITA standard setting?
+function is_hall_number_standard(hall_number)
+    hall_number == standard_setting_for_hall_number(hall_number)
 end
 
 # For each Hall number 1..530, a string representation of the affine
@@ -315,6 +338,7 @@ function cell_type(hall_number::Int)
         error("Invalid Hall number $hall_number. Allowed range is 1..530")
     end
 end
+cell_type(sgt::Spglib.SpacegroupType) = cell_type(Int(sgt.hall_number))
 
 function is_trigonal_symmetry(hall_number::Int)
     return 430 <= hall_number <= 461

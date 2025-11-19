@@ -73,7 +73,7 @@ end
     # Using international symbol
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
     positions = [[1, 1, 1] / 4]
-    @test_throws "Spacegroup 227 admits origin shifts: choice=\"2\" (standard) or choice=\"1\"" Crystal(latvecs, positions, "F d -3 m")
+    @test_throws "Symbol \"F d -3 m\" is ambiguous; consider choice=\"2\" (standard) or choice=\"1\"" Crystal(latvecs, positions, "F d -3 m")
     cryst = Crystal(latvecs, positions, "F d -3 m"; choice="1")
     ref_bonds = reference_bonds(cryst, 2.)
     dist3 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
@@ -125,13 +125,13 @@ end
     mono_lat_params = (6, 7, 8, 90, 90, 40)
     latvecs = lattice_vectors(mono_lat_params...)
     positions = [[0,0,0]]
-    msg = "Spacegroup 5 admits settings: \"C 1 2 1\" (standard), \"A 1 2 1\", \"I 1 2 1\", \"A 1 1 2\", \"B 1 1 2\", \"I 1 1 2\", \"B 2 1 1\", \"C 2 1 1\", \"I 2 1 1\""
+    msg = "Symbol \"C2\" is ambiguous; consider \"A 1 1 2\" or \"B 1 1 2\" or \"I 1 1 2\""
     @test_throws msg Crystal(latvecs, positions, "C2")
     cryst = Crystal(latvecs, positions, "C 2/c"; choice="c1")
     @test cell_type(cryst) == Sunny.monoclinic
     @test Sunny.natoms(cryst) == 4
     @test all(lattice_params(cryst) .≈ mono_lat_params)
-    @test_throws "Incompatible monoclinic cell shape" Crystal(latvecs, positions, 5)
+    @test_throws "Cell is nonstandard for spacegroup 5; consider \"A 1 1 2\" or \"B 1 1 2\" or \"I 1 1 2\"" Crystal(latvecs, positions, 5)
     Crystal(latvecs, positions, "A 1 1 2") # No error
     Crystal(lattice_vectors(6, 7, 8, 90, 40, 90), positions, 5) # No error
 
