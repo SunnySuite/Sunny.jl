@@ -1,25 +1,27 @@
 module Sunny
 
 using LinearAlgebra
-import Statistics
-import StaticArrays: SVector, SMatrix, SArray, SA
-import OffsetArrays: OffsetArray
-import ElasticArrays: ElasticArray
-import SpecialFunctions: erf, erfc
-import FFTW
+
 import DynamicPolynomials as DP
+import ElasticArrays: ElasticArray
+import FFTW
+import HCubature: hcubature
+import JLD2
+import LineSearches
+import OffsetArrays: OffsetArray
+import Optim
 import Printf: Printf, @printf, @sprintf
 import Random: Random, randn!
-import Optim
-import JLD2
-import HCubature: hcubature
+import SpecialFunctions: erf, erfc
+import Statistics
+import StaticArrays: SVector, SMatrix, SArray, SA
 
 # Specific to Symmetry/
-import CrystalInfoFramework as CIF
-import Spglib
-import RowEchelon: rref!
-import MatInt
 import Brillouin
+import CrystalInfoFramework as CIF
+import MatInt
+import RowEchelon: rref!
+import Spglib
 
 include("MathBasics.jl")
 

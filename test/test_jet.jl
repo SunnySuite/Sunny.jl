@@ -8,7 +8,7 @@
         sys = System(crystal, [1 => Moment(s=1, g=2)], mode; dims=(L, L, 1))
 
         @test_opt energy(sys)
-        
+
         sampler = LocalSampler(kT=0.2, propose=propose_flip)
         @test_opt step!(sys, sampler)
 

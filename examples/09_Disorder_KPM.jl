@@ -62,7 +62,7 @@ for (site1, site2, offset) in symmetry_equivalent_bonds(sys_inhom, Bond(1, 1, [1
     set_exchange_at!(sys_inhom, 1.0 + noise, site1, site2; offset)
 end
 
-minimize_energy!(sys_inhom, maxiters=5_000)
+minimize_energy!(sys_inhom, maxiters=2_000)
 plot_spins(sys_inhom; color=[S[3] for S in sys_inhom.dipoles], ndims=2)
 
 # Traditional spin wave theory with exact diagonalization becomes impractical
@@ -104,7 +104,7 @@ for site in eachsite(sys_inhom)
     sys_inhom.gs[site] = [1 0 0; 0 1 0; 0 0 1+noise]
 end
 randomize_spins!(sys_inhom)
-minimize_energy!(sys_inhom, maxiters=5_000)
+minimize_energy!(sys_inhom)
 
 swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
 res = intensities(swt, path; energies, kernel)
