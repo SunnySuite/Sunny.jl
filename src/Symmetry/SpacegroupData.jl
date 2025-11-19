@@ -63,8 +63,8 @@ function unique_spacegroup_type(symbol, latvecs; choice=nothing)
         return cell in all_compatible_cells(cell_type(sgt))
     end
     if isempty(sgts)
-        expected = join(repr.(allowed_cells), " or ")
-        error("Expected $expected lattice system but got $cell.")
+        expected = join(string.(allowed_cells), " or ")
+        error("Expected $expected lattice system but got $cell")
     end
 
     # For monoclinic lattice systems, filter by axis setting
@@ -81,7 +81,7 @@ function unique_spacegroup_type(symbol, latvecs; choice=nothing)
             return letter == first(replace(sgt.choice, "-" => ""))
         end
         if isempty(sgts)
-            error("Incompatible monoclinic axis setting $letter for symbol \"$symbol\"")
+            error("Monoclinic axis choice ($letter) is incompatible with \"$symbol\"")
         end
     end
 

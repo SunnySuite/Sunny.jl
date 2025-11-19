@@ -50,9 +50,6 @@ end
 @testitem "Crystal Construction" begin
     using IOCapture
 
-    cell_type(cryst::Crystal) = Sunny.cell_type(cryst.latvecs)
-    lattice_params(cryst::Crystal) = Sunny.lattice_params(cryst.latvecs)
-
     ### Test construction of diamond lattice
 
     # Spglib inferred symmetry
@@ -102,60 +99,59 @@ end
     ### Triangular lattice, primitive unit cell
 
     c = 10
-    latvecs = [1 0 0;  -1/2 √3/2 0;  0 0 c]'
+    latvecs = [1 0 0; -1/2 √3/2 0; 0 0 c]'
+    @test collect(lattice_params(latvecs)) ≈ [1., 1., c, 90., 90., 120.]
+    @test Sunny.cell_type(latvecs) == Sunny.hexagonal
     positions = [[0, 0, 0]]
     cryst = Crystal(latvecs, positions)
-    @test cell_type(cryst) == Sunny.hexagonal
     @test Sunny.natoms(cryst) == 1
     @test Sunny.cell_volume(cryst) ≈ c * √3 / 2
-    @test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
     ### Kagome lattice
 
-    latvecs = [1 0 0;  -1/2 √3/2 0;  0 0 c]'
+    latvecs = [1 0 0; -1/2 √3/2 0; 0 0 c]'
     positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]
     cryst = Crystal(latvecs, positions)
-    @test cell_type(cryst) == Sunny.hexagonal
     @test Sunny.natoms(cryst) == 3
     @test Sunny.cell_volume(cryst) ≈ c * √3 / 2
-    @test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
     ### Arbitrary monoclinic
 
-    mono_lat_params = (6, 7, 8, 90, 90, 40)
-    latvecs = lattice_vectors(mono_lat_params...)
+    latvecs = lattice_vectors(6, 7, 8, 90, 90, 40)
+    @test Sunny.cell_type(latvecs) == Sunny.monoclinic
     positions = [[0,0,0]]
     msg = "Symbol \"C2\" is ambiguous; consider \"A 1 1 2\" or \"B 1 1 2\" or \"I 1 1 2\""
     @test_throws msg Crystal(latvecs, positions, "C2")
     cryst = Crystal(latvecs, positions, "C 2/c"; choice="c1")
-    @test cell_type(cryst) == Sunny.monoclinic
     @test Sunny.natoms(cryst) == 4
-    @test all(lattice_params(cryst) .≈ mono_lat_params)
     @test_throws "Cell is nonstandard for spacegroup 5; consider \"A 1 1 2\" or \"B 1 1 2\" or \"I 1 1 2\"" Crystal(latvecs, positions, 5)
+    @test_throws "Monoclinic axis choice (c) is incompatible with \"C 1 2 1\"" Crystal(latvecs, positions, "C 1 2 1")
     Crystal(latvecs, positions, "A 1 1 2") # No error
     Crystal(lattice_vectors(6, 7, 8, 90, 40, 90), positions, 5) # No error
 
     ### Arbitrary trigonal
 
     latvecs = lattice_vectors(5, 5, 6, 90, 90, 120)
+    @test Sunny.cell_type(latvecs) == Sunny.hexagonal
     positions = [[0,0,0]]
     cryst1 = Crystal(latvecs, positions, "P -3")
     @test Sunny.natoms(cryst1) == 1
-    @test cell_type(cryst1) == Sunny.hexagonal
     cryst2 = Crystal(latvecs, positions, "R -3")
     @test Sunny.natoms(cryst2) == 3
-    cryst3 = Crystal(latvecs, positions, 147) # spacegroup number
-    @test cell_type(cryst1) == cell_type(cryst2) == cell_type(cryst3) == Sunny.hexagonal
+    cryst3 = Crystal(latvecs, positions, 147) # same as "P -3"
+    @test Sunny.natoms(cryst3) == 1
+    msg = "Expected hexagonal or rhombohedral lattice system but got triclinic"
+    @test_throws msg Crystal(lattice_vectors(5, 5, 6, 90, 95, 120), positions, 148)
 
     ### Arbitrary triclinic
 
     latvecs = lattice_vectors(6, 7, 8, 70, 80, 90)
+    @test Sunny.cell_type(latvecs) == Sunny.triclinic
     positions = [[0,0,0]]
     cryst1 = Crystal(latvecs, positions, "P 1")
     @test Sunny.natoms(cryst1) == 1
     cryst2 = Crystal(latvecs, positions) # Infers 'P -1'
     @test Sunny.natoms(cryst1) == Sunny.natoms(cryst2) == 1
-    @test cell_type(cryst1) == cell_type(cryst2) == Sunny.triclinic
 
     ### Orthorhombic test, found by Ovi Garlea
 
@@ -220,6 +216,10 @@ end
     prim_latvecs = cryst.latvecs * primitive_cell(cryst)
     cryst2 = Crystal(prim_latvecs, [[0, 0, 0]], 160; choice="R")
     @test primitive_cell(cryst2) ≈ I
+
+    # Meaningful error if using spacegroup with non-default setting
+    @test_throws "Cell is nonstandard for spacegroup 160; consider \"R3m\"" Crystal(prim_latvecs, [[0, 0, 0]], 160)
+    @test_throws "Expected rhombohedral lattice system but got hexagonal" Crystal(latvecs, [[0, 0, 0]], 160; choice="R")
 
     # Check equivalence of positions
     @test norm(cryst.latvecs * cryst.positions[1]) < 1e-12
