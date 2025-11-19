@@ -113,20 +113,6 @@ function optim_set_gradient!(G, sys::System{N}, αs, ns) where N
     @. G = adjoint(vjp_stereographic_projection(G, αs, ns))  # G = dE/du du/dα = dE/dα
 end
 
-
-"""
-    minimize_energy!(sys::System; maxiters=1000, method=Optim.ConjugateGradient(),
-                     kwargs...)
-
-Optimizes the spin configuration in `sys` to minimize energy. A total of
-`maxiters` iterations will be attempted. The `method` parameter will be used in
-the `optimize` function of the [Optim.jl
-package](https://github.com/JuliaNLSolvers/Optim.jl). Any remaining `kwargs`
-will be included in the `Options` constructor of Optim.jl.
-
-Convergence status is stored in the field `ret.converged` of the return value
-`ret`. Additional optimization statistics are stored in the field `ret.data`.
-"""
 function minimize_energy2!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
                           subiters=10, δ=1e-8, kwargs...) where N
     # Perturbation of sufficient magnitude to "almost surely" push away from an
@@ -189,31 +175,71 @@ end
 
 
 struct SpinManifold <: Optim.Manifold
-    nelems :: Int  # Number of scalar components in each spin
-    nspins :: Int  # Number of spins to normalize
+    sys :: System
 end
 
+function rescale_to_magnitude(S, S0)
+    iszero(S0) ? zero(S) : normalize(S) * S0
+end
+function optim_retract_aux!(sys::System{0}, x)
+    x = reinterpret(reshape, Vec3, x)
+    @. x = rescale_to_magnitude(x, sys.κs)
+end
+function optim_retract_aux!(sys::System{N}, x) where N
+    x = reinterpret(reshape, CVec{N}, x)
+    @. x = rescale_to_magnitude(x, sqrt(sys.κs))
+end
 function Optim.retract!(sm::SpinManifold, x)
-    x′ = reshape(vec(x), sm.nelems, :)
-    for j in 1:sm.nspins
-        xj = view(x′, :, j)
-        xj ./= norm(xj)
-    end
+    optim_retract_aux!(sm.sys, x)
     return x
 end
 
+function optim_project_tangent_aux!(sys::System{0}, g, x)
+    g = reinterpret(reshape, Vec3, g)
+    x = reinterpret(reshape, Vec3, x)
+    @. g = proj(g, x)
+end
+function optim_project_tangent_aux!(sys::System{N}, g, x) where N
+    g = reinterpret(reshape, CVec{N}, g)
+    x = reinterpret(reshape, CVec{N}, x)
+    @. g = proj(g, x)
+end
 function Optim.project_tangent!(sm::SpinManifold, g, x)
-    x = reshape(vec(x), sm.nelems, :)
-    g = reshape(vec(g), sm.nelems, :)
-    for j in 1:sm.nspins
-        xj = view(x, :, j)
-        gj = view(g, :, j)
-        gj .= gj .- xj .* ((xj' * gj) / norm2(xj))
-    end
-    return nothing
+    optim_project_tangent_aux!(sm.sys, g, x)
+    return g
 end
 
+function characteristic_vector_scale(sys::System{0})
+    return sqrt(Statistics.mean(κ^2 for κ in sys.κs))
+end
+function characteristic_vector_scale(sys::System{N}) where N
+    return sqrt(Statistics.mean(κ for κ in sys.κs))
+end
 
+function optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
+    iters = 0
+    while true
+        options = Optim.Options(; iterations=maxiters-iters, options_args...)
+        res = Optim.optimize(calc_f, calc_g!, x, method, options)
+        x = Optim.minimizer(res)
+        iters += Optim.iterations(res)
+        if iters >= maxiters || Optim.termination_code(res) != Optim.TerminationCode.FailedLinesearch
+            return (res, iters)
+        end
+    end
+end
+
+"""
+    minimize_energy!(sys::System; maxiters=1000, kwargs...)
+
+Optimizes the spin configuration in `sys` to minimize energy. A total of
+`maxiters` iterations will be attempted. Any remaining `kwargs` will be included
+in the `Options` constructor of the [Optim.jl
+package](https://github.com/JuliaNLSolvers/Optim.jl)
+
+Convergence status is stored in the field `ret.converged` of the return value
+`ret`. Additional optimization statistics are stored in the field `ret.data`.
+"""
 function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) where N
     # Small perturbation to destabilize an accidental stationary point (local
     # maximum or saddle).
@@ -221,9 +247,9 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
 
     # Optimization variables are normalized spins or coherent states
     if iszero(N)
-        x = collect(reinterpret(reshape, Float64, normalize.(sys.dipoles)))
+        x = collect(reinterpret(reshape, Float64, sys.dipoles))
     else
-        x = collect(reinterpret(reshape, ComplexF64, normalize.(sys.coherents)))
+        x = collect(reinterpret(reshape, ComplexF64, sys.coherents))
     end
 
     function load_spin_state!(sys::System{0}, x)
@@ -249,12 +275,10 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
         if iszero(N)
             g = reinterpret(reshape, Vec3, g)
             set_energy_grad_dipoles!(g, sys.dipoles, sys)
-            @. g *= norm(sys.dipoles)
-            @. g = proj(g, sys.dipoles) # Should be redundant, but...
+            @. g = proj(g, sys.dipoles)
         else
             g = reinterpret(reshape, CVec{N}, g)
             set_energy_grad_coherents!(g, sys.coherents, sys)
-            @. g *= norm(sys.coherents)
             @. g = proj(g, sys.coherents)
         end
     end
@@ -262,14 +286,16 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
     # Disable check on the energy f, because we require high precision in the
     # dimensionless spin variables x. The checks x_abstol and g_abstol are in
     # the p=Inf norm (largest vector component).
-    x_abstol = 1e-12
-    g_abstol = 1e-12 * characteristic_energy_scale(sys)
-    manifold = SpinManifold(iszero(N) ? 3 : N, length(eachsite(sys)))
-    method = Optim.ConjugateGradient(; manifold)
-    options = Optim.Options(; iterations=maxiters, g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
-    res = Optim.optimize(calc_f, calc_g!, x, method, options)
+    E0 = characteristic_energy_scale(sys)
+    x0 = characteristic_vector_scale(sys)
+    x_abstol = 1e-12 * x0
+    g_abstol = 1e-12 * E0 / x0
+    method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10x0), manifold=SpinManifold(sys))
+    options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
+    (res, iters) = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
 
-    mr = MinimizationResult(Optim.converged(res), res.iterations, res)
+    load_spin_state!(sys, Optim.minimizer(res))
+    mr = MinimizationResult(Optim.converged(res), iters, res)
     if !mr.converged
         @warn repr("text/plain", mr)
     end

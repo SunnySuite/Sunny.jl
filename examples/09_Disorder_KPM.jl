@@ -15,7 +15,7 @@ import Random
 
 # Setup
 i = 23
-# for i in 1:100
+for i in 1:50
     @show i
     Random.seed!(i)
 
@@ -25,7 +25,7 @@ i = 23
     set_exchange!(sys, +1.0, Bond(1, 1, [1,0,0]))
 
     randomize_spins!(sys)
-    @show minimize_energy!(sys; g_abstol=1e-10, maxiters=10_000)
+    minimize_energy!(sys; g_abstol=1e-10).iterations |> println
     # @show Sunny.minimize_energy2!(sys)
 
     sys_inhom = to_inhomogeneous(repeat_periodically(sys, (10, 10, 1)))
@@ -36,13 +36,11 @@ i = 23
     end
 
     # randomize_spins!(sys_inhom)
-    @show minimize_energy!(sys_inhom; g_abstol=1e-10, maxiters=5_000)
-    # @show Sunny.minimize_energy2!(sys_inhom; maxiters=5_000)
+    minimize_energy!(sys_inhom; g_abstol=1e-10, maxiters=2_000).iterations |> println
 
     set_field!(sys_inhom, [0, 0, 7.5])
     randomize_spins!(sys_inhom)
-    @show minimize_energy!(sys_inhom; maxiters=100)
-    # @show Sunny.minimize_energy2!(sys_inhom; maxiters=5_000)
+    minimize_energy!(sys_inhom).iterations |> println
 
     for site in eachsite(sys_inhom)
         noise = randn()/6
@@ -50,10 +48,10 @@ i = 23
     end
 
     randomize_spins!(sys_inhom)
-    @show minimize_energy!(sys_inhom; subiters=5000, maxiters=5_000)
+    minimize_energy!(sys_inhom).iterations |> println
     # @show Sunny.minimize_energy2!(sys_inhom; maxiters=5_000)
-    println(energy_per_site(sys_inhom))
-# end
+    # println(energy_per_site(sys_inhom))
+end
 
 minimize_energy!(sys_inhom; subiters=30_000, maxiters=30_000)
 minimize_energy!(sys_inhom; maxiters=30_000)
