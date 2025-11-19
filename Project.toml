@@ -1,7 +1,7 @@
 name = "Sunny"
 uuid = "2b4a2ac8-8f8b-43e8-abf4-3cb0c45e8736"
-authors = ["The Sunny team"]
 version = "0.8.0"
+authors = ["The Sunny team"]
 
 [deps]
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
@@ -11,6 +11,7 @@ ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+LineSearches = "d3d80556-e9d4-5f37-9878-2ab0fcc64255"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MatInt = "f23b31af-f0ea-4208-b2e0-bbfc29c446c9"
 OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
@@ -45,6 +46,7 @@ FFTW = "1.4.5"
 GLMakie = "0.13"
 HCubature = "1.7.0"
 JLD2 = "0.6.0"
+LineSearches = "7.4.1"
 LinearAlgebra = "1.10"
 Makie = "0.24"
 MatInt = "0.1.2"
