@@ -170,50 +170,49 @@ function minimize_energy2!(sys::System{N}; maxiters=1000, method=Optim.Conjugate
     return mr
 end
 
+###############
 
 
 
-
+# Manifold where the first nspins are normalized spheres of dimension
+# (nelems-1). Any remaining data is interpreted in the Euclidean metric.
 struct SpinManifold <: Optim.Manifold
-    sys :: System
+    nelems :: Int  # Number of scalar components in each spin
+    nspins :: Int  # Number of spins to normalize
 end
 
-function rescale_to_magnitude(S, S0)
-    iszero(S0) ? zero(S) : normalize(S) * S0
-end
-function optim_retract_aux!(sys::System{0}, x)
-    x = reinterpret(reshape, Vec3, x)
-    @. x = rescale_to_magnitude(x, sys.κs)
-end
-function optim_retract_aux!(sys::System{N}, x) where N
-    x = reinterpret(reshape, CVec{N}, x)
-    @. x = rescale_to_magnitude(x, sqrt(sys.κs))
-end
 function Optim.retract!(sm::SpinManifold, x)
-    optim_retract_aux!(sm.sys, x)
+    x′ = reshape(vec(x), sm.nelems, :)
+    for j in 1:sm.nspins
+        xj = view(x′, :, j)
+        xj ./= norm(xj)
+    end
     return x
 end
 
-function optim_project_tangent_aux!(sys::System{0}, g, x)
-    g = reinterpret(reshape, Vec3, g)
-    x = reinterpret(reshape, Vec3, x)
-    @. g = proj(g, x)
-end
-function optim_project_tangent_aux!(sys::System{N}, g, x) where N
-    g = reinterpret(reshape, CVec{N}, g)
-    x = reinterpret(reshape, CVec{N}, x)
-    @. g = proj(g, x)
-end
 function Optim.project_tangent!(sm::SpinManifold, g, x)
-    optim_project_tangent_aux!(sm.sys, g, x)
-    return g
+    x = reshape(vec(x), sm.nelems, :)
+    g = reshape(vec(g), sm.nelems, :)
+    for j in 1:sm.nspins
+        xj = view(x, :, j)
+        gj = view(g, :, j)
+        gj .= gj .- xj .* ((xj' * gj) / norm2(xj))
+    end
+    return nothing
 end
 
-function characteristic_vector_scale(sys::System{0})
-    return sqrt(Statistics.mean(κ^2 for κ in sys.κs))
-end
-function characteristic_vector_scale(sys::System{N}) where N
-    return sqrt(Statistics.mean(κ for κ in sys.κs))
+function optim_load_spin_state!(sys::System{N}, x) where N
+    if iszero(N)
+        x = reinterpret(reshape, Vec3, x)
+        for site in eachsite(sys)
+            set_dipole!(sys, x[site], site)
+        end
+    else
+        x = reinterpret(reshape, CVec{N}, x)
+        for site in eachsite(sys)
+            set_coherent!(sys, x[site], site)
+        end
+    end
 end
 
 function optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
@@ -228,6 +227,13 @@ function optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_
         end
     end
 end
+
+# Optimization variables are normalized spins or coherent states. In case of
+# a vacancy, use an arbitrary representative on the sphere: [1, 1, …] / √N.
+function normalize_or_fallback(x)
+    return normalize(iszero(x) ? one.(x) : x)
+end
+
 
 """
     minimize_energy!(sys::System; maxiters=1000, kwargs...)
@@ -245,41 +251,27 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
     # maximum or saddle).
     perturb_spins!(sys, δ)
 
-    # Optimization variables are normalized spins or coherent states
     if iszero(N)
-        x = collect(reinterpret(reshape, Float64, sys.dipoles))
+        x = collect(reinterpret(reshape, Float64, normalize_or_fallback.(sys.dipoles)))
     else
-        x = collect(reinterpret(reshape, ComplexF64, sys.coherents))
-    end
-
-    function load_spin_state!(sys::System{0}, x)
-        x = reinterpret(reshape, Vec3, x)
-        for site in eachsite(sys)
-            set_dipole!(sys, x[site], site)
-        end
-    end
-    function load_spin_state!(sys::System{N}, x) where N
-        x = reinterpret(reshape, CVec{N}, x)
-        for site in eachsite(sys)
-            set_coherent!(sys, x[site], site)
-        end
+        x = collect(reinterpret(reshape, ComplexF64, normalize_or_fallback.(sys.coherents)))
     end
 
     # Energy and gradient callback functions
     function calc_f(x)
-        load_spin_state!(sys, x)
+        optim_load_spin_state!(sys, x)
         return energy(sys)
     end
     function calc_g!(g, x)
-        load_spin_state!(sys, x)
+        optim_load_spin_state!(sys, x)
         if iszero(N)
             g = reinterpret(reshape, Vec3, g)
             set_energy_grad_dipoles!(g, sys.dipoles, sys)
-            @. g = proj(g, sys.dipoles)
+            @. g *= norm(sys.dipoles)   # Convert to sensitivity in scaled spin
         else
             g = reinterpret(reshape, CVec{N}, g)
             set_energy_grad_coherents!(g, sys.coherents, sys)
-            @. g = proj(g, sys.coherents)
+            @. g *= norm(sys.coherents) # Convert to sensitivity in scaled spin
         end
     end
 
@@ -287,14 +279,14 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
     # dimensionless spin variables x. The checks x_abstol and g_abstol are in
     # the p=Inf norm (largest vector component).
     E0 = characteristic_energy_scale(sys)
-    x0 = characteristic_vector_scale(sys)
-    x_abstol = 1e-12 * x0
-    g_abstol = 1e-12 * E0 / x0
-    method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10x0), manifold=SpinManifold(sys))
+    x_abstol = 1e-12
+    g_abstol = 1e-12 * E0
+    manifold = SpinManifold(iszero(N) ? 3 : N, length(eachsite(sys)))
+    method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10.0), manifold)
     options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
     (res, iters) = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
 
-    load_spin_state!(sys, Optim.minimizer(res))
+    optim_load_spin_state!(sys, Optim.minimizer(res))
     mr = MinimizationResult(Optim.converged(res), iters, res)
     if !mr.converged
         @warn repr("text/plain", mr)
