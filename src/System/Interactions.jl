@@ -232,13 +232,12 @@ Sets the quantum spin-`s` magnitude at a single [`Site`](@ref). The system must
 support inhomogeneous interactions via [`to_inhomogeneous`](@ref). Mode `:SUN`
 is not yet supported.
 
-!!! warning "Restriction on existing couplings at `site`"  
+!!! warning "Restriction on existing couplings"  
     General interaction operators cannot be translated between spin
-    representations. `set_spin_s_at!` will emit a warning or error if the `site`
-    participates in any couplings beyond linear order in the spin dipoles, i.e.,
-    anything beyond 3×3 bilinear exchange. General interactions may be added
-    after the spin-`s` representation has been fixed for all sites. For this,
-    use [`set_onsite_coupling_at!`](@ref) or [`set_pair_coupling_at!`](@ref).
+    representations. The sole exception is 3×3 bilinear exchange. Higher order
+    couplings should be added only after the spin-`s` representation has been
+    fixed. To set these, use [`set_onsite_coupling_at!`](@ref) and
+    [`set_pair_coupling_at!`](@ref).
 """
 function set_spin_s_at!(sys::System, s::Real, site::Site)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
