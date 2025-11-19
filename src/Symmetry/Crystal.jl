@@ -361,14 +361,26 @@ function is_spacegroup_type_consistent(sgt, latvecs)
         # conventions for the unit cell, depending on which of α, β, or γ is
         # special.
         _, _, _, α, β, γ = lattice_params(latvecs)
-        x = first(replace(sgt.choice, "-" => ""))
-        if x == 'a'
-            return β≈90 && γ≈90
-        elseif x == 'b'
-            return α≈90 && γ≈90
-        elseif x == 'c'
-            return α≈90 && β≈90
+        choice = first(replace(sgt.choice, "-" => ""))
+        if (β ≈ 90) && (γ ≈ 90)
+            expected_choice = 'a'
+        elseif (α ≈ 90) && (γ ≈ 90)
+            expected_choice = 'b'
+        elseif (α ≈ 90) && (β ≈ 90)
+            expected_choice = 'c'
         end
+        if choice != expected_choice
+            choice_to_index = Dict{Char,Int}('a' => 2, 'b' => 3, 'c' => 4)
+            suggest_sg = split(sgt.international_full)
+            i, j = choice_to_index[choice], choice_to_index[expected_choice]
+            suggest_sg[i], suggest_sg[j] = suggest_sg[j], suggest_sg[i]
+            suggest_sg = join(suggest_sg, ' ')
+            @warn "expected unique-axis based on spacegroup ($(expected_choice)) conflicts with unique-axis based on lattice vectors ($(choice)), suggested spacegroup: $(suggest_sg)."
+            return false
+        else
+            return true
+        end
+
     else
         return cell in all_compatible_cells(hall_cell)
     end
