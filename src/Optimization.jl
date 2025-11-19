@@ -9,7 +9,7 @@ function Base.show(io::IO, ::MIME"text/plain", res::MinimizationResult)
     Δx = number_to_simple_string(Optim.x_abschange(data); digits=3)
     g_res = number_to_simple_string(Optim.g_residual(data); digits=3)
     if converged
-        print(io, "Converged in $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
+        print(io, "Converged in $iterations iterations")
     else
         print(io, "Non-converged after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
     end
@@ -20,158 +20,6 @@ function Base.show(io::IO, res::MinimizationResult)
     show(io, MIME("text/plain"), res)
     print(io, ")")
 end
-
-
-# Returns the stereographic projection u(α) = (2v + (1-v²)n)/(1+v²), which
-# involves the orthographic projection v = (1-nn̄)α. The input `n` must be
-# normalized. When `α=0`, the output is `u=n`, and when `|α|→ ∞` the output is
-# `u=-n`. In all cases, `|u|=1`.
-function stereographic_projection(α, n)
-    @assert n'*n ≈ 1 || all(isnan, n)
-
-    v = α - n*(n'*α)              # project out component parallel to `n`
-    v² = real(v'*v)
-    u = (2v + (1-v²)*n) / (1+v²)  # stereographic projection
-    return u
-end
-
-# Calculate the vector-Jacobian-product x̄ du(α)/dα, where
-#   u(v) = (2v + (1-v²)n)/(1+v²), v(α,ᾱ)=Pα, and P=1-nn̄.
-#
-# From the chain rule for Wirtinger derivatives,
-#   du/dα = (du/dv) (dv/dα) + (du/dv̄) (dv̄/dα) = du/dv P.
-#
-# In the second step, we used
-#   dv/dα = P
-#   dv̄/dα = conj(dv/dᾱ) = 0.
-# 
-# The remaining Jacobian matrix is
-#   du/dv = (2-2nv̄)/(1+v²) - 2(2v+(1-v²)n)/(1+v²)² v̄
-#         = c - c[(1+cb)n + cv]v̄,
-# where b = (1-v²)/2 and c = 2/(1+v²).
-#
-# Using the above definitions, return:
-#   x̄ du/dα = x̄ du/dv P
-#
-@inline function vjp_stereographic_projection(x̄, α, n)
-    all(isnan, n) && return zero(n') # No gradient when α is fixed to zero
-
-    @assert n'*n ≈ 1
-
-    v = α - n*(n'*α)
-    v² = real(v'*v)
-    b = (1-v²)/2
-    c = 2/(1+v²)
-    # Perform dot products first to avoid constructing outer-product
-    x̄_dudv = c*x̄' - c * (x̄' * ((1+c*b)*n + c*v)) * v'
-    # Apply projection P=1-nn̄ on right
-    return x̄_dudv - (x̄_dudv * n) * n'
-end
-
-# Returns v such that u = (2v + (1-v²)n)/(1+v²) and v⋅n = 0
-function inverse_stereographic_projection(u, n)
-    all(isnan, n) && return zero(n) # NaN values denote α = v = zero
-
-    @assert u'*u ≈ 1
-
-    uperp = u - n*(n'*u)
-    uperp² = real(uperp' * uperp)
-    s = sign(u⋅n)
-    if isone(s) && uperp² < 1e-5
-        c = 1/2 + uperp²/8 + uperp²*uperp²/16
-    else
-        c = (1 - s * sqrt(max(1 - uperp², 0))) / uperp²
-    end
-    return c * uperp
-end
-
-function optim_set_spins!(sys::System{0}, αs, ns)
-    αs = reinterpret(reshape, Vec3, αs)
-    for site in eachsite(sys)
-        s = stereographic_projection(αs[site], ns[site])
-        set_dipole!(sys, s, site)
-    end
-end
-function optim_set_spins!(sys::System{N}, αs, ns) where N
-    αs = reinterpret(reshape, CVec{N}, αs)
-    for site in eachsite(sys)
-        Z = stereographic_projection(αs[site], ns[site])
-        set_coherent!(sys, Z, site)
-    end
-end
-
-function optim_set_gradient!(G, sys::System{0}, αs, ns)
-    (αs, G) = reinterpret.(reshape, Vec3, (αs, G))
-    set_energy_grad_dipoles!(G, sys.dipoles, sys)            # G = dE/dS
-    @. G *= norm(sys.dipoles)                                # G = dE/dS * dS/du = dE/du
-    @. G = adjoint(vjp_stereographic_projection(G, αs, ns))  # G = dE/du du/dα = dE/dα
-end
-function optim_set_gradient!(G, sys::System{N}, αs, ns) where N
-    (αs, G) = reinterpret.(reshape, CVec{N}, (αs, G))
-    set_energy_grad_coherents!(G, sys.coherents, sys)        # G = dE/dZ
-    @. G *= norm(sys.coherents)                              # G = dE/dZ * dZ/du = dE/du
-    @. G = adjoint(vjp_stereographic_projection(G, αs, ns))  # G = dE/du du/dα = dE/dα
-end
-
-function minimize_energy2!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
-                          subiters=10, δ=1e-8, kwargs...) where N
-    # Perturbation of sufficient magnitude to "almost surely" push away from an
-    # unstable stationary point (e.g. local maximum or saddle).
-    perturb_spins!(sys, δ)
-
-    # Allocate buffers for optimization:
-    #   - Each `ns[site]` defines a direction for stereographic projection.
-    #   - Each `αs[:,site]` will be optimized in the space orthogonal to `ns[site]`.
-    if iszero(N)
-        ns = normalize.(sys.dipoles)
-        αs = zeros(Float64, 3, size(sys.dipoles)...)
-    else
-        ns = normalize.(sys.coherents)
-        αs = zeros(ComplexF64, N, size(sys.coherents)...)
-    end
-
-    # Functions to calculate energy and gradient for the state `αs`
-    function f(αs)
-        optim_set_spins!(sys, αs, ns)
-        return energy(sys)
-    end
-    function g!(G, αs)
-        optim_set_spins!(sys, αs, ns)
-        optim_set_gradient!(G, sys, αs, ns)
-    end
-
-    # Repeatedly optimize using a small number (`subiters`) of steps, within
-    # which the stereographic projection axes are fixed. Because we require
-    # high-precision in the spin variables (x), disable check on the energy (f),
-    # which is much lower precision. Disable check on x_reltol because x=[zeros]
-    # is a valid configuration (all spins aligned with the stereographic
-    # projection axes). Optim interprets x_abstol and g_abstol in the p=Inf norm
-    # (largest vector component). Note that x is dimensionless and g=dE/dx has
-    # energy units.
-    x_abstol = 1e-12
-    g_abstol = 1e-12 * characteristic_energy_scale(sys)
-    options = Optim.Options(; iterations=subiters, g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
-    local res
-    for iter in 1 : div(maxiters, subiters, RoundUp)
-        res = Optim.optimize(f, g!, αs, method, options)
-
-        if Optim.converged(res)
-            cnt = (iter-1)*subiters + res.iterations
-            return MinimizationResult(true, cnt, res)
-        end
-
-        # Reset stereographic projection based on current state
-        ns .= normalize.(iszero(N) ? sys.dipoles : sys.coherents)
-        αs .*= 0
-    end
-
-    mr = MinimizationResult(false, maxiters, res)
-    @warn repr("text/plain", mr)
-    return mr
-end
-
-###############
-
 
 
 # Manifold where the first nspins are normalized spheres of dimension
@@ -203,20 +51,6 @@ function Optim.project_tangent!(sm::SpinManifold, g, x)
     return nothing
 end
 
-function optim_load_spin_state!(sys::System{N}, x) where N
-    if iszero(N)
-        x = reinterpret(Vec3, view(x, 1:(3*nsites(sys))))
-        for (i, site) in enumerate(eachsite(sys))
-            set_dipole!(sys, x[i], site)
-        end
-    else
-        x = reinterpret(CVec{N}, view(x, 1:(N*nsites(sys))))
-        for (i, site) in enumerate(eachsite(sys))
-            set_coherent!(sys, x[i], site)
-        end
-    end
-end
-
 function optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
     iters = 0
     while true
@@ -228,12 +62,6 @@ function optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_
             return (res, iters)
         end
     end
-end
-
-# Optimization variables are normalized spins or coherent states. In case of
-# a vacancy, use an arbitrary representative on the sphere: [1, 1, …] / √N.
-function normalize_or_fallback(x)
-    return normalize(iszero(x) ? one.(x) : x)
 end
 
 
@@ -253,19 +81,37 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
     # maximum or saddle).
     perturb_spins!(sys, δ)
 
+    # Optimization variables are normalized spins or coherent states. In case of
+    # a vacancy, use an arbitrary representative on the sphere: [1, 1, …] / √N.
+    normalize_or_fallback(x) = normalize(iszero(x) ? one.(x) : x)
     x = if iszero(N)
         collect(vec(reinterpret(Float64, normalize_or_fallback.(sys.dipoles))))
     else
         collect(vec(reinterpret(ComplexF64, normalize_or_fallback.(sys.coherents))))
     end
 
+    # Load spins into system
+    function load_spins!(x)
+        if iszero(N)
+            x = reinterpret(Vec3, x)
+            for (i, site) in enumerate(eachsite(sys))
+                set_dipole!(sys, x[i], site)
+            end
+        else
+            x = reinterpret(CVec{N}, x)
+            for (i, site) in enumerate(eachsite(sys))
+                set_coherent!(sys, x[i], site)
+            end
+        end
+    end
+
     # Energy and gradient callback functions
     function calc_f(x)
-        optim_load_spin_state!(sys, x)
+        load_spins!(x)
         return energy(sys)
     end
     function calc_g!(g, x)
-        optim_load_spin_state!(sys, x)
+        load_spins!(x)
         if iszero(N)
             g = reshape(reinterpret(Vec3, g), size(sys.dipoles))
             set_energy_grad_dipoles!(g, sys.dipoles, sys)
@@ -281,15 +127,14 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
     # Disable check on the energy f, because we require high precision in the
     # dimensionless spin variables x. The checks x_abstol and g_abstol are in
     # the p=Inf norm (largest vector component).
-    E0 = characteristic_energy_scale(sys)
     x_abstol = 1e-12
-    g_abstol = 1e-12 * E0
+    g_abstol = 1e-12 * characteristic_energy_scale(sys)
     manifold = SpinManifold(iszero(N) ? 3 : N, length(eachsite(sys)))
     method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10.0), manifold)
     options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
     (res, iters) = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
 
-    optim_load_spin_state!(sys, Optim.minimizer(res))
+    load_spins!(Optim.minimizer(res))
     mr = MinimizationResult(Optim.converged(res), iters, res)
     if !mr.converged
         @warn repr("text/plain", mr)

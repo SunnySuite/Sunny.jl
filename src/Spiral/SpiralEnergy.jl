@@ -1,10 +1,10 @@
 # Identify the "special cases" for the propagation wavevector k. Case 1 is all
 # integer k components (i.e., k=[0,0,0] up to periodicity), and Case 2 is all
 # half integer k components, apart from Case 1. The fallback, Case 3, is any
-# other k. For example, there could be a discontinuity between the spiral
-# energies for ordering wavevectors k = [1/2, 0, 0] and [1/2+ϵ, 0, 0], even in
-# the limit ϵ → 0. To account for some floating point roundoff, we select an
-# empirical and somewhat arbitrary tolerance ϵ = 1e-8 for the case check.
+# other k. The spiral energy can be discontinuous between these cases. For
+# example, the wavevector k = [1/2, 0, 0] is not equivalent to [1/2+ϵ, 0, 0] in
+# the limit ϵ → 0. To account for some floating point roundoff, however, we
+# identify wavevector components (x+ϵ ≈ x) within the tolerance ϵ < 1e-8.
 #
 # The public-facing user interface expects k in RLU for the conventional cell.
 # If the system has been reshaped, however, then all internal aspects of the
@@ -162,24 +162,24 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
 end
 
 # Sets sys.dipoles and returns k, according to data in params
-function unpack_spiral_params!(sys::System{0}, axis, params)
-    params = reinterpret(Vec3, params)
+function unpack_spiral_params!(sys::System{0}, x)
+    x = reinterpret(Vec3, x)
     L = length(sys.dipoles)
     for i in 1:L
-        u = stereographic_projection(params[i], axis)
-        sys.dipoles[i] = sys.κs[i] * u
+        sys.dipoles[i] = sys.κs[i] * x[i]
     end
-    return params[end]
+    return x[end]
 end
 
-# Regularizer that blows up (by factor of 10) when |x| → 1. Use x=u⋅axis to
+# Regularizer that blows up (by factor of 10) when v → ±1. Use v=u⋅axis to
 # favor normalized spins `u` orthogonal to `axis`.
-reg(x) = 1 / (1 - x^2 + 1/10)
-dreg(x) = 2x * reg(x)^2
+reg(v) = 1 / (1 - v^2 + 1/10)
+dreg(v) = 2v * reg(v)^2
 
-function spiral_f(sys::System{0}, axis, params, λ)
-    k = unpack_spiral_params!(sys, axis, params)
+function spiral_f(sys::System{0}, axis, x, λ)
+    k = unpack_spiral_params!(sys, x)
     E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys; k, axis)
+    # Regularization to push away from alignment with `axis`
     for S in sys.dipoles
         u = normalize(S)
         E += λ * reg(u⋅axis)
@@ -187,9 +187,8 @@ function spiral_f(sys::System{0}, axis, params, λ)
     return E
 end
 
-function spiral_g!(G, sys::System{0}, axis, params, λ)
-    k = unpack_spiral_params!(sys, axis, params)
-    v = reinterpret(Vec3, params)
+function spiral_g!(G, sys::System{0}, axis, x, λ)
+    k = unpack_spiral_params!(sys, x)
     G = reinterpret(Vec3, G)
 
     L = length(sys.dipoles)
@@ -197,12 +196,11 @@ function spiral_g!(G, sys::System{0}, axis, params, λ)
     _E, dEdk = spiral_energy_and_gradient_aux!(dEdS, sys; k, axis)
 
     for i in 1:L
-        S = sys.dipoles[i]
-        u = normalize(S)
         # dE/du' = dE/dS' * dS/du, where S = |s|*u.
-        dEdu = dEdS[i] * norm(S) + λ * dreg(u⋅axis) * axis
-        # dE/dv' = dE/du' * du/dv
-        G[i] = vjp_stereographic_projection(dEdu, v[i], axis)
+        G[i] = dEdS[i] * sys.κs[i]
+        # Regularization to push away from alignment with `axis`
+        u = normalize(sys.dipoles[i])
+        G[i] += λ * dreg(u⋅axis) * axis
     end
     G[end] = dEdk
 end
@@ -234,30 +232,34 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
 
     perturb_spins!(sys, δ)
 
-    params = [inverse_stereographic_projection(normalize(S), axis) for S in vec(sys.dipoles)]
-    push!(params, Vec3(k_guess))
+    x = normalize.(vec(sys.dipoles))
+    push!(x, Vec3(k_guess))
+    x = collect(reinterpret(Float64, x))
 
     local λ::Float64
-    f(params) = spiral_f(sys, axis, params, λ)
-    g!(G, params) = spiral_g!(G, sys, axis, params, λ)
+    calc_f(x) = spiral_f(sys, axis, x, λ)
+    calc_g!(G, x) = spiral_g!(G, sys, axis, x, λ)
 
     # See `minimize_energy!` for discussion of the tolerance settings.
     x_abstol = 1e-12
     g_abstol = 1e-12 * characteristic_energy_scale(sys)
-    options = Optim.Options(; iterations=maxiters, g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
+    manifold = SpinManifold(3, length(eachsite(sys)))
+    method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10.0), manifold)
+    options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
 
     # First, optimize with regularization λ that pushes spins away from
     # alignment with the spiral `axis`. See `spiral_f` for precise definition.
-    method = Optim.ConjugateGradient()
     λ = 1 * abs(spiral_energy_per_site(sys; k=k_guess, axis))
-    res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, options)
+    res0, _ = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
+
     # Second, disable regularization to find true energy minimum.
     λ = 0
-    res = Optim.optimize(f, g!, Optim.minimizer(res0), method, options)
+    x = Optim.minimizer(res0)
+    res, _ = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
 
-    k = unpack_spiral_params!(sys, axis, Optim.minimizer(res))
+    k = unpack_spiral_params!(sys, Optim.minimizer(res))
 
-    if Optim.converged(res) || Optim.termination_code(res) == Optim.TerminationCode.SmallXChange
+    if Optim.converged(res)
         # For aesthetics, wrap k components to [1-ϵ, -ϵ)
         return wrap_to_unit_cell(k; tol=1e-6)
     else
