@@ -2,20 +2,22 @@
 # coefficients in descending order q = k,..-k. In :dipole mode, the
 # renormalization factors (`rcs_factor`) are included in these coefficients.
 struct StevensExpansion
-    kmax :: Int
     c0 :: SVector{1, Float64}
     c2 :: SVector{5, Float64}
     c4 :: SVector{9, Float64}
     c6 :: SVector{13, Float64}
+    kmax :: Int
+end
+
+function StevensExpansion(c0, c2, c4, c6)
+    (c0, c2, c4, c6) = (norm(ck) < 1e-12 ? zero(ck) : ck for ck in (c0, c2, c4, c6))
+    kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
+    return StevensExpansion(c0, c2, c4, c6, kmax)
 end
 
 function StevensExpansion(c)
-    c = map(c) do ck
-        norm(ck) < 1e-12 ? zero(ck) : ck
-    end
-    iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
-    kmax = max(!iszero(c[2])*2, !iszero(c[4])*4, !iszero(c[6])*6)
-    return StevensExpansion(kmax, c[0], c[2], c[4], c[6])
+    iszero(c[[1, 3, 5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
+    return StevensExpansion(c[0], c[2], c[4], c[6])
 end
 
 struct TensorDecomposition

@@ -187,8 +187,8 @@ vectors.
 """
 const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 
-@inline to_cartesian(i::CartesianIndex{N}) where N = i
-@inline to_cartesian(i::NTuple{N, Int})    where N = CartesianIndex(i)
+@inline to_cartesian(idx::CartesianIndex{N}) where N = idx
+@inline to_cartesian(idx::NTuple{N, Int})    where N = CartesianIndex(idx)
 
 # Split a site `site` into its cell and sublattice parts
 @inline to_cell(site) = (site[1], site[2], site[3])
@@ -206,22 +206,29 @@ end
     CartesianIndex(altmod1.(to_cell(site) .+ bond.n, dims)..., bond.j)
 end
 
-# Interprets i as a sublattice of sys, regardless of reshaping
-function spin_label_sublattice(sys::System, i::Int)
+function spin_label_site(sys::System, site)
     if sys.mode == :dipole_uncorrected
         return Inf
     else
         @assert sys.mode in (:dipole, :SUN)
-        allequal(view(sys.Ns, :, :, :, i)) || error("Spin varies between chemical cells")
-        return (sys.Ns[1, 1, 1, i] - 1) / 2
+        return (sys.Ns[to_cartesian(site)] - 1) / 2
     end
+end
+
+# Interprets i as a sublattice of sys, regardless of reshaping
+function spin_label_sublattice(sys::System, i::Int)
+    @assert allequal(view(sys.Ns, :, :, :, i))
+    return spin_label_site(sys, (1, 1, 1, i))
 end
 
 """
     spin_label(sys::System, i::Int)
 
-If atom `i` (referenced from the original crystal) carries a single spin-``s``
-moment, then returns the half-integer label ``s``. Otherwise, throws an error.
+Returns the half-integer label ``s`` for an atom index `i` in the original
+crystal. This will match the original [`Moment`](@ref) specification of `sys`,
+except in `:dipole_uncorrected` mode, which formally corresponds to a ``s → ∞``
+limit. The returned label can be used with [`spin_matrices`](@ref) and
+[`stevens_matrices`](@ref).
 """
 function spin_label(sys::System, i::Int)
     return spin_label_sublattice(something(sys.origin, sys), i)
@@ -548,16 +555,6 @@ function polarize_spins!(sys::System{N}, dir) where N
 end
 
 
-
-function set_spin_rescaling_aux!(sys::System{0}, α::Real, site::Site)
-    sys.κs[site] = α * (sys.Ns[site]-1)/2
-    set_dipole!(sys, sys.dipoles[site], site)
-end
-function set_spin_rescaling_aux!(sys::System{N}, α::Real, site::Site) where N
-    sys.κs[site] = α
-    set_coherent!(sys, sys.coherents[site], site)
-end
-
 """
     set_spin_rescaling!(sys, [i1 => α1, i2 => α2, …])
 
@@ -567,10 +564,17 @@ is the [`spin_label`](@ref) of the relevant magnetic moment. In SU(N) mode, this
 fixes each coherent state magnitude, ``|Z| = √α``, which leads to an effective
 renormalization of local expectation values, ``⟨A⟩ → α ⟨A⟩``.
 """
-function set_spin_rescaling!(sys::System, pairs::Vector{Pair{Int, Real}})
+function set_spin_rescaling!(sys::System{N}, pairs::Vector{Pair{Int, Real}}) where N
     αs = propagate_atom_data(orig_crystal(sys), sys.crystal, pairs)
     for site in eachsite(sys)
-        set_spin_rescaling_aux!(sys, αs[to_atom(site)], site)
+        α = αs[to_atom(site)]
+        if N == 0
+            sys.κs[site] = α * (sys.Ns[site]-1)/2
+            set_dipole!(sys, sys.dipoles[site], site)
+        else
+            sys.κs[site] = α
+            set_coherent!(sys, sys.coherents[site], site)
+        end
     end
 end
 function set_spin_rescaling!(sys::System, α::Real)

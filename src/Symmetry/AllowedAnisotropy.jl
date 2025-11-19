@@ -25,7 +25,7 @@ function is_stevens_expansion_valid(cryst, i, b)
     c2 = (N == 5) ? b : zeros(5)
     c4 = (N == 9) ? b : zeros(9)
     c6 = (N == 13) ? b : zeros(13)
-    stvexp = StevensExpansion(6, c0, c2, c4, c6)
+    stvexp = StevensExpansion(c0, c2, c4, c6)
     return is_anisotropy_valid(cryst, i, stvexp)
 end
 

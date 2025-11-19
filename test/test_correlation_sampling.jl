@@ -80,7 +80,7 @@
     total_intensity_static = sum(res_static.data)
     @test isapprox(total_intensity_static, total_intensity_trace * sc.Δω; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
-    # Test quantum-to-classical increases intensity
+    # Test classical-to-quantum increases intensity
     res_static_c2q = intensities_static(sc, qgrid; kT=0.1)
     total_intensity_static_c2q = sum(res_static_c2q.data)
     @test total_intensity_static_c2q > total_intensity_static

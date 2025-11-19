@@ -193,15 +193,16 @@ end
 """
     set_vacancy_at!(sys::System, site::Site)
 
-Make a single site nonmagnetic. [`Site`](@ref) includes a unit cell and a
-sublattice index.
+Make a single [`Site`](@ref) nonmagnetic. The system must support inhomogeneous
+interactions via [`to_inhomogeneous`](@ref).
 """
 function set_vacancy_at!(sys::System{N}, site) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
 
+    # In principle, we should set sys.Ns[site]=1 to get s=0. But :SUN mode
+    # doesn't yet support varying N so a safe marker is κ=0.
     site = to_cartesian(site)
     sys.κs[site] = 0.0
-    sys.gs[site] = zero(Mat3)
     sys.dipoles[site] = zero(Vec3)
     sys.coherents[site] = zero(CVec{N})
 
@@ -222,6 +223,51 @@ end
 
 function is_vacant(sys::System, site)
     return iszero(sys.κs[to_cartesian(site)])
+end
+
+"""
+    set_spin_s_at!(sys, s, site)
+
+Sets the quantum spin-`s` magnitude at a single [`Site`](@ref). The system must
+support inhomogeneous interactions via [`to_inhomogeneous`](@ref). Mode `:SUN`
+is not yet supported.
+
+!!! warning "Restriction on existing couplings"  
+    General interaction operators cannot be translated between spin
+    representations. The sole exception is 3×3 bilinear exchange. Higher order
+    couplings should be added only after the spin-`s` representation has been
+    fixed. To set these, use [`set_onsite_coupling_at!`](@ref) and
+    [`set_pair_coupling_at!`](@ref).
+"""
+function set_spin_s_at!(sys::System, s::Real, site::Site)
+    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+    sys.mode == :SUN && error("Mode :SUN not yet supported.")
+    isinteger(2s) || error("Spin s must be an exact multiple of 1/2.")
+    iszero(s) && error("Use `set_vacancy_at!` to fully remove a magnetic moment.")
+    is_vacant(sys, site) && error("Moment cannot be restored on vacant site.")
+
+    site = to_cartesian(site)
+    s_old = (sys.Ns[site]-1)/2
+    κ_old = sys.κs[site]
+    α = κ_old / s_old
+
+    # Require that any pair couplings are bilinear only
+    ints = interactions_inhomog(sys)
+    for pc in ints[site].pair
+        if !iszero(pc.biquad) || !isempty(pc.general.data)
+            error("Cannot change spin-s in presence of biquadratic coupling.")
+        end
+    end
+
+    # Warn on any onsite coupling, then remove
+    if !iszero(ints[site].onsite)
+        @warn "Removing onsite coupling at site $(site.I)."
+        sys.interactions_union[site].onsite = empty_anisotropy(sys.mode, 0)
+    end
+
+    sys.Ns[site] = Int(2s+1)
+    sys.κs[site] = α * s
+    set_dipole!(sys, sys.dipoles[site], site)
 end
 
 function local_energy_change(sys::System{N}, site, state::SpinState) where N
