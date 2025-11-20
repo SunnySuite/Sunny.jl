@@ -80,7 +80,7 @@ end
 # Infer the CellType (lattice system) from lattice vectors. Report an error if
 # the unit cell is not in conventional form, which would invalidate the table of
 # symops for a given Hall number.
-function cell_type(latvecs::Mat3)
+function cell_type(latvecs)
     a, b, c, α, β, γ = lattice_params(latvecs)
 
     if a ≈ b ≈ c

@@ -351,30 +351,6 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     return ret
 end
 
-
-function is_spacegroup_type_consistent(sgt, latvecs)
-    cell = cell_type(latvecs)
-    hall_cell = cell_type(Int(sgt.hall_number))
-
-    if hall_cell == monoclinic
-        # Special handling of monoclinic space groups. There are three possible
-        # conventions for the unit cell, depending on which of α, β, or γ is
-        # special.
-        _, _, _, α, β, γ = lattice_params(latvecs)
-        x = first(replace(sgt.choice, "-" => ""))
-        if x == 'a'
-            return β≈90 && γ≈90
-        elseif x == 'b'
-            return α≈90 && γ≈90
-        elseif x == 'c'
-            return α≈90 && β≈90
-        end
-    else
-        return cell in all_compatible_cells(hall_cell)
-    end
-end
-
-
 function validate_positions(positions::Vector{Vec3}; symprec)
     for i in eachindex(positions), j in i+1:length(positions)
         ri, rj = positions[[i, j]]
