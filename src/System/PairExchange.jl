@@ -92,11 +92,16 @@ function proportionality_factor(A, B; atol=1e-12)
     end
 end
 
-function decompose_general_coupling(op, N1, N2; extract_parts)
+function decompose_general_coupling(op, N1, N2; extract_parts, gen=nothing)
     @assert size(op) == (N1*N2, N1*N2)
 
-    gen1 = spin_matrices_of_dim(; N=N1)
-    gen2 = spin_matrices_of_dim(; N=N2)
+    if isnothing(gen)
+        gen1 = spin_matrices_of_dim(; N=N1)
+        gen2 = spin_matrices_of_dim(; N=N2)
+    else
+        extract_parts = false
+        gen1 = gen2 = gen
+    end
 
     # Remove scalar part
     scalar = real(tr(op) / size(op, 1))
@@ -280,7 +285,7 @@ set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 
 See also [`spin_matrices`](@ref), [`to_product_space`](@ref).
 """
-function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_parts=true) where N
+function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_parts=true, gen=nothing) where N
     is_homogeneous(sys) || error("Use `set_pair_coupling_at!` for an inhomogeneous system.")
 
     op ≈ op' || error("Operator is not Hermitian")
@@ -301,13 +306,13 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_pa
         end
     end
 
-    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, Ni, Nj; extract_parts)
+    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, Ni, Nj; extract_parts, gen)
 
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond)
     return
 end
 
-function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=true) where N
+function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=true, gen=nothing) where N
     if sys.mode == :dipole_uncorrected
         error("General coupling not currently supported for mode :dipole_uncorrected. \
                Use set_exchange! with option `biquad` for scalar biquadratic.")
@@ -316,7 +321,7 @@ function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=tr
     si = spin_label(sys, bond.i)
     sj = spin_label(sys, bond.j)
     Si, Sj = to_product_space(spin_matrices.([si, sj])...)
-    set_pair_coupling!(sys, fn(Si, Sj), bond; extract_parts)
+    set_pair_coupling!(sys, fn(Si, Sj), bond; extract_parts, gen)
     return
 end
 
