@@ -335,6 +335,26 @@ end
     @test cryst2.positions ≈ [[0.0, 0.0, 0.0]]
 end
 
+@testitem "Allowed exchange" begin
+    latvecs = lattice_vectors(3, 3, 4, 90, 90, 120)
+    cryst = Crystal(latvecs, [[0, 0, 0]])
+
+    b = Bond(1, 1, [1, 0, 0])
+    J = Sunny.Mat3([1 0 0; 0 3 0; 0 0 4])
+    J_bad = Sunny.Mat3([0 1 0; 0 0 0; 0 0 0])
+    @test Sunny.is_coupling_valid(cryst, b, J)
+    @test !Sunny.is_coupling_valid(cryst, b, J_bad)
+
+    N = 4
+    S = Sunny.spin_matrices_of_dim(; N)
+    Si, Sj = to_product_space(S, S)
+
+    _, _, _, tensordec = Sunny.decompose_general_coupling(Si'*J*Sj, N, N; extract_parts=false)
+    @test Sunny.is_coupling_valid(cryst, b, tensordec)
+
+    _, _, _, tensordec = Sunny.decompose_general_coupling(Si'*J_bad*Sj, N, N; extract_parts=false)
+    @test !Sunny.is_coupling_valid(cryst, b, tensordec)
+end
 
 @testitem "Allowed anisotropy" begin
     using LinearAlgebra
