@@ -159,7 +159,7 @@ function Base.:+(op1::TensorDecomposition, op2::TensorDecomposition)
 end
 
 function Base.isapprox(op1::TensorDecomposition, op2::TensorDecomposition; kwargs...)
-    isempty(op1.data) == isempty(op2.data) && return true
+    isempty(op1.data) && isempty(op2.data) && return true
     op1′ = sum(kron(A, B) for (A, B) in op1.data)
     op2′ = sum(kron(A, B) for (A, B) in op2.data)
     return isapprox(op1′, op2′; kwargs...)
