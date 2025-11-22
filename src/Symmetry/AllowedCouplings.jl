@@ -136,7 +136,7 @@ end
 # Check whether a coupling matrix J is consistent with symmetries of a bond
 function is_coupling_valid(cryst::Crystal, b::BondPos, J)
     J isa Number && return true
-    
+
     for (symop, parity) in symmetries_between_bonds(cryst, b, b)
         R = cryst.latvecs * symop.R * inv(cryst.latvecs)
         J′ = transform_coupling_by_symmetry(J, R*det(R), parity)
