@@ -1,3 +1,30 @@
+@testitem "Q path and grid" begin
+    using Test
+    latvecs = lattice_vectors(1, 1.5, 2, 50, 70, 100)
+    positions = [[0,0,0]]
+    cryst = Crystal(latvecs, positions)
+
+    path = q_space_path(cryst, [[0, 0, 0], [1, 0, 0], [1, 1, 1]], 50; labels=["A", "B", "C"])
+    @test path.xticks == ([1, 33, 50], ["A", "B", "C"])
+
+    grid = q_space_grid(cryst, [1, 0, 0], range(0, 1, 10), [0, 1, 0], range(0, 1, 3))
+    @test collect(grid.axes) ≈ [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+    @test size(grid.qs) == (10, 3)
+
+    grid = q_space_grid(cryst, [1, 0, 0], range(0, 1, 10), [0, 1, 0], (0, 1); orthogonalize=true)
+    @test collect(grid.axes) ≈ [[1.0, 0.0, 0.0], [-0.44703287356193794, 1.0, 0.0]]
+    @test size(grid.qs) == (10, 7)
+
+    grid = q_space_grid(cryst, [1, 0, 0], range(0, 1, 10), [0, 1, 0], (0, 1), [0, 0, 1], (0, 1))
+    @test collect(grid.axes) ≈ [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    @test size(grid.qs) == (10, 8, 5)
+
+    grid = q_space_grid(cryst, [1, 0, 0], range(0, 1, 10), [0, 1, 0], (0, 1), [0, 0, 1], (0, 1); orthogonalize=true)
+    @test collect(grid.axes) ≈ [[1.0, 0.0, 0.0], [-0.44703287356193794, 1.0, 0.0], [0.17101007166283427, 0.48209070726490455, 1.0]]
+    @test size(grid.qs) == (10, 7, 4)
+end
+
+
 # TODO: Investigate TestItemRunner slowdown. Runtime is 1.1s on Sunny 0.7,
 # mainly due to type inference. But the same code, compiled in a function from
 # the terminal, is a small fraction of a second.
