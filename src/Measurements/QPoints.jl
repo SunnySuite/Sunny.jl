@@ -123,10 +123,10 @@ selecting `range2 = (lo2, hi2)`, an appropriate step-size will be inferred to
 provide an approximately uniform sampling density in global Cartesian
 coordinates.
 
-The axes may be non-orthogonal. To extend to an orthohombic volume in global
-Cartesian coordinates, set `orthogonalize=true`.
+Setting `orthogonalize=true` will project `axis2` and `axis3` such that all axes
+become orthogonal in global Cartesian ``𝐪`` coordinates.
 
-For a 1D grid, use [`q_space_path`](@ref) instead.
+To specify a 1D grid, use [`q_space_path`](@ref) instead.
 """
 function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(Vec3), orthogonalize=false)
     # Axes in global coordinates
@@ -136,7 +136,7 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(
     # Orthogonalize axes in global coordinates, if requested
     if orthogonalize
         # Project A2 onto space perpendicular to A1
-        A2 = proj(A2, normalize(A1))
+        A2 = proj(A2, A1)
         # Update RLU representation
         axis2 = cryst.recipvecs \ A2
     end
@@ -164,8 +164,59 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(
     @assert isapprox(qs[begin], q_lo; atol=1e-12)
     @assert isapprox(qs[end], q_hi; atol=1e-12)
 
-    # Adjustment of axis2 does not affect axis1 range
+    # Specified axis1 range is respected
     @assert range(coefs_lo[1], coefs_hi[1], coefs_sz[1]) ≈ range1
 
     return QGrid{2}(qs, (axis1, axis2), coefs_lo, coefs_hi, offset)
+end
+
+function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range3; orthogonalize=false)
+    # Axes in global coordinates
+    A1 = cryst.recipvecs * axis1
+    A2 = cryst.recipvecs * axis2
+    A3 = cryst.recipvecs * axis3
+
+    # Orthogonalize axes in global coordinates, if requested
+    if orthogonalize
+        # Project A2 onto space perpendicular to A1
+        A2 = proj(A2, A1)
+        # Project A3 onto space perpendicular to A1 and A2
+        A3 = proj(proj(A3, A1), A2)
+        # Update RLU representation
+        axis2 = cryst.recipvecs \ A2
+        axis3 = cryst.recipvecs \ A3
+    end
+
+    # Corner-to-corner displacement vector
+    q_lo = first(range1) * axis1 + first(range2) * axis2 + first(range3) * axis3
+    q_hi = last(range1) * axis1 + last(range2) * axis2 + last(range3) * axis3
+    Δq_global = cryst.recipvecs * (q_hi - q_lo)
+
+    # Determine lengths yielding a uniform spacing along each axis
+    length1 = length(range1)
+    length2 = if range2 isa Tuple{Number, Number}
+        round(Int, length1 * abs(Δq_global⋅normalize(A2) / (Δq_global⋅normalize(A1))))
+    else
+        length(range2)
+    end
+    length3 = if range3 isa Tuple{Number, Number}
+        round(Int, length1 * abs(Δq_global⋅normalize(A3) / (Δq_global⋅normalize(A1))))
+    else
+        length(range3)
+    end
+
+    axes = hcat(axis1, axis2, axis3)
+    coefs_lo = NTuple{3}(axes \ q_lo)
+    coefs_hi = NTuple{3}(axes \ q_hi)
+    coefs_sz = (length1, length2, length3)
+    range1, range2, range3 = map(range, coefs_lo, coefs_hi, coefs_sz)
+    qs = [axes * [c1, c2, c3] for c1 in range1, c2 in range2, c3 in range3]
+
+    @assert isapprox(qs[begin], q_lo; atol=1e-12)
+    @assert isapprox(qs[end], q_hi; atol=1e-12)
+
+    # Specified axis1 range is respected
+    @assert range(coefs_lo[1], coefs_hi[1], coefs_sz[1]) ≈ range1
+
+    return QGrid{3}(qs, (axis1, axis2, axis3), coefs_lo, coefs_hi, zero(Vec3))
 end
