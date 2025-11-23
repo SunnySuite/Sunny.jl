@@ -30,6 +30,7 @@
   symmetry-distinct sublattice ([#444](@ref)).
 * Introduce [`set_spin_s_at!`](@ref) to set the local quantum spin-``s``
   ([#454](@ref)).
+* Add missing 3D support for [`q_space_grid`](@ref) ([#457](@ref)).
 
 ## v0.7.8
 (Jul 1, 2025)
