@@ -140,7 +140,7 @@ end
     @test Sunny.natoms(cryst2) == 3
     cryst3 = Crystal(latvecs, positions, 147) # same as "P -3"
     @test Sunny.natoms(cryst3) == 1
-    msg = "Expected hexagonal or rhombohedral lattice system but got triclinic"
+    msg = "Expected hexagonal or rhombohedral cell but got triclinic"
     @test_throws msg Crystal(lattice_vectors(5, 5, 6, 90, 95, 120), positions, 148)
 
     ### Arbitrary triclinic
@@ -219,7 +219,7 @@ end
 
     # Meaningful error if using spacegroup with non-default setting
     @test_throws "Cell is nonstandard for spacegroup 160; consider \"R3m\"" Crystal(prim_latvecs, [[0, 0, 0]], 160)
-    @test_throws "Expected rhombohedral lattice system but got hexagonal" Crystal(latvecs, [[0, 0, 0]], 160; choice="R")
+    @test_throws "Expected rhombohedral cell but got hexagonal" Crystal(latvecs, [[0, 0, 0]], 160; choice="R")
 
     # Check equivalence of positions
     @test norm(cryst.latvecs * cryst.positions[1]) < 1e-12
@@ -255,6 +255,32 @@ end
     prim_latvecs1 = cryst.latvecs * primitive_cell(cryst)
     prim_latvecs2 = cryst2.latvecs * primitive_cell(cryst2)
     @test prim_latvecs1 ≈ prim_latvecs2
+
+    ### Check proper errors on nonconventional settings
+
+    # Nonconventional tetragonal is acceptable as an orthorhombic
+    latvecs = lattice_vectors(1, 1.2, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0,0,0]], 62)
+
+    # Nonconventional hexagonal is acceptable as a monoclinic
+    latvecs = lattice_vectors(1, 1.2, 1, 90, 120, 90)
+    cryst = Crystal(latvecs, [[0,0,0]], 7)
+
+    # Good error on nonconventional cell for tetragonal spacegroup
+    latvecs = lattice_vectors(1, 1.2, 1, 90, 90, 90)
+    @test_throws "Use a conventional tetragonal cell: `lattice_vectors(a, a, c, 90, 90, 90)`" Crystal(latvecs, [[0,0,0]], 85)
+
+    # Good error on nonconventional cell for trigonal spacegroup
+    latvecs = lattice_vectors(1, 1.2, 1, 90, 120, 90)
+    @test_throws "Use a conventional hexagonal cell: `lattice_vectors(a, a, c, 90, 90, 120)`" Crystal(latvecs, [[0,0,0]], 148)
+
+    # Good error message when nonconventional hexagonal is misused as orthorhombic
+    latvecs = lattice_vectors(1, 1.2, 1, 90, 120, 90)
+    @test_throws "Expected orthorhombic cell but got hexagonal" Crystal(latvecs, [[0,0,0]], 62)
+
+    # Good error if monoclinic is passed to trigonal
+    latvecs = lattice_vectors(1.1, 1.2, 1.3, 90, 70, 90)
+    @test_throws "Expected hexagonal or rhombohedral cell but got monoclinic" Crystal(latvecs, [[0,0,0]], 148)
 end
 
 
@@ -329,8 +355,7 @@ end
     cryst2 = standardize(cryst)
     @test cryst2.positions ≈ [[0.0, 0.0, 0.0], [0.5, 0.5, 0.0], [0.5, 0.0, 0.5], [0.0, 0.5, 0.5]]
 
-    msg = "Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`."
-    cryst = @test_logs (:warn, msg) Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
+    cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
     cryst2 = standardize(cryst)
     @test cryst2.positions ≈ [[0.0, 0.0, 0.0]]
 end
@@ -383,9 +408,7 @@ end
         @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
         latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-
-        msg = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`."
-        cryst = @test_logs (:warn, msg) Crystal(latvecs, [[0, 0, 0]])
+        cryst = Crystal(latvecs, [[0, 0, 0]])
 
         # print_site(cryst, i)
         Λ = randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,2]+(16/5)*O[6,4]+(11/5)*O[6,6])
@@ -608,8 +631,7 @@ end
 
 @testitem "Renormalization" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-    msg = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`."
-    cryst = @test_logs (:warn, msg) Crystal(latvecs, [[0, 0, 0]])
+    cryst = Crystal(latvecs, [[0, 0, 0]])
 
     # Dipole system with renormalized anisotropy
     sys0 = System(cryst, [1 => Moment(s=3, g=2)], :dipole)

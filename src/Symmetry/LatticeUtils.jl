@@ -72,8 +72,10 @@ end
     monoclinic
     orthorhombic
     tetragonal
+    tetragonal_alt
     rhombohedral
     hexagonal
+    hexagonal_alt
     cubic
 end
 
@@ -95,7 +97,7 @@ function cell_type(latvecs)
         if a ≈ b
             return tetragonal
         elseif b ≈ c || c ≈ a
-            error("Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`.")
+            return tetragonal_alt # nonconventional
         else
             return orthorhombic
         end
@@ -107,7 +109,7 @@ function cell_type(latvecs)
         if γ ≈ 120
             return hexagonal
         else
-            error("Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`.")
+            return hexagonal_alt # nonconventional
         end
     end
 
@@ -166,11 +168,11 @@ end
 
 function all_compatible_cells(cell::CellType)
     if cell == triclinic
-        [triclinic, monoclinic, orthorhombic, tetragonal, rhombohedral, hexagonal, cubic]
+        [triclinic, monoclinic, orthorhombic, tetragonal, tetragonal_alt, rhombohedral, hexagonal, hexagonal_alt, cubic]
     elseif cell == monoclinic
-        [monoclinic, orthorhombic, tetragonal, hexagonal, cubic]
+        [monoclinic, orthorhombic, tetragonal, tetragonal_alt, hexagonal, hexagonal_alt, cubic]
     elseif cell == orthorhombic
-        [orthorhombic, tetragonal, cubic]
+        [orthorhombic, tetragonal, tetragonal_alt, cubic]
     elseif cell == tetragonal
         [tetragonal, cubic]
     elseif cell == rhombohedral
