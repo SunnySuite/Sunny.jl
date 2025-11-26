@@ -302,9 +302,6 @@ function conventionalize_setting(latvecs::Mat3, setting::SymOp, sgnum::Int)
 end
 
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec, suppress_warnings=false)
-    # Print a warning if non-conventional lattice vectors are detected.
-    try cell_type(latvecs) catch e @warn e.msg end
-
     validate_positions(positions; symprec)
 
     cell = Spglib.Cell(latvecs, positions, types)
