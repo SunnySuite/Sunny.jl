@@ -67,11 +67,13 @@ end
 
 function intensities(swt_kry::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
     qpts = convert(AbstractQPoints, qpts)
-    data = zeros(eltype(swt_kry.swt.measure), length(energies), length(qpts.qs))
+    data = zeros(eltype(swt_kry.swt.measure), length(energies), size(qpts.qs)...)
     return intensities!(data, swt_kry, qpts; energies, kernel, kT, verbose)
 end
 
 function intensities!(data, swt_kry::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)
+    qpts = convert(AbstractQPoints, qpts)
+    @assert size(data) == (length(energies), size(qpts.qs)...)
     (; method) = swt_kry
     if method == :lanczos
         intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose)
@@ -103,7 +105,6 @@ end
 
 function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
     iszero(kT) || error("The :kpm backend does not support finite kT")
-    qpts = convert(AbstractQPoints, qpts)
 
     (; swt, tol, niters, niters_bounds) = swt_kry
     (; sys, measure) = swt
@@ -112,7 +113,7 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
     isnothing(kernel.fwhm) && error("Cannot determine the kernel fwhm")
 
     @assert eltype(data) == eltype(measure)
-    @assert size(data) == (length(energies), length(qpts.qs))
+    @assert size(data) == (length(energies), size(qpts.qs)...)
 
     Na = nsites(sys)
     Ncells = Na / natoms(cryst)
@@ -130,7 +131,8 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
     α1 = zeros(ComplexF64, Nobs, 2L)
     α2 = zeros(ComplexF64, Nobs, 2L)
 
-    for (iq, q) in enumerate(qpts.qs)
+    for iq in CartesianIndices(qpts.qs)
+        q = qpts.qs[iq]
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
@@ -229,8 +231,6 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
 end
 
 function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose)
-    qpts = convert(AbstractQPoints, qpts)
-
     (; swt, tol, niters, niters_bounds) = swt_kry
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
@@ -238,7 +238,7 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
     isnothing(kernel.fwhm) && error("Cannot determine the kernel fwhm")
 
     @assert eltype(data) == eltype(measure)
-    @assert size(data) == (length(energies), length(qpts.qs))
+    @assert size(data) == (length(energies), size(qpts.qs)...)
     fill!(data, zero(eltype(data)))
 
     Na = nsites(sys)
@@ -255,7 +255,8 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
     v = zeros(ComplexF64, 2L)
     Sv = zeros(ComplexF64, 2L)
 
-    for (iq, q) in enumerate(qpts.qs)
+    for iq in CartesianIndices(qpts.qs)
+        q = qpts.qs[iq]
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
@@ -333,7 +334,12 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
                 end
             end
 
-            (; values, vectors) = eigen(tridiag)
+            (; values, vectors) = try
+                eigen(tridiag)
+            catch e
+                # Fallback for https://github.com/JuliaLang/LinearAlgebra.jl/issues/1491
+                eigen(Hermitian(collect(tridiag)))
+            end
 
             for (iω, ω) in enumerate(energies)
                 f(x) = kernel(x, ω) * thermal_prefactor(x; kT)
