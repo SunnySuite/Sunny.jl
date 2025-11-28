@@ -67,6 +67,8 @@ end
 # spacegroups are characterized by a 3-fold rotational symmetry. All trigonal
 # spacegroups (143-167) admit a hexagonal setting. Some of these (146, 148, 155,
 # 160, 161, 166, 167) additionally admit a rhombohedral setting.
+#
+# The "alt" suffix indicates deviation from the ITA lattice vector conventions.
 @enum CellType begin
     triclinic
     monoclinic
@@ -79,9 +81,7 @@ end
     cubic
 end
 
-# Infer the CellType (lattice system) from lattice vectors. Report an error if
-# the unit cell is not in conventional form, which would invalidate the table of
-# symops for a given Hall number.
+# Infer the CellType (lattice system) from lattice vectors.
 function cell_type(latvecs)
     a, b, c, α, β, γ = lattice_params(latvecs)
 

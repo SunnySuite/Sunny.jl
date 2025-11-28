@@ -47,15 +47,16 @@
     end
 end
 
-@testitem "Crystal Construction" begin
+@testitem "Crystal construction" begin
     using IOCapture
 
     ### Test construction of diamond lattice
 
-    # Spglib inferred symmetry
+    # # Spglib inferred symmetry
     latvecs = [1 1 0; 0 1 1; 1 0 1]' / 2
     positions = [[1, 1, 1], [-1, -1, -1]] / 8
-    cryst = Crystal(latvecs, positions)
+    msg = "Cell is 1/4 the standard size for spacegroup 227. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, positions)
     ref_bonds = reference_bonds(cryst, 2.)
     dist1 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
@@ -81,7 +82,8 @@ end
 
     latvecs = [1 1 0; 0 1 1; 1 0 1]' / 2
     positions = [[0, 0, 0]]
-    cryst = Crystal(latvecs, positions)
+    msg = "Cell is 1/4 the standard size for spacegroup 225. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, positions)
 
     latvecs = [1 0 0; 0 1 0; 0 0 1]'
     positions = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]]
@@ -126,8 +128,8 @@ end
     @test Sunny.natoms(cryst) == 4
     @test_throws "Cell is nonstandard for spacegroup 5; consider \"A 1 1 2\" or \"B 1 1 2\" or \"I 1 1 2\"" Crystal(latvecs, positions, 5)
     @test_throws "Monoclinic axis choice (c) is incompatible with \"C 1 2 1\"" Crystal(latvecs, positions, "C 1 2 1")
-    Crystal(latvecs, positions, "A 1 1 2") # No error
-    Crystal(lattice_vectors(6, 7, 8, 90, 40, 90), positions, 5) # No error
+    @test_logs Crystal(latvecs, positions, "A 1 1 2")
+    @test_logs Crystal(lattice_vectors(6, 7, 8, 90, 40, 90), positions, 5)
 
     ### Arbitrary trigonal
 
@@ -177,7 +179,7 @@ end
     @test_throws msg Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[x, 2x, 1/4], [-x, -2x, 3/4 + 5e-3]]
-    Crystal(latvecs, positions, 194; symprec=1e-3) # No error
+    @test_logs Crystal(latvecs, positions, 194; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 1e-3]]
     msg = "Overlapping positions [-0.1500, -0.3000, 3/4] and [-0.1500, -0.3000, 0.7510] at symprec=0.001"
@@ -188,7 +190,7 @@ end
     @test_throws msg Crystal(latvecs, positions; symprec=1e-3)
 
     positions = [[-x, -2x, 3/4], [-x, -2x, 3/4 + 5e-3]]
-    Crystal(latvecs, positions; symprec=1e-3)
+    @test_logs Crystal(latvecs, positions; symprec=1e-3)
 end
 
 
@@ -260,11 +262,11 @@ end
 
     # Nonconventional tetragonal is acceptable as an orthorhombic
     latvecs = lattice_vectors(1, 1.2, 1, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0,0,0]], 62)
+    @test_logs cryst = Crystal(latvecs, [[0,0,0]], 62)
 
     # Nonconventional hexagonal is acceptable as a monoclinic
     latvecs = lattice_vectors(1, 1.2, 1, 90, 120, 90)
-    cryst = Crystal(latvecs, [[0,0,0]], 7)
+    @test_logs cryst = Crystal(latvecs, [[0,0,0]], 7)
 
     # Good error on nonconventional cell for tetragonal spacegroup
     latvecs = lattice_vectors(1, 1.2, 1, 90, 90, 90)
@@ -281,6 +283,10 @@ end
     # Good error if monoclinic is passed to trigonal
     latvecs = lattice_vectors(1.1, 1.2, 1.3, 90, 70, 90)
     @test_throws "Expected hexagonal or rhombohedral cell but got monoclinic" Crystal(latvecs, [[0,0,0]], 148)
+
+    # Lattice vectors must be right-handed
+    latvecs = [[0, 1, 0] [1, 0, 0] [0, 0, 1]]
+    @test_throws "Lattice vectors are not right-handed." Crystal(latvecs, [[0, 0, 0]], 227)
 end
 
 
@@ -350,14 +356,20 @@ end
     @test misses == [5, 11, 14, 15, 59, 65, 68, 69, 111, 114, 118, 121, 127, 136, 141, 153, 163, 172, 175, 184, 189, 195, 201, 207, 211, 214, 217, 220, 225, 232, 237, 240, 242, 243, 252, 255, 265, 277, 282, 299, 302, 305, 308, 312, 315, 317, 320, 324, 328, 330, 340, 344, 347, 527]
 end
 
-@testitem "Standardize Crystal" begin
-    cryst = Crystal([1 0 1; 1 1 0; 0 1 1], [[0.1, 0.2, 0.3]])
+@testitem "Standardize" begin
+    msg = "Cell is 1/4 the standard size for spacegroup 225. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal([1 0 1; 1 1 0; 0 1 1], [[0.1, 0.2, 0.3]])
     cryst2 = standardize(cryst)
     @test cryst2.positions ≈ [[0.0, 0.0, 0.0], [0.5, 0.5, 0.0], [0.5, 0.0, 0.5], [0.0, 0.5, 0.5]]
 
-    cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
+    msg = "Nonstandard hexagonal cell for spacegroup 191. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(lattice_vectors(1, 1, 1, 90, 90, 60), [[0.1, 0.2, 0.3]])
     cryst2 = standardize(cryst)
+    @test cryst2.latvecs ≈ lattice_vectors(1, 1, 1, 90, 90, 120)
     @test cryst2.positions ≈ [[0.0, 0.0, 0.0]]
+
+    msg = "Symmetry analysis disabled! Cell is 3 times too large. Fix with `standardize` or distinct `types=[...]`."
+    cryst = @test_logs (:error, msg) Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0], [1/3, 0, 0], [2/3, 0, 0]])
 end
 
 @testitem "Allowed exchange" begin
@@ -408,7 +420,8 @@ end
         @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
         latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-        cryst = Crystal(latvecs, [[0, 0, 0]])
+        msg = "Nonstandard tetragonal cell for spacegroup 123. Consider `standardize`."
+        cryst = @test_logs (:info, msg) Crystal(latvecs, [[0, 0, 0]])
 
         # print_site(cryst, i)
         Λ = randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,2]+(16/5)*O[6,4]+(11/5)*O[6,6])
@@ -582,7 +595,8 @@ end
     distortion = 0.15
     latvecs = lattice_vectors(a, a, a, 90+distortion, 90+distortion, 90+distortion)
     positions = Sunny.fcc_crystal().positions
-    cryst = Crystal(latvecs, positions; types = ["A", "B", "B", "B"])
+    msg = "Cell is 1/3 the standard size for spacegroup 166. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, positions; types = ["A", "B", "B", "B"])
 
     capt = IOCapture.capture() do
         print_suggested_frame(cryst, 1)
@@ -631,7 +645,8 @@ end
 
 @testitem "Renormalization" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0, 0, 0]])
+    msg = "Nonstandard tetragonal cell for spacegroup 123. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, [[0, 0, 0]])
 
     # Dipole system with renormalized anisotropy
     sys0 = System(cryst, [1 => Moment(s=3, g=2)], :dipole)
