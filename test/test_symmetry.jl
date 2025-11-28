@@ -98,6 +98,14 @@ end
     bs = Sunny.all_symmetry_related_bonds_for_atom(cryst, bond.i, bond)
     @test length(bs) == Sunny.coordination_number(cryst, bond.i, bond)
 
+    ### Cubic, sheared unit cell
+
+    latvecs = [1 1 0; 0 1 0; 0 0 1]
+    msg = "Nonstandard cubic cell for spacegroup 221. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, [[0, 0, 0]])
+    collect(lattice_params(latvecs)) ≈ [1, √2, 1, 90, 90, 45]
+    collect(lattice_params(standardize(cryst).latvecs)) ≈ [1, 1, 1, 90, 90, 90]
+
     ### Triangular lattice, primitive unit cell
 
     c = 10
@@ -159,14 +167,14 @@ end
 
     latvecs = lattice_vectors(13.261, 7.718, 6.278, 90.0, 90.0, 90.0)
     types = ["Yb1", "Yb2"]
-    positions = [[0,0,0], [0.266,0.25,0.02]] # Locations of atoms as multiples of lattice vectors
+    positions = [[0, 0, 0], [0.266, 0.25, 0.02]]
     cryst = Crystal(latvecs, positions, 62; types, symprec=1e-4)
     @test count(==(1), cryst.classes) == 4
     @test count(==(2), cryst.classes) == 4
 end
 
 
-@testitem "Crystal errors" begin
+@testitem "Conflicting positions" begin
     latvecs = lattice_vectors(1, 1, 1.5, 90, 90, 120)
     x = 0.15
 
@@ -194,7 +202,7 @@ end
 end
 
 
-@testitem "Spacegroup settings" begin
+@testitem "Spacegroup symbols" begin
     using LinearAlgebra
     import Spglib
 
@@ -290,7 +298,7 @@ end
 end
 
 
-@testitem "Idealize setting and positions" begin
+@testitem "Snap to Wyckoff positions" begin
     latvecs = lattice_vectors(1, 1, 2, 90, 90, 120)
     positions = [[0.3333, 0.6667, 0.0]]
     cryst = Crystal(latvecs, positions, 191; symprec=1e-3)
@@ -310,7 +318,7 @@ end
     @test cryst.positions ≈ ref
 end
 
-@testitem "Conventional settings" begin
+@testitem "Heuristics for conventional setting" begin
     misses = Int[]
 
     for hall in 1:530
