@@ -233,6 +233,7 @@ Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
 """
 function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
+    qpts = convert(AbstractQPoints, qpts)
     @assert size(data) == (length(energies), size(qpts.qs)...)
     bands = intensities_bands(swt, qpts; kT)
     @assert eltype(bands) == eltype(data)

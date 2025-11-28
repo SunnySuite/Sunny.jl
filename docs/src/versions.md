@@ -33,6 +33,7 @@
 * Add missing 3D support for [`q_space_grid`](@ref) ([#457](@ref)).
 * If user-provided lattice vectors do not match crystallographic conventions,
   suggest the use of [`standardize`](@ref) ([#461](@ref)).
+* Fixes to [`SpinWaveTheoryKPM`](@ref) ([#462](@ref)).
 
 ## v0.7.8
 (Jul 1, 2025)
