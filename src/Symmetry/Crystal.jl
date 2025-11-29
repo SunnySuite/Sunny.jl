@@ -90,7 +90,12 @@ end
 # representing fractions (between 0 and 1) of the lattice vectors `latvecs`.
 # All symmetry information is automatically inferred.
 function Crystal(latvecs, positions; types::Union{Nothing, Vector{String}}=nothing, symprec=1e-5)
-    print_crystal_warnings(latvecs, positions)
+    if length(positions) >= 100
+        @warn """Very large crystal cells are not recommended. To model chemical inhomogeneity:
+                 1. Create the `Crystal` with an idealized chemical cell.
+                 2. Create the `System` with large volume dimensions, `dims`.
+                 3. Use `to_inhomogeneous` and related functions to set inhomogeneities."""
+    end
     latvecs = convert(Mat3, latvecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
@@ -106,21 +111,23 @@ function Crystal(latvecs, positions, symbol::Union{Int, String}; types::Union{No
                  setting=nothing, choice::Union{Nothing, String}=nothing, symprec=1e-5)
     if !isnothing(setting)
         if symbol isa Integer
-            @warn """`setting` argument is deprecated! Omit to get the ITA standard setting. 
-                     Alternatively, use `choice` instead."""
+            @warn "`setting` argument is deprecated! Omit to get the ITA standard setting or use `choice`."
         else
             @warn "`setting` argument is deprecated! Use `choice` instead."
         end
         choice = setting
     end
 
-    print_crystal_warnings(latvecs, positions)
     latvecs = Mat3(latvecs)
     positions = Vec3.(positions)
     if isnothing(types)
         types = fill("", length(positions))
     end
 
+    # Enforce right-handedness convention for aesthetics
+    det(latvecs) < 0 && error("Lattice vectors are not right-handed.")
+
+    # Will report an informative error if latvecs not consistent with symbol
     sgt = unique_spacegroup_type(symbol, latvecs; choice)
     sg = Spacegroup(Int(sgt.hall_number))
     return crystal_from_spacegroup(latvecs, positions, types, sg; symprec)
@@ -147,17 +154,6 @@ function spg_get_dataset_scaled(cell, symprec)
     return ret
 end
 
-
-function print_crystal_warnings(latvecs, positions)
-    det(latvecs) < 0 && @warn "Lattice vectors are not right-handed."
-    if length(positions) >= 100
-        @info """This a very large crystallographic cell, which Sunny does not handle well. If
-                 the intention is to model chemical inhomogeneity, the recommended steps are:
-                 (1) Create a `Crystal` with idealized chemical cell. (2) Create a `System`
-                 with many cells, as set by the `dims` parameter. (3) Use `to_inhomogeneous`
-                 and related functions to introduce model inhomogeneities."""
-    end
-end
 
 """
     natoms(cryst::Crystal)
@@ -302,29 +298,47 @@ function conventionalize_setting(latvecs::Mat3, setting::SymOp, sgnum::Int)
 end
 
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec, suppress_warnings=false)
-    # Print a warning if non-conventional lattice vectors are detected.
-    try cell_type(latvecs) catch e @warn e.msg end
-
     validate_positions(positions; symprec)
 
-    cell = Spglib.Cell(latvecs, positions, types)
-    d = spg_get_dataset_scaled(cell, symprec)
+    d = spg_get_dataset_scaled(Spglib.Cell(latvecs, positions, types), symprec)
     classes = d.crystallographic_orbits
     # classes = d.equivalent_atoms
     symops = SymOp.(d.rotations, d.translations)
     label = spacegroup_label(Int(d.hall_number))
     sgnum = Int(d.spacegroup_number)
+    cell_std = cell_type(standard_setting[sgnum])
     setting = mapping_to_standard_setting_from_spglib_dataset(d)
     setting = conventionalize_setting(latvecs, setting, sgnum)
 
-    # Spglib-inferred symops are unreliable for large cells. Empty the list to
-    # prevent faulty symmetry analysis.
-    if length(positions) > d.n_std_atoms
-        if !suppress_warnings
-            types_str = allunique(types) ? "" : " Alternatively, break site symmetry with `types=[...]`."
-            @warn "This cell is non-standard and missing symmetry information. Consider `standardize`.$types_str"
+    # Spglib-inferred symops are unreliable for large cells. Empty the list
+    # to prevent faulty symmetry analysis.
+    volume_ratio = length(positions) // d.n_std_atoms
+    volume_ratio > 1 && empty!(symops)
+    volume_ratio_str = number_to_math_string(volume_ratio)
+
+    if !suppress_warnings
+        if volume_ratio > 1
+            volume_ratio_str = number_to_math_string(volume_ratio)
+            types_str = allunique(types) ? "" : " or distinct `types=[...]`"
+            @error "Symmetry analysis disabled! Cell is $volume_ratio_str times too large. Fix with `standardize`$types_str."
+        elseif volume_ratio < 1
+            @info "Cell is $volume_ratio_str the standard size for spacegroup $sgnum. Consider `standardize`."
+        elseif cell_std in (tetragonal, hexagonal, cubic) && setting.R ≉ I
+            # For a tetragonal, hexagonal, trigonal or cubic space group, the
+            # provided cell should already be Spglib-idealized.
+            @info "Nonstandard $cell_std cell for spacegroup $sgnum. Consider `standardize`."
+        elseif !(cell_type(latvecs) in all_compatible_cells(cell_std))
+            # For triclinic, monoclinic, and orthorhombic spacegroups, check
+            # that the provided cell is symmetry-consistent (not necessarily
+            # Spglib-idealized). For orthorhombic, arbitrary axis ordering is
+            # acceptable. For monoclinic, arbitrary β magnitude is acceptable,
+            # whereas Spglib finds a cell with 90 < β < 120. For triclinic,
+            # Spglib's idealization algorithm is even more complex, involving
+            # Niggli reduction.
+            @info "Nonstandard $cell_std cell for spacegroup $sgnum. Consider `standardize`."
+        elseif det(latvecs) < 0
+            @info "Lattice vectors are not right-handed. Consider `standardize`."
         end
-        symops = SymOp[]
     end
 
     sg = Spacegroup(symops, label, sgnum, setting)
@@ -511,7 +525,7 @@ end
 
 # Indices of atoms that wrap into unique positions within the primitive cell.
 # The choice is ambiguous because the un-wrapped positions are not restricted to
-# `latvecs * primitive_cell()`.
+# the parallelpiped spanned by `latvecs * primitive_cell()`.
 function primitive_atoms_arbitrary(cryst::Crystal)
     P = primitive_cell(cryst)
     P ≈ I && return collect(1:natoms(cryst))
