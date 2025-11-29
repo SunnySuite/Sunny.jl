@@ -110,8 +110,8 @@ end
 
 @testitem "Anisotropy SU(N) equivalence" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-    msg = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`."
-    cryst = @test_logs (:warn, msg) Crystal(latvecs, [[0, 0, 0]])
+    msg = "Nonstandard tetragonal cell for spacegroup 123. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, [[0, 0, 0]])
 
     # Dipole system with renormalized anisotropy
     sys0 = System(cryst, [1 => Moment(s=3, g=2)], :dipole)
@@ -169,7 +169,8 @@ end
 @testitem "Biquadratic renormalization 2" begin
     # Simple dimer model
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0, 0, 0], [0.3, 0, 0]]; types=["A", "B"])
+    msg = "Nonstandard tetragonal cell for spacegroup 99. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, [[0, 0, 0], [0.3, 0, 0]]; types=["A", "B"])
     s1 = 3/2
     s2 = 2
     v1 = randn(3)

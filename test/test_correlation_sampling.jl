@@ -1,18 +1,17 @@
 @testitem "Correlation sampling" begin
     using LinearAlgebra
 
+    # FCC with nonstandard, primitive lattice vectors
+    latvecs = [[1, 1, 0] [0, 1, 1] [1, 0, 1]] / 2
+    positions = [[0, 0, 0]]
+    msg = "Cell is 1/4 the standard size for spacegroup 225. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, positions)
+
     function simple_model_fcc(; mode, seed=111)
-        dims = (4, 4, 4)
         J = 1.0
-
-        # FCC with nonstandard, primitive lattice vectors
-        latvecs = [[1, 1, 0] [0, 1, 1] [1, 0, 1]] / 2
-        positions = [[0, 0, 0]]
-        cryst = Crystal(latvecs, positions)
-
         s = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = System(cryst, [1 => Moment(; s, g=2)], mode; dims, seed)
+        sys = System(cryst, [1 => Moment(; s, g=2)], mode; dims=(4, 4, 4), seed)
         sys.κs .= κ
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         return sys

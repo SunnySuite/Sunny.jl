@@ -1,11 +1,12 @@
-@testitem "Kitchen Sink" begin
+@testitem "Kitchen sink" begin
     using LinearAlgebra
 
     # Pyrochlore with nonstandard, primitive lattice vectors
     latvecs = [[1, 1, 0] [1, 0, 1] [0, 1, 1]] / 2
     positions = [[5, 5, 1], [5, 1, 5], [1, 5, 5], [5, 5, 5]] / 8
 
-    cryst = @test_logs (:warn, "Lattice vectors are not right-handed.") Crystal(latvecs, positions)
+    msg = "Cell is 1/4 the standard size for spacegroup 227. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, positions)
     natoms = Sunny.natoms(cryst)
 
     moments = [1 => Moment(s=5/2, g=7.2)]
@@ -192,7 +193,8 @@ end
     using LinearAlgebra
 
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
+    msg = "Nonstandard tetragonal cell for spacegroup 99. Consider `standardize`."
+    cryst = @test_logs (:info, msg) Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
 
     sys = System(cryst, [1 => Moment(s=1, g=2), 2 => Moment(s=2, g=2)], :dipole)
     set_pair_coupling!(sys, (S1, S2) -> +(S1'*diagm([2,-1,-1])*S1)*(S2'*diagm([2,-1,-1])*S2), Bond(1, 2, [0,0,0]))

@@ -136,11 +136,11 @@ end
 # Check whether a coupling matrix J is consistent with symmetries of a bond
 function is_coupling_valid(cryst::Crystal, b::BondPos, J)
     J isa Number && return true
-    
+
     for (symop, parity) in symmetries_between_bonds(cryst, b, b)
         R = cryst.latvecs * symop.R * inv(cryst.latvecs)
         J′ = transform_coupling_by_symmetry(J, R*det(R), parity)
-        # For non-conventional unit cells, the rotation matrices R produced by
+        # For nonconventional unit cells, the rotation matrices R produced by
         # spglib might only be accurate to about 11 digits. If an ambiguous
         # situation is detected, throw an informative error.
         if !isapprox(J, J′; rtol=1e-10)

@@ -40,7 +40,7 @@ function suggest_alternative_symbols(sgts)
 end
 
 # Get the single SpacegroupType associated with symbol that is valid for
-# latvecs. Throw an informative error if the setting is ambiguous.
+# latvecs. Throw an informative error if the setting is invalid or ambiguous.
 function unique_spacegroup_type(symbol, latvecs; choice=nothing)
     # All settings for symbol
     sgts = all_spacegroup_types_for_symbol(symbol)
@@ -62,9 +62,15 @@ function unique_spacegroup_type(symbol, latvecs; choice=nothing)
     sgts = filter(sgts) do sgt
         return cell in all_compatible_cells(cell_type(sgt))
     end
-    if isempty(sgts)
-        expected = join(string.(allowed_cells), " or ")
-        error("Expected $expected lattice system but got $cell")
+
+    if cell == tetragonal_alt && cell_type(hall_std) == tetragonal
+        error("Use a conventional tetragonal cell: `lattice_vectors(a, a, c, 90, 90, 90)`")
+    elseif cell == hexagonal_alt && cell_type(hall_std) == hexagonal
+        error("Use a conventional hexagonal cell: `lattice_vectors(a, a, c, 90, 90, 120)`")
+    elseif isempty(sgts)
+        allowed_str = join(string.(allowed_cells), " or ")
+        received = only(replace([cell], hexagonal_alt => hexagonal, tetragonal_alt => tetragonal))
+        error("Expected $allowed_str cell but got $received")
     end
 
     # For monoclinic lattice systems, filter by axis setting
