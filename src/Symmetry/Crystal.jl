@@ -525,7 +525,7 @@ end
 
 # Indices of atoms that wrap into unique positions within the primitive cell.
 # The choice is ambiguous because the un-wrapped positions are not restricted to
-# `latvecs * primitive_cell()`.
+# the parallelpiped spanned by `latvecs * primitive_cell()`.
 function primitive_atoms_arbitrary(cryst::Crystal)
     P = primitive_cell(cryst)
     P ≈ I && return collect(1:natoms(cryst))
