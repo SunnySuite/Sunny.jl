@@ -1,7 +1,23 @@
-@testitem "diamond_lattice" begin
-    # test against JuliaSCGA (S. Gao)
-    res_jscga = [0.7046602277469309, 0.8230846832863896, 0.23309034250417973, 0.40975668535137943, 0.8474163786642979,
-                 0.8230846832694241, 0.723491683211756, 0.5939752161027589, 0.6506966347286152, 0.8012263819500781]
+@testitem "Square lattice" begin
+    latvecs = lattice_vectors(1, 1, 10, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0, 0, 0]])
+    s = 1
+    sys = System(cryst, [1 => Moment(; s, g=1)], :dipole; seed=0)
+    set_exchange!(sys, -1, Bond(1, 1, [1, 0, 0]))
+    set_exchange!(sys, 0.5, Bond(1, 1, [1, 1, 0]))
+    set_exchange!(sys, 0.25, Bond(1, 1, [2, 0, 0]))
+    measure = ssf_perp(sys)
+    kT = 27.5*meV_per_K
+    scga = SCGA(sys; measure, kT, dq=1/8)
+    path = q_space_path(cryst, [[-1, -1, 0], [-0.04, -1, 0]], 9)
+    res = Sunny.intensities_static(scga, path)
+    ref_jscga = [0.3578208506624103, 0.3850668587212228, 0.4211633125595451, 0.3930558742921638, 0.3586715762816389,
+                 0.3775147329089877, 0.4188431376589759, 0.4009835864744404, 0.36119385315852837]
+    ref_jscga *= s^2 * Sunny.natoms(cryst)
+    @test isapprox(vec(res.data)/2, ref_jscga; rtol=1e-5)
+end
+
+@testitem "Diamond lattice" begin
     a = 8.5031 # (Å)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     cryst = Crystal(latvecs, [[0, 0, 0]], 227; choice="1")
@@ -13,34 +29,18 @@
     measure = ssf_perp(sys)
     kT = 15*meV_per_K
     scga = SCGA(sys; measure, kT, dq=1/8)
-    γ = s^2 * Sunny.natoms(cryst)
     grid = q_space_grid(cryst, [1, 0, 0], range(0, 3.6, 5), [0, 1, 0], range(0, 0.9, 2))
     res = intensities_static(scga, grid)
-    @test isapprox(vec(res.data)/γ, res_jscga; rtol=1e-8)
-end
-
-@testitem "square_lattice" begin
-    # test against JuliaSCGA (S. Gao)
-    res_jscga = [0.3578208506624103, 0.3850668587212228, 0.4211633125595451, 0.3930558742921638, 0.3586715762816389,
-                 0.3775147329089877, 0.4188431376589759, 0.4009835864744404, 0.36119385315852837]
-    a = 1 # (Å)
-    latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0, 0, 0]])
-    sys = System(cryst, [1 => Moment(; s=1, g=1)], :dipole; seed=0)
-    set_exchange!(sys, -1, Bond(1, 1, [1, 0, 0]))
-    set_exchange!(sys, 0.5, Bond(1, 1, [1, 1, 0]))
-    set_exchange!(sys, 0.25, Bond(1, 1, [2, 0, 0]))
-    measure = ssf_perp(sys)
-    kT = 27.5*meV_per_K
-    scga = SCGA(sys; measure, kT, dq=1/8)
-    path = q_space_path(cryst, [[-1, -1, 0], [-0.04, -1, 0]], 9)
-    res = Sunny.intensities_static(scga, path)
-    @test isapprox(vec(res.data)/2, res_jscga; rtol=1e-5)
+    ref_jscga = [0.7046602277469309, 0.8230846832863896, 0.23309034250417973, 0.40975668535137943, 0.8474163786642979,
+                 0.8230846832694241, 0.723491683211756, 0.5939752161027589, 0.6506966347286152, 0.8012263819500781]
+    ref_jscga *= s^2 * Sunny.natoms(cryst)
+    @test isapprox(vec(res.data), ref_jscga; rtol=1e-8)
 end
 
 @testitem "MgCr2O4" begin
     using LinearAlgebra
-    # Reproduce calculation in Conlon and Chalker, PRL 102, 237206 (2009)
+    # Reproduce calculation in Bai et al., Phys. Rev. Lett. 122, 097201 (2019).
+    # See also Conlon and Chalker, Phys. Rev. B 81, 224413 (2010).
     latvecs = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
     positions = [[1/2, 1/2, 1/2]]
     cryst = Crystal(latvecs, positions, 227)
@@ -59,18 +59,15 @@ end
     scga = SCGA(sys; measure, kT, dq=1/4)
     grid = q_space_grid(cryst, [1, 0, 0], range(-1.5, 1.5, 4), [0, 1, 0], range(-1.5, 1.5, 4))
     res = Sunny.intensities_static(scga, grid)
-    res_cc = [2.4168819 1.237733 1.237733 2.4168819;
-              1.237733 0.16242284 0.16242284 1.237733;
-              1.237733 0.16242284 0.16242284 1.237733;
-              2.4168819 1.237733 1.237733 2.4168819]
-    γ = s*(s+1) / det(primitive_cell(cryst)) # Adapt to normalization convention of C+C
-    @test isapprox(vec(res.data), γ*vec(res_cc); rtol=1e-3)
+    ref = [2.4168819 1.237733 1.237733 2.4168819;
+           1.237733 0.16242284 0.16242284 1.237733;
+           1.237733 0.16242284 0.16242284 1.237733;
+           2.4168819 1.237733 1.237733 2.4168819]
+    ref *= s*(s+1) / det(primitive_cell(cryst)) # Differing normalization convention
+    @test isapprox(vec(res.data), vec(ref); rtol=1e-3)
 end
 
 @testitem "Arbitrary Anisotropy" begin
-    # test against JuliaSCGA (S. Gao)
-    res_jscga = [0.700944539713289, 0.6175127864675868, 0.5205893697530085, 0.48172879530096047,
-                 0.5219040226511135, 0.6218544838522482, 0.7110417061581527, 0.738269833048121]
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 90)
     cryst = Crystal(latvecs, [[0, 0 ,0]], 1)
     sys = System(cryst, [1 => Moment(; s=1, g=1)], :dipole; seed=0)
@@ -91,7 +88,9 @@ end
     scga = SCGA(sys; measure, kT, dq=1/8)
     path = q_space_path(cryst, [[0.125, 0.625, 0], [1, 0.625, 0]], 8)
     res = Sunny.intensities_static(scga, path)
-    @test isapprox(vec(res.data), res_jscga; rtol=1e-6)
+    ref_jscga = [0.700944539713289, 0.6175127864675868, 0.5205893697530085, 0.48172879530096047,
+                 0.5219040226511135, 0.6218544838522482, 0.7110417061581527, 0.738269833048121]
+    @test isapprox(vec(res.data), ref_jscga; rtol=1e-6)
 end
 
 @testitem "Ferrimagnetic chain sum rule" begin

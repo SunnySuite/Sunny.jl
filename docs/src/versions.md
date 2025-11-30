@@ -1,7 +1,7 @@
 # Release Notes
 
 ## v0.8.0
-(In development)
+(Nov 30, 2025)
 
 **Breaking changes** in this release.
 
@@ -33,7 +33,7 @@
 * Add missing 3D support for [`q_space_grid`](@ref) ([#457](@ref)).
 * If user-provided lattice vectors do not match crystallographic conventions,
   suggest the use of [`standardize`](@ref) ([#461](@ref)).
-* Fixes to [`SpinWaveTheoryKPM`](@ref) ([#462](@ref)).
+* Improve robustness of [`SpinWaveTheoryKPM`](@ref) ([#462](@ref)).
 
 ## v0.7.8
 (Jul 1, 2025)

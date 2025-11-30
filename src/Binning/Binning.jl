@@ -25,7 +25,7 @@ The convention for the binning scheme is that:
   
 A `value` can be binned by computing its bin index:
 
-```jl
+```julia
     coords = covectors * value
     bin_ix = 1 .+ floor.(Int64, (coords .- binstart) ./ binwidth)
 ```
