@@ -13,15 +13,15 @@ choices are `tol=0.05` (more speed) or `0.01` (more accuracy). This will
 determine the number of iterations as `M ≈ -2 log10(tol) Δϵ / fwhm`, where `Δϵ`
 is the estimated spectral bandwidth of excitations and `fwhm` is the full width
 at half maximum of the user-supplied broadening `kernel`. Computational cost
-scales like ``𝒪(N M + M^2)``. Instead of `tol`, it is also possible to set `M`
-directly via the `niters` parameter.
+scales like ``𝒪(N M + M^2)``. Use `niters` instead of `tol` to directly specify
+``M``.
 
 !!! warning "Intensity loss at low-energy excitations"
 
-    Not all numerical artifacts can be controlled by reducing `tol`. In particular,
-    there may be intensity loss at low-energy excitations, e.g., near Goldstone
-    modes. This type of error originates from the ill-conditioning of the bosonic
-    dynamical matrix and the finite precision of floating point numbers.
+    Not all numerical artifacts can be resolved by reducing `tol`. In particular,
+    there may be unavoidable intensity loss at low-energy excitations, e.g., near
+    Goldstone modes. This type of error originates from finite numerical precision
+    and ill-conditioning of the dynamical matrix.
 
 !!! tip "Consider `SampledCorrelations` when calculating powder averages"
 
