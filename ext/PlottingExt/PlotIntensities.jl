@@ -338,9 +338,9 @@ is:
 
     To export the figure to a PDF file, use the CairoMakie backend and call
 
-    ```jl
-    fig = plot_intensities(..., interpolate=true)
-    save("myfile.pdf", fig)
+    ```julia
+        fig = plot_intensities(..., interpolate=true)
+        save("myfile.pdf", fig)
     ```
 
     The choice `interpolate=true` significantly reduces file sizes for plots

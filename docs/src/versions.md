@@ -1,12 +1,12 @@
 # Release Notes
 
 ## v0.8.0
-(In development)
+(Nov 30, 2025)
 
 **Breaking changes** in this release.
 
 * Significant enhancements to crystal construction and symmetry analysis, which
-  may **reorder certain atom and site indices** ([#405](@ref)). Crystal lattice
+  may **reorder certain atom and site indices** ([#421](@ref)). Crystal lattice
   vectors and positions are now idealized according to spacegroup data. In rare
   cases, this will cause re-indexing of atoms in the crystal. Site indexing
   conventions for certain reshaped systems may also change; use
@@ -33,7 +33,7 @@
 * Add missing 3D support for [`q_space_grid`](@ref) ([#457](@ref)).
 * If user-provided lattice vectors do not match crystallographic conventions,
   suggest the use of [`standardize`](@ref) ([#461](@ref)).
-* Fixes to [`SpinWaveTheoryKPM`](@ref) ([#462](@ref)).
+* Improve robustness of [`SpinWaveTheoryKPM`](@ref) ([#462](@ref)).
 
 ## v0.7.8
 (Jul 1, 2025)
