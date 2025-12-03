@@ -223,5 +223,5 @@ function intensities_static(scga::SCGA, qpts)
         intensity[iq] = measure.combiner(q_global, corrbuf)
     end
 
-    return StaticIntensities(sys.crystal, qpts, reshape(intensity, size(qpts.qs)))
+    return StaticIntensities(cryst, qpts, reshape(intensity, size(qpts.qs)))
 end
