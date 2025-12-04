@@ -25,23 +25,27 @@ authors:
     affiliation: "5, 6"
 
   - name: Alin Niraula
+    orcid: 0009-0002-4139-0140
     affiliation: "7"
 
   - name: Bhushan Thipe
+    orcid: 0009-0001-3319-0627
     affiliation: "7"
 
   - name: Matthew Wilson 
+    orcid: 0000-0003-2298-3477 
     affiliation: "8"
 
   - name: Sakib Matin
+    orcid: 0000-0001-5166-2838
     affiliation: "3"
 
   - name: Het Mankad 
-    orcid: 0000-0003-3890-2379 
+    orcid: 0000-0003-4339-599X 
     affiliation: "9"
 
   - name: Steven Hahn 
-    orcid: 0000-0003-3890-2379 
+    orcid: 0000-0002-2018-7904
     affiliation: "9"
 
   - name: Daniel Pajerowski 
@@ -57,7 +61,7 @@ authors:
     affiliation: "11" 
 
   - name: Harry Lane
-    orcid: 
+    orcid: 0009-0005-0391-4750 
     affiliation: "12, 13, 14"
 
   - name: Ying Wai Li
