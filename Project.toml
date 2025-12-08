@@ -4,6 +4,7 @@ version = "0.9.2"
 authors = ["The Sunny team"]
 
 [deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 CrystalInfoFramework = "6007d9b0-c6b2-11e8-0510-1d10e825f3f1"
@@ -30,20 +31,24 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 WGLMakie = "276b4fcb-3e11-5398-bf8b-a0c2d153d008"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [extensions]
+CUDAExt = "CUDA"
 ExportVTKExt = "WriteVTK"
 GLMakiePrecompilesExt = ["Makie", "GLMakie"]
 PlottingExt = "Makie"
 WGLMakiePrecompilesExt = ["Makie", "WGLMakie"]
 
 [compat]
+Adapt = "4.4.0"
 Brillouin = "0.5.19"
 ChainRulesCore = "1.26.0"
+CUDA = "5.9.5"
 CrystalInfoFramework = "0.8, 1, 2"
 DynamicPolynomials = "0.6.0"
 ElasticArrays = "1.2.12"

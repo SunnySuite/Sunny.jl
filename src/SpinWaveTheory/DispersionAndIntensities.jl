@@ -273,7 +273,13 @@ correction factor, and yield statistics consistent with the classical Boltzmann
 distribution.
 """
 function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
-    return broaden(intensities_bands(swt, qpts; kT); energies, kernel)
+    ext = Base.get_extension(@__MODULE__, :CUDAExt)
+    if ext === nothing
+        return broaden(intensities_bands(swt, qpts; kT); energies, kernel)
+    else
+        # The extension is loaded, you can access its functions/types
+        return broaden(ext.intensities_bands(swt, qpts; kT); energies, kernel)
+    end
 end
 
 """
