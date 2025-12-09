@@ -3,7 +3,7 @@
 ## v0.8.1
 (In progress)
 
-* Fixing plotting error with SCGA-calculated intensities ([#464](@ref)).
+* Fix plotting error with SCGA-calculated intensities ([#464](@ref)).
 
 ## v0.8.0
 (Nov 30, 2025)
