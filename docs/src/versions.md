@@ -1,5 +1,10 @@
 # Release Notes
 
+## v0.8.1
+(In progress)
+
+* Fix plotting error with SCGA-calculated intensities ([#464](@ref)).
+
 ## v0.8.0
 (Nov 30, 2025)
 
