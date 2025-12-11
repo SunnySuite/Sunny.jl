@@ -91,13 +91,13 @@ The return object stores optimization statistics; available fields include
     # Example
 
     ```julia
-        # Find an energy target if not known
+        # Find a target energy (if not known)
         target_energy = minimum(minimize_energy!(sys, jitter=1.0).energy for _ in 1:100) + 1e-8
 
-        # Repeatedly minimize until the energy target has been reached
+        # Repeatedly minimize until the target energy has been reached
         i = findfirst(minimize_energy!(sys, jitter=1.0).energy <= target_energy for _ in 1:1000)
         if isnothing(i)
-            error("Failed to find energy below \$lowest_energy")
+            error("Failed to find energy ≤ \$target_energy")
         end
     ```
 """
