@@ -86,7 +86,7 @@ The return object stores optimization statistics; available fields include
     To search for the global energy minimum, a simple strategy is to repeatedly
     call `minimize_energy!` until some `target_energy` has been reached. Finite
     `jitter` plays an essential role to escape local minima between optimization
-    steps.
+    runs.
 
     # Example
 
@@ -95,7 +95,7 @@ The return object stores optimization statistics; available fields include
         target_energy = minimum(minimize_energy!(sys, jitter=1.0).energy for _ in 1:100) + 1e-8
 
         # Repeatedly minimize until the target energy has been reached
-        i = findfirst(minimize_energy!(sys, jitter=1.0).energy <= target_energy for _ in 1:1000)
+        i = findfirst(minimize_energy!(sys, jitter=1.0).energy <= target_energy for _ in 1:100)
         if isnothing(i)
             error("Failed to find energy ≤ \$target_energy")
         end
