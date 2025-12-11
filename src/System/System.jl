@@ -451,12 +451,14 @@ end
 end
 
 @inline function perturbed_spin(sys::System{0}, site, magnitude)
+    isinf(magnitude) && return randspin(sys, site)
     κ = sys.κs[site]
     S = sys.dipoles[site] + magnitude * κ * randn(sys.rng, Vec3)
     S = normalize_dipole(S, κ)
     return SpinState(S, CVec{0}())
 end
 @inline function perturbed_spin(sys::System{N}, site, magnitude) where N
+    isinf(magnitude) && return randspin(sys, site)
     κ = sys.κs[site]
     Z = sys.coherents[site] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
     Z = normalize_ket(Z, κ)

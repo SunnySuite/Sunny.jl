@@ -11,7 +11,7 @@
         # From initially x-polarized state, optimization without perturbation
         # can't break symmetry.
         polarize_spins!(sys, [1, 0, 0])
-        @test minimize_energy!(sys; δ=0).converged
+        @test minimize_energy!(sys; jitter=0).converged
         @test all(sys.dipoles) do S
             x = (mode == :dipole) ? 3/2 : 1.487610951765511
             S ≈ [x, 0, 0]
@@ -41,13 +41,13 @@ end
         # Unstable canted FM phase. No (π, π) symmetry breaking. In SU(N) mode,
         # some weight shifts from dipole to quadrupole sector.
         polarize_spins!(sys, [0, 0, 1])
-        @test minimize_energy!(sys; δ=0).converged
+        @test minimize_energy!(sys; jitter=0).converged
         ref = (mode == :dipole) ? 0.6327349993784377 : -0.619368052000758
         @test energy_per_site(sys) ≈ ref
 
         # Stable canted AFM phase. Small perturbation δ breaks (π, π) symmetry.
         polarize_spins!(sys, [0, 0, 1])
-        @test minimize_energy!(sys; δ=1e-8).converged
+        @test minimize_energy!(sys; jitter=1e-8).converged
         @test energy_per_site(sys) ≈ -5.7060439873282
     end
 end
