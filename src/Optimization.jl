@@ -74,18 +74,20 @@ end
     minimize_energy!(sys::System; maxiters=1000, jitter=1e-8, kwargs...)
 
 Optimizes the spin configuration in `sys` to find a local minimum of the energy.
-A total of `maxiters` iterations will be attempted. Prior to optimization, each
-spin will be randomly perturbed according to the dimensionless `jitter`
-magnitude. Any remaining `kwargs` will be included in the `Options` constructor
-of the [Optim.jl package](https://github.com/JuliaNLSolvers/Optim.jl)
+Large magnetic cells will be slower to converge; increase `maxiters` as needed.
+Prior to optimization, each spin will be randomly perturbed with the
+dimensionless `jitter` magnitude. This can be useful to break accidental
+symmetries or to escape local minima. Any remaining `kwargs` will be included in
+the `Options` constructor of the [Optim.jl
+package](https://github.com/JuliaNLSolvers/Optim.jl)
 
-The return object stores optimization statistics; available fields include
-`converged` and `energy`.
+Returns an object `res` storing optimization data. Its fields include
+`res.converged` and `res.energy`.
 
 !!! tip "Escaping local minima"  
     To search for the global energy minimum, a simple strategy is to repeatedly
-    call `minimize_energy!` until some `target_energy` has been reached. Finite
-    `jitter` plays an essential role to escape local minima between optimization
+    call `minimize_energy!` until some `target_energy` has been reached. Here,
+    finite `jitter` is essential to escape local minima between optimization
     runs.
 
     # Example
