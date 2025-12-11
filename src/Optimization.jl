@@ -83,18 +83,19 @@ The return object stores optimization statistics; available fields include
 `converged` and `energy`.
 
 !!! tip "Escaping local minima"  
-    To escape local energy minima, one strategy is to repeatedly call
-    `minimize_energy!` with significant `jitter` until some `energy_target` has
-    been reached.
+    To search for the global energy minimum, a simple strategy is to repeatedly
+    call `minimize_energy!` until some `target_energy` has been reached. Finite
+    `jitter` plays an essential role to escape local minima between optimization
+    steps.
 
     # Example
 
     ```julia
         # Find an energy target if not known
-        energy_target = minimum(minimize_energy!(sys, jitter=1.0).energy for _ in 1:100) + 1e-8
+        target_energy = minimum(minimize_energy!(sys, jitter=1.0).energy for _ in 1:100) + 1e-8
 
         # Repeatedly minimize until the energy target has been reached
-        i = findfirst(minimize_energy!(sys, jitter=1.0).energy <= energy_target for _ in 1:1000)
+        i = findfirst(minimize_energy!(sys, jitter=1.0).energy <= target_energy for _ in 1:1000)
         if isnothing(i)
             error("Failed to find energy below \$lowest_energy")
         end
