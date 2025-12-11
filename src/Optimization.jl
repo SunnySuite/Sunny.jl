@@ -76,29 +76,28 @@ end
 Optimizes the spin configuration in `sys` to find a local minimum of the energy.
 Large magnetic cells will be slower to converge; increase `maxiters` as needed.
 Prior to optimization, each spin will be randomly perturbed with the
-dimensionless `jitter` magnitude. This can be useful to break accidental
-symmetries or to escape local minima. Any remaining `kwargs` will be included in
-the `Options` constructor of the [Optim.jl
-package](https://github.com/JuliaNLSolvers/Optim.jl)
+dimensionless `jitter` magnitude, which can be useful to break accidental
+symmetries. Any remaining `kwargs` will be included in the `Options` constructor
+of the [Optim.jl package](https://github.com/JuliaNLSolvers/Optim.jl)
 
-Returns an object `res` storing optimization data. Its fields include
-`res.converged` and `res.energy`.
+Returns an object that can be inspected for optimization statistics.
 
 !!! tip "Escaping local minima"  
     To search for the global energy minimum, a simple strategy is to repeatedly
-    call `minimize_energy!` until some `target_energy` has been reached. Here,
-    finite `jitter` is essential to escape local minima between optimization
-    runs. For example:
+    call `minimize_energy!` until some `target_energy` has been reached:
 
     ```julia
-    # Find a target energy (if not known)
-    target_energy = minimum(minimize_energy!(sys, jitter=1.0).energy for _ in 1:100) + 1e-8
-
-    # Repeatedly minimize until the target energy has been reached
-    i = findfirst(minimize_energy!(sys, jitter=1.0).energy <= target_energy for _ in 1:1000)
-    if isnothing(i)
-        error("Failed to find energy ≤ \$target_energy")
+    best_energy = Inf
+    best_sys = nothing
+    for i in 1:100
+        randomize_spins!(sys)
+        minimize_energy!(sys)
+        if energy(sys) < best_energy
+            best_energy = energy(sys)
+            best_sys = clone_system(sys)
+        end
     end
+    @show energy(best_sys)
     ```
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, jitter=1e-8, kwargs...) where N
