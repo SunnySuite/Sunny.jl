@@ -78,7 +78,7 @@ Large magnetic cells will be slower to converge; increase `maxiters` as needed.
 Prior to optimization, each spin will be randomly perturbed with the
 dimensionless `jitter` magnitude, which can be useful to break accidental
 symmetries. Any remaining `kwargs` will be included in the `Options` constructor
-of the [Optim.jl package](https://github.com/JuliaNLSolvers/Optim.jl)
+of the [Optim.jl package](https://github.com/JuliaNLSolvers/Optim.jl).
 
 Returns an object that can be inspected for optimization statistics.
 
