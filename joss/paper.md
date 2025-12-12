@@ -201,7 +201,7 @@ use of Sunny, a partial list of which is maintained on the GitHub wiki [@Sunny].
 We note a number of experimental studies that have relied on Sunny for analysis
 [@bai:2021; @lee:2023; @do:2023; @bai:2023; @kim:2023; @paddison:2024;
 @scheie:2023; @park:2023a; @nagl:2024; @na:2024; @park:2024a; @park:2024b;
-@park:2024c], as well as theoretical and methodological works [@zhang:2023;
+@park:2025], as well as theoretical and methodological works [@zhang:2023;
 @zhang:2024; @dahlbom:2024a; @dahlbom:2024b]. Additional papers documenting the
 theoretical and algorithmic advances that have enabled the development of Sunny
 are discussed below. 
@@ -246,7 +246,7 @@ the assignment of a classical dipole to each lattice site. Recent theoretical
 work has generalized this picture, replacing dipoles with richer objects, namely
 SU(_N_) coherent states. Such states capture the full structure of an _N_-level
 quantum system. Setting $N = 2s + 1$ enables the faithful representation of a
-quantum spin-$s$ and of the crystal field levels of a single-ion. The formalism
+quantum spin $s$ and of the crystal field levels of a single-ion. The formalism
 can also be adapted to model local entanglement effects, where this entanglement
 may be between the spin and orbital degrees of freedom on a single site or
 within a cluster of spins on different sites. 
