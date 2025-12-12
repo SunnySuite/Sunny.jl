@@ -87,35 +87,35 @@ authors:
 
 
 affiliations:
- - name: Neutron Scattering Division, Oak Ridge National Laboratory 
+ - name: Neutron Scattering Division, Oak Ridge National Laboratory, United States of America
    index: 1
- - name: Department of Physics and Astronomy, University of Tennessee 
+ - name: Department of Physics and Astronomy, University of Tennessee, United States of America
    index: 2
- - name: Theoretical Division and CNLS, Los Alamos National Laboratory 
+ - name: Theoretical Division and CNLS, Los Alamos National Laboratory, United States of America
    index: 3
- - name: Kodiak Robotics 
+ - name: Kodiak Robotics, United States of America
    index: 4
- - name: School of Physics, Georgia Institute of Technology
+ - name: School of Physics, Georgia Institute of Technology, United States of America
    index: 5
- - name: Department of Physics and Astronomy, Univeriy of California, Los Angeles
+ - name: Department of Physics and Astronomy, University of California, Los Angeles, United States of America
    index: 6
- - name: Department of Physics and Astronomy, Louisiana State University
+ - name: Department of Physics and Astronomy, Louisiana State University, United States of America
    index: 7
- - name: X-Computational Physics Division, Los Alamos National Laboratory
+ - name: X-Computational Physics Division, Los Alamos National Laboratory, United States of America
    index: 8
- - name: Computer Science and Mathematics Division, Oak Ridge National Laboratory 
+ - name: Computer Science and Mathematics Division, Oak Ridge National Laboratory, United States of America
    index: 9
- - name: Institute for Advanced Materials and Manufacturing, Unversity of Tennessee 
+ - name: Institute for Advanced Materials and Manufacturing, Unversity of Tennessee, United States of America
    index: 10
- - name: Center for Correlated Matter and School of Physics, Zhejiang University 
+ - name: Center for Correlated Matter and School of Physics, Zhejiang University, People's Republic of China
    index: 11
- - name: Department of Physics and Astronomy, University of Manchester 
+ - name: Department of Physics and Astronomy, University of Manchester, United Kingdom
    index: 12
- - name: The University of Manchester at Harwell, University of Manchester 
+ - name: The University of Manchester at Harwell, University of Manchester, United Kindom
    index: 13
- - name: School of Physics and Astronomy, University of St Andrews 
+ - name: School of Physics and Astronomy, University of St Andrews, United Kingdom
    index: 14
- - name: Computer, Computational, and Statistical Sciences Division, Los Alamos National Laboratory
+ - name: Computer, Computational, and Statistical Sciences Division, Los Alamos National Laboratory, United States of America
    index: 15
 date: 23 January, 2025 
 bibliography: paper.bib
@@ -148,7 +148,7 @@ accordance with the DOE Public Access Plan
 # Statement of need
 
 Progress in quantum magnetism depends on the development of accurate models of
-magnetic materials. Scattering techniques, such inelastic neutron scattering
+magnetic materials. Scattering techniques, such as inelastic neutron scattering
 (INS) and resonant inelastic X-ray scattering (RIXS), are among the most
 informative methods available for probing the dynamics of quantum magnets,
 yielding the dynamical spin structure factor $\mathcal{S}(\mathbf{q},\omega)$ as
@@ -184,15 +184,15 @@ Distinguishing features of Sunny include:
 There are a number of existing codes that can calculate
 $\mathcal{S}(\mathbf{q},\omega)$ using linear spin wave theory (LSWT), some of
 which have served as inspiration to the Sunny project [@rotter:2004;
-@SpinWaveGenie; @petit:2016; weber:2016; @li:2024]. The symmetry analysis tools
+@SpinWaveGenie; @petit:2016; @weber:2016; @li:2024]. The symmetry analysis tools
 of SpinW in particular have served as a model [@toth:2015]. There are also codes
 that perform classical spin simulations using Landau-Lifshitz (LL) dynamics
 [@muller:2019; @evans:2014; @uppasd:2024]. Sunny is unique in offering both
 approaches and generalizing them through a formalism based on SU(_N_) coherent
 states [@muniz:2014; @zhang_batista:2021]. Sunny additionally permits completely
-general single-ion anisotropies and coupling of multipolar moments; provides an
-efficient implementation of long-range dipole-dipole interactions; automates the
-application of a number of quantum renormalizations [@dahlbom:2023]; and offers
+general single-ion anisotropies and coupling of multipolar moments, provides an
+efficient implementation of long-range dipole-dipole interactions, automates the
+application of a number of quantum renormalizations [@dahlbom:2025], and offers
 iterative solvers for efficient LSWT on large magnetic cells [@lane:2024].
 
 The value of collecting all these tools together in a modern, easy-to-use
@@ -201,7 +201,7 @@ use of Sunny, a partial list of which is maintained on the GitHub wiki [@Sunny].
 We note a number of experimental studies that have relied on Sunny for analysis
 [@bai:2021; @lee:2023; @do:2023; @bai:2023; @kim:2023; @paddison:2024;
 @scheie:2023; @park:2023a; @nagl:2024; @na:2024; @park:2024a; @park:2024b;
-@park:2024c]; as well as theoretical and methodological works [@zhang:2023;
+@park:2024c], as well as theoretical and methodological works [@zhang:2023;
 @zhang:2024; @dahlbom:2024a; @dahlbom:2024b]. Additional papers documenting the
 theoretical and algorithmic advances that have enabled the development of Sunny
 are discussed below. 
@@ -235,8 +235,8 @@ industry-standard CIF file [@hall:1991].
 Both the symmetry analysis and data retrieval features of Sunny include 3D
 visualization tools built on the Makie package [@danisch:2021]. These can be
 used to plot spin configurations, investigate the symmetries of a crystal
-\autoref{fig:symmetry}, generate animations of dynamic behavior, and plot the
-predicted results of scattering experiments \autoref{fig:Sqw}. 
+(\autoref{fig:symmetry}), generate animations of dynamic behavior, and plot the
+predicted results of scattering experiments (\autoref{fig:Sqw}). 
 
 
 ## SU(_N_) Formalism and System Modes
@@ -256,7 +256,7 @@ classical spin dynamics [@zhang_batista:2021]. Users can access this framework
 simply by setting the "mode" of a spin system to `:SUN`. Sunny also offers a
 `:dipole` mode, which is similar to the traditional classical approach but
 includes quantum renormalizations of biquadratic and single-ion anisotropy terms
-[@dahlbom:2023]. Finally, there is a mode that implements the traditional
+[@dahlbom:2025]. Finally, there is a mode that implements the traditional
 approach without any additional corrections, `:dipole_uncorrected`. Most Sunny
 features are supported in all modes. 
 
@@ -304,11 +304,11 @@ transport, pump-probe experiments, and spin-glass relaxation.
 
 ## Sunny as a Platform for Future Developments
 
-To make these existing features more widely available, work at ORNL is underway
-to integrate Sunny into the Calvera platform for neutron data analysis
-[@watson:2022]. Sunny itself can serve as a platform for new solvers and
-analysis techniques, building on its mature model specification and data
-retrieval features. Current efforts are directed at supporting: the
+To make these existing features more widely available, work at Oak Ridge
+National Laboratory is underway to integrate Sunny into the Calvera platform for
+neutron data analysis [@watson:2022]. Sunny itself can serve as a platform for
+new solvers and analysis techniques, building on its mature model specification
+and data retrieval features. Current efforts are directed at supporting: the
 self-consistent Gaussian approximation for diffuse scattering, enabling
 functionality inspired by [@paddison:2023]; the modeling of local entanglement
 effects generated by spin-orbit coupling or strongly coupled clusters of spins;
