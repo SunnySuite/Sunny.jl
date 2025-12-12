@@ -1,5 +1,5 @@
 ---
-title: 'Sunny.jl: A Julia Package for Spin Dynamics[^1]'
+title: 'Sunny.jl: A Julia Package for Spin Dynamics'
 tags:
   - Julia 
   - magnetism
@@ -133,16 +133,6 @@ spin-orbit coupling or local entanglement effects. Sunny also offers a
 well-developed framework for calculating the dynamical spin structure factor,
 enabling direct comparison with scattering experiments. Ease of use is a
 priority, with tools for symmetry-guided modeling and interactive visualization. 
-
-[^1]: This manuscript has been authored by UT-Battelle, LLC, under contract
-DE-AC05-00OR22725 with the US Department of Energy (DOE). The US government
-retains and the publisher, by accepting the article for publication,
-acknowledges that the US government retains a nonexclusive, paid-up,
-irrevocable, worldwide license to publish or reproduce the published form of
-this manuscript, or allow others to do so, for US government purposes. DOE will
-provide public access to these results of federally sponsored research in
-accordance with the DOE Public Access Plan
-(https://www.energy.gov/doe-public-access-plan).
 
 
 # Statement of need
