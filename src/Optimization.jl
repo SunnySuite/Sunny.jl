@@ -87,12 +87,12 @@ Returns an object that can be inspected for optimization statistics.
     call [`randomize_spins!`](@ref) and then `minimize_energy!`.
 
     ```julia
-    test_sys = clone_system(sys)
+    trial_sys = clone_system(sys)
     for i in 1:100
-        randomize_spins!(test_sys)
-        minimize_energy!(test_sys)
-        if energy(test_sys) < energy(sys)
-            copy_spins!(sys, test_sys)
+        randomize_spins!(trial_sys)
+        minimize_energy!(trial_sys)
+        if energy(trial_sys) < energy(sys)
+            copy_spins!(sys, trial_sys)
         end
     end
     ```

@@ -143,43 +143,43 @@ set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 # ### Finding the ground state
 
 # This model has been fitted so that energy minimization yields the physically
-# correct ground state. Knowing this, we could set the magnetic configuration
-# manually by calling [`set_dipole!`](@ref) on each site in the system. Another
-# approach is to search for the ground-state via [`minimize_energy!`](@ref).
+# correct ground state. Knowing this, we could manually set the magnetic
+# configuration by calling [`set_dipole!`](@ref) on each site in the system.
+# Instead, for pedagogy, we will search for the ground state using repeated
+# energy minimization.
 #
 # To reduce bias in the search, use [`resize_supercell`](@ref) to create a
-# relatively large system of 4×4×4 chemical cells. Randomize all spins
-# (represented as SU(3) coherent states) and minimize the energy.
+# relatively large system of 4×4×4 chemical cells. Call
+# [`randomize_spins!`](@ref) and [`minimize_energy!`](@ref) in sequence to find
+# an energy-minimizing structure.
 
 sys = resize_supercell(sys, (4, 4, 4))
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-# Despite successful convergence to a local energy minimum, defects in the spin
-# configuration are visually apparent.
+# Despite successful convergence, defects in the spin configuration are visually
+# apparent. This indicates trapping in a local energy minimum.
 
 plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
-# To search for true ground state, a simple strategy is to repeatedly randomize
-# the spin configuration and re-run the optimizer. The minimum-energy
-# configuration will be stored in `sys`.
+# To search for the true ground state, a simple strategy is to repeatedly
+# randomize spins and then minimize their energy. The lowest-found energy
+# configuration is stored in `sys`.
 
-test_sys = clone_system(sys)
+trial_sys = clone_system(sys)
 for i in 1:100
-    randomize_spins!(test_sys)
-    minimize_energy!(test_sys)
-    if energy(test_sys) < energy(sys)
-        copy_spins!(sys, test_sys)
+    randomize_spins!(trial_sys)
+    minimize_energy!(trial_sys)
+    if energy(trial_sys) < energy(sys)
+        copy_spins!(sys, trial_sys)
     end
 end
 
-# The function [`print_wrapped_intensities`](@ref) reports the static spin-spin
-# structure factor ``\mathcal{S}(𝐪)`` averaged over all cells of the reciprocal
-# lattice. Because the Fe ions are arranged on a Bravais lattice (a single
-# sublattice), `print_wrapped_intensities` coincides with the true structure
-# factor. Otherwise, to account for the phase averaging between distinct
-# sublattices, one could use [`SampledCorrelationsStatic`](@ref).
-
+# Use [`print_wrapped_intensities`](@ref) to get a quick summary of the static
+# structure factor. For simplicity, this function reports the sum of structure
+# factors ``\mathcal{S}^{αα}(𝐪)`` calculated for each sublattice ``α``
+# independently. To obtain instead the full ``\mathcal{S}(𝐪)`` as an
+# experimental observable, use [`SampledCorrelationsStatic`](@ref).
 print_wrapped_intensities(sys)
 
 # As expected for FeI₂, the ground state is a generalized spiral with
