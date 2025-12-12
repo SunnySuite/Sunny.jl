@@ -84,20 +84,17 @@ Returns an object that can be inspected for optimization statistics.
 
 !!! tip "Escaping local minima"  
     To search for the global energy minimum, a simple strategy is to repeatedly
-    call `minimize_energy!` until some `target_energy` has been reached:
+    call [`randomize_spins!`](@ref) and then `minimize_energy!`.
 
     ```julia
-    best_energy = Inf
-    best_sys = nothing
+    test_sys = clone_system(sys)
     for i in 1:100
-        randomize_spins!(sys)
-        minimize_energy!(sys)
-        if energy(sys) < best_energy
-            best_energy = energy(sys)
-            best_sys = clone_system(sys)
+        randomize_spins!(test_sys)
+        minimize_energy!(test_sys)
+        if energy(test_sys) < energy(sys)
+            copy_spins!(sys, test_sys)
         end
     end
-    @show energy(best_sys)
     ```
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, jitter=1e-8, kwargs...) where N

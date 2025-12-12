@@ -4,7 +4,8 @@
 (In progress)
 
 * Fix plotting error with [`SCGA`](@ref)-calculated intensities ([#464](@ref)).
-* Expose `jitter` parameter in [`minimize_energy!`](@ref) ([#465](@ref)).
+* Add [`copy_spins!`](@ref). Expose `jitter` parameter in
+  [`minimize_energy!`](@ref) ([#465](@ref)).
 
 ## v0.8.0
 (Nov 30, 2025)
