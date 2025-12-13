@@ -190,7 +190,7 @@ print_wrapped_intensities(sys)
 # can be made more efficient by working with a minimized magnetic cell. Find one
 # with [`suggest_magnetic_supercell`](@ref).
 
-suggest_magnetic_supercell([[0, +1/4, -1/4]])
+suggest_magnetic_supercell([[0, -1/4, 1/4]])
 
 # Create a minimized system with [`reshape_supercell`](@ref). Here, the ground
 # state is found rapidly. A good consistency check is that the
