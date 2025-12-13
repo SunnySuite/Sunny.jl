@@ -166,33 +166,39 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 # randomize spins and then minimize their energy. The lowest-found energy
 # configuration is stored in `sys`.
 
-trial_sys = clone_system(sys)
+sys_min = clone_system(sys)
 for i in 1:100
-    randomize_spins!(trial_sys)
-    minimize_energy!(trial_sys)
-    if energy(trial_sys) < energy(sys)
-        copy_spins!(sys, trial_sys)
+    randomize_spins!(sys)
+    minimize_energy!(sys)
+    if energy(sys) < energy(sys_min)
+        copy_spins!(sys_min, sys)
     end
 end
+copy_spins!(sys, sys_min)
 
 # Use [`print_wrapped_intensities`](@ref) to get a quick summary of the static
 # structure factor. For simplicity, this function reports the sum of structure
 # factors ``\mathcal{S}^{αα}(𝐪)`` calculated for each sublattice ``α``
 # independently. To obtain instead the full ``\mathcal{S}(𝐪)`` as an
 # experimental observable, use [`SampledCorrelationsStatic`](@ref).
+
 print_wrapped_intensities(sys)
 
-# As expected for FeI₂, the ground state is a generalized spiral with
-# propagation wavevector ``𝐤 = ± [0, -1/4, 1/4]``. Subsequent calculations can
-# be made more efficient by working with a minimized magnetic cell. Find one
+# This is the correct ground state for FeI₂: a generalized spiral with
+# propagation wavevector ``𝐤 = ± [0, -1/4, 1/4]`` (equivalently ``±[1/4, 0,
+# 1/4]`` or ``±[-1/4, 1/4, 1/4]`` under 120° rotations). Subsequent calculations
+# can be made more efficient by working with a minimized magnetic cell. Find one
 # with [`suggest_magnetic_supercell`](@ref).
 
 suggest_magnetic_supercell([[0, +1/4, -1/4]])
 
-# Create a minimized system with [`reshape_supercell`](@ref). A good consistency
-# check is that the [`energy_per_site`](@ref) is unchanged.
+# Create a minimized system with [`reshape_supercell`](@ref). Here, the ground
+# state is found rapidly. A good consistency check is that the
+# [`energy_per_site`](@ref) is unchanged by the reshaping.
 
 sys_min = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
+randomize_spins!(sys_min)
+minimize_energy!(sys_min)
 @assert energy_per_site(sys_min) ≈ energy_per_site(sys)
 
 # Plot the system again, now including "ghost" spins out to 12Å. The correct
