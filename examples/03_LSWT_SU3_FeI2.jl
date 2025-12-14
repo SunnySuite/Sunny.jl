@@ -172,9 +172,9 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 print_wrapped_intensities(sys)
 
 # The correct ground state for FeI₂ is a generalized spiral with one of three
-# propagation wavevectors: ``𝐤 = ± [0, -1/4, 1/4]``, ``[1/4, 0, 1/4]``, or
-# ``[-1/4, 1/4, 1/4]``. These are related by 120° rotational symmetries. The
-# result of `print_wrapped_intensities` hints at this spiral phase.
+# propagation wavevectors: ``± [0, -1/4, 1/4]`` or ``± [1/4, 0, 1/4]`` or ``±
+# [-1/4, 1/4, 1/4]``. These are equivalent under 120° rotations. The result of
+# `print_wrapped_intensities` hints at this spiral phase.
 #
 # Let's break the 3-fold symmetry by hand. The function
 # [`suggest_magnetic_supercell`](@ref) takes any number of propagation
