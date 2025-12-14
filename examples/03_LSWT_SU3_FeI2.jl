@@ -150,30 +150,31 @@ set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 #
 # To reduce bias in the search, use [`resize_supercell`](@ref) to create a
 # relatively large system of 4×4×4 chemical cells. Call
-# [`randomize_spins!`](@ref) and [`minimize_energy!`](@ref) in sequence to find
-# an energy-minimizing structure.
+# [`randomize_spins!`](@ref) and [`minimize_energy!`](@ref) in sequence.
 
 sys = resize_supercell(sys, (4, 4, 4))
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-# Despite successful convergence, defects in the spin configuration are visually
-# apparent. This indicates trapping in a local energy minimum.
+# Despite successful convergence to a local energy minimum, defects in the spin
+# configuration are visually apparent. Global energy minimization can be a very
+# challenging task in the general case.
 
 plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
-# Use [`print_wrapped_intensities`](@ref) to get a quick summary of the static
-# structure factor. For simplicity, this function reports the sum of structure
-# factors ``\mathcal{S}^{αα}(𝐪)`` calculated for each sublattice ``α``
-# independently. To obtain instead the full ``\mathcal{S}(𝐪)`` as an
-# experimental observable, use [`SampledCorrelationsStatic`](@ref).
+# Use [`print_wrapped_intensities`](@ref) to quickly get certain ``𝐪``-space
+# information about the magnetic state. The reported intensities are loosely
+# related to the static structure factor, but do not account for phase
+# interference between sublattices of the chemical cell. For the true
+# ``\mathcal{S}(𝐪)`` as an experimental observable, use instead
+# [`SampledCorrelationsStatic`](@ref).
 
 print_wrapped_intensities(sys)
 
 # The correct ground state for FeI₂ is a generalized spiral with one of three
 # propagation wavevectors: ``𝐤 = ± [0, -1/4, 1/4]``, ``[1/4, 0, 1/4]``, or
-# ``[-1/4, 1/4, 1/4]``. These are related by 120° rotations. The result of
-# `print_wrapped_intensities` hints at this spiral phase.
+# ``[-1/4, 1/4, 1/4]``. These are related by 120° rotational symmetries. The
+# result of `print_wrapped_intensities` hints at this spiral phase.
 #
 # Let's break the 3-fold symmetry by hand. The function
 # [`suggest_magnetic_supercell`](@ref) takes any number of propagation

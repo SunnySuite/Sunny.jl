@@ -1,19 +1,24 @@
 """
     print_wrapped_intensities(sys::System; nmax=10)
 
-For Bravais lattices: Prints up to `nmax` wavevectors according to their
-instantaneous (static) structure factor intensities, listed in descending order.
-For non-Bravais lattices: Performs the same analysis for each spin sublattice
-independently; the output weights are naïvely averaged over sublattices, without
-incorporating phase shift information. This procedure therefore wraps all
-wavevectors into the first Brillouin zone. Each wavevector coordinate is given
-between ``-1/2`` and ``1/2`` in reciprocal lattice units (RLU).  The output from
-this function will typically be used as input to
+Prints up to `nmax` wavevectors ``𝐪`` and their "wrapped" static structure
+factor intensities. Each ``𝐪`` is exactly commensurate with the system volume
+and has components between ``-1/2`` and ``1/2`` in reciprocal lattice units
+(RLU). The output from this function will typically be used as input to
 [`suggest_magnetic_supercell`](@ref).
 
-Because this function does not incorporate phase information in its averaging
-over sublattices, the printed weights are not directly comparable with
-experiment. For that purpose, use [`SampledCorrelationsStatic`](@ref) instead.
+For simplicity, phase interference between sublattices is neglected in this
+calculation. The reported intensities are the sum of structure factors
+``\\mathcal{S}_{jj}(𝐪)`` calculated independently for each sublattice ``j`` of
+the chemical cell. Equivalently, the reported intensities are the average of
+``\\mathcal{S}(𝐪)`` taken over all cells of the infinite reciprocal lattice. It
+is in this sense that the intensities are effectively "wrapped" into the first
+reciprocal cell.
+
+Because this function does not incorporate phase interference, the printed
+weights are not directly comparable with experiment (except when the chemical
+cell has only one magnetic sublattice). To calculate the true
+``\\mathcal{S}(𝐪)``, use [`SampledCorrelationsStatic`](@ref) instead.
 """
 function print_wrapped_intensities(sys::System{N}; nmax=10) where N
     sys.crystal == orig_crystal(sys) || error("Cannot perform this analysis on reshaped system.")
