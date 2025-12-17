@@ -30,7 +30,7 @@ function Adapt.adapt_structure(to, data::SWTDataSUNDevice)
     SWTDataSUNDevice(local_unitaries, observables_localized, spins_localized)
 end
 
-struct SpinWaveTheoryDevice{TSys, TData, TMeasure}
+struct SpinWaveTheoryDevice{TSys, TData, TMeasure} <: Sunny.AbstractSpinWaveTheory
     sys   :: TSys
     data  :: TData
     measure        :: TMeasure
@@ -58,7 +58,10 @@ function Sunny.nbands(swt::SpinWaveTheoryDevice)
     return Sunny.nflavors(swt) * Sunny.natoms(sys.crystal)
 end
 
+function Sunny.to_device(swt::Sunny.SpinWaveTheory)
+    return SpinWaveTheoryDevice(swt)
+end
+
 function Sunny.dynamical_matrix!(H::CUDA.CuArray{ComplexF64, 3}, swt::SpinWaveTheoryDevice, q_reshaped, qs)
-    #@assert swt.sys.mode in (:dipole, :dipole_uncorrected)
     swt_hamiltonian_dipole!(H, swt, q_reshaped, qs)
 end

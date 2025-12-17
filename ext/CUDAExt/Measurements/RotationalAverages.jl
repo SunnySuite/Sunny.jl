@@ -20,8 +20,8 @@ end
 plot_intensities(res)
 ```
 """
-function powder_average(f, cryst, radii, n::Int, seed::Int)
-    res = f([Sunny.Vec3(0,0,0)]) # Dummy call to learn types
+function powder_average(f, cryst, radii, n::Int, seed::Int, batch_size::Int)
+    res = f(CUDA.CuArray([Sunny.Vec3(0,0,0)])) # Dummy call to learn types
     if res isa IntensitiesDevice
         data = CUDA.zeros(Float64, length(res.energies), length(radii))
         ret = PowderIntensitiesDevice(cryst, collect(radii), res.energies, data)
@@ -30,13 +30,23 @@ function powder_average(f, cryst, radii, n::Int, seed::Int)
     end
 
     rng = Random.Xoshiro(seed)
-    sphpts = Sunny.sphere_points(n)
+    sphpts = CUDA.CuArray(Sunny.sphere_points(n))
     to_rlu = inv(cryst.recipvecs)
-    for (i, radius) in enumerate(radii)
-        R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3))
-        res = f(Ref(to_rlu * R * radius) .* sphpts)
+
+    tmp = CUDA.CuArray{Sunny.Vec3}(undef, length(sphpts), batch_size)
+    batches = Iterators.partition(radii, batch_size)
+    for (batch_idx, radii_batch) in enumerate(batches)
+        for (ii, radius) in enumerate(radii_batch)
+            R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3))
+            tmp[:, ii] .= Ref(to_rlu * R * radius) .* sphpts
+        end
+        tmp_v = reshape(view(tmp,:,1:length(radii_batch)), length(sphpts)*length(radii_batch))
+        res = f(tmp_v)
+        res_data = reshape(view(res.data,:,:), length(res.energies), length(sphpts), length(radii_batch))
         if res isa IntensitiesDevice
-            data[:, i] .= Statistics.mean(res.data; dims=2)
+            start = (batch_idx-1)*batch_size
+            mean = Statistics.mean(res_data; dims=2)
+            view(data,:, start+1:start+length(radii_batch)) .= view(mean,:,1,:)
         else
             error("Provided function must call `IntensitiesDevice`.")
         end

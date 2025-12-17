@@ -51,6 +51,7 @@ path = q_space_path(cryst, qs, 400)
 
 #fig = Figure(size=(768, 300))
 swt = SpinWaveTheory(sys_enlarged; measure=ssf_perp(sys_enlarged))
+swt_d = to_device(swt)
 #res = intensities_bands(swt, path)
 #res = Sunny.Intensities(res)
 #plot_intensities!(fig[1, 1], res; units, saturation=0.5,title="Supercell method")
@@ -67,8 +68,14 @@ swt = SpinWaveTheory(sys_enlarged; measure=ssf_perp(sys_enlarged))
 radii = range(0, 2.5, 200)
 energies = range(0, 2.5, 200)
 kernel = gaussian(fwhm=0.05)
-@time res_d = powder_average(cryst, radii, 200) do qs
-    intensities(swt, qs; energies, kernel)
+@time res_d = powder_average(cryst, radii, 200, batch_size=3) do qs
+    intensities(swt_d, qs; energies, kernel)
 end
-res = Sunny.PowderIntensities(res_d)
+for i in 1:3
+    println(i)
+    @time global res_d = powder_average(cryst, radii, 200, batch_size=i) do qs
+        intensities(swt_d, qs; energies, kernel)
+    end
+end
+res = Sunny.PowderIntensities(res_d, cryst)
 plot_intensities(res; units, colorrange=(0, 20))

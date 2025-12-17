@@ -120,36 +120,37 @@ end
 plot_intensities(res)
 ```
 """
-function powder_average(f, cryst, radii, n::Int; seed=0)
+function powder_average(f, cryst, radii, n::Int; seed=0, batch_size=1)
     ext = Base.get_extension(@__MODULE__, :CUDAExt)
-    if ext === nothing
-        res = f([Vec3(0,0,0)]) # Dummy call to learn types
-        if res isa Intensities
-            data = zeros(length(res.energies), length(radii))
-            ret = PowderIntensities(cryst, collect(radii), res.energies, data)
-        elseif res isa StaticIntensities
-            data = zeros(length(radii))
-            ret = PowderStaticIntensities(cryst, collect(radii), data)
-        else
-            error("Provided function must call `intensities` or `intensities_static`.")
-        end
-
-        rng = Random.Xoshiro(seed)
-        sphpts = sphere_points(n)
-        to_rlu = inv(cryst.recipvecs)
-        for (i, radius) in enumerate(radii)
-            R = Mat3(random_orthogonal(rng, 3))
-            res = f(Ref(to_rlu * R * radius) .* sphpts)
-            if res isa Intensities
-                data[:, i] .= Statistics.mean(res.data; dims=2)
-            else
-                data[i] = Statistics.mean(res.data)
-            end
-        end
-
-        return ret
+    if ext !== nothing
+        return ext.powder_average(f, cryst, radii, n, seed, batch_size)
     end
-    return ext.powder_average(f, cryst, radii, n, seed)
+    
+    res = f([Vec3(0,0,0)]) # Dummy call to learn types
+    if res isa Intensities
+        data = Array{Float64}(undef, length(res.energies), length(radii))
+        ret = PowderIntensities(cryst, collect(radii), res.energies, data)
+    elseif res isa StaticIntensities
+        data = zeros(length(radii))
+        ret = PowderStaticIntensities(cryst, collect(radii), data)
+    else
+        error("Provided function must call `intensities` or `intensities_static`.")
+    end
+
+    rng = Random.Xoshiro(seed)
+    sphpts = sphere_points(n)
+    to_rlu = inv(cryst.recipvecs)
+    for (i, radius) in enumerate(radii)
+        R = Mat3(random_orthogonal(rng, 3))
+        res = f(Ref(to_rlu * R * radius) .* sphpts)
+        if res isa Intensities
+            data[:, i] .= Statistics.mean(res.data; dims=2)
+        else
+            data[i] = Statistics.mean(res.data)
+        end
+    end
+
+    return ret
 end
 
 #

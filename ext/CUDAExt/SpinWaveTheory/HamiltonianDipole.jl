@@ -16,7 +16,7 @@ function fill_matrix(H, swt, qs_reshaped, qs, L)
     H21 = @view Hq[L+1:2L, 1:L]
     H22 = @view Hq[L+1:2L, L+1:2L]
 
-    q_reshaped = qs_reshaped * Sunny.Vec3(view(qs,:,iq))
+    q_reshaped = qs_reshaped * qs[iq]
 
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
@@ -117,10 +117,9 @@ function fill_matrix(H, swt, qs_reshaped, qs, L)
     return
 end
 
-function swt_hamiltonian_dipole!(H::CUDA.CuArray{ComplexF64, 3}, swt::SpinWaveTheoryDevice, qs_reshaped, qs::CUDA.CuArray{Float64, 2})
+function swt_hamiltonian_dipole!(H::CUDA.CuArray{ComplexF64, 3}, swt::SpinWaveTheoryDevice, qs_reshaped, qs::CUDA.CuArray{Sunny.Vec3})
     L = Sunny.nbands(swt)
-    @assert size(qs, 1) == 3
-    Nq = size(qs, 2)
+    Nq = size(qs, 1)
     @assert size(H, 3) == Nq
     @assert size(view(H,:,:,1)) == (2L, 2L)
 

@@ -14,3 +14,8 @@ function Adapt.adapt_structure(to, data::MeasureSpecDevice)
     formfactors = Adapt.adapt_structure(to, data.formfactors)
     MeasureSpecDevice(observables, corr_pairs, combiner, formfactors)
 end
+
+Sunny.num_observables(measure::MeasureSpecDevice) = size(measure.observables, 1)
+Sunny.num_correlations(measure::MeasureSpecDevice) = length(measure.corr_pairs) 
+
+Base.eltype(device::MeasureSpecDevice)  = only(Base.return_types(device.combiner, (Sunny.Vec3, CUDA.CuVector{ComplexF64})))

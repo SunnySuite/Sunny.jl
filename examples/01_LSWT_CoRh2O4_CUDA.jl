@@ -144,15 +144,16 @@ kernel = lorentzian(fwhm=0.8)
 
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path = q_space_path(cryst, qs, 500)
-
+path_d = to_device(path)
 # Calculate single-crystal scattering [`intensities`](@ref) along this path, for
 # energies between 0 and 6 meV. Use [`plot_intensities`](@ref) to visualize the
 # result.
 
 energies = range(0, 6, 300)
-@time res_d = intensities(swt, path; energies, kernel)
-@time res_d = intensities(swt, path; energies, kernel)
-res = Sunny.Intensities(res_d)
+swt_d = to_device(swt)
+@time res_d = intensities(swt_d, path_d; energies, kernel)
+@time res_d = intensities(swt_d, path_d; energies, kernel)
+res = Sunny.Intensities(res_d, cryst)
 plot_intensities(res; units, title="CoRh₂O₄ LSWT")
 
 # Sometimes experimental data is only available as a powder average, i.e., as an
@@ -164,10 +165,10 @@ plot_intensities(res; units, title="CoRh₂O₄ LSWT")
 # cell, the calculation would be an order of magnitude slower.
 
 radii = range(0, 3, 200) # (1/Å)
-res_d = powder_average(cryst, radii, 2000) do qs
-    intensities(swt, qs; energies, kernel)
+res_d = powder_average(cryst, radii, 200) do qs
+    intensities(swt_d, qs; energies, kernel)
 end
-res = Sunny.PowderIntensities(res_d)
+res = Sunny.PowderIntensities(res_d, cryst)
 plot_intensities(res; units, saturation=1.0, title="CoRh₂O₄ Powder Average")
 
 # This result can be compared to experimental neutron scattering data

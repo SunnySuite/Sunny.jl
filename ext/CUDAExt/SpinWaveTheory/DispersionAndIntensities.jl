@@ -15,30 +15,23 @@ function _set_identity(a)
 end
 
 function _frequencies(H, evalues)
-    iq = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-    if iq > size(H, 3)
+    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    if i > size(H, 2)
         return
     end
 
-    Hq = @view H[:, :, iq]
-    λ = @view evalues[:, iq]
-    # Normalize columns of T so that para-unitarity holds, T† Ĩ T = Ĩ.
-    for j in axes(Hq, 2)
-        c = CUDA.rsqrt(abs(λ[j]))
-        view(Hq, :, j) .*= c
+    j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
+    if j > size(H, 3)
+        return
     end
+
+    Hq = @view H[:, i, j]
+    λ = evalues[i, j]
+    # Normalize columns of T so that para-unitarity holds, T† Ĩ T = Ĩ.
+    Hq .*= CUDA.rsqrt(abs(λ))
 
     # Inverse of λ are eigenvalues of Ĩ H, or equivalently, of √H Ĩ √H.
-    for j in eachindex(λ)
-       λ[j] = 1. / λ[j]
-    end
-    # By Sylvester's theorem, "inertia" (sign signature) is invariant under a
-    # congruence transform Ĩ → √H Ĩ √H. The first L elements are positive,
-    # while the next L elements are negative. Their absolute values are
-    # excitation energies for the wavevectors q and -q, respectively.
-
-    #L = div(size(λ), 2)
-    #@assert all(<(0), view(λ, 1:L)) && all(>(0), view(λ, L+1:2L))
+    evalues[i, j] = inv(λ)
     return
 end
 
@@ -47,7 +40,7 @@ function _intensities(swt, qs, L, Ncells, H, Nobs, Na, Ncorr, recipvecs, intensi
     if iq > size(H,3)
         return
     end
-    q = Sunny.Vec3(view(qs,:,iq))
+    q = qs[iq]
     Hq = view(H,:,:,iq)
     corrbuf = CuDynamicSharedArray(ComplexF64, (Ncorr, blockDim().x))
     corrbufq = view(corrbuf,:,threadIdx().x)
@@ -55,7 +48,6 @@ function _intensities(swt, qs, L, Ncells, H, Nobs, Na, Ncorr, recipvecs, intensi
     Avec_prefq = view(Avec_pref,:,:,threadIdx().x)
 
     (; sys, data, measure) = swt
-    q = Sunny.Vec3(view(qs,:,iq))
     q_global = recipvecs * q
     for i in 1:Na, μ in 1:Nobs
         r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
@@ -98,15 +90,16 @@ Calculate spin wave excitation bands for a set of q-points in reciprocal space.
 This calculation is analogous to [`intensities`](@ref), but does not perform
 line broadening of the bands.
 """
-function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
+function intensities_bands(swt::SpinWaveTheoryDevice, qpts; kT=0, with_negative=false)
     (; sys, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     with_negative && error("Option `with_negative=true` not yet supported.")
-    @assert sys.mode in (:dipole, :dipole_uncorrected)
-    @assert isnothing(sys.ewald)
+    #@assert sys.mode in (:dipole, :dipole_uncorrected)
+    #@assert isnothing(sys.ewald)
 
     qpts = convert(Sunny.AbstractQPoints, qpts)
-    cryst = Sunny.orig_crystal(sys)
+
+    cryst = sys.original_crystal
 
     # Number of (magnetic) atoms in magnetic cell
     @assert sys.dims == (1,1,1)
@@ -122,18 +115,13 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     Nobs = Sunny.num_observables(measure)
     Ncorr = Sunny.num_correlations(measure)
 
-    qs_h = zeros(Float64, 3, Nq)
-    for (iq, q) in enumerate(qpts.qs)
-        view(qs_h, :, iq) .= q #to_reshaped_rlu(swt.sys, q)
-    end
-    qs_d = CuArray(qs_h)
+    qs_d = qpts.qs
 
     # Given q in reciprocal lattice units (RLU) for the original crystal, return a
     # q_reshaped in RLU for the possibly-reshaped crystal.
-    reshaped_rlu = inv(2π) * sys.crystal.latvecs' * Sunny.orig_crystal(sys).recipvecs
+    reshaped_rlu = inv(2π) * sys.crystal.latvecs' * cryst.recipvecs
     H_d = CUDA.zeros(ComplexF64, 2L, 2L, Nq)
-    swt_d = SpinWaveTheoryDevice(swt)
-    Sunny.dynamical_matrix!(H_d, swt_d, reshaped_rlu, qs_d)
+    Sunny.dynamical_matrix!(H_d, swt, reshaped_rlu, qs_d)
 
     H_dp = [view(H_d,:,:,i) for i in 1:Nq]
     CUSOLVER.potrfBatched!('L', H_dp)
@@ -154,21 +142,29 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
 
     kernel = @cuda launch=false _frequencies(I_d, evalues_d)
     config = launch_configuration(kernel.fun)
-    threads = Base.min(Nq, config.threads)
-    blocks = cld(Nq, threads)
+    optimal_threads_1d = config.threads
+
+    threads_x = Base.min(2L, optimal_threads_1d)
+    threads_y = optimal_threads_1d ÷ threads_x
+    threads_y = Base.min(Nq, threads_y)
+    threads = (threads_x, threads_y) # e.g., (16, 32) or similar, max product is 1024
+
+    blocks_x = cld(2L, threads_x)
+    blocks_y = cld(Nq, threads_y)
+    blocks = (blocks_x, blocks_y)
+
     kernel(I_d, evalues_d; threads=threads, blocks=blocks)
     disp_d = view(evalues_d,L+1:2L, :)
 
     intensity_d = CUDA.zeros(eltype(measure), L, Nq)
-    kernel = @cuda launch=false _intensities(swt_d, qs_d, L, Ncells, I_d, Nobs, Na, Ncorr, cryst.recipvecs, intensity_d, kT, disp_d)
+    kernel = @cuda launch=false _intensities(swt, qs_d, L, Ncells, I_d, Nobs, Na, Ncorr, cryst.recipvecs, intensity_d, kT, disp_d)
     get_shmem(threads; Nobs=Nobs, Na=Na, Ncorr=Ncorr) = threads * sizeof(ComplexF64) * (Nobs * (1 + Na) + Ncorr)
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
     threads = Base.min(Nq, config.threads)
     blocks = cld(Nq, threads)
-    kernel(swt_d, qs_d, L, Ncells, I_d, Nobs, Na, Ncorr, cryst.recipvecs, intensity_d, kT, disp_d; threads=threads, blocks=blocks, shmem=get_shmem(threads))
+    kernel(swt, qs_d, L, Ncells, I_d, Nobs, Na, Ncorr, cryst.recipvecs, intensity_d, kT, disp_d; threads=threads, blocks=blocks, shmem=get_shmem(threads))
 
     disp_d = reshape(CuArray(disp_d), L, size(qpts.qs)...)
     intensity_d = reshape(intensity_d, L, size(qpts.qs)...)
-    BandIntensitiesDevice = Base.get_extension(Sunny, :CUDAExt).BandIntensitiesDevice
     return BandIntensitiesDevice(cryst, qpts, disp_d, intensity_d)
 end

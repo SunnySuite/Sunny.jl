@@ -25,10 +25,12 @@ function _broaden(data, bands_data, disp, energies, kernel)
         return
     end
     ω = energies[iω]
+    total = 0.
     for (ib, b) in enumerate(view(disp, :, iq))
         #norm(bands.data[ib, iq]) < cutoff && continue
-        data[iω, iq] += kernel(b, ω) * bands_data[ib, iq]
+        total += kernel(b, ω) * bands_data[ib, iq]
     end
+    data[iω, iq] = total 
     return
 end
 
