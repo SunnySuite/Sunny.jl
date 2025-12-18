@@ -210,9 +210,9 @@ end
 """
     print_suggested_frame(cryst::Crystal, i)
 
-Prints a suggested reference frame for atom `i`. This rotation matrix `R` can be
-used as input to [`print_site`](@ref). This can help to simplify the description
-of allowed anisotropies.
+Prints a suggested reference frame for atom `i`. This is given as a rotation `R`
+of the Cartesian basis. When passed to [`print_site`](@ref), it may simplify the
+description of symmetry-allowed anisotropies.
 """
 function print_suggested_frame(cryst::Crystal, i::Int)
     R = suggest_frame_for_atom(cryst, i)
@@ -227,8 +227,8 @@ end
 Print symmetry information for atom `i`, including allowed g-tensor and allowed
 anisotropy operator.  An optional symmetry-equivalent reference atom `i_ref` can
 be provided to keep a consistent meaning of the free parameters. An optional
-rotation matrix `R` can map to a new Cartesian reference frame for expression of
-the allowed anisotropy.
+rotation matrix `R` will transform the Cartesian basis for expression of the
+allowed anisotropy.
 """
 function print_site(cryst::Crystal, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
     R_global = convert(Mat3, R)

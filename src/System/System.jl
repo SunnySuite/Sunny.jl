@@ -322,7 +322,7 @@ function position_to_site(sys::System, r; tol=1e-12)
 end
 
 
-# Given a [`Site`](@ref)s for a possibly reshaped system, return the
+# Given a [`Site`](@ref) for a possibly reshaped system, return the
 # corresponding atom index for the original (unreshaped) crystal.
 function site_to_atom(sys::System{N}, site) where N
     site = to_cartesian(site)

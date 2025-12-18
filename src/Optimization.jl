@@ -88,15 +88,15 @@ Returns an object that can be inspected for optimization statistics.
     below keeps the minimum energy spin state found within 100 runs.
 
     ```julia
-    sys_min = clone_system(sys)
+    tmp_sys = clone_system(sys)
     for i in 1:100
         randomize_spins!(sys)
         minimize_energy!(sys)
-        if energy(sys) < energy(sys_min)
-            copy_spins!(sys_min, sys)
+        if energy(sys) < energy(tmp_sys)
+            copy_spins!(tmp_sys, sys)
         end
     end
-    copy_spins!(sys, sys_min)
+    copy_spins!(sys, tmp_sys)
     ```
 """
 function minimize_energy!(sys::System{N}; maxiters=1000, jitter=1e-8, kwargs...) where N

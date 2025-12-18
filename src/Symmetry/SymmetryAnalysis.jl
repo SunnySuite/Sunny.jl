@@ -195,8 +195,8 @@ end
 
 """    reference_bonds(cryst::Crystal, max_dist)
 
-Returns a list of [`Bond`](@ref) elements, one for each symmetry equivalence
-class, up to the `max_dist` cutoff in length units. These reference bonds are
+Returns a list of [`Bond`](@ref)s, one for each symmetry equivalence class, up
+to the `max_dist` cutoff in length units. These reference bonds are
 heuristically selected to simplify the expression of symmetry-allowed
 interactions."""
 function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
