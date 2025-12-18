@@ -24,9 +24,9 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
         # Single-ion anisotropy
         (; c2, c4, c6) = stevens_coefs[i]
-        s = sqrtS[i]^2
-        A1 = -6s*c2[3] - 80*s^3*c4[5] - 336*s^5*c6[7]
-        A2 = 2s*(c2[1]+im*c2[5]) + 12s^3*(c4[3]+im*c4[7]) + 32s^5*(c6[5]+im*c6[9])
+        si = sqrtS[i]^2
+        A1 = -6si*c2[3] - 80*si^3*c4[5] - 336*si^5*c6[7]
+        A2 = 2si*(c2[1]+im*c2[5]) + 12si^3*(c4[3]+im*c4[7]) + 32si^5*(c6[5]+im*c6[9])
         H11[i, i] += A1
         H22[i, i] += A1
         H12[i, i] += A2
@@ -42,7 +42,6 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
             phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
-            si = sqrtS[i]^2
             sj = sqrtS[j]^2
             sij = sqrtS[i] * sqrtS[j]
 
