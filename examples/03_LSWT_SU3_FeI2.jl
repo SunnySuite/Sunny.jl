@@ -142,10 +142,11 @@ set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 
 # ### Finding the ground state
 
-# This model has been fitted so that energy minimization yields the physically
-# correct ground state. Knowing this, we could manually set the magnetic
-# configuration by calling [`set_dipole!`](@ref) at each site. Instead, for
-# pedagogy, we will attempt to find the ground state using an unbiased search.
+# The model parameters have already been fitted so that energy minimization
+# yields the physically correct ground state. Knowing this, one could manually
+# set the magnetic configuration by calling [`set_dipole!`](@ref) at each site.
+# Alternatively, Sunny provides tools to interactively search for the ground
+# state.
 #
 # Use [`resize_supercell`](@ref) to create a relatively large system of 4×4×4
 # chemical cells. Call [`randomize_spins!`](@ref) and [`minimize_energy!`](@ref)
@@ -161,21 +162,21 @@ minimize_energy!(sys)
 plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # Global energy minimization can be a challenging task. A good strategy for
-# moderately large systems like this one is repeated energy minimization from
-# random initial conditions, as documented in [`minimize_energy!`](@ref).
+# systems of moderate size is repeated energy minimization starting from random
+# initial conditions (see [`minimize_energy!`](@ref) documentation). For this
+# system, it might take about 30 runs to find the defect-free ground state.
 #
-# We will take a more targeted approach. Use [`print_wrapped_intensities`](@ref)
-# to get a quick hint about the possible ordering wavevectors. Its reported
-# intensities are similar to the static structure factor ``\mathcal{S}(𝐪)``,
-# but do not account for phase interference between magnetic sublattices. For a
-# more thorough analysis of the true ``\mathcal{S}(𝐪)``, use instead
+# Another tool is [`print_wrapped_intensities`](@ref). It reports weights
+# similar to the static structure factor ``\mathcal{S}(𝐪)``, but without
+# accounting for phase interference between magnetic sublattices. The true
+# ``\mathcal{S}(𝐪)`` could be also calculated with
 # [`SampledCorrelationsStatic`](@ref).
 
 print_wrapped_intensities(sys)
 
-# The correct ground state for FeI₂ is a generalized spiral with one of three
-# propagation wavevectors, ``[0, -1/4, 1/4]`` or ``[1/4, 0, 1/4]`` or ``[-1/4,
-# 1/4, 1/4]``, which are equivalent under 120° rotations. The result of
+# The correct ground state for FeI₂ is known to be a generalized spiral with one
+# of three propagation wavevectors, ``[0, -1/4, 1/4]`` or ``[1/4, 0, 1/4]`` or
+# ``[-1/4, 1/4, 1/4]``, which are equivalent under 120° rotations. The result of
 # `print_wrapped_intensities` hints at this spiral phase.
 #
 # Let's break the 3-fold symmetry by hand. The function
