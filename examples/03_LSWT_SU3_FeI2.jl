@@ -163,14 +163,13 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # Global energy minimization can be a challenging task. A good strategy for
 # systems of moderate size is repeated energy minimization starting from random
-# initial conditions (see [`minimize_energy!`](@ref) documentation). For this
-# system, it might take about 30 runs to find the defect-free ground state.
+# initial conditions. For this system, it might take about 30 minimization runs
+# to find the defect-free ground state.
 #
 # Another tool is [`print_wrapped_intensities`](@ref). It reports weights
-# similar to the static structure factor ``\mathcal{S}(𝐪)``, but without
-# accounting for phase interference between magnetic sublattices. The true
-# ``\mathcal{S}(𝐪)`` could be also calculated with
-# [`SampledCorrelationsStatic`](@ref).
+# analogous to the static structure factor ``\mathcal{S}(𝐪)``, but without
+# accounting for phase interference between magnetic sublattices. To calculate
+# the true ``\mathcal{S}(𝐪)``, use instead [`SampledCorrelationsStatic`](@ref).
 
 print_wrapped_intensities(sys)
 
