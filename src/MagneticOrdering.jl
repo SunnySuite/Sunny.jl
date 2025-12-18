@@ -10,15 +10,13 @@ The output from this function will typically be used as input to
 For simplicity, phase interference between sublattices is neglected in this
 calculation. The reported weights are the sum of static structure factors
 ``\\mathcal{S}_{jj}(𝐪)`` calculated independently for each sublattice ``j`` of
-the chemical cell. Equivalently, the reported weights are the average of
-``\\mathcal{S}(𝐪)`` taken over all cells of the infinite reciprocal lattice. It
-is in this sense that the intensities are effectively "wrapped" into the first
+the chemical cell. This is mathematically equivalent to averaging
+``\\mathcal{S}(𝐪)`` over all cells of the infinite reciprocal lattice. It is in
+this sense that the intensities are effectively "wrapped" into the first
 reciprocal cell.
 
-Because this function does not incorporate phase interference, the printed
-weights are not direct experimental observables, except when the chemical cell
-has only one magnetic sublattice. To calculate the true ``\\mathcal{S}(𝐪)``,
-use [`SampledCorrelationsStatic`](@ref) instead.
+To calculate the true ``\\mathcal{S}(𝐪)`` as an experimental observable, use
+[`SampledCorrelationsStatic`](@ref) instead.
 """
 function print_wrapped_intensities(sys::System{N}; nmax=10) where N
     sys.crystal == orig_crystal(sys) || error("Cannot perform this analysis on reshaped system.")
