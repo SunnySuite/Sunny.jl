@@ -161,9 +161,9 @@ minimize_energy!(sys)
 
 plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
-# Global energy minimization can be a challenging task. A good strategy for
-# systems of moderate size is repeated energy minimization starting from random
-# initial conditions. For this system, it might take about 30 minimization runs
+# Finding the true ground state can be a challenging task. If the system is not
+# too large, a good strategy is repeated randomization and then energy
+# minimization. This particular system might require about 30 minimization runs
 # to find the defect-free ground state.
 #
 # Another tool is [`print_wrapped_intensities`](@ref). It reports weights

@@ -7,13 +7,12 @@ has components between ``-1/2`` and ``1/2`` in reciprocal lattice units (RLU).
 The output from this function will typically be used as input to
 [`suggest_magnetic_supercell`](@ref).
 
-For simplicity, phase interference between sublattices is neglected in this
-calculation. The reported weights are the sum of static structure factors
+For simplicity, phase interference between sublattices is neglected. The
+reported weights are the sum of static structure factors
 ``\\mathcal{S}_{jj}(𝐪)`` calculated independently for each sublattice ``j`` of
 the chemical cell. This is mathematically equivalent to averaging
 ``\\mathcal{S}(𝐪)`` over all cells of the infinite reciprocal lattice. It is in
-this sense that the intensities are effectively "wrapped" into the first
-reciprocal cell.
+this sense that the intensities are "wrapped" into the first reciprocal cell.
 
 To calculate the true ``\\mathcal{S}(𝐪)`` as an experimental observable, use
 [`SampledCorrelationsStatic`](@ref) instead.
