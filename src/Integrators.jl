@@ -149,12 +149,12 @@ equilibrated to the target thermodynamic conditions. In practice, a
 configuration obtained from [`minimize_energy!`](@ref) should give a reasonable,
 if conservative, `dt` suggestion.
 
-The suggested `dt` scales like `√tol`, consistent with a second order integratio
-scheme. In most cases, `dt` will be inversely proportional to the characteristic
-magnitude of the effective fields ``|dE/d𝐒_i|`` in `sys`. This scaling can
-change, however, for Langevin dynamics with large `damping` or `kT` settings.
-For example, if `damping*kT` is the dominant energy scale, then `dt` will scale
-like `1/(damping*kT)`, independent of ``|dE/d𝐒_i|``.
+The suggested `dt` scales like `√tol`, consistent with a second order
+integration scheme. In most cases, `dt` will be inversely proportional to the
+characteristic magnitude of the effective fields ``|dE/d𝐒_i|`` in `sys`. This
+scaling can change, however, for Langevin dynamics with a very large noise term.
+If `damping*kT` becomes the dominant energy scale, then `dt` will scale like
+`1/(damping*kT)`, independent of ``|dE/d𝐒_i|``.
 
 Quantification of numerical error in `Langevin` simulations can be subtle. The
 stochastic Heun scheme is weakly convergent of order 1, which means that errors
