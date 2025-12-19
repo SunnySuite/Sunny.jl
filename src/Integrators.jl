@@ -142,27 +142,26 @@ end
 """
     suggest_timestep(sys, integrator; tol)
 
-Suggests a timestep for the numerical integration of spin dynamics according to
-a given error tolerance `tol`. The `integrator` should be [`Langevin`](@ref) or
-[`ImplicitMidpoint`](@ref). The suggested ``dt`` will be inversely proportional
-to the magnitude of the effective field ``|dE/d𝐒|`` arising from the current
-spin configuration in `sys`. The recommended timestep ``dt`` scales like `√tol`,
-which assumes second-order accuracy of the integrator.
+Suggests a timestep `dt` for spin dynamics simulation at a given error tolerance
+`tol`. The `integrator` should be [`Langevin`](@ref) or
+[`ImplicitMidpoint`](@ref). Ideally, the spin configuration in `sys` would be
+equilibrated to the target thermodynamic conditions. In practice, a
+configuration obtained from [`minimize_energy!`](@ref) should give a reasonable,
+if conservative, `dt` suggestion.
 
-The system `sys` should be initialized to an equilibrium spin configuration for
-the target temperature. Alternatively, a reasonably timestep estimate can be
-obtained from any low-energy spin configuration. For this, one can use
-[`randomize_spins!`](@ref) and then [`minimize_energy!`](@ref).
+The suggested `dt` scales like `√tol`, consistent with a second order integratio
+scheme. In most cases, `dt` will be inversely proportional to the characteristic
+magnitude of the effective fields ``|dE/d𝐒_i|`` in `sys`. This scaling can
+change, however, for Langevin dynamics with large `damping` or `kT` settings.
+For example, if `damping*kT` is the dominant energy scale, then `dt` will scale
+like `1/(damping*kT)`, independent of ``|dE/d𝐒_i|``.
 
-Large `damping` magnitude or target temperature `kT` will tighten the timestep
-bound. If `damping` exceeds 1, it will rescale the suggested timestep by an
-approximate the factor ``1/damping``. If `kT` is the largest energy scale, then
-the suggested timestep will scale like `1/(damping*kT)`. Quantification of
-numerical error for stochastic dynamics is subtle. The stochastic Heun
-integration scheme is weakly convergent of order-1, such that errors in the
-estimates of averaged observables may scale like `dt`. This implies that the
-`tol` argument may actually scale like the _square_ of the true numerical error,
-and should be selected with this in mind.
+Quantification of numerical error in `Langevin` simulations can be subtle. The
+stochastic Heun scheme is weakly convergent of order 1, which means that errors
+in certain statistical observables may scale like `dt` (rather than `dt^2` as
+expected for a second order scheme). For such observables, the `tol` argument
+may therefore scale like the _square_ of the numerical error, and should be
+tightened appropriately.
 """
 function suggest_timestep(sys::System, integrator::Union{Langevin, ImplicitMidpoint}; tol)
     (; dt) = integrator
