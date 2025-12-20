@@ -150,17 +150,17 @@ configuration obtained from [`minimize_energy!`](@ref) should give a reasonable,
 if conservative, `dt` suggestion.
 
 The suggested `dt` scales like `√tol`, consistent with a second order
-integration scheme. In most cases, `dt` will also be inversely proportional to
-the characteristic magnitude of the effective fields ``|dE/d𝐒_i|`` in `sys`. If
-the Langevin noise magnitude `damping*kT` dominates, however, then the suggested
-`dt` will instead scale like `1/(damping*kT)`.
+integration scheme. In most cases, `dt` will be inversely proportional to the
+characteristic magnitude of the energy gradient, ``∂E/∂𝐒_i``. If the Langevin
+noise magnitude `damping*kT` dominates, however, then the suggested `dt` will
+instead scale like `1/(damping*kT)`.
 
-Quantifying error in stochastic Langevin dynamics can be subtle. Sunny uses the
-stochastic Heun scheme, which has a weak convergence rate of order 1. This means
-that errors in certain statistical observables may scale like `dt` (rather than
-`dt^2` as would be expected from a second order method). Then `tol` may actually
-control the _square_ of the relevant numerical error, and should be tightened
-appropriately.
+Quantifying error in Langevin dynamics can be subtle. Sunny uses the stochastic
+Heun scheme, which has a weak convergence rate of order 1. This means that
+errors in certain statistical observables may scale like `dt` (rather than
+`dt^2` as expected for the deterministic part of the dynamics). Then `tol` may
+actually control the _square_ of the relevant numerical error, and should be
+tightened appropriately.
 """
 function suggest_timestep(sys::System, integrator::Union{Langevin, ImplicitMidpoint}; tol)
     (; dt) = integrator
