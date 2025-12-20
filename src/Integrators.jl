@@ -150,10 +150,10 @@ configuration obtained from [`minimize_energy!`](@ref) should give a reasonable,
 if conservative, `dt` suggestion.
 
 The suggested `dt` scales like `√tol`, consistent with a second order
-integration scheme. In most cases, `dt` will be inversely proportional to the
-characteristic magnitude of the energy gradient, ``∂E/∂𝐒_i``. If the Langevin
-noise magnitude `damping*kT` dominates, however, then the suggested `dt` will
-instead scale like `1/(damping*kT)`.
+integration scheme. In most cases, `dt` will also be inversely proportional to
+the characteristic magnitude of the energy gradient, ``∂E/∂𝐒_i``. If the
+Langevin noise magnitude ``λ k_B T`` dominates, however, then its inverse will
+limit the `dt` scale.
 
 Quantifying error in Langevin dynamics can be subtle. Sunny uses the stochastic
 Heun scheme, which has a weak convergence rate of order 1. This means that
