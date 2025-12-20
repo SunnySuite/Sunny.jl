@@ -5,7 +5,7 @@ function _dot(a, b)
 end
 
 function fill_matrix(H, swt, qs_reshaped, qs, L)
-    iq = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    iq = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
     if iq > size(H, 3)
         return
     end

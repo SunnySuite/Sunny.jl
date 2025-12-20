@@ -1,7 +1,7 @@
 using LinearAlgebra
 
 function _set_identity(a)
-    iq = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    iq = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
     if iq > size(a,3)
         return
     end
@@ -15,20 +15,19 @@ function _set_identity(a)
 end
 
 function _frequencies(H, evalues)
-    i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    i = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
     if i > size(H, 2)
         return
     end
 
-    j = threadIdx().y + (blockIdx().y - 1) * blockDim().y
+    j = threadIdx().y + (blockIdx().y - Int32(1)) * blockDim().y
     if j > size(H, 3)
         return
     end
 
-    Hq = @view H[:, i, j]
     λ = evalues[i, j]
     # Normalize columns of T so that para-unitarity holds, T† Ĩ T = Ĩ.
-    Hq .*= CUDA.rsqrt(abs(λ))
+    view(H,:,i,j) .*= CUDA.rsqrt(abs(λ))
 
     # Inverse of λ are eigenvalues of Ĩ H, or equivalently, of √H Ĩ √H.
     evalues[i, j] = inv(λ)
@@ -36,7 +35,7 @@ function _frequencies(H, evalues)
 end
 
 function _intensities(swt, qs, L, Ncells, H, Nobs, Na, Ncorr, recipvecs, intensity, kT, disp)
-    iq = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    iq = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
     if iq > size(H,3)
         return
     end

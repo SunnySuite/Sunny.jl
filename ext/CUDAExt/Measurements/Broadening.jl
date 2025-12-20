@@ -16,11 +16,11 @@ function (b::BroadeningDevice)(ϵ, ω)
 end
 
 function _broaden(data, bands_data, disp, energies, kernel)
-    iq = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+    iq = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
     if iq > size(disp, 2)
         return
     end
-    iω = threadIdx().y + (blockIdx().y - 1) * blockDim().y
+    iω = threadIdx().y + (blockIdx().y - Int32(1)) * blockDim().y
     if iω > length(energies)
         return
     end
