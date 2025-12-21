@@ -1,4 +1,6 @@
-function newton_with_backtracking(fgh!, x0; f_reltol=NaN, x_reltol=NaN, g_abstol=NaN, maxiters=20, armijo_c=1e-4, armijo_backoff=0.5, armijo_α_min=1e-4, show_trace=false)
+function newton_with_backtracking(fgh!, x0; f_reltol=NaN, x_reltol=NaN, g_abstol=NaN, maxiters=20,
+                                  armijo_c=1e-4, armijo_backoff=0.5, armijo_α_min=1e-4,
+                                  armijo_slack=0.0, show_trace=false)
     # Make a copy of the initial guess.
     x = copy(x0)
 
@@ -33,9 +35,11 @@ function newton_with_backtracking(fgh!, x0; f_reltol=NaN, x_reltol=NaN, g_abstol
         @. candidate_x = x - α * p
         candidate_f = fgh!(0.0, g, H, candidate_x)
 
-        # Backtracking line search until Armijo condition is satisfied:
-        # f(candidate_x) ≤ f(x) - c * α * dot(g, p)
-        while candidate_f > f - armijo_c * α * g_dot_p
+        # Backtracking line search until Armijo condition is satisfied:  
+        #   f(candidate_x) ≤ f(x) - c * α * dot(g, p) + armijo_slack  
+        # The slack parameter essentially deactivates backtracking when f is
+        # close to convergence, reverting to usual Newton iterations.
+        while candidate_f > f - armijo_c * α * g_dot_p + armijo_slack
             has_converged(x, candidate_x, f, candidate_f, g) && return candidate_x
             α < armijo_α_min && error("Failed to satisfy Armijo condition. Consider reducing armijo_α_min=$armijo_α_min or a tolerance parameter.")
 
