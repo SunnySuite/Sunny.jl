@@ -155,12 +155,11 @@ the characteristic magnitude of the energy gradient, ``∂E/∂𝐒_i``. If the
 Langevin noise magnitude ``λ k_B T`` dominates, however, then its inverse will
 limit the `dt` scale.
 
-Quantifying error in Langevin dynamics can be subtle. Sunny uses the stochastic
+Analysis of error in Langevin dynamics can be subtle. Sunny uses the stochastic
 Heun scheme, which has a weak convergence rate of order 1. This means that
-errors in certain statistical observables may scale like `dt` (rather than
-`dt^2` as expected for the deterministic part of the dynamics). Then `tol` may
-actually control the _square_ of the relevant numerical error, and should be
-tightened appropriately.
+errors in certain statistical observables may scale like `dt` rather than
+`dt^2`. In such cases, the `tol` parameter controls the _square_ of the
+numerical error, and can be tightened appropriately.
 """
 function suggest_timestep(sys::System, integrator::Union{Langevin, ImplicitMidpoint}; tol)
     (; dt) = integrator
