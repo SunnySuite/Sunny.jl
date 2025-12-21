@@ -41,7 +41,7 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     end
 
     if !in(mode, (:SUN, :dipole, :dipole_uncorrected))
-        error("Mode must be `:SUN`, `:dipole`, or `:dipole_uncorrected`.")
+        error("Mode must be `:SUN`, `:dipole`, or `:dipole_uncorrected`")
     end
 
     # Symops must be non-empty
@@ -60,7 +60,7 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     Ns = @. Int(2Ss+1)
 
     if mode == :SUN
-        allequal(Ns) || error("Currently all spins S must be equal in SU(N) mode.")
+        allequal(Ns) || error("Currently all spins S must be equal in SU(N) mode")
         N = first(Ns)
         κs = fill(1.0, na)
     elseif mode in (:dipole, :dipole_uncorrected)
@@ -94,10 +94,8 @@ function mode_to_str(sys::System{N}) where N
         return "[SU($N)]"
     elseif sys.mode == :dipole
         return "[Dipole mode]"
-    elseif sys.mode == :dipole_uncorrected
+    else @assert sys.mode == :dipole_uncorrected
         return "[Dipole mode, large-s]"
-    else
-        error()
     end
 end
 
@@ -132,7 +130,7 @@ end
 # the FFTW library, https://github.com/JuliaLang/julia/issues/48722. To prevent
 # this from happening again, avoid all uses of `deepcopy`, and create our own
 # stack of `clone` functions instead.
-Base.deepcopy(_::System) = error("Use `clone_system` instead of `deepcopy`.")
+Base.deepcopy(_::System) = error("Use `clone_system` instead of `deepcopy`")
 
 """
     clone_system(sys::System)
@@ -324,7 +322,7 @@ function position_to_site(sys::System, r; tol=1e-12)
 end
 
 
-# Given a [`Site`](@ref)s for a possibly reshaped system, return the
+# Given a [`Site`](@ref) for a possibly reshaped system, return the
 # corresponding atom index for the original (unreshaped) crystal.
 function site_to_atom(sys::System{N}, site) where N
     site = to_cartesian(site)
@@ -451,12 +449,14 @@ end
 end
 
 @inline function perturbed_spin(sys::System{0}, site, magnitude)
+    isinf(magnitude) && return randspin(sys, site)
     κ = sys.κs[site]
     S = sys.dipoles[site] + magnitude * κ * randn(sys.rng, Vec3)
     S = normalize_dipole(S, κ)
     return SpinState(S, CVec{0}())
 end
 @inline function perturbed_spin(sys::System{N}, site, magnitude) where N
+    isinf(magnitude) && return randspin(sys, site)
     κ = sys.κs[site]
     Z = sys.coherents[site] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
     Z = normalize_ket(Z, κ)
@@ -486,8 +486,21 @@ function is_valid_normalization(sys::System{N}) where N
 end
 
 function validate_normalization(sys::System)
-    is_valid_normalization(sys) || error("Detected non-normalized spin state.")
+    is_valid_normalization(sys) || error("Detected non-normalized spin state")
 end
+
+"""
+    copy_spins!(dst::System, src::System)
+
+Copies the spin state from `src` to `dst`.
+"""
+function copy_spins!(dst::System, src::System)
+    size(dst.dipoles) == size(src.dipoles) || error("Mismatched system sizes")
+    copy!(dst.dipoles, src.dipoles)
+    copy!(dst.coherents, src.coherents)
+    return dst
+end
+
 
 """
     randomize_spins!(sys::System)
@@ -521,8 +534,8 @@ represent states with decreasing angular momentum along this axis (``m = s, s-1,
 """
 function set_coherent!(sys::System{N}, Z, site) where N
     site = to_cartesian(site)
-    length(Z) != N && error("Length of coherent state does not match system.")
-    iszero(N)      && error("Cannot set zero-length coherent state.")
+    length(Z) != N && error("Length of coherent state does not match system")
+    iszero(N)      && error("Cannot set zero-length coherent state")
     setspin!(sys, coherent_state(sys, site, Z), site)
 end
 

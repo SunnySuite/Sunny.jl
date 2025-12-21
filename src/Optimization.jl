@@ -1,17 +1,22 @@
 struct MinimizationResult
     converged :: Bool
-    iterations :: Int
+    niters :: Int
+    energy :: Float64
     data :: Optim.OptimizationResults
+
+    function MinimizationResult(niters, res)
+        return new(Optim.converged(res), niters, Optim.minimum(res), res)
+    end
 end
 
 function Base.show(io::IO, ::MIME"text/plain", res::MinimizationResult)
-    (; converged, iterations, data) = res
+    (; converged, niters, data) = res
     Δx = number_to_simple_string(Optim.x_abschange(data); digits=3)
     g_res = number_to_simple_string(Optim.g_residual(data); digits=3)
     if converged
-        print(io, "Converged in $iterations iterations")
+        print(io, "Converged in $niters iterations")
     else
-        print(io, "Non-converged after $iterations iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
+        print(io, "Non-converged after $niters iterations: |Δx|=$Δx, |∂E/∂x|=$g_res")
     end
 end
 
@@ -52,34 +57,52 @@ function Optim.project_tangent!(sm::SpinManifold, g, x)
 end
 
 function optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
-    iters = 0
+    niters = 0
     while true
-        options = Optim.Options(; iterations=maxiters-iters, options_args...)
+        options = Optim.Options(; iterations=maxiters-niters, options_args...)
         res = Optim.optimize(calc_f, calc_g!, x, method, options)
         x = Optim.minimizer(res)
-        iters += Optim.iterations(res)
-        if Optim.converged(res) || iters >= maxiters
-            return (res, iters)
+        niters += Optim.iterations(res)
+        if Optim.converged(res) || niters >= maxiters
+            return (; res, niters)
         end
     end
 end
 
 
 """
-    minimize_energy!(sys::System; maxiters=1000, kwargs...)
+    minimize_energy!(sys::System; maxiters=1000, jitter=1e-8, kwargs...)
 
-Optimizes the spin configuration in `sys` to minimize energy. A total of
-`maxiters` iterations will be attempted. Any remaining `kwargs` will be included
-in the `Options` constructor of the [Optim.jl
-package](https://github.com/JuliaNLSolvers/Optim.jl)
+Optimizes the spin configuration in `sys` to find a local minimum of the energy.
+Large magnetic cells will be slower to converge; increase `maxiters` as needed.
+Prior to optimization, each spin will be randomly perturbed with the
+dimensionless `jitter` magnitude, which can be useful to break accidental
+symmetries. Any remaining `kwargs` will be included in the `Options` constructor
+of the [Optim.jl package](https://github.com/JuliaNLSolvers/Optim.jl).
 
-Convergence status is stored in the field `ret.converged` of the return value
-`ret`. Additional optimization statistics are stored in the field `ret.data`.
+Returns an object that can be inspected for optimization statistics.
+
+!!! tip "Escaping local minima"  
+    To search for the global energy minimum, a simple strategy is to repeatedly
+    call [`randomize_spins!`](@ref) and then `minimize_energy!`. The example
+    below keeps the minimum energy spin state found within 100 runs.
+
+    ```julia
+    tmp_sys = clone_system(sys)
+    for i in 1:100
+        randomize_spins!(sys)
+        minimize_energy!(sys)
+        if energy(sys) < energy(tmp_sys)
+            copy_spins!(tmp_sys, sys)
+        end
+    end
+    copy_spins!(sys, tmp_sys)
+    ```
 """
-function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) where N
+function minimize_energy!(sys::System{N}; maxiters=1000, jitter=1e-8, kwargs...) where N
     # Small perturbation to destabilize an accidental stationary point (local
     # maximum or saddle).
-    perturb_spins!(sys, δ)
+    perturb_spins!(sys, jitter)
 
     # Optimization variables are normalized spins or coherent states. In case of
     # a vacancy, use an arbitrary representative on the sphere: [1, 1, …] / √N.
@@ -132,10 +155,10 @@ function minimize_energy!(sys::System{N}; maxiters=1000, δ=1e-8, kwargs...) whe
     manifold = SpinManifold(iszero(N) ? 3 : N, length(eachsite(sys)))
     method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10.0), manifold)
     options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
-    (res, iters) = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
+    (; res, niters) = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
 
     load_spins!(Optim.minimizer(res))
-    mr = MinimizationResult(Optim.converged(res), iters, res)
+    mr = MinimizationResult(niters, res)
     if !mr.converged
         @warn repr("text/plain", mr)
     end

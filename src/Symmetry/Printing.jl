@@ -146,9 +146,9 @@ end
 """
     print_bond(cryst::Crystal, b::Bond; b_ref=b)
 
-Prints symmetry information for bond `b`. An optional symmetry-equivalent
-reference bond `b_ref` can be provided to keep a consistent meaning of the free
-parameters `A`, `B`, etc.
+Prints symmetry-allowed interactions for the [`Bond`](@ref) `b`. An optional
+symmetry-equivalent reference bond `b_ref` can be provided to keep a consistent
+meaning of the free parameters `A`, `B`, etc.
 """
 function print_bond(cryst::Crystal, b::Bond; b_ref=b, io=stdout)
     # How many digits to use in printing coefficients
@@ -193,10 +193,12 @@ end
 """
     print_symmetry_table(cryst::Crystal, max_dist)
 
-Print symmetry information for all equivalence classes of sites and bonds, up to
-a maximum bond distance of `max_dist`. Equivalent to calling `print_bond(cryst,
-b)` for every bond `b` in `reference_bonds(cryst, max_dist)`, where
-`Bond(i, i, [0,0,0])` refers to a single site `i`.
+Prints the allowed interactions, as constrained by the spacegroup symmetries of
+the provided [`Crystal`](@ref). The bond distance cutoff `max_dist` is in global
+length units, e.g. angstrom.
+
+The same information can be obtained from [`print_site`](@ref),
+[`print_bond`](@ref), and [`reference_bonds`](@ref).
 """
 function print_symmetry_table(cryst::Crystal, max_dist; io=stdout)
     for b in reference_bonds(cryst, max_dist)
@@ -206,11 +208,11 @@ end
 
 
 """
-    print_suggested_frame(cryst, i)
+    print_suggested_frame(cryst::Crystal, i)
 
-Print a suggested reference frame, as a rotation matrix `R`, that can be used as
-input to `print_site()`. The purpose is to simplify the description of allowed
-anisotropies.
+Prints a suggested reference frame for atom `i`. This is given as a rotation `R`
+of the Cartesian basis. When passed to [`print_site`](@ref), it may simplify the
+description of symmetry-allowed anisotropies.
 """
 function print_suggested_frame(cryst::Crystal, i::Int)
     R = suggest_frame_for_atom(cryst, i)
@@ -220,13 +222,13 @@ end
 
 
 """
-    print_site(cryst, i; i_ref=i, R=I)
+    print_site(cryst::Crystal, i; i_ref=i, R=I)
 
-Print symmetry information for the site `i`, including allowed g-tensor and
-allowed anisotropy operator.  An optional symmetry-equivalent reference atom
-`i_ref` can be provided to keep a consistent meaning of the free parameters. An
-optional rotation matrix `R` can map to a new Cartesian reference frame for
-expression of the allowed anisotropy.
+Print symmetry information for atom `i`, including allowed g-tensor and allowed
+anisotropy operator.  An optional symmetry-equivalent reference atom `i_ref` can
+be provided to keep a consistent meaning of the free parameters. An optional
+rotation matrix `R` will transform the Cartesian basis for expression of the
+allowed anisotropy.
 """
 function print_site(cryst::Crystal, i; i_ref=i, R=Mat3(I), ks=[2,4,6], io=stdout)
     R_global = convert(Mat3, R)
