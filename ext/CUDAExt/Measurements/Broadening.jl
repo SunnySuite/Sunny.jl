@@ -16,12 +16,12 @@ function (b::BroadeningDevice)(ϵ, ω)
 end
 
 function _broaden(data, bands_data, disp, energies, kernel)
-    iq = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
-    if iq > size(disp, 2)
+    iω = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
+    if iω > length(energies)
         return
     end
-    iω = threadIdx().y + (blockIdx().y - Int32(1)) * blockDim().y
-    if iω > length(energies)
+    iq = threadIdx().y + (blockIdx().y - Int32(1)) * blockDim().y
+    if iq > size(disp, 2)
         return
     end
     ω = energies[iω]
@@ -50,16 +50,15 @@ function broaden!(data::CuArray{Ret}, bands::BandIntensitiesDevice{Ret}; energie
     config = launch_configuration(gpu_kernel.fun)
     optimal_threads_1d = config.threads
     
-    threads_x = floor(Int, sqrt(optimal_threads_1d))
-    threads_x = Base.min(nq, threads_x)
+    threads_x = Base.min(nω, optimal_threads_1d)
 
     threads_y = optimal_threads_1d ÷ threads_x
-    threads_y = Base.min(nω, threads_y)
+    threads_y = Base.min(nq, threads_y)
 
     threads = (threads_x, threads_y) # e.g., (16, 32) or similar, max product is 1024
 
-    blocks_x = cld(nq, threads_x)
-    blocks_y = cld(nω, threads_y)
+    blocks_x = cld(nω, threads_x)
+    blocks_y = cld(nq, threads_y)
     blocks = (blocks_x, blocks_y)
     gpu_kernel(data, bands.data, bands.disp, energies_d, kernel_d; threads=threads, blocks=blocks)
 
