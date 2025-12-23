@@ -1,7 +1,7 @@
 # Release Notes
 
 ## v0.8.1
-(In progress)
+(Dec 23, 2025)
 
 * Fix plotting error with [`SCGA`](@ref)-calculated intensities ([#464](@ref)).
 * Add [`copy_spins!`](@ref). Expose `jitter` parameter in
