@@ -1,6 +1,11 @@
 # Release Notes
 
 ## v0.8.1
+(In development)
+
+* Fix SCGA convergence in multi-sublattice case ([#468](@ref)).
+
+## v0.8.1
 (Dec 23, 2025)
 
 * Fix plotting error with [`SCGA`](@ref)-calculated intensities ([#464](@ref)).
