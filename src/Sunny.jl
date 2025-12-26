@@ -58,6 +58,7 @@ export FormFactor
 include("System/Moment.jl")
 include("System/Types.jl")
 include("System/System.jl")
+include("System/ModelParams.jl")
 include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
@@ -68,7 +69,8 @@ export Moment, System, Site, clone_system, eachsite, position_to_site, global_po
     energy, energy_per_site, spin_label, set_onsite_coupling!, set_pair_coupling!,
     set_exchange!, dmvec, enable_dipole_dipole!, set_field!, to_inhomogeneous, set_field_at!,
     set_vacancy_at!, set_onsite_coupling_at!, set_exchange_at!, set_pair_coupling_at!,
-    symmetry_equivalent_bonds, remove_periodicity!, modify_exchange_with_truncated_dipole_dipole!
+    symmetry_equivalent_bonds, remove_periodicity!, modify_exchange_with_truncated_dipole_dipole!,
+    get_param, set_param!, get_params, set_params!, Param
 
 include("MagneticOrdering.jl")
 export print_wrapped_intensities, suggest_magnetic_supercell
