@@ -98,7 +98,7 @@ function excitations!(T, tmp, swt::SpinWaveTheory, q)
     try
         return bogoliubov!(T, tmp)
     catch _
-        rethrow(ErrorException("Not an energy-minimum; wavevector q = $q unstable."))
+        rethrow(ErrorException("Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable."))
     end
 end
 

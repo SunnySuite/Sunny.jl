@@ -62,13 +62,13 @@ function pos_to_string(v; digits=4, tol=1e-12)
 end
 
 function vec3_to_string(v; digits=4, tol=1e-12)
-    v = number_to_math_string.(v; digits, tol, max_denom=12)
+    v = number_to_math_string.(v; digits, tol)
     return "["*join(v, ", ")*"]"
 end
 
 function mat3_to_string(m; digits=4, tol=1e-12)
     rowstrs = map(eachrow(m)) do r
-        r = number_to_math_string.(r; digits, tol, max_denom=12)
+        r = number_to_math_string.(r; digits, tol)
         join(r, " ")
     end
     return "["*join(rowstrs, "; ")*"]"

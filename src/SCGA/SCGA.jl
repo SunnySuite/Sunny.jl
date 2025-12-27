@@ -211,7 +211,10 @@ function intensities_static(scga::SCGA, qpts)
         fourier_exchange_matrix!(A, sys; q)
         A .+= Λ
         A .*= β
-        ldiv!(X, cholesky!(A), pref)
+
+        A_chol = cholesky!(A; check=false)
+        issuccess(A_chol) || error("Raise kT or refine dq; convergence error detected at q = $(vec3_to_string(q))")
+        ldiv!(X, A_chol, pref)
         map!(corrbuf, measure.corr_pairs) do (μ, ν)
             return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
         end
