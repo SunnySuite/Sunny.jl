@@ -2,6 +2,7 @@ module Sunny
 
 using LinearAlgebra
 
+import ChainRulesCore as CRC
 import DynamicPolynomials as DP
 import ElasticArrays: ElasticArray
 import FFTW

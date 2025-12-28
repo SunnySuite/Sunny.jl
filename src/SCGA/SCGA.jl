@@ -46,10 +46,8 @@ struct SCGA
         qs = make_q_grid(sys, dq)
         Js = [fourier_exchange_matrix(sys; q) for q in qs]
 
-        # Initial guess for the Lagrange multipliers in the physically allowed
-        # space (all shifted J matrices positive definite). If `eigmin` becomes
-        # a bottleneck, we can try weaker bounds using Gershgorin's circle
-        # theorem: https://en.wikipedia.org/wiki/Gershgorin_circle_theorem.
+        # Initial guess for Lagrange multipliers must ensure that all shifted J
+        # matrices are positive definite.
         λ_init = -minimum(eigmin(J) for J in Js) + 1/β
 
         λs = if allequal(sys.crystal.classes)
@@ -172,6 +170,47 @@ function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
 end
 
 
+# Returns matrix of sensitivities ∂λᵢ/∂θₖ for labeled parameters θₖ. The λ are
+# defined to satisfy g(θ, λ(θ)) = 0, with g = ∂f/∂λ the gradient of the
+# objective f. By the implicit function theorem, the gradient is ∂λ/∂θₖ =
+# - H⁻¹ vₖ, involving the Hessian H = ∂g/∂λ and the vectors of mixed partials,
+# vₖ = ∂g/∂θₖ.
+function lagrange_multiplier_jacobian(sys, qs, β, λs, labels)
+    Na = natoms(sys.crystal)
+
+    J = zeros(ComplexF64, 3Na, 3Na)
+    ∂J = zeros(ComplexF64, 3Na, 3Na)
+
+    Λ = Diagonal(repeat(λs, inner=3))
+    A = zeros(ComplexF64, 3Na, 3Na)
+    A⁻¹ = zeros(ComplexF64, 3Na, 3Na)
+    A⁻¹_block = reshape(A⁻¹, 3, Na, 3, Na)
+    H = zeros(Float64, Na, Na)
+
+    v = zeros(Float64, Na, length(labels))
+
+    for q in qs
+        fourier_exchange_matrix!(J, sys; q)
+        @. A = J + Λ
+        A_chol = cholesky!(A, RowMaximum())
+        ldiv!(A⁻¹, A_chol, I(3Na))
+        for i in 1:Na, j in 1:Na
+            H[i, j] += + norm(view(A⁻¹_block, :, i, :, j))^2 / 2β
+        end
+
+        for (k, label) in enumerate(labels)
+            fourier_exchange_matrix_sensitivity!(∂J, sys, label; q)
+            for i in 1:Na
+                y_i = reshape(view(A⁻¹_block, :, :, :, i), 3Na, 3)
+                v[i, k] += real(dot(y_i, ∂J, y_i)) / 2β # TODO: remove allocation?
+            end
+        end
+    end
+
+    return - H \ v
+end
+
+
 function intensities_static(scga::SCGA, qpts)
     (; sys, measure, λs, β) = scga
     Λ = Diagonal(repeat(λs, inner=3))
@@ -234,4 +273,202 @@ function intensities_static(scga::SCGA, qpts)
     end
 
     return StaticIntensities(cryst, qpts, reshape(intensity, size(qpts.qs)))
+end
+
+
+
+########################## MOVE LATER
+
+CRC.@non_differentiable q_space_path(::Any, ::Any, ::Any)
+
+function with_params(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
+    sys = clone_system(sys)
+    set_params!(sys, labels, vals)
+    sys.active_labels = labels
+    return sys
+end
+
+# Custom System tangent that stores param sensitivities
+
+struct SystemTangent <: CRC.AbstractTangent
+    vals::Vector{Float64}
+end
+
+Base.:+(a::SystemTangent, b::SystemTangent) = SystemTangent(a.vals .+ b.vals)
+CRC.zero_tangent(t::SystemTangent) = SystemTangent(zero(t.vals))
+CRC.unthunk(t::SystemTangent) = t
+
+function CRC.ProjectTo(sys::System)
+    n = length(sys.active_labels)
+    function project(Δsys)
+        Δsys = CRC.unthunk(Δsys)
+        if Δsys isa CRC.NoTangent || Δsys isa CRC.AbstractZero
+            return SystemTangent(zeros(n))
+        elseif Δsys isa SystemTangent
+            return Δsys
+        else
+            # if hasproperty(Δsys, :vals)
+            #     return SystemTangent(getproperty(Δsys, :vals))
+            # end
+            error("Unsupported cotangent for System: $(typeof(Δsys))")
+        end
+    end
+    return project
+end
+
+
+function CRC.rrule(::typeof(with_params), sys::System, labels, vals)
+    sys2 = with_params(sys, labels, vals)
+    proj_sys = CRC.ProjectTo(sys2)
+    proj_vals = CRC.ProjectTo(vals)
+
+    function pullback(Δsys2)
+        Δsys2 = proj_sys(CRC.unthunk(Δsys2))
+        return (CRC.NoTangent(), CRC.NoTangent(), CRC.NoTangent(), proj_vals(Δsys2.vals))
+    end
+
+    return sys2, pullback
+end
+
+
+function CRC.rrule(::typeof(SCGA), sys::System; measure, kT, dq)
+    (; active_labels) = sys
+    scga = SCGA(sys; measure, kT, dq)
+    proj_scga = CRC.ProjectTo(scga)
+
+    function pullback(Δscga)
+        Δscga = proj_scga(CRC.unthunk(Δscga))
+        if Δscga isa CRC.NoTangent || Δscga isa CRC.AbstractZero
+            return (CRC.NoTangent(), CRC.ZeroTangent()) # NB: It is *not* needed to append (; measure=CRC.NoTangent(), kT=CRC.NoTangent(), dq=CRC.NoTangent()))
+        else
+            @assert !isempty(active_labels)
+        end
+
+        # Add the implicit λ pathway: Δθ += (∂λ/∂θ)' * Δλ
+        qs = make_q_grid(sys, dq)
+        Jλ = lagrange_multiplier_jacobian(sys, qs, scga.β, scga.λs, active_labels)  # Na × nlabels
+        Δvals = Δscga.sys.vals + Jλ' * Δscga.λs
+
+        return (CRC.NoTangent(), SystemTangent(Δvals))
+    end
+
+    return scga, pullback
+end
+
+
+function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA, qpts)
+    qpts = convert(AbstractQPoints, qpts)
+    res = intensities_static(scga, qpts)
+    proj_res = CRC.ProjectTo(res)
+
+    function pullback(Δres)
+        Δres = proj_res(CRC.unthunk(Δres))
+        if Δres isa CRC.NoTangent || Δres isa CRC.AbstractZero
+            return CRC.NoTangent(), CRC.ZeroTangent(), CRC.NoTangent()
+        end
+
+        Δdata = Δres.data
+
+        (; sys, measure, λs, β) = scga
+        cryst = orig_crystal(sys)
+        Na = nsites(sys)
+        Ncells = Na / natoms(cryst)
+
+        Nobs  = num_observables(measure)
+        Ncorr = num_correlations(measure)
+
+        # Forward-work buffers
+        Λ = Diagonal(repeat(λs, inner=3))
+        A = zeros(ComplexF64, 3Na, 3Na)
+        X = zeros(ComplexF64, 3Na, Nobs)
+        pref = zeros(ComplexF64, 3Na, Nobs)
+        pref_reshaped = reshape(pref, 3, Na, Nobs)
+        corrbuf = zeros(ComplexF64, Ncorr)
+        O = view(measure.observables::Array{Vec3,5}, :, 1, 1, 1, :)
+
+        # Reverse buffers
+        Δvals = zeros(Float64, length(sys.active_labels))
+        Δλs = zeros(Float64, length(λs))
+
+        ΔX = zeros(ComplexF64, 3Na, Nobs)
+        G = zeros(ComplexF64, 3Na, Nobs)
+        ΔA = zeros(ComplexF64, 3Na, 3Na)
+        ΔA_reshaped = reshape(ΔA, 3, Na, 3, Na)
+        ∂J = zeros(ComplexF64, 3Na, 3Na)
+
+        for (iq, q) in enumerate(qpts.qs)
+
+            ### REPEAT FORWARD CALCULATION (no tape to avoid memory costs)
+
+            q_global = cryst.recipvecs * q
+
+            for i in 1:Na, μ in 1:Nobs
+                r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
+                ff = get_swt_formfactor(measure, μ, i)
+                c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
+                for α in 1:3
+                    pref_reshaped[α, i, μ] = c * O[μ, i][α]
+                end
+            end
+
+            # A = β*(J+Λ)
+            fourier_exchange_matrix!(A, sys; q)
+            A .+= Λ
+            A .*= β
+
+            # X = A \ pref
+            A_chol = cholesky!(A)
+            ldiv!(X, A_chol, pref)
+
+            # corrbuf = dot(pref_μ, X_ν) / Ncells
+            map!(corrbuf, measure.corr_pairs) do (μ, ν)
+                return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
+            end
+
+            @assert res.data[iq] ≈ measure.combiner(q_global, corrbuf)
+
+            ### BACKWARD CALCULATION
+
+            # Pullback on: data = measure.combiner(corrbuf)
+            _, comb_pb = CRC.rrule_via_ad(rc, measure.combiner, q_global, corrbuf)
+            _, _, Δcorrbuf = comb_pb(Δdata[iq])
+            Δcorrbuf = CRC.unthunk(Δcorrbuf)
+            if Δcorrbuf isa CRC.NoTangent || Δcorrbuf isa CRC.AbstractZero || isnothing(Δcorrbuf)
+                continue
+            end
+
+            # Pullback on: corrbuf = dot(pref_μ, X_ν) / Ncells
+            fill!(ΔX, 0)
+            for (k, (μ, ν)) in enumerate(measure.corr_pairs)
+                view(ΔX, :, ν) .+= Δcorrbuf[k] .* conj.(view(pref, :, μ)) ./ Ncells
+            end
+
+            # Pullback on: X = A \ pref
+            ldiv!(G, A_chol', ΔX) # G = A' \ ΔX
+            mul!(ΔA, G, X')      # ΔA = G * X'
+            ΔA .*= -1            # ΔA = - (A' \ ΔX) * X'
+
+            # Pullback on: A = β*(J+Λ) for Δvals part in J(vals)
+            for (k, label) in enumerate(sys.active_labels)
+                fourier_exchange_matrix_sensitivity!(∂J, sys, label; q)
+                Δvals[k] += β * real(dot(vec(ΔA), vec(∂J)))
+            end
+
+            # Pullback on: A = β*(J+Λ) for λs part in Λ = Diagonal(repeat(λs, inner=3))
+            for i in 1:length(λs)
+                Δλs[i] += β * real(ΔA_reshaped[1, i, 1, i] +
+                                   ΔA_reshaped[2, i, 2, i] +
+                                   ΔA_reshaped[3, i, 3, i])
+            end
+        end
+
+        Δscga = CRC.Tangent{typeof(scga)}(
+            sys = SystemTangent(Δvals),
+            λs  = Δλs,
+        )
+
+        return CRC.NoTangent(), Δscga, CRC.NoTangent()
+    end
+
+    return res, pullback
 end

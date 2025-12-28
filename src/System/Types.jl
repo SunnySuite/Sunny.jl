@@ -119,6 +119,7 @@ mutable struct System{N}
     # List of independent model parameters, each of which defines a group of
     # symmetry-allowed interactions. Empty for inhomogeneous systems.
     params                 :: Vector{ModelParam}
+    active_labels          :: Vector{Symbol}            # Marked by with_params for autodiff
 
     # Interactions may be homogeneous (defined for one unit cell), or
     # inhomogeneous (defined for every cell in the system).

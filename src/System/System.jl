@@ -74,6 +74,7 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
 
     interactions = empty_interactions(mode, na, N)
     params = ModelParam[]
+    active_labels = Symbol[]
     ewald = nothing
 
     extfield = zeros(Vec3, 1, 1, 1, na)
@@ -84,8 +85,9 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
 
     rng = isnothing(seed) ? Random.Xoshiro(rand(UInt64, 4)...) : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, params, interactions, ewald,
-                 extfield, dipoles, coherents, dipole_buffers, coherent_buffers, rng)
+    ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, params, active_labels,
+                 interactions, ewald, extfield, dipoles, coherents, dipole_buffers,
+                 coherent_buffers, rng)
     polarize_spins!(ret, (0,0,1))
     return dims == (1, 1, 1) ? ret : repeat_periodically(ret, dims)
 end
@@ -141,11 +143,11 @@ not affect the other, and thread safety is guaranteed.
 """
 function clone_system(sys::System{N}) where N
     (; origin, mode, crystal, dims, Ns, gs, κs, extfield, interactions_union,
-       params, ewald, dipoles, coherents, rng) = sys
+       params, active_labels, ewald, dipoles, coherents, rng) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
 
-    # Copy model params individually because param.scale is mutable
+    # Copy element-wise because each param.scale is mutable
     params_clone = copy.(params)
 
     # Dynamically dispatch to the correct `map` function for either homogeneous
@@ -157,7 +159,7 @@ function clone_system(sys::System{N}) where N
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
     ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
-                 params_clone, interactions_clone, nothing, copy(extfield),
+                 params_clone, active_labels, interactions_clone, nothing, copy(extfield),
                  copy(dipoles), copy(coherents), empty_dipole_buffers,
                  empty_coherent_buffers, copy(rng))
 

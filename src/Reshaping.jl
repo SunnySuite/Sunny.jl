@@ -116,8 +116,9 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     orig_sys = clone_system(@something sys.origin sys)
 
     new_sys = System(orig_sys, sys.mode, new_cryst, new_dims, new_Ns, new_κs, new_gs,
-                     new_params, new_ints, new_ewald, new_extfield, new_dipoles,
-                     new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
+                     new_params, sys.active_labels, new_ints, new_ewald, new_extfield,
+                     new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers,
+                     copy(sys.rng))
 
     if is_homogeneous(sys)
         # Transfer params from `new_sys.origin`, which will then be used to fill
