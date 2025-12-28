@@ -1,6 +1,6 @@
 name = "Sunny"
 uuid = "2b4a2ac8-8f8b-43e8-abf4-3cb0c45e8736"
-version = "0.8.1"
+version = "0.8.2"
 authors = ["The Sunny team"]
 
 [deps]

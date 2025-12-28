@@ -77,8 +77,10 @@ end
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
 # Lagrange multiplier for all sublattices.
 function find_lagrange_multiplier_single(sys, Js, β, λ_init)
-    evals = Iterators.flatten(eigvals(J) for J in Js)
-    s² = norm2(sys.κs) * length(Js)
+    evals = reduce(vcat, eigvals.(Js))
+    Nq = length(Js)
+    s² = vec(sys.κs .^ 2)
+    sum_s² = sum(s²)
 
     function fgh!(_, gbuffer, hbuffer, λs)
         λ = λs[1]
@@ -89,23 +91,26 @@ function find_lagrange_multiplier_single(sys, Js, β, λ_init)
             isnothing(hbuffer) || hbuffer .= NaN
             return Inf
         end
-        fbuffer = λ*s²/2 - sum(log(λ + ev) for ev in evals) / 2β
+        fbuffer = λ*sum_s²/2 - sum(log(λ + ev) for ev in evals) / (2β*Nq)
         if !isnothing(gbuffer)
-            gbuffer[1] = s²/2 - sum(1 / (λ + ev) for ev in evals) / 2β
+            gbuffer[1] = sum_s²/2 - sum(1 / (λ + ev) for ev in evals) / (2β*Nq)
         end
         if !isnothing(hbuffer)
-            hbuffer[1, 1] = sum(1 / (λ + ev)^2 for ev in evals) / 2β
+            hbuffer[1, 1] = sum(1 / (λ + ev)^2 for ev in evals) / (2β*Nq)
         end
         return fbuffer
     end
 
-    λs = newton_with_backtracking(fgh!, [λ_init]; g_abstol=1e-12*s², armijo_slack=1e-8*s²/β)
+    g_abstol = 1e-12 * Statistics.mean(s²)
+    armijo_slack = 1e-8 * sum_s² / β
+    λs = newton_with_backtracking(fgh!, [λ_init]; g_abstol, armijo_slack)
     return fill(λs[1], natoms(sys.crystal))
 end
 
 
 function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
     Na = natoms(sys.crystal)
+    Nq = length(Js)
     s² = vec(sys.κs .^ 2)
 
     function fgh!(_, gbuffer, hbuffer, λs)
@@ -140,19 +145,19 @@ function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
             ldiv!(reshape(A⁻¹, 3Na, 3Na), A_chol, I(3Na))
 
             # The finite-valued objective function f
-            fbuffer += (λs' * s²) / 2 - logdet(A_chol) / 2β
+            fbuffer += ((λs'*s²)/2 - logdet(A_chol)/2β) / Nq
 
             # Gradient of f
             if !isnothing(gbuffer)
                 for i in 1:Na
-                    gbuffer[i] += s²[i] / 2 - real(tr(view(A⁻¹, :, i, :, i))) / 2β
+                    gbuffer[i] += (s²[i]/2 - real(tr(view(A⁻¹, :, i, :, i)))/2β) / Nq
                 end
             end
 
             # Hessian of f
             if !isnothing(hbuffer)
                 for i in 1:Na, j in 1:Na
-                    hbuffer[i, j] += + norm(view(A⁻¹, :, i, :, j))^2 / 2β
+                    hbuffer[i, j] += + norm(view(A⁻¹, :, i, :, j))^2 / (2β*Nq)
                 end
             end
         end
@@ -161,7 +166,9 @@ function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
     end
 
     λs = fill(λ_init, Na)
-    return newton_with_backtracking(fgh!, λs; g_abstol=1e-12*Statistics.mean(s²), armijo_slack=1e-8*sum(s²)/β)
+    g_abstol = 1e-12 * Statistics.mean(s²)
+    armijo_slack = 1e-8 * sum(s²) / β
+    return newton_with_backtracking(fgh!, λs; g_abstol, armijo_slack)
 end
 
 
@@ -204,7 +211,10 @@ function intensities_static(scga::SCGA, qpts)
         fourier_exchange_matrix!(A, sys; q)
         A .+= Λ
         A .*= β
-        ldiv!(X, cholesky!(A), pref)
+
+        A_chol = cholesky!(A; check=false)
+        issuccess(A_chol) || error("Raise kT or refine dq; convergence error detected at q = $(vec3_to_string(q))")
+        ldiv!(X, A_chol, pref)
         map!(corrbuf, measure.corr_pairs) do (μ, ν)
             return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
         end

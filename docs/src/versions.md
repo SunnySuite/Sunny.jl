@@ -1,5 +1,10 @@
 # Release Notes
 
+## v0.8.2
+(In development)
+
+* Fix SCGA convergence in multi-sublattice case ([#468](@ref)).
+
 ## v0.8.1
 (Dec 23, 2025)
 
