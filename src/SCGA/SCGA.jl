@@ -77,7 +77,7 @@ end
 # Computes the Lagrange multiplier for the standard SCGA approach with a common
 # Lagrange multiplier for all sublattices.
 function find_lagrange_multiplier_single(sys, Js, β, λ_init)
-    evals = reduce(vcat, eigvals.(J))
+    evals = reduce(vcat, eigvals.(Js))
     Nq = length(Js)
     s² = vec(sys.κs .^ 2)
     sum_s² = sum(s²)
