@@ -99,7 +99,7 @@ function find_lagrange_multiplier_single(sys, Js, β, λ_init)
         return fbuffer
     end
 
-    g_abstol = 1e-12 * Statistics.mean(s²)
+    g_abstol = 1e-8 * Statistics.mean(s²)
     armijo_slack = 1e-8 * sum_s² / β
     λs = newton_with_backtracking(fgh!, [λ_init]; g_abstol, armijo_slack)
     return fill(λs[1], natoms(sys.crystal))
@@ -164,7 +164,7 @@ function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
     end
 
     λs = fill(λ_init, Na)
-    g_abstol = 1e-12 * Statistics.mean(s²)
+    g_abstol = 1e-8 * Statistics.mean(s²)
     armijo_slack = 1e-8 * sum(s²) / β
     return newton_with_backtracking(fgh!, λs; g_abstol, armijo_slack)
 end
@@ -440,7 +440,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             # Pullback on: corrbuf = dot(pref_μ, X_ν) / Ncells
             fill!(ΔX, 0)
             for (k, (μ, ν)) in enumerate(measure.corr_pairs)
-                view(ΔX, :, ν) .+= Δcorrbuf[k] .* conj.(view(pref, :, μ)) ./ Ncells
+                view(ΔX, :, ν) .+= Δcorrbuf[k] .* view(pref, :, μ) ./ Ncells
             end
 
             # Pullback on: X = A \ pref
