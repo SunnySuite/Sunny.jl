@@ -24,13 +24,31 @@ function _broaden(data, bands_data, disp, energies, kernel)
     if iq > size(disp, 2)
         return
     end
+
+    bands_buf = CuDynamicSharedArray(Float64, (size(bands_data, 1), blockDim().y))
+    bands_bufq = view(bands_buf, :, threadIdx().y)
+    k = threadIdx().x
+    while k <= size(bands_data, 1)
+        bands_bufq[k] = bands_data[k, iq]
+        k += blockDim().x
+    end
+
+    disp_buf = CuDynamicSharedArray(Float64, (size(disp, 1), blockDim().y), size(bands_data, 1) * blockDim().y* sizeof(Float64))
+    disp_bufq = view(disp_buf, :, threadIdx().y)
+    k = threadIdx().x
+    while k <= size(disp, 1)
+        disp_bufq[k] = disp[k, iq]
+        k += blockDim().x
+    end
+    CUDA.sync_threads()
+
     ω = energies[iω]
     total = 0.
-    for (ib, b) in enumerate(view(disp, :, iq))
-        #norm(bands.data[ib, iq]) < cutoff && continue
-        total += kernel(b, ω) * bands_data[ib, iq]
+    for ib in eachindex(disp_bufq)
+        total += kernel(disp_bufq[ib], ω) * bands_bufq[ib]
     end
-    data[iω, iq] = total 
+    data[iω, iq] = total
+
     return
 end
 
@@ -47,21 +65,27 @@ function broaden!(data::CuArray{Ret}, bands::BandIntensitiesDevice{Ret}; energie
 
     kernel_d = BroadeningDevice(kernel)
     gpu_kernel = CUDA.@cuda launch=false _broaden(data, bands.data, bands.disp, energies_d, kernel_d)
-    config = launch_configuration(gpu_kernel.fun)
+
+    function get_shmem(threads; rows=size(bands.data,1))
+        if length(threads) == 2
+            return 2 * threads[2] * rows * sizeof(Float64)
+        else
+            return 2 * threads * rows * sizeof(Float64)
+        end
+    end
+
+    config = launch_configuration(gpu_kernel.fun, shmem=threads->get_shmem(threads))
     optimal_threads_1d = config.threads
-    
+
     threads_x = Base.min(nω, optimal_threads_1d)
-
-    threads_y = optimal_threads_1d ÷ threads_x
-    threads_y = Base.min(nq, threads_y)
-
+    threads_y = Base.min(nq, optimal_threads_1d ÷ threads_x)
     threads = (threads_x, threads_y) # e.g., (16, 32) or similar, max product is 1024
 
     blocks_x = cld(nω, threads_x)
     blocks_y = cld(nq, threads_y)
     blocks = (blocks_x, blocks_y)
-    gpu_kernel(data, bands.data, bands.disp, energies_d, kernel_d; threads=threads, blocks=blocks)
 
+    gpu_kernel(data, bands.data, bands.disp, energies_d, kernel_d; threads=threads, blocks=blocks, shmem=get_shmem(threads))
     return data
 end
 
