@@ -50,10 +50,14 @@ struct SCGA
         # matrices are positive definite.
         λ_init = -minimum(eigmin(J) for J in Js) + 1/β
 
-        λs = if allequal(sys.crystal.classes)
-            find_lagrange_multiplier_single(sys, Js, β, λ_init)
-        else
-            find_lagrange_multiplier_multi(sys, Js, β, λ_init)
+        λs = try
+            if allequal(sys.crystal.classes)
+                find_lagrange_multiplier_single(sys, Js, β, λ_init)
+            else
+                find_lagrange_multiplier_multi(sys, Js, β, λ_init)
+            end
+        catch err
+            rethrow(InstabilityError("Self-consistency failed; try raising kT or refining dq"))
         end
 
         return new(sys, measure, β, λs)
@@ -252,7 +256,7 @@ function intensities_static(scga::SCGA, qpts)
         A .*= β
 
         A_chol = cholesky!(A; check=false)
-        issuccess(A_chol) || error("Raise kT or refine dq; convergence error detected at q = $(vec3_to_string(q))")
+        issuccess(A_chol) || InstabilityError("Self-consistency failed at q = $(vec3_to_string(q)); try raising kT or refining dq")
         ldiv!(X, A_chol, pref)
         map!(corrbuf, measure.corr_pairs) do (μ, ν)
             return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
@@ -339,7 +343,7 @@ function CRC.rrule(::typeof(SCGA), sys::System; measure, kT, dq)
     function pullback(Δscga)
         Δscga = proj_scga(CRC.unthunk(Δscga))
         if Δscga isa CRC.NoTangent || Δscga isa CRC.AbstractZero
-            return (CRC.NoTangent(), CRC.ZeroTangent()) # NB: It is *not* needed to append (; measure=CRC.NoTangent(), kT=CRC.NoTangent(), dq=CRC.NoTangent()))
+            return (CRC.NoTangent(), CRC.ZeroTangent())
         else
             @assert !isempty(active_labels)
         end
@@ -355,6 +359,32 @@ function CRC.rrule(::typeof(SCGA), sys::System; measure, kT, dq)
     return scga, pullback
 end
 
+
+# Evaluate pullback for data = combiner(q_global, corrbuff) given cotangent
+# Δdata, assuming linearity in corrbuff.
+function combiner_ad(rc::CRC.RuleConfig, combiner, q_global, corrbuf, Δdata)
+    Δcorrbuf = similar(corrbuf)
+    e = zeros(Float64, length(corrbuf))
+    for i in 1:length(corrbuf)
+        fill!(e, 0.0)
+        e[i] = 1.0
+        Δcorrbuf[i] = dot(combiner(q_global, e), Δdata)
+    end
+
+    # Test correctness of adjoint. Use Float64 for elements of r because some
+    # combiners (like in ssf_trace) require a real input.
+    r = randn(Float64, length(corrbuf))
+    matches = dot(Δdata, combiner(q_global, r)) ≈ dot(Δcorrbuf, r)
+
+    # Fall back to much slower AD if needed
+    if !matches
+        @warn "Combiner appears nonlinear; falling back to generic AD"
+        _, pullback = CRC.rrule_via_ad(rc, combiner, q_global, corrbuf)
+        _, _, Δcorrbuf = pullback(Δdata)
+    end
+
+    return Δcorrbuf
+end
 
 function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA, qpts)
     qpts = convert(AbstractQPoints, qpts)
@@ -417,7 +447,8 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             A .*= β
 
             # X = A \ pref
-            A_chol = cholesky!(A)
+            A_chol = cholesky!(A; check=false)
+            issuccess(A_chol) || InstabilityError("Self-consistency failed at q = $(vec3_to_string(q)); try raising kT or refining dq")
             ldiv!(X, A_chol, pref)
 
             # corrbuf = dot(pref_μ, X_ν) / Ncells
@@ -425,13 +456,13 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
                 return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
             end
 
+            # data = measure.combiner(corrbuf)
             @assert res.data[iq] ≈ measure.combiner(q_global, corrbuf)
 
             ### BACKWARD CALCULATION
 
             # Pullback on: data = measure.combiner(corrbuf)
-            _, comb_pb = CRC.rrule_via_ad(rc, measure.combiner, q_global, corrbuf)
-            _, _, Δcorrbuf = comb_pb(Δdata[iq])
+            Δcorrbuf = combiner_ad(rc, measure.combiner, q_global, corrbuf, Δdata[iq])
             Δcorrbuf = CRC.unthunk(Δcorrbuf)
             if Δcorrbuf isa CRC.NoTangent || Δcorrbuf isa CRC.AbstractZero || isnothing(Δcorrbuf)
                 continue
@@ -445,16 +476,16 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
 
             # Pullback on: X = A \ pref
             ldiv!(G, A_chol', ΔX) # G = A' \ ΔX
-            mul!(ΔA, G, X')      # ΔA = G * X'
-            ΔA .*= -1            # ΔA = - (A' \ ΔX) * X'
+            mul!(ΔA, G, X')       # ΔA = G * X'
+            ΔA .*= -1             # ΔA = - (A' \ ΔX) * X'
 
-            # Pullback on: A = β*(J+Λ) for Δvals part in J(vals)
+            # Pullback on: A = β*(J+Λ) for J(vals)
             for (k, label) in enumerate(sys.active_labels)
                 fourier_exchange_matrix_sensitivity!(∂J, sys, label; q)
                 Δvals[k] += β * real(dot(vec(ΔA), vec(∂J)))
             end
 
-            # Pullback on: A = β*(J+Λ) for λs part in Λ = Diagonal(repeat(λs, inner=3))
+            # Pullback on: A = β*(J+Λ) for Λ = Diagonal(repeat(λs, inner=3))
             for i in 1:length(λs)
                 Δλs[i] += β * real(ΔA_reshaped[1, i, 1, i] +
                                    ΔA_reshaped[2, i, 2, i] +
@@ -471,4 +502,94 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
     end
 
     return res, pullback
+end
+
+
+###########
+
+
+struct FittingLoss{F}
+    f :: F
+    sys :: System
+    labels :: Vector{Symbol}
+end
+
+function fitting_loss(f, sys, labels)
+    return FittingLoss(f, sys, labels)
+end
+
+function (fl::FittingLoss)(vals)
+    (; f, sys, labels) = fl
+
+    sys = clone_system(sys)
+    set_params!(sys, labels, vals)
+    sys.active_labels = labels
+    try
+        return f(sys)
+    catch err
+        (err isa InstabilityError) ? Inf : rethrow(err)
+    end
+end
+
+function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
+    (; f, sys, labels) = fl
+
+    sys = clone_system(sys)
+    set_params!(sys, labels, vals)
+    sys.active_labels = labels
+    (y, f_pb) = try
+        CRC.rrule_via_ad(rc, f, sys)
+    catch err
+        (err isa InstabilityError) ? (Inf, nothing) : rethrow(err)
+    end
+
+    function pullback(Δy)
+        Δvals = if isinf(y)
+            fill!(similar(vals), NaN)
+        else
+            _, Δsys = f_pb(Δy)
+            CRC.unthunk(Δsys).vals
+        end
+        return (CRC.NoTangent(), Δvals)
+    end
+
+    return y, pullback
+end
+
+"""
+    squared_error(x, y; weights=nothing, rescale=false)
+
+Sum of squared errors, ``L ∝ \\sum_i w_i |y_i - x_i|^2``. The nonnegative
+weights ``w_i`` default to 1.
+
+If `rescale=true` then an automated rescaling will be performed whereby ``L ∝
+\\min_c \\sum_i w_i |y_i - c x_i|^2``. This can be useful when fitting to
+experimental intensities of unknown scale.
+
+In all cases, a normalization is imposed so that ``0 ≤ L ≤ 1``. This
+normalization also ensures symmetry in (x, y). If any ``x_i`` or ``y_i`` is NaN,
+these terms will be omitted from the sum.
+"""
+function squared_error(x, y; weights=nothing, rescale=false)
+    ty = promote_type(eltype(x), eltype(y))
+    w = @something weights fill(one(real(ty)), size(x))
+    size(x) == size(y) == size(w) || error("Mismatched input sizes")
+    (x, y, w) = flatten_to_vec.((x, y, w))
+    all(>=(0), w) || error("Negative weights detected")
+
+    # This functional implementation is AD-friendly
+    inds = findall(i -> !isnan(x[i]) && !isnan(y[i]), eachindex(x))
+    @views begin
+        x² = sum(@. w[inds] * abs2(x[inds]))           # |x|² ≡ ⟨x,x⟩
+        y² = sum(@. w[inds] * abs2(y[inds]))           # |y|² ≡ ⟨y,y⟩
+        xy = sum(@. w[inds] * conj(x[inds]) * y[inds]) # ⟨x,y⟩
+    end
+
+    return if !rescale
+        # |y - x|² / 2(|x|²+|y|²)
+        1/2 - real(xy) / (x² + y²)
+    else
+        # |y - cx|² / |y|² where c = ⟨x,y⟩ / |x|²
+        1 - abs2(xy) / (x² * y²)
+    end
 end

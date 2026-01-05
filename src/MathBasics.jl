@@ -90,3 +90,8 @@ function ql(A)
     FRF = reverse!(R)
     return (; Q=QF, L=FRF)
 end
+
+# flatten_to_vec([1, ([2, 3], 4, [5, 6])]) == [1, 2, 3, 4, 5, 6]
+flatten_to_vec(x::Number) = [x]
+flatten_to_vec(x::Array{<: Number}) = vec(x)
+flatten_to_vec(xs) = reduce(vcat, (flatten_to_vec(x) for x in xs))

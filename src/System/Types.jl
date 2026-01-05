@@ -138,3 +138,7 @@ mutable struct System{N}
     # Global data
     const rng              :: Random.Xoshiro
 end
+
+struct InstabilityError <: Exception
+    msg::String
+end
