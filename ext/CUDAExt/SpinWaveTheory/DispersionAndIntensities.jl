@@ -1,17 +1,19 @@
 using LinearAlgebra
 
 function _set_identity(a)
-    iq = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
-    if iq > size(a,3)
+    i = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
+    if i > size(a, 2)
         return
     end
-    L = div(size(a,1), 2)
-    for i in 1:L
-        a[i,i,iq] = 1.
+
+    iq = threadIdx().y + (blockIdx().y - Int32(1)) * blockDim().y
+    if iq > size(a, 3)
+        return
     end
-    for i in L+1:2L
-        a[i,i,iq] = -1.
-    end
+
+    L = div(size(a, 1), 2)
+    a[i,i,iq] = i > L ? -1. : 1.
+    return
 end
 
 function _frequencies(H, evalues)
@@ -128,8 +130,16 @@ function intensities_bands(swt::SpinWaveTheoryDevice, qpts; kT=0, with_negative=
     I_d = CUDA.zeros(ComplexF64, 2L, 2L, Nq)
     kernel = @cuda launch=false _set_identity(I_d)
     config = launch_configuration(kernel.fun)
-    threads = Base.min(Nq, config.threads)
-    blocks = cld(Nq, threads)
+    optimal_threads_1d = config.threads
+
+    threads_x = Base.min(2L, optimal_threads_1d)
+    threads_y = Base.min(Nq, optimal_threads_1d ÷ threads_x)
+    threads = (threads_x, threads_y) # e.g., (16, 32) or similar, max product is 1024
+
+    blocks_x = cld(2L, threads_x)
+    blocks_y = cld(Nq, threads_y)
+    blocks = (blocks_x, blocks_y)
+
     kernel(I_d; threads=threads, blocks=blocks)
 
     I_dp = [view(I_d,:,:,i) for i in 1:Nq]
