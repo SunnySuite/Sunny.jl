@@ -280,60 +280,7 @@ function intensities_static(scga::SCGA, qpts)
 end
 
 
-
-########################## MOVE LATER
-
-CRC.@non_differentiable q_space_path(::Any, ::Any, ::Any)
-
-function with_params(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
-    sys = clone_system(sys)
-    set_params!(sys, labels, vals)
-    sys.active_labels = labels
-    return sys
-end
-
-# Custom System tangent that stores param sensitivities
-
-struct SystemTangent <: CRC.AbstractTangent
-    vals::Vector{Float64}
-end
-
-Base.:+(a::SystemTangent, b::SystemTangent) = SystemTangent(a.vals .+ b.vals)
-CRC.zero_tangent(t::SystemTangent) = SystemTangent(zero(t.vals))
-CRC.unthunk(t::SystemTangent) = t
-
-function CRC.ProjectTo(sys::System)
-    n = length(sys.active_labels)
-    function project(Δsys)
-        Δsys = CRC.unthunk(Δsys)
-        if Δsys isa CRC.NoTangent || Δsys isa CRC.AbstractZero
-            return SystemTangent(zeros(n))
-        elseif Δsys isa SystemTangent
-            return Δsys
-        else
-            # if hasproperty(Δsys, :vals)
-            #     return SystemTangent(getproperty(Δsys, :vals))
-            # end
-            error("Unsupported cotangent for System: $(typeof(Δsys))")
-        end
-    end
-    return project
-end
-
-
-function CRC.rrule(::typeof(with_params), sys::System, labels, vals)
-    sys2 = with_params(sys, labels, vals)
-    proj_sys = CRC.ProjectTo(sys2)
-    proj_vals = CRC.ProjectTo(vals)
-
-    function pullback(Δsys2)
-        Δsys2 = proj_sys(CRC.unthunk(Δsys2))
-        return (CRC.NoTangent(), CRC.NoTangent(), CRC.NoTangent(), proj_vals(Δsys2.vals))
-    end
-
-    return sys2, pullback
-end
-
+### Autodiff support
 
 function CRC.rrule(::typeof(SCGA), sys::System; measure, kT, dq)
     (; active_labels) = sys
@@ -358,7 +305,6 @@ function CRC.rrule(::typeof(SCGA), sys::System; measure, kT, dq)
 
     return scga, pullback
 end
-
 
 # Evaluate pullback for data = combiner(q_global, corrbuff) given cotangent
 # Δdata, assuming linearity in corrbuff.
@@ -502,94 +448,4 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
     end
 
     return res, pullback
-end
-
-
-###########
-
-
-struct FittingLoss{F}
-    f :: F
-    sys :: System
-    labels :: Vector{Symbol}
-end
-
-function fitting_loss(f, sys, labels)
-    return FittingLoss(f, sys, labels)
-end
-
-function (fl::FittingLoss)(vals)
-    (; f, sys, labels) = fl
-
-    sys = clone_system(sys)
-    set_params!(sys, labels, vals)
-    sys.active_labels = labels
-    try
-        return f(sys)
-    catch err
-        (err isa InstabilityError) ? Inf : rethrow(err)
-    end
-end
-
-function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
-    (; f, sys, labels) = fl
-
-    sys = clone_system(sys)
-    set_params!(sys, labels, vals)
-    sys.active_labels = labels
-    (y, f_pb) = try
-        CRC.rrule_via_ad(rc, f, sys)
-    catch err
-        (err isa InstabilityError) ? (Inf, nothing) : rethrow(err)
-    end
-
-    function pullback(Δy)
-        Δvals = if isinf(y)
-            fill!(similar(vals), NaN)
-        else
-            _, Δsys = f_pb(Δy)
-            CRC.unthunk(Δsys).vals
-        end
-        return (CRC.NoTangent(), Δvals)
-    end
-
-    return y, pullback
-end
-
-"""
-    squared_error(x, y; weights=nothing, rescale=false)
-
-Sum of squared errors, ``L ∝ \\sum_i w_i |y_i - x_i|^2``. The nonnegative
-weights ``w_i`` default to 1.
-
-If `rescale=true` then an automated rescaling will be performed whereby ``L ∝
-\\min_c \\sum_i w_i |y_i - c x_i|^2``. This can be useful when fitting to
-experimental intensities of unknown scale.
-
-In all cases, a normalization is imposed so that ``0 ≤ L ≤ 1``. This
-normalization also ensures symmetry in (x, y). If any ``x_i`` or ``y_i`` is NaN,
-these terms will be omitted from the sum.
-"""
-function squared_error(x, y; weights=nothing, rescale=false)
-    ty = promote_type(eltype(x), eltype(y))
-    w = @something weights fill(one(real(ty)), size(x))
-    size(x) == size(y) == size(w) || error("Mismatched input sizes")
-    (x, y, w) = flatten_to_vec.((x, y, w))
-    all(>=(0), w) || error("Negative weights detected")
-
-    # This functional implementation is AD-friendly
-    inds = findall(i -> !isnan(x[i]) && !isnan(y[i]), eachindex(x))
-    @views begin
-        x² = sum(@. w[inds] * abs2(x[inds]))           # |x|² ≡ ⟨x,x⟩
-        y² = sum(@. w[inds] * abs2(y[inds]))           # |y|² ≡ ⟨y,y⟩
-        xy = sum(@. w[inds] * conj(x[inds]) * y[inds]) # ⟨x,y⟩
-    end
-
-    return if !rescale
-        # |y - x|² / 2(|x|²+|y|²)
-        1/2 - real(xy) / (x² + y²)
-    else
-        # |y - cx|² / |y|² where c = ⟨x,y⟩ / |x|²
-        1 - abs2(xy) / (x² * y²)
-    end
 end

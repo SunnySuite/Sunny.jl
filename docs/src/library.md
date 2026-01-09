@@ -54,6 +54,7 @@ lattice_vectors
 load_nxs
 lorentzian
 magnetic_moment
+make_loss_fn
 merge_correlations
 minimize_energy!
 minimize_spiral_energy!
@@ -103,6 +104,7 @@ spin_label
 spin_matrices
 spiral_energy
 spiral_energy_per_site
+squared_error
 ssf_custom
 ssf_custom_bm
 ssf_perp

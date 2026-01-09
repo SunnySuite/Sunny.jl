@@ -139,6 +139,12 @@ mutable struct System{N}
     const rng              :: Random.Xoshiro
 end
 
+
+# Parameter sensitivities w.r.t. sys.active_labels. For use in autodiff.
+struct SystemTangent <: CRC.AbstractTangent
+    vals::Vector{Float64}
+end
+
 struct InstabilityError <: Exception
     msg::String
 end

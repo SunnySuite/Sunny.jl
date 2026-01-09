@@ -64,11 +64,11 @@ refdata1 = 1.3 * refs[1].data
 refdata2 = 1.3 * refs[2].data
 refdata1[1] = NaN
 
-loss = Sunny.fitting_loss(sys, labels) do sys
+loss = make_loss_fn(sys, labels) do sys
     scga = SCGA(sys; measure, kT, dq)
     res1 = intensities_static(scga, grids[1])
     res2 = intensities_static(scga, grids[2])
-    return Sunny.squared_error((res1.data, res2.data), (refdata1, refdata2); rescale=true)
+    return squared_error((res1.data, res2.data), (refdata1, refdata2); rescale=true)
 end
 
 import Optim
@@ -76,13 +76,14 @@ import Optim
 # Optim options / logging
 opts = Optim.Options(
     iterations = 500,
-    g_tol      = 1e-8,
+    g_tol      = 1e-6,
     show_trace = true,
     show_every = 5,
 )
 
 # Run optimization with reverse-mode AD
 guess = [0.0, 0.0, 0.0, 0.0]
+# res = Optim.optimize(loss, guess, Optim.LBFGS(), opts)
 res = Optim.optimize(loss, guess, Optim.LBFGS(), opts; autodiff=DI.AutoZygote())
 
 refvals - res.minimizer
@@ -94,7 +95,7 @@ guess = [0.0, 0.0, 0.0, 0.0]
 loss(guess)
 
 using Chairmarks
+import FiniteDiff
 @b loss(guess)
 @b DI.gradient(loss,  DI.AutoZygote(), guess)
-
-@profview DI.gradient(loss,  DI.AutoZygote(), guess)
+@b DI.gradient(loss,  DI.AutoFiniteDiff(), guess)
