@@ -229,7 +229,7 @@ function intensities_static(scga::SCGA, qpts)
     # Temporary storage for pair correlations
     Nobs = num_observables(measure)
     Ncorr = num_correlations(measure)
-    corrbuf = zeros(ComplexF64, Ncorr)
+    corr = zeros(ComplexF64, Ncorr)
 
     # Preallocation
     A = zeros(ComplexF64, 3Na, 3Na)
@@ -237,9 +237,10 @@ function intensities_static(scga::SCGA, qpts)
     X = zeros(ComplexF64, 3Na, Nobs)
     pref = zeros(ComplexF64, 3Na, Nobs)
     pref_reshaped = reshape(pref, 3, Na, Nobs)
-    intensity = zeros(eltype(measure), Nq)
 
-    for (iq, q) in enumerate(qpts.qs)
+    data = map(qpts.qs) do q
+        any(isnan, q) && return NaN * zero(eltype(measure))
+
         q_global = cryst.recipvecs * q
 
         for i in 1:Na, μ in 1:Nobs
@@ -258,13 +259,13 @@ function intensities_static(scga::SCGA, qpts)
         A_chol = cholesky!(A; check=false)
         issuccess(A_chol) || InstabilityError("Self-consistency failed at q = $(vec3_to_string(q)); try raising kT or refining dq")
         ldiv!(X, A_chol, pref)
-        map!(corrbuf, measure.corr_pairs) do (μ, ν)
+        map!(corr, measure.corr_pairs) do (μ, ν)
             return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
         end
 
         #=
         A⁻¹ = reshape(inv(β*Λ + β*Jq), 3, Na, 3, Na)
-        map!(corrbuf, measure.corr_pairs) do (μ, ν)
+        map!(corr, measure.corr_pairs) do (μ, ν)
             acc = zero(ComplexF64)
             for α in 1:3, β in 1:3, i in 1:Na, j in 1:Na
                 acc += conj(pref[α, i, μ]) * A⁻¹[α, i, β, j] * pref[β, j, ν]
@@ -273,10 +274,10 @@ function intensities_static(scga::SCGA, qpts)
         end
         =#
 
-        intensity[iq] = measure.combiner(q_global, corrbuf)
+        return measure.combiner(q_global, corr)
     end
 
-    return StaticIntensities(cryst, qpts, reshape(intensity, size(qpts.qs)))
+    return StaticIntensities(cryst, qpts, data)
 end
 
 
@@ -306,30 +307,30 @@ function CRC.rrule(::typeof(SCGA), sys::System; measure, kT, dq)
     return scga, pullback
 end
 
-# Evaluate pullback for data = combiner(q_global, corrbuff) given cotangent
-# Δdata, assuming linearity in corrbuff.
-function combiner_ad(rc::CRC.RuleConfig, combiner, q_global, corrbuf, Δdata)
-    Δcorrbuf = similar(corrbuf)
-    e = zeros(Float64, length(corrbuf))
-    for i in 1:length(corrbuf)
+# Evaluate pullback for d = combiner(q_global, corr) given cotangent Δd,
+# assuming linearity in corr.
+function combiner_ad(rc::CRC.RuleConfig, combiner, q_global, corr, Δd)
+    Δcorr = similar(corr)
+    e = zeros(Float64, length(corr))
+    for i in 1:length(corr)
         fill!(e, 0.0)
         e[i] = 1.0
-        Δcorrbuf[i] = dot(combiner(q_global, e), Δdata)
+        Δcorr[i] = dot(combiner(q_global, e), Δd)
     end
 
     # Test correctness of adjoint. Use Float64 for elements of r because some
     # combiners (like in ssf_trace) require a real input.
-    r = randn(Float64, length(corrbuf))
-    matches = dot(Δdata, combiner(q_global, r)) ≈ dot(Δcorrbuf, r)
+    r = randn(Float64, length(corr))
+    matches = dot(Δd, combiner(q_global, r)) ≈ dot(Δcorr, r)
 
     # Fall back to much slower AD if needed
     if !matches
         @warn "Combiner appears nonlinear; falling back to generic AD"
-        _, pullback = CRC.rrule_via_ad(rc, combiner, q_global, corrbuf)
-        _, _, Δcorrbuf = pullback(Δdata)
+        _, pullback = CRC.rrule_via_ad(rc, combiner, q_global, corr)
+        _, _, Δcorr = pullback(Δd)
     end
 
-    return Δcorrbuf
+    return Δcorr
 end
 
 function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA, qpts)
@@ -359,7 +360,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
         X = zeros(ComplexF64, 3Na, Nobs)
         pref = zeros(ComplexF64, 3Na, Nobs)
         pref_reshaped = reshape(pref, 3, Na, Nobs)
-        corrbuf = zeros(ComplexF64, Ncorr)
+        corr = zeros(ComplexF64, Ncorr)
         O = view(measure.observables::Array{Vec3,5}, :, 1, 1, 1, :)
 
         # Reverse buffers
@@ -372,7 +373,8 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
         ΔA_reshaped = reshape(ΔA, 3, Na, 3, Na)
         ∂J = zeros(ComplexF64, 3Na, 3Na)
 
-        for (iq, q) in enumerate(qpts.qs)
+        foreach(qpts.qs, res.data, Δdata) do q, d, Δd
+            any(isnan, q) && return
 
             ### REPEAT FORWARD CALCULATION (no tape to avoid memory costs)
 
@@ -397,27 +399,27 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             issuccess(A_chol) || InstabilityError("Self-consistency failed at q = $(vec3_to_string(q)); try raising kT or refining dq")
             ldiv!(X, A_chol, pref)
 
-            # corrbuf = dot(pref_μ, X_ν) / Ncells
-            map!(corrbuf, measure.corr_pairs) do (μ, ν)
+            # corr = dot(pref_μ, X_ν) / Ncells
+            map!(corr, measure.corr_pairs) do (μ, ν)
                 return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
             end
 
-            # data = measure.combiner(corrbuf)
-            @assert res.data[iq] ≈ measure.combiner(q_global, corrbuf)
+            # data = measure.combiner(corr)
+            @assert d ≈ measure.combiner(q_global, corr)
 
             ### BACKWARD CALCULATION
 
-            # Pullback on: data = measure.combiner(corrbuf)
-            Δcorrbuf = combiner_ad(rc, measure.combiner, q_global, corrbuf, Δdata[iq])
-            Δcorrbuf = CRC.unthunk(Δcorrbuf)
-            if Δcorrbuf isa CRC.NoTangent || Δcorrbuf isa CRC.AbstractZero || isnothing(Δcorrbuf)
-                continue
+            # Pullback on: data = measure.combiner(corr)
+            Δcorr = combiner_ad(rc, measure.combiner, q_global, corr, Δd)
+            Δcorr = CRC.unthunk(Δcorr)
+            if Δcorr isa CRC.NoTangent || Δcorr isa CRC.AbstractZero || isnothing(Δcorr)
+                return
             end
 
-            # Pullback on: corrbuf = dot(pref_μ, X_ν) / Ncells
+            # Pullback on: corr = dot(pref_μ, X_ν) / Ncells
             fill!(ΔX, 0)
             for (k, (μ, ν)) in enumerate(measure.corr_pairs)
-                view(ΔX, :, ν) .+= Δcorrbuf[k] .* view(pref, :, μ) ./ Ncells
+                view(ΔX, :, ν) .+= Δcorr[k] .* view(pref, :, μ) ./ Ncells
             end
 
             # Pullback on: X = A \ pref
