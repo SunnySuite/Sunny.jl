@@ -105,9 +105,7 @@ set_param!(sys, :J1, 2.0)
 ```
 """
 function set_param!(sys::System, label::Symbol, val::Real)
-    lookup_param(sys, label).val = val
-    repopulate_couplings_from_params!(sys)
-    return
+    return set_params!(sys, [label], [val])
 end
 
 """
@@ -135,6 +133,9 @@ set_params!(sys, [:J1, :J2], [2.0, 3.0])
 function set_params!(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
     foreach(labels, vals) do label, val
         lookup_param(sys, label).val = val
+        if !isnothing(sys.origin)
+            lookup_param(sys.origin, label).val = val
+        end
     end
     repopulate_couplings_from_params!(sys)
     return

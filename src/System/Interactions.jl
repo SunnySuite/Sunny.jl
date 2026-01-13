@@ -2,6 +2,12 @@ function repopulate_couplings_from_params!(sys::System)
     @assert is_homogeneous(sys)
     ints = interactions_homog(sys)
 
+    # If `sys` has been reshaped, then also repopulate `sys.origin` (useful for
+    # view_crystal(sys)).
+    if !isnothing(sys.origin)
+        repopulate_couplings_from_params!(sys.origin)
+    end
+
     # Clear current interactions
     for i in eachindex(ints)
         ints[i].onsite = ints[i].onsite * 0.0

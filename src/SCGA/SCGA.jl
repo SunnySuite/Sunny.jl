@@ -76,9 +76,12 @@ function make_q_grid(sys, dq)
     return vec([to_standard_rlu(sys, Vec3(q_reshaped)) for q_reshaped in Iterators.product(qα...)])
 end
 
-# Computes the Lagrange multiplier for the standard SCGA approach with a common
-# Lagrange multiplier for all sublattices.
+# If all sites are symmetry-equivalent, then solve for a single Lagrange
+# multiplier λ. This has energy units and effectively shifts J(q) → J(q) + λ.
+# Traditional SCGA notation, e.g. Conlon and Chalker, would use instead the
+# dimensionless Lagrange multiplier λ_C = β (λ - eigmin J(q)).
 function find_lagrange_multiplier_single(sys, Js, β, λ_init)
+    # Calculate J(q) eigenvalues once now and then shift them by λ later
     evals = reduce(vcat, eigvals.(Js))
     Nq = length(Js)
     s² = vec(sys.κs .^ 2)
