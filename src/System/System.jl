@@ -591,7 +591,7 @@ function set_spin_rescaling!(sys::System{N}, pairs::Vector{Pair{Int, T}}) where 
     end
 end
 function set_spin_rescaling!(sys::System, α)
-    idxs = unique(orig_crystal(sys).classes)
+    idxs = unique_indices(orig_crystal(sys).classes)
     expr = "[" * join(repr.(idxs) .* " => α", ", ") * "]"
     @warn "Deprecated syntax! Use instead `set_spin_rescaling!(sys, $expr)`"
     set_spin_rescaling!(sys, idxs .=> α)
