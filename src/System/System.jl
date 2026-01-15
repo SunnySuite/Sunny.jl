@@ -577,7 +577,7 @@ is the [`spin_label`](@ref) of the relevant magnetic moment. In SU(N) mode, this
 fixes each coherent state magnitude, ``|Z| = √α``, which leads to an effective
 renormalization of local expectation values, ``⟨A⟩ → α ⟨A⟩``.
 """
-function set_spin_rescaling!(sys::System{N}, pairs::Vector{Pair{Int, T}}) where {N, T<:Real}
+function set_spin_rescaling!(sys::System{N}, pairs::Vector{<: Pair{Int, <: Real}}) where N
     αs = propagate_atom_data(orig_crystal(sys), sys.crystal, pairs)
     for site in eachsite(sys)
         α = αs[to_atom(site)]
