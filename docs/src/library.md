@@ -54,6 +54,7 @@ lattice_vectors
 load_nxs
 lorentzian
 magnetic_moment
+magnetic_moment_per_site
 make_loss_fn
 merge_correlations
 minimize_energy!

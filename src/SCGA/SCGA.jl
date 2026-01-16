@@ -25,7 +25,9 @@ struct SCGA
     sys :: System
     measure :: MeasureSpec
     β :: Float64
+    extfield :: Vec3 # Applied field in energy units, as in set_field!
     λs :: Vector{Float64}
+    dipoles :: Array{Vec3, 4}
 
     function SCGA(sys::System; measure::Union{Nothing, MeasureSpec}, kT::Real, dq::Float64)
         sys.dims == (1, 1, 1) || error("Use system with dims=(1, 1, 1) for efficiency")
@@ -42,6 +44,8 @@ struct SCGA
         kT > 0 || error("Temperature kT must be positive")
         β = 1 / kT
 
+        extfield = allequal(sys.extfield) ? first(sys.extfield) : error("External field must be homogeneous")
+
         0 < dq < 1 || error("Select q-space resolution 0 < dq < 1.")
         qs = make_q_grid(sys, dq)
         Js = [fourier_exchange_matrix(sys; q) for q in qs]
@@ -50,21 +54,37 @@ struct SCGA
         # matrices are positive definite.
         λ_init = -minimum(eigmin(J) for J in Js) + 1/β
 
-        λs = try
-            if allequal(sys.crystal.classes)
-                find_lagrange_multiplier_single(sys, Js, β, λ_init)
+        (λs, dipoles) = try
+            # An external field may break the symmetry-equivalence of sites
+            if allequal(sys.crystal.classes) && iszero(extfield)
+                (find_lagrange_multiplier_single(sys, Js, β, λ_init), zero(sys.extfield))
             else
-                find_lagrange_multiplier_multi(sys, Js, β, λ_init)
+                find_lagrange_multiplier_multi(sys, Js, β, extfield, λ_init)
             end
         catch err
-            rethrow(InstabilityError("Self-consistency failed; try raising kT or refining dq"))
+            if err isa OptimizationError
+                rethrow(InstabilityError("Self-consistency failed; try raising kT or refining dq"))
+            else
+                rethrow(err)
+            end
         end
 
-        return new(sys, measure, β, λs)
+        return new(sys, measure, β, extfield, λs, dipoles)
     end
 end
 
+function magnetic_moment(scga::SCGA, site)
+    site = to_cartesian(site)
+    return - scga.sys.gs[site] * scga.dipoles[site]
+end
+
+function magnetic_moment_per_site(scga::SCGA)
+    Statistics.mean(magnetic_moment(scga, site) for site in eachsite(scga.sys))
+end
+
 function make_q_grid(sys, dq)
+    # Round up to integer grid length
+    dq = 1 / round(1 / dq, RoundUp)
     wraps = [false, false, false]
     for int in sys.interactions_union
         for coupling in int.pair
@@ -72,7 +92,7 @@ function make_q_grid(sys, dq)
         end
     end
 
-    qα = [w ? (-1/2 : dq : 1/2-dq) : [0] for w in wraps]
+    qα = [w ? (0 : dq : 1-dq) : [0] for w in wraps]
     return vec([to_standard_rlu(sys, Vec3(q_reshaped)) for q_reshaped in Iterators.product(qα...)])
 end
 
@@ -92,8 +112,8 @@ function find_lagrange_multiplier_single(sys, Js, β, λ_init)
         # λ must be large enough to shift all eigenvalues positive. Otherwise,
         # apply an infinite penalty.
         if λ + minimum(evals) <= 0
-            isnothing(gbuffer) || gbuffer .= NaN
-            isnothing(hbuffer) || hbuffer .= NaN
+            isnothing(gbuffer) || (gbuffer .= NaN)
+            isnothing(hbuffer) || (hbuffer .= NaN)
             return Inf
         end
         fbuffer = λ*sum_s²/2 - sum(log(λ + ev) for ev in evals) / (2β*Nq)
@@ -113,37 +133,44 @@ function find_lagrange_multiplier_single(sys, Js, β, λ_init)
 end
 
 
-function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
+function find_lagrange_multiplier_multi(sys, Js, β, extfield, λ_init)
     Na = natoms(sys.crystal)
     Nq = length(Js)
     s² = vec(sys.κs .^ 2)
 
+    # Handle Zeeman coupling when processing J₁ = J(q=0). Elements must be
+    # exactly real.
+    @assert first(Js) ≈ fourier_exchange_matrix(sys; q=zero(Vec3))
+    @assert iszero(imag(first(Js)))
+
+    # Zeeman coupling enters as: - ∑ᵢ Sᵢ⋅bᵢ
+    b = [- g' * extfield for g in sys.gs]
+    # Expected spin dipoles ⟨Sᵢ⟩
+    S = zero(b)
+
+    A = zeros(ComplexF64, 3Na, 3Na)
+    A⁻¹ = zeros(ComplexF64, 3, Na, 3, Na)
+
     function fgh!(_, gbuffer, hbuffer, λs)
         fbuffer = 0.0
-        if !isnothing(gbuffer)
-            gbuffer .= 0
-        end
-        if !isnothing(hbuffer)
-            hbuffer .= 0
-        end
+        isnothing(gbuffer) || (gbuffer .= 0)
+        isnothing(hbuffer) || (hbuffer .= 0)
 
         Λ = Diagonal(repeat(λs, inner=3))
-        A = zeros(ComplexF64, 3Na, 3Na)
-        A⁻¹ = zeros(ComplexF64, 3, Na, 3, Na)
 
         # Determine the Lagrange multipliers λ by maximizing (not minimizing!)
         # the "grand" free energy G(λ) = log det A / 2β - ∑ᵢ λᵢ s²ᵢ / 2, where A
         # = J + Λ. Implement this numerically as minimization of the objective
         # function f = -G.
-        for J in Js
+        for (iq, J) in enumerate(Js)
             # Cholesky decomposition fails if the matrix A is not positive
             # definite. This implies unphysical λ values, which we penalize by
             # making the objective function infinite.
             @. A = J + Λ
             A_chol = cholesky!(A, RowMaximum(); check=false)
             if !issuccess(A_chol)
-                isnothing(gbuffer) || gbuffer .= NaN
-                isnothing(hbuffer) || hbuffer .= NaN
+                isnothing(gbuffer) || (gbuffer .= NaN)
+                isnothing(hbuffer) || (hbuffer .= NaN)
                 return Inf
             end
 
@@ -162,7 +189,28 @@ function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
             # Hessian of f
             if !isnothing(hbuffer)
                 for i in 1:Na, j in 1:Na
-                    hbuffer[i, j] += + norm(view(A⁻¹, :, i, :, j))^2 / (2β*Nq)
+                    hbuffer[i, j] += + norm2(view(A⁻¹, :, i, :, j)) / (2β*Nq)
+                end
+            end
+
+            # In case of J(q=0), account for Zeeman coupling
+            if iq == 1 && !iszero(extfield)
+                # Solve S = A \ b
+                S_vec, b_vec = vec.(reinterpret.(Float64, (S, b)))
+                ldiv!(S_vec, A_chol, b_vec)
+
+                fbuffer += real(dot(b, S))/2
+
+                if !isnothing(gbuffer)
+                    for i in 1:Na
+                        gbuffer[i] += -norm2(S[i])/2
+                    end
+                end
+
+                if !isnothing(hbuffer)
+                    for i in 1:Na, j in 1:Na
+                        hbuffer[i, j] += real(dot(S[i], Mat3(view(A⁻¹, :, i, :, j)), S[j]))
+                    end
                 end
             end
         end
@@ -173,7 +221,10 @@ function find_lagrange_multiplier_multi(sys, Js, β, λ_init)
     λs = fill(λ_init, Na)
     g_abstol = 1e-8 * Statistics.mean(s²)
     armijo_slack = 1e-8 * sum(s²) / β
-    return newton_with_backtracking(fgh!, λs; g_abstol, armijo_slack)
+    λs = newton_with_backtracking(fgh!, λs; g_abstol, armijo_slack)
+    # A final call to ensure that S is updated for the latest λs
+    iszero(extfield) || fgh!(0.0, nothing, nothing, λs)
+    return (λs, S)
 end
 
 
