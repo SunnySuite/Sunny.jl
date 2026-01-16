@@ -30,6 +30,8 @@ SpinWaveTheorySpiral
 System
 Units
 add_sample!
+bulk_magnetization
+bulk_susceptibility
 clone_correlations
 clone_system
 copy_spins!
@@ -54,7 +56,6 @@ lattice_vectors
 load_nxs
 lorentzian
 magnetic_moment
-magnetic_moment_per_site
 make_loss_fn
 merge_correlations
 minimize_energy!

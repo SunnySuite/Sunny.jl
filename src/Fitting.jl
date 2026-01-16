@@ -14,7 +14,7 @@ intensity calculator (e.g. [`SCGA`](@ref) or [`SpinWaveTheory`](@ref)) throws an
 instability error, the loss function will catch it and return an infinite
 floating point penalty.
 
-## Example
+# Example
 
 ```julia
 loss = make_loss_fn(sys, labels) do sys

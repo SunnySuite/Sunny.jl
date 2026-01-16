@@ -78,7 +78,7 @@ function magnetic_moment(scga::SCGA, site)
     return - scga.sys.gs[site] * scga.dipoles[site]
 end
 
-function magnetic_moment_per_site(scga::SCGA)
+function bulk_magnetization(scga::SCGA)
     Statistics.mean(magnetic_moment(scga, site) for site in eachsite(scga.sys))
 end
 
@@ -269,8 +269,9 @@ function lagrange_multiplier_jacobian(sys, qs, β, λs, labels)
 end
 
 
-function intensities_static(scga::SCGA, qpts)
-    (; sys, measure, λs, β) = scga
+function intensities_static(scga::SCGA, qpts; measure=nothing)
+    (; sys, λs, β) = scga
+    measure = @something measure scga.measure
     Λ = Diagonal(repeat(λs, inner=3))
 
     qpts = convert(AbstractQPoints, qpts)
@@ -278,7 +279,6 @@ function intensities_static(scga::SCGA, qpts)
 
     Na = nsites(sys)
     Ncells = Na / natoms(cryst)
-    Nq = length(qpts.qs)
 
     # Temporary storage for pair correlations
     Nobs = num_observables(measure)
@@ -335,6 +335,56 @@ function intensities_static(scga::SCGA, qpts)
 end
 
 
+"""
+    bulk_susceptibility(scga::SCGA)
+
+Returns the bulk susceptibility tensor in units of inverse energy, ``\\tilde{χ}
+= (dμ/d𝐁) / μ_B^2`` , where ``μ`` is the magnetic dipole per site, ``𝐁`` is
+the physical applied field, and ``μ_B`` is the Bohr magneton. In terms of
+"natural" Sunny quantities, ``\\tilde{χ}`` can also be understood as the
+derivative of [`bulk_magnetization`](@ref) (dimensionless) with respect to the
+argument to [`set_field!`](@ref) (energy units).
+
+At zero field, fluctuation-dissipation gives ``\\tilde{χ}^{αβ} = (kT)^{-1}
+⟨μ^α(q=0) μ^β(q=0)⟩ / μ_B^2``. The equal-time structure factor on the right-hand
+side can be calculated as [`intensities_static`](@ref) (a per-cell quantity)
+divided by the number of atoms in one cell.
+
+!!! "Conversion to physical molar susceptibility units"
+
+    The molar susceptibility in cgs-emu units is ``χ = (N_A μ_0 μ_B^2 / 4π×10^{-6})
+    \\tilde{χ}``. For given [`Units`](@ref), the conversion factor to (emu/Oe/mol)
+    is provided by `units.cgs_molar_susceptibility` (inverse energy). In inverse meV
+    units, for example, `units.cgs_molar_susceptibility` represents
+
+    ```math
+    \\frac{\\mathrm{emu/Oe/mol}}{(N_A μ_0 μ_B^2 / 4π×10^{-6})} = 30.9331… / \\mathrm{meV}
+    ```
+
+    The molar susceptibility in SI units is ``χ_\\mathrm{SI} = N_A μ_0 μ_B^2
+    \\tilde{χ}``. The conversion factor to (m³/mol) is provided by
+    `units.si_molar_susceptibility` (inverse energy).
+
+# Example
+
+```julia
+units = Units(:meV, :angstrom)
+
+# Bulk susceptibility per site in inverse energy (1/meV)
+χ̃ = bulk_susceptibility(scga)
+
+# cgs-emu molar susceptibility (emu/Oe/mol)
+χ = χ̃ / units.cgs_molar_susceptibility
+```
+"""
+function bulk_susceptibility(scga)
+    iszero(scga.extfield) || error("Bulk susceptibility currently requires zero field")
+    measure = ssf_custom((q, ssf) -> ssf, scga.sys)
+    # Fluctuation dissipation: dM/dB = ⟨δM, δM⟩/kT in inverse energy units
+    cryst = orig_crystal(scga.sys)
+    return intensities_static(scga, [[0, 0, 0]]; measure).data[1] * scga.β / natoms(cryst)
+end
+
 ### Autodiff support
 
 function CRC.rrule(::typeof(SCGA), sys::System; measure, kT, dq)
@@ -387,9 +437,9 @@ function combiner_ad(rc::CRC.RuleConfig, combiner, q_global, corr, Δd)
     return Δcorr
 end
 
-function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA, qpts)
+function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA, qpts; measure=nothing)
     qpts = convert(AbstractQPoints, qpts)
-    res = intensities_static(scga, qpts)
+    res = intensities_static(scga, qpts; measure)
     proj_res = CRC.ProjectTo(res)
 
     function pullback(Δres)
@@ -400,7 +450,8 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
 
         Δdata = Δres.data
 
-        (; sys, measure, λs, β) = scga
+        (; sys, λs, β) = scga
+        measure = @something measure scga.measure
         cryst = orig_crystal(sys)
         Na = nsites(sys)
         Ncells = Na / natoms(cryst)

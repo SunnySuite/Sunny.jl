@@ -78,8 +78,8 @@ J1 = 3.27
 previous_fit = [J1, 0.0815*J1, 0.1050*J1, 0.0085*J1]
 @show loss(opt.minimizer)
 @show loss(previous_fit)
-@show opt.minimizer ./ opt.minimizer[1]
-@show previous_fit ./ previous_fit[1]
+@show opt.minimizer
+@show previous_fit
 
 set_params!(sys, labels, opt.minimizer)
 grid = q_space_grid(cryst, [1, 0, 0], centers, [0, 1, 0], centers, [0, 0, 1], centers)
@@ -103,3 +103,18 @@ heatmap(fig[2, 2], centers, centers, res.data[:, :, j2]; colormap=:gnuplot2, axi
 # @b loss(guess)
 # @b DI.gradient(loss,  DI.AutoZygote(), guess)
 # @b DI.gradient(loss,  DI.AutoFiniteDiff(), guess)
+
+
+
+# units = Units(:meV, :angstrom)
+# J1 = 3.27
+# previous_fit = [J1, 0.0815*J1, 0.1050*J1, 0.0085*J1]
+# set_params!(sys, labels, previous_fit)
+# measure = ssf_custom((q, ssf) -> ssf, sys)
+# kT = 20*meV_per_K
+# dq = 1/6
+# scga = SCGA(sys; measure, kT, dq)
+# res = intensities_static(scga, [[0, 0, 0]]).data[1] / (16 * kT)
+
+
+# bulk_susceptibility(scga) / units.cgs_molar_susceptibility
