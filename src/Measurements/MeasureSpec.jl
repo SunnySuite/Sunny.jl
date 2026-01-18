@@ -129,6 +129,9 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
     return MeasureSpec(observables, corr_pairs, combiner, formfactors)
 end
 
+CRC.@non_differentiable MeasureSpec(observables, corr_pairs, combiner, formfactors)
+CRC.@non_differentiable ssf_custom(f, sys)
+
 """
     ssf_custom_bm(f, sys::System; u, v, apply_g=true, formfactors=nothing)
 

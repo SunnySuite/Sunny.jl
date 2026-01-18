@@ -5,10 +5,10 @@
 # simulations can be directly compared to diffuse scattering data and offer a
 # robust pathway to fitting model parameters.
 # 
-# Working in the paramagnetic phase has two strong advantages. First, one can
-# avoid complications with finding the true magnetic ground state. Second, the
-# associated ``\mathcal{S}(𝐪)`` data is inherently smooth, which helps to find
-# the _globally_ optimal model parameters.
+# Working in the paramagnetic phase is convenient because the smoothness of
+# ``\mathcal{S}(𝐪)`` facilitates optimization. Also, unlike spin wave theory,
+# it is not to solve for the magnetic ground state, which may change as a
+# function of the model parameters.
 #
 # This tutorial uses SCGA to fit inelastic neutron scattering data for the
 # frustrated pyrochlore antiferromagnet MgCr₂O₄. The fitted exchange
@@ -22,6 +22,7 @@
 
 using Sunny, GLMakie, LinearAlgebra
 
+units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
 positions = [[1/2, 1/2, 1/2]]
 cryst = Crystal(latvecs, positions, 227)
@@ -38,9 +39,8 @@ set_exchange!(sys, 1.0, Bond(1, 3, [0, 0, 0]), :J3b => 0)
 labels = [:J1, :J2, :J3a, :J3b]
 
 formfactors = [1 => FormFactor("Cr3")]
-measure = ssf_trace(sys; apply_g=false, formfactors)
-kT = 20*meV_per_K
-dq = 1/6
+measure = ssf_perp(sys; formfactors)
+dq = 1/8
 
 using Serialization: serialize, deserialize
 (; refdata, centers) = open(joinpath(@__DIR__, "10_MgCr2O4_SQ.bin"), "r") do io
@@ -51,10 +51,21 @@ grid = q_space_grid(cryst, [1, 0, 0], centers, [0, 1, 0], centers, [0, 0, 1], ce
 grid.qs[isnan.(refdata)] .*= NaN
 
 loss = make_loss_fn(sys, labels) do sys
-    scga = SCGA(sys; measure, kT, dq)
+    scga = SCGA(sys; measure, kT=20*units.K, dq)
     res = intensities_static(scga, grid)
-    return squared_error(res.data, refdata; rescale=true)
+    diffuse_error = squared_error(res.data, refdata; rescale=true)
+
+    χ = map([100, 200, 300] * units.K) do kT
+        scga = SCGA(sys; measure, kT, dq)
+        magnetic_susceptibility_per_site(scga)[1, 1] / units.cgs_molar_susceptibility
+    end
+    χ_ref = [0.00375, 0.00320, 0.00274]
+    susceptibility_error = squared_error(χ, χ_ref)
+
+    return 0.5 * diffuse_error + 0.5 * susceptibility_error
 end
+
+loss([0, 0, 0, 0])
 
 import Optim
 import Zygote
@@ -98,11 +109,12 @@ heatmap(fig[2, 1], centers, centers, reverse(refdata[:, :, j2]; dims=1); colorma
 heatmap(fig[1, 2], centers, centers, res.data[:, :, j1]; colormap=:gnuplot2, axis=(; aspect=1))
 heatmap(fig[2, 2], centers, centers, res.data[:, :, j2]; colormap=:gnuplot2, axis=(; aspect=1))
 
-# using Chairmarks
-# import FiniteDiff
-# @b loss(guess)
-# @b DI.gradient(loss,  DI.AutoZygote(), guess)
-# @b DI.gradient(loss,  DI.AutoFiniteDiff(), guess)
+
+using Chairmarks
+import FiniteDiff
+@b loss(guess)
+@b DI.gradient(loss,  DI.AutoZygote(), guess)
+@b DI.gradient(loss,  DI.AutoFiniteDiff(), guess)
 
 
 
@@ -117,4 +129,27 @@ heatmap(fig[2, 2], centers, centers, res.data[:, :, j2]; colormap=:gnuplot2, axi
 # res = intensities_static(scga, [[0, 0, 0]]).data[1] / (16 * kT)
 
 
-# bulk_susceptibility(scga) / units.cgs_molar_susceptibility
+# magnetic_susceptibility_per_site(scga) / units.cgs_molar_susceptibility
+
+
+
+kTs = range(20, 400, length=100)
+
+set_params!(sys, labels, opt.minimizer)
+χ = map(kTs * units.K) do kT
+    scga = SCGA(sys; measure, kT, dq)
+    magnetic_susceptibility_per_site(scga)[1, 1] / units.cgs_molar_susceptibility
+end
+
+set_params!(sys, labels, previous_fit)
+χ_xb = map(kTs * units.K) do kT
+    scga = SCGA(sys; measure, kT, dq)
+    magnetic_susceptibility_per_site(scga)[1, 1] / units.cgs_molar_susceptibility
+end
+
+lines(kTs, χ, label="New fit")
+lines!(kTs, χ_xb, label="Bai fit")
+lines!(kTs_ref, χ_ref, label="Experiment")
+axislegend()
+xlims!(0, 400)
+ylims!(0, 6e-3)

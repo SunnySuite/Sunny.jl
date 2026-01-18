@@ -78,7 +78,7 @@ function magnetic_moment(scga::SCGA, site)
     return - scga.sys.gs[site] * scga.dipoles[site]
 end
 
-function bulk_magnetization(scga::SCGA)
+function magnetic_moment_per_site(scga::SCGA)
     Statistics.mean(magnetic_moment(scga, site) for site in eachsite(scga.sys))
 end
 
@@ -336,34 +336,38 @@ end
 
 
 """
-    bulk_susceptibility(scga::SCGA)
+    magnetic_susceptibility_per_site(scga::SCGA)
 
-Returns the bulk susceptibility tensor in units of inverse energy, ``\\tilde{χ}
-= (dμ/d𝐁) / μ_B^2`` , where ``μ`` is the magnetic dipole per site, ``𝐁`` is
-the physical applied field, and ``μ_B`` is the Bohr magneton. In terms of
-"natural" Sunny quantities, ``\\tilde{χ}`` can also be understood as the
-derivative of [`bulk_magnetization`](@ref) (dimensionless) with respect to the
-argument to [`set_field!`](@ref) (energy units).
+Returns the magnetic susceptibility tensor in units of inverse energy,
+``\\tilde{χ} = (dμ/d𝐁) / μ_B^2`` , where ``μ`` is the magnetic dipole per site,
+``𝐁`` is the physical applied field, and ``μ_B`` is the Bohr magneton. In terms
+of Sunny quantities, ``\\tilde{χ}`` can be understood as the derivative of
+[`magnetic_moment_per_site`](@ref) (dimensionless) with respect to the argument
+to [`set_field!`](@ref) (energy units).
 
-At zero field, fluctuation-dissipation gives ``\\tilde{χ}^{αβ} = (kT)^{-1}
-⟨μ^α(q=0) μ^β(q=0)⟩ / μ_B^2``. The equal-time structure factor on the right-hand
-side can be calculated as [`intensities_static`](@ref) (a per-cell quantity)
-divided by the number of atoms in one cell.
+At zero field, fluctuation-dissipation states ``⟨M^α(q=0) M^β(q=0)⟩ / μ_B^2 N_s
+= k_B T \\tilde{χ}^{αβ}``, where ``M(q=0)`` is the magnetic dipole summed over
+all ``N_s`` sites in the sample. The structure factor on the left-hand side can
+be calculated as [`intensities_static`](@ref) (a per-cell quantity) divided by
+the number of sites in the chemical unit cell.
 
 !!! "Conversion to physical molar susceptibility units"
 
-    The molar susceptibility in cgs-emu units is ``χ = (N_A μ_0 μ_B^2 / 4π×10^{-6})
-    \\tilde{χ}``. For given [`Units`](@ref), the conversion factor to (emu/Oe/mol)
-    is provided by `units.cgs_molar_susceptibility` (inverse energy). In inverse meV
-    units, for example, `units.cgs_molar_susceptibility` represents
+    The molar susceptibility in a Gaussian unit system is ``χ = (N_A μ_0 μ_B^2 /
+    4π×10^{-6}) \\tilde{χ}``. For specific [`Units`](@ref), the conversion factor to
+    (emu/Oe/mol) is provided by `units.cgs_molar_susceptibility` (inverse energy).
+    In inverse meV units, for example, `units.cgs_molar_susceptibility` represents
 
     ```math
-    \\frac{\\mathrm{emu/Oe/mol}}{(N_A μ_0 μ_B^2 / 4π×10^{-6})} = 30.9331… / \\mathrm{meV}
+    \\frac{\\mathrm{emu/Oe/mol}}{(N_A μ_0 μ_B^2 / 4π×10^{-6})} = 30.9331… / \\mathrm{meV}.
     ```
 
-    The molar susceptibility in SI units is ``χ_\\mathrm{SI} = N_A μ_0 μ_B^2
-    \\tilde{χ}``. The conversion factor to (m³/mol) is provided by
-    `units.si_molar_susceptibility` (inverse energy).
+    Alternatively, the conversion factor to (m³/mol) in SI units is provided by
+    `units.si_molar_susceptibility` (inverse energy), which uses the identity
+
+    ```math
+    1 \\mathrm{emu/Oe/mol} = 4π×10^{-6} \\mathrm{m³/mol}.
+    ```
 
 # Example
 
@@ -371,18 +375,20 @@ divided by the number of atoms in one cell.
 units = Units(:meV, :angstrom)
 
 # Bulk susceptibility per site in inverse energy (1/meV)
-χ̃ = bulk_susceptibility(scga)
+χ̃ = magnetic_susceptibility_per_site(scga)
 
 # cgs-emu molar susceptibility (emu/Oe/mol)
 χ = χ̃ / units.cgs_molar_susceptibility
 ```
 """
-function bulk_susceptibility(scga)
+function magnetic_susceptibility_per_site(scga)
     iszero(scga.extfield) || error("Bulk susceptibility currently requires zero field")
     measure = ssf_custom((q, ssf) -> ssf, scga.sys)
-    # Fluctuation dissipation: dM/dB = ⟨δM, δM⟩/kT in inverse energy units
+    # Fluctuation dissipation: dμ/dB = ⟨δμ, δμ⟩/kT in inverse energy units
     cryst = orig_crystal(scga.sys)
-    return intensities_static(scga, [[0, 0, 0]]; measure).data[1] * scga.β / natoms(cryst)
+    χ = intensities_static(scga, [[0, 0, 0]]; measure).data[1] * scga.β / natoms(cryst)
+    @assert iszero(imag(χ))
+    return real(χ)
 end
 
 ### Autodiff support
