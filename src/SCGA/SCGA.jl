@@ -374,10 +374,10 @@ the number of sites in the chemical unit cell.
 ```julia
 units = Units(:meV, :angstrom)
 
-# Bulk susceptibility per site in inverse energy (1/meV)
+# Magnetic susceptibility per site in inverse energy (1/meV)
 χ̃ = magnetic_susceptibility_per_site(scga)
 
-# cgs-emu molar susceptibility (emu/Oe/mol)
+# Molar susceptibility in Gaussian units (emu/Oe/mol)
 χ = χ̃ / units.cgs_molar_susceptibility
 ```
 """
