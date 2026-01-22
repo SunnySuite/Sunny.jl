@@ -27,7 +27,7 @@ using Sunny, GLMakie, LinearAlgebra
 
 # The Cr atoms in in MgCr₂O₄ occupy a pyrochlore sublattice.
 
-units = Units(:meV, :angstrom)
+units = Units(:K, :angstrom)
 latvecs = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
 positions = [[1/2, 1/2, 1/2]]
 cryst = Crystal(latvecs, positions, 227)
@@ -119,18 +119,18 @@ loss(guess)
 # try are `Optim.LBFGS()` (faster, but requires gradients) and
 # `Optim.NelderMead()` (slower, but possibly more robust). A good stopping
 # criterion is that all components of the loss gradient are below some
-# threshold, e.g. `g_tol = 1e-6 / meV`.
+# threshold, e.g. `g_tol = 1e-6 / K` for about 6 digits of precision in kelvin.
 
 import Optim
 
 options = Optim.Options(
     iterations = 500,
-    g_tol      = 1e-6 / units.meV,
+    g_tol      = 1e-6 / units.K,
     show_trace = true,
     show_every = 5,
 )
 opt = Optim.optimize(loss, guess, Optim.LBFGS(), options)
-opt.minimizer # [J1, J2, J3a, J3b]
+opt.minimizer ./ units.K # [J1, J2, J3a, J3b]
 
 # Optim defaults to finite differences for its gradient estimation. When
 # available, a better method is reverse-mode automatic differentiation. It is
@@ -184,12 +184,36 @@ Ts = range(20, 300, length=20)
     scga = SCGA(sys; measure, kT, dq)
     magnetic_susceptibility_per_site(scga)[1, 1] / units.cgs_molar_susceptibility
 end
-lines(Ts, χs, label="SCGA-fitted", axis=(; xlabel="T (K)", ylabel="χ (emu/Oe/mol-Cr)"))
-
 Ts_ref = [2.0, 5.0, 8.0, 10.5, 11.0, 11.5, 12.0, 12.5, 13.0, 15.5, 19.0, 22.5, 32.5, 42.5, 52.4, 62.4, 72.3, 82.3, 92.2, 102.2, 112.1, 122.1, 132.0, 142.0, 152.0, 161.9, 171.9, 181.9, 191.8, 201.8, 211.8, 221.7, 231.7, 241.6, 251.6, 261.5, 271.4, 281.4, 291.3, 301.3]
 χs_ref = [0.00327, 0.00324, 0.00331, 0.00351, 0.00358, 0.00372, 0.00395, 0.00409, 0.00411, 0.00407, 0.00402, 0.004, 0.004, 0.004, 0.00398, 0.00395, 0.00391, 0.00386, 0.0038, 0.00375, 0.00369, 0.00363, 0.00357, 0.00351, 0.00346, 0.0034, 0.00334, 0.00329, 0.00324, 0.00319, 0.00314, 0.00309, 0.00304, 0.003, 0.00295, 0.00291, 0.00287, 0.00282, 0.00278, 0.00274]
-lines!(Ts_ref, χs_ref, label="Experiment")
 
-xlims!(0, 300)
-ylims!(0, 6e-3)
+limits = ((0, 300), (0, 0.006))
+axis = (; xlabel="T (K)", ylabel="χ (emu/Oe/mol-Cr)", limits)
+lines(Ts, χs; label="SCGA-fitted", axis)
+lines!(Ts_ref, χs_ref, label="Experiment")
 axislegend()
+current_figure()
+
+# Second derivatives of the loss function inform goodness of fit. The inverse
+# Hessian matrix provides an effective measure of uncertainty within parameter
+# space.
+
+import FiniteDiff
+
+H = FiniteDiff.finite_difference_hessian(loss, opt.minimizer)
+L0 = loss(opt.minimizer) # Pragmatic choice for "misfit tolerance"
+uncertainty = L0 * inv(H) # Effective uncertainty matrix
+sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
+
+# The final results are in reasonable agreement with previous work:
+#
+# | Parameter | This study (K) | Bai et al. (K) |
+# |:----------|---------------:|---------------:|
+# | J1        | 32.7 ± 7.6     | 38.1           |
+# | J2        | 5.6  ± 2.0     | 3.1            |
+# | J3a       | 6.5  ± 2.6     | 4.0            |
+# | J3b       | 0.40 ± 1.1     | 0.32           |
+#
+# Note that Bai et al. additionally fitted to the first moment,
+# ``\mathcal{K}(𝐪) = \int_ω ω \mathcal{S}(𝐪, ω) dω``, which is complementary
+# to the ``χ(T)`` and ``\mathcal{S}(𝐪)`` data considered here.

@@ -8,11 +8,9 @@ end
     make_loss_fn(f, sys, labels)
 
 Returns a loss function to be evaluated on values associated with the specified
-parameter `labels`. This loss function is suitable for optimization, e.g., using
-the [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl) package. If an
-intensity calculator (e.g. [`SCGA`](@ref) or [`SpinWaveTheory`](@ref)) throws an
-instability error, the loss function will catch it and return an infinite
-floating point penalty.
+parameter `labels`. This loss function is suitable for optimization. If an
+intensity calculation throws an instability error, the loss function will catch
+it and return an infinite penalty.
 
 # Example
 
@@ -27,11 +25,11 @@ end
 # The loss function can be evaluated directly on parameter values
 loss(values)
 
-# Optim can use the loss function to optimize parameter values
+# Optim.jl is effective for model fitting
 import Optim
 opts = Optim.Options(
     iterations = 500,
-    g_tol      = 1e-6,
+    g_tol      = 1e-6 / energy_scale,
     show_trace = true,
     show_every = 5,
 )
@@ -46,8 +44,6 @@ import Zygote
 import DifferentiationInterface as DI
 res = Optim.optimize(loss, guess, Optim.LBFGS(), opts; autodiff=DI.AutoZygote())
 ```
-
-See also [`squared_error`](@ref).
 """
 function make_loss_fn(f, sys, labels)
     return FittingLoss(f, sys, labels)
