@@ -147,7 +147,7 @@ include("Binning/ExperimentData.jl")
 export BinningParameters, load_nxs
 
 include("Fitting.jl")
-export squared_error, make_loss_fn
+export squared_error, squared_error_with_rescaling, make_loss_fn
 
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, dynamic_correlations,

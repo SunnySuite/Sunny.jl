@@ -91,43 +91,9 @@ function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
     return y, pullback
 end
 
-"""
-    squared_error(x, y; weights=nothing, rescale=false)
 
-Sum of squared errors, ``L ∝ \\sum_i w_i |y_i - x_i|^2``. The nonnegative
-weights ``w_i`` default to 1.
-
-If `rescale=true` then ``L ∝ \\min_α \\sum_i w_i |α y_i - x_i|^2``. This can be
-useful when fitting to experimental intensities ``y`` of unknown scale ``α``.
-
-In all cases, a normalization is imposed so that the maximum error is of order
-one. If any elements ``x_i`` or ``y_i`` are NaN, these terms will be omitted
-from the sum.
-
-!!! tip "Mathematical details"
-
-    Introduce the weighted inner product,
-    ```math
-        ⟨u,v⟩ = \\sum_i w_i u_i^* v_i,
-    ```
-    and its associated norm, ``|u|^2 = ⟨u,u⟩``. Then ``L ∝ |y - x|^2`` denotes the
-    usual weighted sum of squared errors. Our convention is to normalize by
-    ``|x|^2+|y|^2`` yielding
-    ```math  
-        L = 1 - 2 Re ⟨x, y⟩ / (|x|^2 + |y|^2).
-    ```
-
-    When `rescale=true`, the squared error is ``L ∝ |α y - x|^2`` with minimizer ``α
-    = ⟨y,x⟩ / |y|²``. Here, our convention is to normalize by ``|x|^2`` yielding
-    ```math  
-        L = 1 - |⟨x, y⟩|^2 / |x|^2 |y|^2.
-    ```
-    In case of complex inputs, ``α`` absorbs an arbitrary scale _and_ complex phase.
-
-    With these normalization conventions, ``L`` is symmetric in ``(x, y)``, and ``L
-    = 1`` when the input vectors are orthogonal, ``⟨x, y⟩ = 0``.
-"""
-function squared_error(x, y; weights=nothing, rescale=false)
+# Returns weighted inner products ⟨x,x⟩, ⟨y,y⟩, ⟨x,y⟩
+function squared_error_aux(x, y; weights)
     (x, y) = flatten_to_vec.((x, y))
     ty = promote_type(eltype(x), eltype(y))
     w = if isnothing(weights)
@@ -145,16 +111,81 @@ function squared_error(x, y; weights=nothing, rescale=false)
         y² = sum(@. w[inds] * abs2(y[inds]))           # |y|² ≡ ⟨y,y⟩
         xy = sum(@. w[inds] * conj(x[inds]) * y[inds]) # ⟨x,y⟩
     end
-
-    return if !rescale
-        # |y - x|² / (|x|²+|y|²)
-        1 - 2real(xy) / (x² + y²)
-    else
-        # |α y - x|² / |x|² where α = ⟨y, x⟩ / |y|²
-        1 - abs2(xy) / (x² * y²)
-    end
+    return (; x², y², xy)
 end
 
+"""
+    squared_error(x, y; weights=nothing)
+
+Normalized sum of squared errors, ``L = (1/c) \\sum_i w_i |y_i - x_i|^2``.
+Weights ``w_i`` must be nonnegative and default to one.
+
+The normalization factor is defined symmetrically, ``c = |x|^2 + |y|^2``,
+involving the weighted norm,
+```math
+|u|^2 = \\sum_i w_i |u_i|^2.
+```
+
+Any NaN elements (``x_i`` or ``y_i``) will be interpreted as missing data and
+omitted from the sum.
+
+See also [`squared_error_with_rescaling`](@ref).
+"""
+function squared_error(x, y; weights=nothing)
+    (; x², y², xy) = squared_error_aux(x, y; weights)
+
+    # |y - x|² / (|x|²+|y|²)
+    return 1 - 2real(xy) / (x² + y²)
+end
+
+"""
+    squared_error_with_rescaling(x, y; weights=nothing)
+
+Normalized sum of squared errors, ``L = (1/c) \\min_α \\sum_i w_i |α y_i -
+x_i|^2``, allowing for an arbitrary rescaling ``α`` of the ``y`` data. Weights
+``w_i`` must be nonnegative and default to one. Returns a named tuple with
+fields `(; error, rescaling)` that correspond to ``L`` and the optimal ``α``,
+respectively.
+
+The normalization factor,
+```math
+c = \\sum_i w_i |x_i|^2,
+```
+leads to a symmetry of ``L`` in its arguments ``(x, y)``.
+
+Any NaN elements ``x_i`` or ``y_i`` will be interpreted as missing data and
+omitted from the sum.
+
+!!! tip "Relation to the cosine-squared loss"
+
+    Introduce the weighted inner product,
+    ```math
+        ⟨u,v⟩ = \\sum_i w_i u_i^* v_i,
+    ```
+    and its associated norm, ``|u|^2 = ⟨u,u⟩``. In this notation, ``L = |α y - x|^2
+    / |x|^2``. The optimal ``α`` is obtained by setting the Wirtinger derivative to
+    zero, ``∂L/∂α^* = 0``, with solution
+    ```math
+        α = ⟨y, x⟩ / |y|².
+    ```
+    In case of complex inputs, this optimal ``α`` absorbs an arbitrary scale _and_
+    complex phase. 
+
+    Substitution yields the symmetric expression,
+    ```math  
+        L = 1 - |⟨x, y⟩|^2 / |x|^2 |y|^2.
+    ```
+    It may be interpreted as ``L = 1 - \\cos(θ)^2``, with ``θ`` the geometric angle
+    between ``x`` and ``y`` in data-space.
+"""
+function squared_error_with_rescaling(x, y; weights=nothing)
+    (; x², y², xy) = squared_error_aux(x, y; weights)
+
+    # |α y - x|² / |x|² where α = ⟨y, x⟩ / |y|²
+    error = 1 - abs2(xy) / (x² * y²)
+    rescaling = conj(xy) / y²
+    return (; error, rescaling)
+end
 
 Base.:+(a::SystemTangent, b::SystemTangent) = SystemTangent(a.vals .+ b.vals)
 CRC.zero_tangent(t::SystemTangent) = SystemTangent(zero(t.vals))

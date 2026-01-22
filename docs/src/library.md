@@ -107,6 +107,7 @@ spin_matrices
 spiral_energy
 spiral_energy_per_site
 squared_error
+squared_error_with_rescaling
 ssf_custom
 ssf_custom_bm
 ssf_perp
