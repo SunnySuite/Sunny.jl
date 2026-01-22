@@ -48,7 +48,7 @@ function _intensities(swt, qs, L, Ncells, H, Nobs, Na, Ncorr, recipvecs, intensi
     Avec_pref = CuDynamicSharedArray(ComplexF64, (Nobs, Na, blockDim().x), (Ncorr + Nobs) * blockDim().x * sizeof(ComplexF64))
     Avec_prefq = view(Avec_pref,:,:,threadIdx().x)
 
-    (; sys, data, measure) = swt
+    (; sys, measure) = swt
     q_global = recipvecs * q
     for i in 1:Na, μ in 1:Nobs
         r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
@@ -65,20 +65,32 @@ function _intensities(swt, qs, L, Ncells, H, Nobs, Na, Ncorr, recipvecs, intensi
             Avecq[idx] = 0.
         end
         t = view(Hq, :, band+L)
-        for i in 1:Na, μ in 1:Nobs
-            O = data.observables_localized[μ, i]
-            # This is the Avec of the two transverse and one
-            # longitudinal directions in the local frame. (In the
-            # local frame, z is longitudinal, and we are computing
-            # the transverse part only, so the last entry is zero)
-            displacement_local_frame = Sunny.SA[t[i + Na] + t[i], im * (t[i + Na] - t[i]), 0.0]
-            Avecq[μ] += Avec_prefq[μ, i] * (data.sqrtS[i]/√2) * (O' * displacement_local_frame)[1]
+        if sys.mode == SUN
+            data = swt.data::SWTDataSUNDevice
+            N = sys.Ns
+            for i in 1:Na, μ in 1:Nobs
+                O = view(data.observables_localized, :, :, μ, i)
+                for α in 1:N-1
+                   idx = α + (i-1)*(N-1)
+                   Avecq[μ] += Avec_prefq[μ, i] * (O[α, N] * t[idx + L] + O[N, α] * t[idx])
+                end
+            end
+        else
+            data = swt.data::SWTDataDipoleDevice
+            for i in 1:Na, μ in 1:Nobs
+                O = data.observables_localized[μ, i]
+                # This is the Avec of the two transverse and one
+                # longitudinal directions in the local frame. (In the
+                # local frame, z is longitudinal, and we are computing
+                # the transverse part only, so the last entry is zero)
+                displacement_local_frame = Sunny.SA[t[i + Na] + t[i], im * (t[i + Na] - t[i]), 0.0]
+                Avecq[μ] += Avec_prefq[μ, i] * (data.sqrtS[i]/√2) * (O' * displacement_local_frame)[1]
+            end
         end
         for idx in eachindex(corrbufq)
             (μ, ν) = measure.corr_pairs[idx]
             corrbufq[idx] = Avecq[μ] * conj(Avecq[ν]) / Ncells
         end
-
         intensity[band, iq] = Sunny.thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbufq)
     end
     return
@@ -91,12 +103,10 @@ Calculate spin wave excitation bands for a set of q-points in reciprocal space.
 This calculation is analogous to [`intensities`](@ref), but does not perform
 line broadening of the bands.
 """
-function intensities_bands(swt::SpinWaveTheoryDevice, qpts; kT=0, with_negative=false)
+function Sunny.intensities_bands(swt::SpinWaveTheoryDevice, qpts; kT=0, with_negative=false)
     (; sys, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     with_negative && error("Option `with_negative=true` not yet supported.")
-    #@assert sys.mode in (:dipole, :dipole_uncorrected)
-    #@assert isnothing(sys.ewald)
 
     qpts = convert(Sunny.AbstractQPoints, qpts)
 

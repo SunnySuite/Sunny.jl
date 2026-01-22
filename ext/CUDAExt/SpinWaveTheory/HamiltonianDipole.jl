@@ -1,9 +1,5 @@
 using LinearAlgebra
 
-function _dot(a, b)
-    return a[1]*b[1] + a[2]*b[2] + a[3]*b[3]    
-end
-
 function fill_matrix(H, swt, qs_reshaped, qs, L)
     iq = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
     if iq > size(H, 3)
@@ -47,7 +43,7 @@ function fill_matrix(H, swt, qs_reshaped, qs, L)
             @assert i == bond.i
             j = bond.j
 
-            phase = exp(2π*im * _dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             si = sqrtS[i]^2
             sj = sqrtS[j]^2
@@ -112,7 +108,7 @@ function fill_matrix(H, swt, qs_reshaped, qs, L)
 
     # Add small constant shift for positive-definiteness
     for i in 1:2L
-        H[i, i, iq] += swt.regularization
+        Hq[i, i] += swt.regularization
     end
     return
 end

@@ -15,13 +15,42 @@ function Adapt.adapt_structure(to, data::SWTDataDipoleDevice)
     SWTDataDipoleDevice(local_rotations, observables_localized, stevens_coefs, sqrtS)
 end
 
-struct SWTDataSUNDevice
-    local_unitaries       :: AbstractVector{AbstractMatrix{ComplexF64}} # Transformations from global to quantization frame
-    observables_localized :: AbstractArray{HermitianC64Device, 2}      # Observables rotated to local frame (nobs × nsites)
-    spins_localized       :: AbstractArray{HermitianC64Device, 2}      # Spins rotated to local frame (3 × nsites)
+struct SWTDataSUNDevice{TVecRot, TArrObs, TVecS}
+    local_unitaries       :: TVecRot # Transformations from global to quantization frame
+    observables_localized :: TArrObs # Observables rotated to local frame (nobs × nsites)
+    spins_localized       :: TVecS   # Spins rotated to local frame (3 × nsites)
 end
 
-SWTDataSUNDevice(host::Sunny.SWTDataSUN) = SWTDataSUNDevice(CUDA.CuVector(host.local_unitaries), CUDA.CuArray(host.observables_localized), CUDA.CuArray(host.spins_localized))
+function SWTDataSUNDevice(host::Sunny.SWTDataSUN)
+    inner_size = size(host.local_unitaries[begin])
+    unitaries_h = Array{ComplexF64}(undef, inner_size..., length(host.local_unitaries))
+    for (i, unitary) in enumerate(host.local_unitaries)
+        view(unitaries_h, :, :, i) .= unitary
+    end
+    unitaries_d = CuArray(unitaries_h)
+
+    inner_size = size(host.observables_localized[begin])
+    outer_size = size(host.observables_localized)
+    observables_h = Array{ComplexF64}(undef, inner_size..., outer_size...)
+    for j in 1:outer_size[2]
+        for i in 1:outer_size[1]
+            view(observables_h, :, :, i, j) .= host.observables_localized[i,j]
+        end
+    end
+    observables_d = CuArray(observables_h)
+
+    inner_size = size(host.spins_localized[begin])
+    outer_size = size(host.spins_localized)
+    spins_h = Array{ComplexF64}(undef, inner_size..., outer_size...)
+    for j in 1:outer_size[2]
+        for i in 1:outer_size[1]
+            view(spins_h, :, :, i, j) .= host.spins_localized[i,j]
+        end
+    end
+    spins_d = CuArray(spins_h)
+
+    return SWTDataSUNDevice(unitaries_d, observables_d, spins_d)
+end
 
 function Adapt.adapt_structure(to, data::SWTDataSUNDevice)
     local_unitaries = Adapt.adapt_structure(to, data.local_unitaries)
@@ -38,7 +67,11 @@ struct SpinWaveTheoryDevice{TSys, TData, TMeasure} <: Sunny.AbstractSpinWaveTheo
 end
 
 function SpinWaveTheoryDevice(host::SpinWaveTheory)
-    return SpinWaveTheoryDevice(SystemDevice(host.sys), SWTDataDipoleDevice(host.data), MeasureSpecDevice(host.measure), host.regularization)
+    if isa(host.data, Sunny.SWTDataDipole)
+        return SpinWaveTheoryDevice(SystemDevice(host.sys), SWTDataDipoleDevice(host.data), MeasureSpecDevice(host.measure), host.regularization)
+    else
+        return SpinWaveTheoryDevice(SystemDeviceSUN(host.sys), SWTDataSUNDevice(host.data), MeasureSpecDevice(host.measure), host.regularization)
+    end
 end
 
 function Adapt.adapt_structure(to, swt::SpinWaveTheoryDevice)
@@ -50,7 +83,8 @@ function Adapt.adapt_structure(to, swt::SpinWaveTheoryDevice)
 end
 
 function Sunny.nflavors(swt::SpinWaveTheoryDevice)
-    nflavors = 1
+    (; sys) = swt
+    nflavors = sys.mode == SUN ? sys.Ns - 1 : 1
 end
 
 function Sunny.nbands(swt::SpinWaveTheoryDevice)
@@ -63,5 +97,10 @@ function Sunny.to_device(swt::Sunny.SpinWaveTheory)
 end
 
 function Sunny.dynamical_matrix!(H::CUDA.CuArray{ComplexF64, 3}, swt::SpinWaveTheoryDevice, q_reshaped, qs)
-    swt_hamiltonian_dipole!(H, swt, q_reshaped, qs)
+    if swt.sys.mode == SUN
+        swt_hamiltonian_SUN!(H, swt, q_reshaped, qs)
+    else
+        @assert swt.sys.mode in (dipole, dipole_uncorrected)
+        swt_hamiltonian_dipole!(H, swt, q_reshaped, qs)
+    end
 end

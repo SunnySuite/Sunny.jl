@@ -9,6 +9,17 @@ struct BandIntensitiesDevice{T, Q <: Sunny.AbstractQPoints, D} <: Sunny.Abstract
     data :: CUDA.CuArray{T, D} # (nbands × nq...)
 end
 
+function Sunny.BandIntensities(device::BandIntensitiesDevice, crystal::Sunny.Crystal)
+    if device.qpts isa QPathDevice
+        qpts = Sunny.QPath(device.qpts)
+    elseif device.qpts isa QPointsDevice
+        qpts = Sunny.QPoints(device.qpts)
+    else
+        qpts = device.qpts
+    end
+    return Sunny.BandIntensities(crystal, qpts, Array(device.disp), Array(device.data))
+end
+
 struct IntensitiesDevice{T, Q <: Sunny.AbstractQPoints, D} <: Sunny.AbstractIntensities
     # Original chemical cell
     crystal :: CrystalDevice
