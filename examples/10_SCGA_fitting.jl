@@ -214,6 +214,15 @@ sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 # | J3a       | 6.5  ± 2.6     | 4.0            |
 # | J3b       | 0.40 ± 1.1     | 0.32           |
 #
-# Note that Bai et al. additionally fitted to the first moment,
-# ``\mathcal{K}(𝐪) = \int_ω ω \mathcal{S}(𝐪, ω) dω``, which is complementary
-# to the ``χ(T)`` and ``\mathcal{S}(𝐪)`` data considered here.
+# The original Bai et al. fits are more accurate because they incorporate data
+# for the first moment, ``\mathcal{K}(𝐪) = \int ω \mathcal{S}(𝐪, ω) dω``. The
+# ``\mathcal{K}(𝐪)`` data is strongly constraining on J1. When J1 increases,
+# the remaining exchange couplings must decrease to respect the high-temperature
+# susceptibility data.
+#
+# In retrospect, the primary accuracy limitation is likely to be systematic
+# error in the SCGA method when simulating ``\mathcal{S}(𝐪)`` around T = 20K.
+# For example, large systematic deviation is observed in SCGA-predicted
+# susceptibility curve ``χ(T)`` beginning around T ≲ 50K. As a rule of thumb,
+# SCGA will usually work well at temperatures large compared to the relevant
+# exchange energy scale, here set by J1 = 38K. 
