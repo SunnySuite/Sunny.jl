@@ -2,24 +2,21 @@
 #
 # The self-consistent Gaussian approximation, [`SCGA`](@ref), calculates the
 # static structure factor ``\mathcal{S}(𝐪)`` and other magnetic quantities in
-# the paramagnetic phase. Such simulations can be directly compared to diffuse
-# scattering data and offer a robust pathway to model fitting.
+# the paramagnetic phase. Comparison to diffuse scattering data offers a robust
+# pathway to model fitting.
 # 
 # Fitting to ``\mathcal{S}(𝐪)`` data in the paramagnetic phase is convenient
-# because of its smoothness. Another convenience is that the [`SCGA`](@ref)
-# calculator does not require knowledge of the magnetically-ordered ground
-# state, which can change with model parameters. Note, however, that
-# paramagnetic data may carry limited information about energetics in generally,
-# and especially low-temperature excitations. The best model fits are obtained
-# by using a combination of measurements.
+# because of its smoothness. Another convenience is that the `SCGA` calculator
+# does not require knowledge of the magnetically-ordered ground state, which can
+# change with model parameters.
 #
 # This tutorial uses SCGA to fit inelastic neutron scattering data and magnetic
 # susceptibilities for the frustrated pyrochlore antiferromagnet MgCr₂O₄. The
 # fitted exchange interactions, up to third nearest neighbor, are in reasonable
-# qualitative agreement in [Bai et al., Phys. Rev. Lett. 122, 097201
+# agreement with [Bai et al., Phys. Rev. Lett. 122, 097201
 # (2019)](https://doi.org/10.1103/PhysRevLett.122.097201).
 #
-# Sunny's SCGA calculator is inspired by the Spinteract code [J. Paddison,
+# SCGA fitting workflows are inspired by the Spinteract code [J. Paddison,
 # J.Phys.: Condens. Matter **35**, 495802
 # (2023)](https://doi.org/10.1088/1361-648X/acf261).
 
@@ -80,7 +77,7 @@ Sq_ref = [NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.33654 0.36558 0.38429 0.
 # simplicity, fit to ``χ`` data at three temperature points.
 
 kTs = [100, 200, 300] * units.K
-χ_ref = [0.00375, 0.00320, 0.00274] # (emu/Oe/mol-Cr)
+χ_ref = [0.00375, 0.00320, 0.00274]; # (emu/Oe/mol-Cr)
 
 # Construct a loss function accepts parameter values `[J1, J2, J3a, J3b]` and
 # returns a dimensionless error that quantifies model mismatch. Use the
