@@ -6,6 +6,10 @@ FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 Sunny = "2b4a2ac8-8f8b-43e8-abf4-3cb0c45e8736"
 Tar = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
+
+[sources]
+Sunny = {path = ".."}

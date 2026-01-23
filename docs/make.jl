@@ -1,12 +1,15 @@
-#=
-julia --project=@. --compiled-modules=existing make.jl
-=#
+# julia make.jl [--fast]
 
-isdraft = false # set `true` to disable cell evaluation
+import Pkg
+Pkg.activate(@__DIR__)
+Pkg.instantiate()
 
 import Literate, Documenter, CodecZlib, Tar, Downloads
 using Sunny # Load `export`s into namespace to define API
 import GLMakie, WriteVTK # Enable package extensions
+
+# Optionally disable cell evaluation
+isdraft = ("--fast" in ARGS) 
 
 # Generate high resolution GLMakie images (two pixels per "size unit")
 GLMakie.set_theme!(; GLMakie=(px_per_unit=2,))
