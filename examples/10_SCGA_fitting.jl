@@ -10,7 +10,7 @@
 # does not require knowledge of the magnetically-ordered ground state, which can
 # change with model parameters.
 #
-# This tutorial uses SCGA to fit inelastic neutron scattering data and magnetic
+# This tutorial uses SCGA to fit diffuse scattering data and magnetic
 # susceptibilities for the frustrated pyrochlore antiferromagnet MgCr₂O₄. The
 # fitted exchange interactions, up to third nearest neighbor, are in reasonable
 # agreement with [Bai et al., Phys. Rev. Lett. 122, 097201
@@ -69,7 +69,7 @@ Sq_ref = [NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 0.33654 0.36558 0.38429 0.
 
 # Magnetic susceptibility data ``χ = d𝐌/d𝐇`` was also collected by Bai et al.
 # and is complementary to ``\mathcal{S}(𝐪)``. It sets an energy scale (the
-# Curie temperature) that cannot readily be determined by fitting to
+# Curie-Weiss temperature) that cannot readily be determined by fitting to
 # ``\mathcal{S}(𝐪)`` alone. Fluctuation-dissipation links ``χ`` with
 # ``\mathcal{S}(𝐪 = 0) / k_B T``, as documented in
 # [`magnetic_susceptibility_per_site`](@ref). Therefore ``χ`` places an
@@ -113,8 +113,8 @@ loss(guess)
 
 # Find model parameters `[J1, J2, J3a, J3b]` that minimize `loss` using the
 # [Optim](https://github.com/JuliaNLSolvers/Optim.jl) package. Good methods to
-# try are `Optim.LBFGS()` (faster, but requires gradients) and
-# `Optim.NelderMead()` (slower, but possibly more robust). A good stopping
+# try are `Optim.LBFGS()` (requires gradients, possibly faster) and
+# `Optim.NelderMead()` (gradient free, possibly more robust). A good stopping
 # criterion is that all components of the loss gradient are below some
 # threshold, e.g. `g_tol = 1e-6 / K` for about 6 digits of precision in kelvin.
 
@@ -129,14 +129,15 @@ options = Optim.Options(
 opt = Optim.optimize(loss, guess, Optim.LBFGS(), options)
 opt.minimizer ./ units.K # [J1, J2, J3a, J3b]
 
-# Optim defaults to finite differences for its gradient estimation. When
-# available, a better method is reverse-mode automatic differentiation. It is
-# more precise and can also be much faster when there are many model parameters.
-# Sunny currently supports autodiff in the special case of the [`SCGA`](@ref)
-# calculator. Enable it by loading an autodiff backend, e.g.,
-# [Zygote](https://github.com/FluxML/Zygote.jl), and the
+# Optim defaults to finite differences for its gradient estimation. An
+# alternative is reverse-mode automatic differentiation. It is more precise and
+# can also be much faster when there are many model parameters. Sunny currently
+# supports autodiff in the special case of the [`SCGA`](@ref) calculator.
+#
+# Uncomment the code below to get the same fit using autodiff. It requires
+# installation of
 # [DifferentiationInterface](https://github.com/JuliaDiff/DifferentiationInterface.jl)
-# wrapper.
+# and [Zygote](https://github.com/FluxML/Zygote.jl) packages.
 
 #=
 import Zygote
@@ -219,7 +220,7 @@ sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 # The error estimates above are only approximate because they cannot fully
 # account for model misspecification. In this study, the primary limitation is
 # likely to be systematic error in the SCGA calculations of ``\mathcal{S}(𝐪)``
-# at T = 20K. For example, one can already see that the SCGA-predicted
-# susceptibility curve ``χ(T)`` deviates significantly from the data when T ≲
-# 50K. As a rule of thumb, SCGA works best deep in the paramagnetic phase, at
-# temperatures large compared to the exchange energy scale.
+# at T = 20K. For example, the SCGA-predicted susceptibility curve ``χ(T)``
+# deviates significantly from the data when T ≲ 50K. As a rule of thumb, SCGA
+# works best deep in the paramagnetic phase, at temperatures large compared to
+# the exchange energy scale.
