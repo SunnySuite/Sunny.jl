@@ -351,19 +351,19 @@ all ``N_s`` sites in the sample. The structure factor on the left-hand side can
 be calculated as [`intensities_static`](@ref) (a per-cell quantity) divided by
 the number of sites in the chemical unit cell.
 
-!!! "Conversion to physical molar susceptibility units"
+!!! tip "Conversion to molar susceptibility units"
 
     The molar susceptibility in a Gaussian unit system is ``χ = (N_A μ_0 μ_B^2 /
     4π×10^{-6}) \\tilde{χ}``. For specific [`Units`](@ref), the conversion factor to
-    (emu/Oe/mol) is provided by `units.cgs_molar_susceptibility` (inverse energy).
-    In inverse meV units, for example, `units.cgs_molar_susceptibility` represents
+    (emu/Oe/mol) is provided by `units.cgs_molar_susceptibility`.
+    In inverse meV, for example, `units.cgs_molar_susceptibility` represents
 
     ```math
-    \\frac{\\mathrm{emu/Oe/mol}}{(N_A μ_0 μ_B^2 / 4π×10^{-6})} = 30.9331… / \\mathrm{meV}.
+    \\frac{\\mathrm{emu/Oe/mol}}{N_A μ_0 μ_B^2 / 4π×10^{-6}} = 30.9331… / \\mathrm{meV}.
     ```
 
-    Alternatively, the conversion factor to (m³/mol) in SI units is provided by
-    `units.si_molar_susceptibility` (inverse energy), which uses the identity
+    The conversion factor to (m³/mol) in SI units is provided by
+    `units.si_molar_susceptibility`. It is defined using,
 
     ```math
     1 \\mathrm{emu/Oe/mol} = 4π×10^{-6} \\mathrm{m³/mol}.
@@ -379,6 +379,9 @@ units = Units(:meV, :angstrom)
 
 # Molar susceptibility in Gaussian units (emu/Oe/mol)
 χ = χ̃ / units.cgs_molar_susceptibility
+
+# Molar susceptibility in SI units (m³/mol)
+χ = χ̃ / units.si_molar_susceptibility
 ```
 """
 function magnetic_susceptibility_per_site(scga)

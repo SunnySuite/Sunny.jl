@@ -194,9 +194,9 @@ lines!(Ts_ref, χs_ref, label="Experiment")
 axislegend()
 current_figure()
 
-# Second derivatives of the loss function inform goodness of fit. The inverse
-# Hessian matrix provides an effective measure of uncertainty within parameter
-# space.
+# Curvature of the loss function yields information about the goodness of fit.
+# The inverse Hessian matrix can loosely be interpreted as a measure of
+# uncertainty within parameter space.
 
 import FiniteDiff
 
@@ -205,7 +205,7 @@ L0 = loss(opt.minimizer) # Pragmatic choice for "misfit tolerance"
 uncertainty = L0 * inv(H) # Effective uncertainty matrix
 sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 
-# The final results are in reasonable agreement with previous work:
+# The parameter fits are in reasonable agreement with previous work:
 #
 # | Parameter | This study (K) | Bai et al. (K) |
 # |:----------|---------------:|---------------:|
@@ -214,15 +214,15 @@ sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 # | J3a       | 6.5  ± 2.6     | 4.0            |
 # | J3b       | 0.40 ± 1.1     | 0.32           |
 #
-# The Bai et al. fits are more accurate because they also incorporate first
-# moment data, ``\mathcal{K}(𝐪) = \int ω \mathcal{S}(𝐪, ω) dω``. This
-# additional data strongly constrains J1 ≈ 38K. This increase in J1 necessitates
-# an overall decrease in the remaining exchange couplings to continue satisfying
-# the constraints imposed by the high-temperature susceptibility data.
+# The fits by Bai et al. are more accurate because they incorporate first moment
+# data, ``\mathcal{K}(𝐪) = \int ω \mathcal{S}(𝐪, ω) dω``. This additional data
+# strongly constrains J1 ≈ 38K. With J1 increased, the exchange strengths J2 and
+# J3a must decrease to maintain consistency with the susceptibility data.
 #
-# In retrospect, the primary accuracy limitation is likely to be systematic
-# error in the SCGA method when calculating ``\mathcal{S}(𝐪)`` at T = 20K. For
-# example, large deviations in the SCGA-predicted susceptibility curve ``χ(T)``
-# are observed for T ≲ 50K. As a rule of thumb, SCGA works best deep in the
-# paramagnetic phase, at temperatures large compared to the exchange energy
-# scale.
+# The error estimates above are only approximate because they cannot fully
+# account for model misspecification. In this study, the primary limitation is
+# likely to be systematic error in the SCGA calculations of ``\mathcal{S}(𝐪)``
+# at T = 20K. For example, one can already see that the SCGA-predicted
+# susceptibility curve ``χ(T)`` deviates significantly from the data when T ≲
+# 50K. As a rule of thumb, SCGA works best deep in the paramagnetic phase, at
+# temperatures large compared to the exchange energy scale.
