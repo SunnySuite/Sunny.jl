@@ -10,14 +10,14 @@
 # does not require knowledge of the magnetically-ordered ground state, which can
 # change with model parameters.
 #
-# This tutorial uses SCGA to fit diffuse scattering data and magnetic
-# susceptibilities for the frustrated pyrochlore antiferromagnet MgCr₂O₄. The
-# fitted exchange interactions, up to third nearest neighbor, are in reasonable
+# This tutorial uses SCGA to fit diffuse scattering and magnetic susceptibility
+# data for the frustrated pyrochlore antiferromagnet MgCr₂O₄. The fitted
+# exchange interactions, up to third nearest neighbor, are in reasonable
 # agreement with [Bai et al., Phys. Rev. Lett. 122, 097201
 # (2019)](https://doi.org/10.1103/PhysRevLett.122.097201).
 #
-# SCGA fitting workflows are inspired by the Spinteract code [J. Paddison,
-# J.Phys.: Condens. Matter **35**, 495802
+# Sunny's SCGA fitting workflow is inspired by the Spinteract code [J. Paddison,
+# J. Phys.: Condens. Matter **35**, 495802
 # (2023)](https://doi.org/10.1088/1361-648X/acf261).
 
 using Sunny, GLMakie, LinearAlgebra
@@ -40,7 +40,7 @@ sys = reshape_supercell(sys, primitive_cell(cryst))
 set_spin_rescaling_for_static_sum_rule!(sys)
 
 # Assign labels to the Heisenberg exchange interactions up to third nearest
-# neighbor. Couplings `J3a` and `J3b` reside on equal distance, but
+# neighbor. Couplings J3a and J3b reside on equal distance, but
 # symmetry-inequivalent, bonds. Initial exchange couplings are zero, but new
 # values can be assigned using [`set_params!`](@ref).
 
@@ -56,7 +56,7 @@ formfactors = [1 => FormFactor("Cr3")]
 measure = ssf_perp(sys; formfactors)
 dq = 1/6;
 
-# Three-dimensional ``\mathcal{S}(𝐪)`` data at 20K was collected by Bai et al.
+# Three-dimensional ``\mathcal{S}(𝐪)`` data at 20 K was collected by Bai et al.
 # For simplicity, this tutorial fits to a low-resolution slice of
 # ``\mathcal{S}(𝐪)`` in the [H, K, 0] plane. The overall intensity scale is
 # essentially arbitrary. By convention, `NaN` values indicate missing data. For
@@ -214,13 +214,13 @@ sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 #
 # The fits by Bai et al. are more accurate because they incorporate first moment
 # data, ``\mathcal{K}(𝐪) = \int ω \mathcal{S}(𝐪, ω) dω``. This additional data
-# strongly constrains J1 ≈ 38K. With J1 increased, the exchange strengths J2 and
-# J3a must decrease to maintain consistency with the susceptibility data.
+# constrains J1 ≈ 38 K. An increase of J1 must coincide with a decrease of J2
+# and J3a to maintain consistency with the susceptibility data.
 #
-# The error estimates above are only approximate because they cannot fully
-# account for model misspecification. In this study, the primary limitation is
-# likely to be systematic error in the SCGA calculations of ``\mathcal{S}(𝐪)``
-# at T = 20K. For example, the SCGA-predicted susceptibility curve ``χ(T)``
-# deviates significantly from the data when T ≲ 50K. As a rule of thumb, SCGA
-# works best deep in the paramagnetic phase, at temperatures large compared to
-# the exchange energy scale.
+# Error bars in the fitted parameters are only approximate because they do not
+# fully account for model misspecification. In particular, there is likely to be
+# a large systematic error in the SCGA calculations of ``\mathcal{S}(𝐪)`` at T
+# = 20 K. For example, the SCGA-predicted susceptibility curve ``χ(T)`` deviates
+# significantly from the data when T ≲ 50 K. As a rule of thumb, SCGA works best
+# deep in the paramagnetic phase, at temperatures large compared to the exchange
+# energy scale.
