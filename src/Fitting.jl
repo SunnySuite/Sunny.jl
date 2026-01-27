@@ -183,6 +183,68 @@ function squared_error_with_rescaling(x, y; weights=nothing)
     return (; error, rescaling)
 end
 
+# Rescale v such that sum(v) = 1
+fractionalize(v) = iszero(v) ? one.(v) / length(v) : v ./ sum(v)
+
+function studentt_kernel(x::Real, ν::Real)
+    ν > 0 || error("ν must be positive")
+    if isinf(ν)
+        return exp(-x^2/2)
+    else
+        return exp(-((ν+1)/2) * log1p(x^2/ν))
+    end
+end
+
+
+function labeled_peaks_mismatch_aux(E0, X0, E; σ, ν, r, α)
+    isempty(E) && return 0.0
+    all(>=(0), X0) || error("Intensity measure must be nonnegative")
+
+    a_0 = studentt_kernel(r, ν)
+    a = [@. studentt_kernel((E_k-E0)/σ, ν) for E_k in E] # a[k][m], affinity of mode m to peak k
+    A = sum(a)                                           # A[m] = ∑ₖ a[k][m]
+    q = [@. a_k / (a_0 + A) for a_k in a]                # q[k][m], fractional allocation of mode m across nearby peaks k
+
+    # It is tempting to construct w from flattened intensities X0 .^ α for α < 1
+    # to ensure "some mode m matches a peak k" without overemphasizing the
+    # intensity on m. But doing so naively would introduce a singularity in the
+    # decomposition of intensity X0 among degenerate modes. To maintain
+    # smoothness, we'd need a preliminary step to "spread" the intensity
+    # uniformly between nearby modes.
+    w = fractionalize(X0)                             # w[m], fractional intensity in mode m
+    μ = [w' * q_k for q_k in q]                       # μ[k], fractional intensity collected by peak k over all m
+
+    L_coverage = sum(- log(μ_k + 1e-12) for μ_k in μ)
+
+    # TODO: Allow for optional X data and match it to X0 via an additional term
+    L_intensity = 0.0
+
+    return L_coverage + L_intensity
+end
+
+function labeled_peaks_mismatch(res :: Sunny.BandIntensities,
+                                Es :: Vector{Vector{Float64}};
+                                σ,
+                                ν = 3.0,
+                                r = 1.0,
+                                α = 1.0)
+    eltype(res.data) <: Real || error("Intensities must be real scalar valued")
+    nbands = size(res.disp, 1)
+    Es0 = eachcol(reshape(res.disp, nbands, :))
+    Xs0 = eachcol(reshape(res.data, nbands, :))
+    N_Q = length(Es0)
+    length(Es) == N_Q || error("Expected $N_Q energy vectors")
+    σ > 0 || error("Energy uncertainty σ must be positive")
+    0 < r || error("Dummy activation fraction r must be positive")
+    0 ≤ α ≤ 1 || error("Intensity weighting exponent α must be in [0, 1] (currently unused)")
+    ν > 0 || error("Shape parameter ν of Student's t kernel must be positive")
+
+    return sum(labeled_peaks_mismatch_aux.(Es0, Xs0, Es; σ, ν, r, α))
+end
+
+
+### Autodiff
+
 Base.:+(a::SystemTangent, b::SystemTangent) = SystemTangent(a.vals .+ b.vals)
 CRC.zero_tangent(t::SystemTangent) = SystemTangent(zero(t.vals))
 CRC.unthunk(t::SystemTangent) = t
@@ -204,9 +266,6 @@ function CRC.ProjectTo(sys::System)
     end
     return project
 end
-
-
-
 
 # Superceded by make_loss_fn. Kept here for historical interest.
 #=

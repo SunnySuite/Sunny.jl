@@ -224,3 +224,52 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range
 
     return QGrid{3}(qs, (axis1, axis2, axis3), coefs_lo, coefs_hi, zero(Vec3))
 end
+
+
+function is_vector_in_segment(x, v1, v2; atol=1e-8)
+    d = v2 - v1
+    norm_d = norm(d)
+
+    # Degenerate segment
+    norm_d ≤ atol && return norm(x - v1) ≤ atol
+
+    # If x - v1 has a nonzero part r that is perpendicular to d, return false
+    r = proj(x - v1, d)
+    norm(r) > atol && return false
+
+    # If collinear, then t in [0, |d|] means within the segment
+    t = (x - v1) ⋅ d / norm_d
+    return 0 - atol ≤ t ≤ norm_d + atol
+end
+
+"""
+    find_qs_along_path(qs, path; atol=1e-8)
+
+Return indices of wavevectors `qs` within a [`q_space_path`](@ref). The `qs`
+must be in sorted along the direction of the `path` (returned indices in
+increasing order).
+"""
+function find_qs_along_path(qs, path; atol=1e-8)
+    indices = Int[]
+    i = j = 1
+    while i <= length(qs) && j <= length(path.qs) - 1
+        q = qs[i]
+        v1 = path.qs[j]
+        v2 = path.qs[j+1]
+
+        if is_vector_in_segment(q, v1, v2; atol)
+            closest_index = norm2(q-v1) < norm2(q-v2) ? j : j+1
+            push!(indices, closest_index)
+            i += 1 # move on to next q
+        else
+            j += 1 # move on to next (v1, v2)
+        end
+    end
+
+    n = length(indices)
+    if n < length(qs)
+        error("Failed to find q=$(vec3_to_string(qs[n+1])) in path at tol=$tol")
+    end
+
+    return indices
+end
