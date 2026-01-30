@@ -133,4 +133,4 @@ fig = plot_intensities(res, ylims=(0, 40))
 qinds = Sunny.find_qs_along_path(qs, path)
 data_pairs = [(q, Eq) for (q, Eqs) in zip(qinds, Es) for Eq in Eqs]
 plot!(fig[1, 1], data_pairs; color=:transparent, strokecolor=:magenta, strokewidth=3)
-fig.current_axis[]
+fig
