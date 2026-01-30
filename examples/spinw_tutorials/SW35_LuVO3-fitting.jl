@@ -77,7 +77,7 @@ Es = [
     [28.311], [28.111], [27.395], [26.279], [24.876], [22.758], [20.296],
     [17.405], [13.884], [5.697, 10.391], [3.693, 8.674], [13.027], [20.683],
     [27.368], [31.798], [33.431]
-]
+];
 
 # Use [`make_loss_fn`](@ref) to define an optimization target. Do _not_ use
 # [`minimize_energy!`](@ref) within the loss function because the magnetic
@@ -89,7 +89,7 @@ loss = make_loss_fn(sys, labels) do sys
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
     res = intensities_bands(swt, qs)
     Sunny.labeled_peaks_mismatch(res, Es; σ=0.2)
-end
+end;
 
 # Select some relatively non-informative initial guess. Measure its loss
 # (fitting mismatch) as a baseline.
