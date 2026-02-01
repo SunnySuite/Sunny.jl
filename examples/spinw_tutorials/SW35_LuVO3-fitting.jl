@@ -1,17 +1,16 @@
 # # SW35 - LuVO₃ fitting
 #
 # This is a Sunny adaption of [SpinW Tutorial
-# 35](https://spinw.org/tutorials/35tutorial) (no author attribution). This
-# tutorial fits to the dispersion curves of LuVO₃ in its phase III. Data is
-# obtained from Fig. 1c of [Skoulatos et al., Phys. Rev. B **91**, 161104(R)
+# 35](https://spinw.org/tutorials/35tutorial). It fits a model to the dispersion
+# curves of LuVO₃ in its Phase III. Data is obtained from Fig. 1c of [Skoulatos
+# et al., Phys. Rev. B **91**, 161104(R)
 # (2015)](https://doi.org/10.1103/PhysRevB.91.161104).
 #
 # Construct the [`Crystal`](@ref) using the custom ITA setting "P b n m" for
 # spacegroup 62. The V³⁺ ions live on Wyckoff 4b.
 
-using Sunny, GLMakie
+using Sunny, GLMakie, LinearAlgebra
 
-units = Units(:meV, :angstrom)
 a, b, c = 5.2821, 5.6144, 7.5283
 latvecs = lattice_vectors(a, b, c, 90, 90, 90)
 positions = [[1/2, 0, 0]]
@@ -82,13 +81,13 @@ Es = [
 # Use [`make_loss_fn`](@ref) to define an optimization target. The system
 # already has the correct Néel magnetic order; to keep it fixed, the loss
 # function should _not_ call [`minimize_energy!`](@ref). Sunny provides
-# `labeled_peaks_mismatch` for robust comparison of excitation energies. The
+# `bands_coverage_loss` for robust comparison of excitation energies. The
 # parameter `σ` is uncertainty of the experimental energies.
 
 loss = make_loss_fn(sys, labels) do sys
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
     res = intensities_bands(swt, qs)
-    Sunny.labeled_peaks_mismatch(res, Es; σ=0.2)
+    Sunny.bands_coverage_loss(res, Es; σ=0.2)
 end;
 
 # Select some relatively non-informative parameter guess. Measure its loss
@@ -116,12 +115,17 @@ fits = map(1:10) do i
     fit
 end;
 
-# Fine tune the best model to about 4 digits of accuracy in meV.
+# Fine tune the best model to about 6 digits of accuracy in meV.
 
-options = Optim.Options(; g_tol=1e-4/units.meV)
+options = Optim.Options(; g_tol=1e-6)
 best_fit = argmin(fit -> fit.minimum, fits)
 best_fit = Optim.optimize(loss, best_fit.minimizer, Optim.NelderMead(), options)
 best_fit.minimizer # [Jab, Jc, Kxx, Kyy]
+
+# A rough uncertainty estimate along each fitted parameter direction.
+
+U = uncertainty_matrix(loss, best_fit.minimizer)
+sqrt.(diag(U)) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
 
 # Compare the fitted spectrum to the experimentally measured peaks.
 

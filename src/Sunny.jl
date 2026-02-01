@@ -6,6 +6,7 @@ import ChainRulesCore as CRC
 import DynamicPolynomials as DP
 import ElasticArrays: ElasticArray
 import FFTW
+import FiniteDiff
 import HCubature: hcubature
 import JLD2
 import LineSearches
@@ -147,7 +148,7 @@ include("Binning/ExperimentData.jl")
 export BinningParameters, load_nxs
 
 include("Fitting.jl")
-export squared_error, squared_error_with_rescaling, make_loss_fn
+export squared_error, squared_error_with_rescaling, make_loss_fn, uncertainty_matrix
 
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, dynamic_correlations,

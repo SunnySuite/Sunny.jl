@@ -196,7 +196,7 @@ function studentt_kernel(x::Real, ν::Real)
 end
 
 
-function labeled_peaks_mismatch_aux(E0, X0, E; σ, ν, r, α)
+function bands_coverage_loss_aux(E0, X0, E; σ, ν, r, α)
     isempty(E) && return 0.0
     all(>=(0), X0) || error("Intensity measure must be nonnegative")
 
@@ -208,13 +208,20 @@ function labeled_peaks_mismatch_aux(E0, X0, E; σ, ν, r, α)
     # It is tempting to construct w from flattened intensities X0 .^ α for α < 1
     # to ensure "some mode m matches a peak k" without overemphasizing the
     # intensity on m. But doing so naively would introduce a singularity in the
-    # decomposition of intensity X0 among degenerate modes. To maintain
-    # smoothness, we'd need a preliminary step to "spread" the intensity
-    # uniformly between nearby modes.
+    # decomposition of intensity X0 among degenerate modes. To incorporate α
+    # while maintaining smoothness, we'd need a preliminary step to "spread" the
+    # intensity uniformly between nearby modes.
     w = fractionalize(X0)                             # w[m], fractional intensity in mode m
     μ = [w' * q_k for q_k in q]                       # μ[k], fractional intensity collected by peak k over all m
 
-    L_coverage = sum(- log(μ_k + 1e-12) for μ_k in μ)
+    # The positive loss term -log(μ_k) pushes for _some_ intensity in each peak
+    # k. The slow growth of log(⋅) helps to avoid the situation where one peak k
+    # accumulates more intensity than needed. By construction, L_coverage ≥ 0.
+    # Note that L_coverage = 0 only if μ_k = μ_ideal, which would indicate that
+    # every peak collects an equal and full amount of weight from each mode.
+    ϵ = 1e-12
+    μ_ideal = 1 / length(μ)
+    L_coverage = Statistics.mean(- log((μ_k + ϵ) / (μ_ideal + ϵ)) for μ_k in μ)
 
     # TODO: Allow for optional X data and match it to X0 via an additional term
     L_intensity = 0.0
@@ -222,12 +229,12 @@ function labeled_peaks_mismatch_aux(E0, X0, E; σ, ν, r, α)
     return L_coverage + L_intensity
 end
 
-function labeled_peaks_mismatch(res :: Sunny.BandIntensities,
-                                Es :: Vector{Vector{Float64}};
-                                σ,
-                                ν = 3.0,
-                                r = 1.0,
-                                α = 1.0)
+function bands_coverage_loss(res :: Sunny.BandIntensities,
+                             Es :: Vector{Vector{Float64}};
+                             σ,
+                             ν = 3.0,
+                             r = 1.0,
+                             α = 1.0)
     eltype(res.data) <: Real || error("Intensities must be real scalar valued")
     nbands = size(res.disp, 1)
     Es0 = eachcol(reshape(res.disp, nbands, :))
@@ -239,9 +246,30 @@ function labeled_peaks_mismatch(res :: Sunny.BandIntensities,
     0 ≤ α ≤ 1 || error("Intensity weighting exponent α must be in [0, 1] (currently unused)")
     ν > 0 || error("Shape parameter ν of Student's t kernel must be positive")
 
-    return sum(labeled_peaks_mismatch_aux.(Es0, Xs0, Es; σ, ν, r, α))
+    return Statistics.mean(bands_coverage_loss_aux.(Es0, Xs0, Es; σ, ν, r, α))
 end
 
+"""
+    uncertainty_matrix(loss, x)
+
+Returns an uncertainty matrix ``U`` that describes the slackness of the loss
+function ``L`` at its minimizer ``x``. Specifically, ``U = L(x) H(x)^{-1}``
+where ``H = ∂^2 L / ∂x ∂x`` is the Hessian matrix of second derivatives.
+
+The quantity ``(U_{ii})^{1/2}`` can often be interpreted as uncertainty of the
+fitted parameter ``x_i``. Similarly, ``(n^T U n)^{1/2}`` would be uncertainty in
+the normalized direction ``n`` of parameter space.
+
+There are situations where the above uncertainty estimates deviate strongly from
+the true model error. For example, if the loss function is highly constraining
+about the wrong minimum (e.g., due to model mispecification), then the
+uncertainty estimate may be too low. Conversely, if the loss function does not
+vanish for a perfect model fit (e.g., it is not a sum of squared errors), then
+the uncertainty estimate may be too high.
+"""
+function uncertainty_matrix(loss, x)
+    return loss(x) * inv(FiniteDiff.finite_difference_hessian(loss, x))
+end
 
 ### Autodiff
 

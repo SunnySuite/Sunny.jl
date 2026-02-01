@@ -121,6 +121,7 @@ suggest_timestep
 symmetry_equivalent_bonds
 to_inhomogeneous
 to_product_space
+uncertainty_matrix
 @mix_proposals
 ```
 

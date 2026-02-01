@@ -193,14 +193,10 @@ axislegend()
 current_figure()
 
 # Curvature of the loss function yields information about the goodness of fit.
-# The inverse Hessian matrix can loosely be interpreted as a measure of
-# uncertainty within parameter space.
+# Approximate error bars can be obtained from diagonal elements of the
+# [`uncertainty_matrix`](@ref).
 
-import FiniteDiff
-
-H = FiniteDiff.finite_difference_hessian(loss, opt.minimizer)
-L0 = loss(opt.minimizer) # Pragmatic choice for "misfit tolerance"
-uncertainty = L0 * inv(H) # Effective uncertainty matrix
+uncertainty = uncertainty_matrix(loss, opt.minimizer)
 sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 
 # The parameter fits are in reasonable agreement with previous work:
