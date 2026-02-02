@@ -237,16 +237,16 @@ function bands_coverage_loss(res :: Sunny.BandIntensities,
                              α = 1.0)
     eltype(res.data) <: Real || error("Intensities must be real scalar valued")
     nbands = size(res.disp, 1)
-    Es0 = eachcol(reshape(res.disp, nbands, :))
-    Xs0 = eachcol(reshape(res.data, nbands, :))
-    N_Q = length(Es0)
-    length(Es) == N_Q || error("Expected $N_Q energy vectors")
+    E0s = eachcol(reshape(res.disp, nbands, :))
+    X0s = eachcol(reshape(res.data, nbands, :))
+    Nq = length(E0s)
+    length(Es) == Nq || error("Expected $Nq energy vectors")
     σ > 0 || error("Energy uncertainty σ must be positive")
     0 < r || error("Dummy activation fraction r must be positive")
     0 ≤ α ≤ 1 || error("Intensity weighting exponent α must be in [0, 1] (currently unused)")
     ν > 0 || error("Shape parameter ν of Student's t kernel must be positive")
 
-    return Statistics.mean(bands_coverage_loss_aux.(Es0, Xs0, Es; σ, ν, r, α))
+    return Statistics.mean(bands_coverage_loss_aux.(E0s, X0s, Es; σ, ν, r, α))
 end
 
 """

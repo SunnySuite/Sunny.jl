@@ -87,7 +87,7 @@ Es = [
 loss = make_loss_fn(sys, labels) do sys
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
     res = intensities_bands(swt, qs)
-    Sunny.bands_coverage_loss(res, Es; σ=0.2)
+    Sunny.bands_coverage_loss(res, Es; σ=0.5)
 end;
 
 # Select some relatively non-informative parameter guess. Measure its loss
