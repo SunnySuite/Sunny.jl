@@ -115,7 +115,6 @@ Gets a list of parameter values for the provided `labels`. Equivalent to
 repeatedly calling [`get_param`](@ref). See also [`set_params!`](@ref).
 """
 function get_params(sys::System, labels::Vector{Symbol})
-    length(labels) == length(vals) || error("Mismatched lengths")
     return get_param.(Ref(sys), labels)
 end
 
