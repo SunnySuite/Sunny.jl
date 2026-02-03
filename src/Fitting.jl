@@ -249,6 +249,129 @@ function bands_coverage_loss(res :: Sunny.BandIntensities,
     return Statistics.mean(bands_coverage_loss_aux.(E0s, X0s, Es; σ, ν, r, α))
 end
 
+
+"""
+    sinkhorn_simple(μ, ν, C, ϵ; tol=1e-5, maxiter=1_000, check_every=10)
+
+Balanced entropic Sinkhorn (matrix scaling):
+  γ = diag(u) * K * diag(v),  K = exp.(-C/ϵ)
+
+Stops when both marginal constraints are satisfied to `tol` in ∞-norm.
+Returns γ.
+"""
+function sinkhorn_simple(μ::AbstractVector, ν::AbstractVector, C::AbstractMatrix, ϵ::Real;
+                         tol=1e-8, maxiter=10_000)
+    M, N = size(C)
+    length(μ) == M && length(ν) == N || error("Cost matrix C size mismatch")
+    all(>(0), μ) || error("μ must be strictly positive")
+    all(>(0), ν) || error("ν must be strictly positive")
+    isapprox(sum(μ), sum(ν); rtol=1e-12, atol=1e-12) || error("sum(μ) and sum(ν) must match")
+
+    tiny = eps(Float64)
+    μmax = max(maximum(μ), tiny)
+    νmax = max(maximum(ν), tiny)
+
+    K = @. exp(-C / ϵ)
+    u = ones(M)
+    v = ones(N)
+    resid1 = zeros(M)
+    resid2 = zeros(N)
+
+    KTu = zeros(N)
+    Kv  = zeros(M)
+    mul!(Kv, K, v)
+    @. Kv = max(Kv, tiny)
+
+    for iter in 1:maxiter
+        @. u = μ / Kv
+
+        mul!(KTu, K', u)
+        @. KTu = max(KTu, tiny)
+        @. v = ν / KTu
+
+        mul!(Kv, K, v)
+        @. Kv = max(Kv, tiny)
+
+        @. resid1 = u * Kv  - μ
+        @. resid2 = v * KTu - ν
+        row_err = norm(resid1, Inf) / μmax
+        col_err = norm(resid2, Inf) / νmax
+
+        if max(row_err, col_err) ≤ tol
+            break
+        elseif iter == maxiter
+            # Too noisy; breaks quickly with small ϵ
+            # @warn "Non converged" row_err col_err
+        end
+    end
+
+    γ = Diagonal(u) * K * Diagonal(v)
+    return γ
+end
+
+
+# using OptimalTransport
+
+"""
+    bands_transport_loss_aux(E0, E; σ, ϵ, κ=3.0, maxiter=1000)
+
+Balanced entropic optimal transport with dummy "peak" to absorb extra modes.
+
+- μ[m] = 1     (each mode m supplies 1)
+- ν[k] = 1     (each peak k absorbs 1)
+- ν[K+1] = M-K (dummy peak absorbs remaining modes)
+
+Cost:  
+    C_mk     = (E0[m] - E[k])² / σ², with soft cap at κ².
+    C_m(K+1) = k² / 2
+
+Requires M ≥ K. Returns inner product ⟨γ, C⟩ without dummy column.
+"""
+function bands_transport_loss_aux(E0, X0s, E; σ, ϵ, κ, maxiter)
+    M, K = length(E0), length(E)
+    M ≥ K || error("Dummy-bin construction assumes M ≥ K (got M=$M, K=$K).")
+
+    # Upper bound on transport cost κ = ΔE_max / σ
+    maxcost = κ^2
+
+    # M×K, cost matrix for matching mode m to peak k
+    C = zeros(M, K+1)
+    for m in 1:M
+        for k in 1:K
+            u = (E0[m] - E[k])^2 / σ^2
+            C[m, k] = maxcost * (u / (u + maxcost))
+        end
+        C[m, K+1] = maxcost/2
+    end
+
+    μ = ones(M)              # uniform mass for SWT modes
+    ν = vcat(ones(K), M - K) # uniform mass for labeled peaks, plus remainder in dummy
+
+    # γ = sinkhorn(μ, ν, C, ϵ, SinkhornStabilized(); maxiter)
+    γ = sinkhorn_simple(μ, ν, C, ϵ; maxiter)
+
+    L = dot(γ[:, 1:K], C[:, 1:K])
+    return L / K
+end
+
+function bands_transport_loss(res :: Sunny.BandIntensities,
+                              Es :: Vector{Vector{Float64}};
+                              σ, ϵ=1.0, κ=3.0, maxiter=1000)
+    eltype(res.data) <: Real || error("Intensities must be real scalar valued")
+    nbands = size(res.disp, 1)
+    E0s = eachcol(reshape(res.disp, nbands, :))
+    X0s = eachcol(reshape(res.data, nbands, :))
+    Nq = length(E0s)
+    length(Es) == Nq || error("Expected $Nq energy vectors")
+    σ > 0 || error("Energy uncertainty σ must be positive")
+    ϵ > 0 || error("Entropic regularization ϵ must be positive")
+    κ > 0 || error("Max sensitivity distance κ must be positive")
+    maxiter > 0 || error("Max iteration count must be positive")
+
+    return Statistics.mean(bands_transport_loss_aux.(E0s, X0s, Es; σ, ϵ, κ, maxiter))
+end
+
+
 """
     uncertainty_matrix(loss, x)
 

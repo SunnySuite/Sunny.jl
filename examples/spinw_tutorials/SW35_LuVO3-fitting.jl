@@ -87,7 +87,8 @@ Es = [
 loss = make_loss_fn(sys, labels) do sys
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
     res = intensities_bands(swt, qs)
-    Sunny.bands_coverage_loss(res, Es; σ=0.5)
+    # Sunny.bands_coverage_loss(res, Es; σ=0.5)
+    Sunny.bands_transport_loss(res, Es; σ=2, ϵ=1.0, κ=3.0)
 end;
 
 # Select some relatively non-informative parameter guess. Measure its loss
@@ -108,6 +109,15 @@ lower = [0., 0, -4, -4]
 upper = [10., 10, 0, 0]
 method = Optim.ParticleSwarm(; lower, upper, n_particles=10)
 options = Optim.Options(; iterations=100)
+
+
+###
+for i in 1:10
+    best_fit = Optim.optimize(loss, guess + 0.1*randn(4), method, options)
+    @show best_fit.minimum
+    @show best_fit.minimizer
+end
+##
 
 fits = map(1:10) do i
     fit = Optim.optimize(loss, guess, method, options)
