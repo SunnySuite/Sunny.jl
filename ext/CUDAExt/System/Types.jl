@@ -16,15 +16,13 @@ function Adapt.adapt_structure(to, sys::PairCouplingDevice)
     PairCouplingDevice(isculled, bond, bilin, biquad)
 end
 
-struct InteractionsDevice{TSExpansion, TPair}
+struct InteractionsDevice{TSExpansion}
     onsite  :: TSExpansion
-    pair    :: TPair
 end
 
 function Adapt.adapt_structure(to, inter::InteractionsDevice)
     onsite = Adapt.adapt_structure(to, inter.onsite)
-    pair = Adapt.adapt_structure(to, inter.pair)
-    InteractionsDevice(onsite, pair)
+    InteractionsDevice(onsite)
 end
 
 struct EwaldDevice
@@ -59,7 +57,7 @@ function mode_to_enum(sys::System{N}) where N
     end
 end
 
-struct SystemDevice{TCrystal, TArrField, TArrInt, TPairs, TArrGs, TDipole}
+struct SystemDevice{TCrystal, TArrField, TArrInt, TPairs, TIndices, TArrGs, TDipole}
     original_crystal   :: TCrystal
     mode               :: SystemMode
     crystal            :: TCrystal
@@ -67,6 +65,7 @@ struct SystemDevice{TCrystal, TArrField, TArrInt, TPairs, TArrGs, TDipole}
     extfield           :: TArrField # External B field
     interactions_union :: TArrInt # Interactions
     pairs              :: TPairs
+    indices            :: TIndices
     gs                 :: TArrGs # g-tensor per atom in unit cell
     #ewald              :: Union{EwaldDevice, Nothing}
     dipoles            :: TDipole # Expected dipoles
@@ -84,21 +83,23 @@ function SystemDevice(host::Sunny.System)
     gs = CUDA.CuArray(host.gs)
     dipoles = CUDA.CuArray(host.dipoles)
 
+    indices_h = Int64[]
+    push!(indices_h, 1)
     pairs_h = PairCouplingDevice[]
-    interactions_h = InteractionsDevice{Sunny.StevensExpansion, Pair{Int64, Int64}}[]
+    interactions_h = InteractionsDevice{Sunny.StevensExpansion}[]
 
     for int in host.interactions_union
-        first = length(pairs_h) + 1
-        last = length(pairs_h) + length(int.pair)
+        push!(indices_h,indices_h[end]+length(int.pair))
         for pair in int.pair
             push!(pairs_h, PairCouplingDevice(pair))
         end
-        a = InteractionsDevice(int.onsite, Pair(first, last))
+        a = InteractionsDevice(int.onsite)
         push!(interactions_h, a)
     end
     pairs_d = CuVector(pairs_h)
+    indices_d = CuVector(indices_h)
     interactions_d = CuVector(interactions_h)
-    return SystemDevice(original_crystal, mode, crystal, dims, extfield, interactions_d, pairs_d, gs, dipoles)
+    return SystemDevice(original_crystal, mode, crystal, dims, extfield, interactions_d, pairs_d, indices_d, gs, dipoles)
 end
 
 function Adapt.adapt_structure(to, sys::SystemDevice)
@@ -108,20 +109,21 @@ function Adapt.adapt_structure(to, sys::SystemDevice)
     extfield = Adapt.adapt_structure(to, sys.extfield)
     interactions_union = Adapt.adapt_structure(to, sys.interactions_union)
     pairs = Adapt.adapt_structure(to, sys.pairs)
+    indices = Adapt.adapt_structure(to, sys.indices)
     gs = Adapt.adapt_structure(to, sys.gs)
     #ewald = Adapt.adapt_structure(to, sys.ewald)
     dipoles = Adapt.adapt_structure(to, sys.dipoles)
-    SystemDevice(original_crystal, sys.mode, crystal, dims, extfield, interactions_union, pairs, gs, dipoles)
+    SystemDevice(original_crystal, sys.mode, crystal, dims, extfield, interactions_union, pairs, indices, gs, dipoles)
 end
 
-struct SystemDeviceSUN{TCrystal, TArrField, TArrInt, TPairs, TOnsite, TArrGs, TDipole, TGeneral}
+struct SystemDeviceSUN{TCrystal, TArrField, TPairs, TIndices, TOnsite, TArrGs, TDipole, TGeneral}
     original_crystal   :: TCrystal
     mode               :: SystemMode
     crystal            :: TCrystal
     dims               :: NTuple{3, Int}
     extfield           :: TArrField # External B field
-    interactions_union :: TArrInt # Interactions
     pairs              :: TPairs
+    indices            :: TIndices
     onsite             :: TOnsite
     gs                 :: TArrGs # g-tensor per atom in unit cell
     #ewald              :: Union{EwaldDevice, Nothing}
@@ -158,12 +160,13 @@ function SystemDeviceSUN(host::Sunny.System)
 
     general_h = zeros(ComplexF64, data_1_len, data_2_len, data_3_len, data_4_len, pair_length)
     pairs_h = PairCouplingDevice[]
+    indices_h = Int64[]
+    push!(indices_h, 1)
     N = size(host.interactions_union[begin].onsite, 1)
     onsite_h = Array{ComplexF64}(undef, N, N, length(host.interactions_union))
-    interactions_h = InteractionsDevice{Int64, Pair{Int64, Int64}}[]
     for (i, int) in enumerate(host.interactions_union)
         first = length(pairs_h) + 1
-        last = length(pairs_h) + length(int.pair)
+        push!(indices_h, indices_h[end]+length(int.pair))
         for (j, pair) in enumerate(int.pair)
             push!(pairs_h, PairCouplingDevice(pair))
             for (k, general_data) in enumerate(pair.general.data)
@@ -172,14 +175,12 @@ function SystemDeviceSUN(host::Sunny.System)
             end
         end
         view(onsite_h, :, :, i) .= int.onsite
-        a = InteractionsDevice(i, Pair(first, last))
-        push!(interactions_h, a)
     end
     pairs_d = CuVector(pairs_h)
+    indices_d = CuVector(indices_h)
     onsite_d = CuArray(onsite_h)
-    interactions_d = CuVector(interactions_h)
     general_d = CuArray(general_h)
-    return SystemDeviceSUN(original_crystal, SUN, crystal, dims, extfield, interactions_d, pairs_d, onsite_d, gs, dipoles, Ns, general_d)
+    return SystemDeviceSUN(original_crystal, SUN, crystal, dims, extfield, pairs_d, indices_d, onsite_d, gs, dipoles, Ns, general_d)
 end
 
 function Adapt.adapt_structure(to, sys::SystemDeviceSUN)
@@ -187,12 +188,12 @@ function Adapt.adapt_structure(to, sys::SystemDeviceSUN)
     crystal = Adapt.adapt_structure(to, sys.crystal)
     dims = Adapt.adapt_structure(to, sys.dims)
     extfield = Adapt.adapt_structure(to, sys.extfield)
-    interactions_union = Adapt.adapt_structure(to, sys.interactions_union)
     pairs = Adapt.adapt_structure(to, sys.pairs)
+    indices = Adapt.adapt_structure(to, sys.indices)
     onsite = Adapt.adapt_structure(to, sys.onsite)
     gs = Adapt.adapt_structure(to, sys.gs)
     #ewald = Adapt.adapt_structure(to, sys.ewald)
     dipoles = Adapt.adapt_structure(to, sys.dipoles)
     general = Adapt.adapt_structure(to, sys.general)
-    SystemDeviceSUN(original_crystal, sys.mode, crystal, dims, extfield, interactions_union, pairs, onsite, gs, dipoles, sys.Ns, general)
+    SystemDeviceSUN(original_crystal, sys.mode, crystal, dims, extfield, pairs, indices, onsite, gs, dipoles, sys.Ns, general)
 end
