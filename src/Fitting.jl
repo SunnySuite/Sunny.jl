@@ -261,25 +261,31 @@ end
 
 # Use balanced optimal transport to smoothly assign labeled peaks E[k] to
 # theoretical modes E0[m].
-function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
+function bands_transport_loss(E0, X0s, E; σ, ν, ϵ, maxiter)
     M, K = length(E0), length(E)
     M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
 
     # M×K, cost matrix for matching mode m to peak k
     C_bare = [((E0[m] - E[k]) / σ)^2 for m in 1:M, k in 1:K]
 
+    # A suppression function that grows slightly faster than log(1 + x), but
+    # still subpolynomially. Designed so that f(x) ≈ x when x ≪ 1, and f(x) ~
+    # log(x)^(1+ν) when x ≫ 1.
+    f(x) = iszero(ν) ? log1p(x) : log1p(x^(1/(1+ν)))^(1+ν)
+
     # Mathematically, the Sinkhorn loss is invariant to a uniform shift of each
     # column. This is because the occupation probabilities γ are tied to
     # exp(-ΔC/ϵ), where ΔC denotes the difference of column (or row) elements.
     # In practice, floating point precision limits the numerical scale of ΔC.
-    # This can be combatted by regularizing C → log1p(C). The idea is that C ≈
-    # log1p(C) when C is small, while large values of C and log1p(C) can both be
-    # treated as "effectively infinite" in the sense that the corresponding
-    # occupations γ would vanish anyway. Shifting each column of C prior to the
-    # log1p(⋅) operation preserves the dynamic range of that column (i.e.,
-    # preserves the relative costs of mode assignment for a given labeled peak).
+    # This can be combatted by regularizing C → f(C) where f(x) ~ log(1 + x).
+    # The idea is that C ≈ f(C) when C is small, while large values of C and
+    # f(C) can both be treated as "effectively infinite" in the sense that the
+    # corresponding occupations γ would vanish anyway. Shifting each column of C
+    # prior to the log1p(⋅) operation preserves the dynamic range of that column
+    # (i.e., preserves the relative costs of mode assignment for a given labeled
+    # peak).
     colmin = minimum(C_bare, dims=1)
-    C_reg = log1p.(C_bare .- colmin)
+    C_reg = f.(C_bare .- colmin)
 
     # FP64 has about 16 digits of precision. If σ gets truly small, such that
     # C_reg/ϵ grows significantly larger than ~16, consider a cap to stabilize
@@ -312,17 +318,18 @@ vanishing energy uncertainty `σ`.
 """
 function squared_error_bands_smooth(res :: Sunny.BandIntensities,
                                     Es :: Vector{Vector{Float64}};
-                                    σ, ϵ=1.0, maxiter=1_000)
+                                    σ, ν=0.1, ϵ=1.0, maxiter=1_000)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
     X0s = eachcol(reshape(res.data, nbands, :))
     length(Es) == length(E0s) || error("Mismatch in bands vs data q-length ($(length(E0s))) ≠ $(length(Es))")
     σ > 0 || error("Energy uncertainty σ must be positive")
+    ν >= 0 || error("Acceleration exponent ν must be nonnegative")
     ϵ > 0 || error("Entropic regularization ϵ must be positive")
     maxiter > 0 || error("Max iteration count must be positive")
 
     # TODO: Fix normalization; use bare sums, then divide by `norm2(Es) / σ^2`.
-    return Statistics.mean(bands_transport_loss.(E0s, X0s, Es; σ, ϵ, maxiter))
+    return Statistics.mean(bands_transport_loss.(E0s, X0s, Es; σ, ν, ϵ, maxiter))
 end
 
 """
@@ -379,8 +386,9 @@ uncertainty estimate may be too low. Conversely, if the loss function does not
 vanish for a perfect model fit (e.g., it is not a sum of squared errors), then
 the uncertainty estimate may be too high.
 """
-function uncertainty_matrix(loss, x)
-    return loss(x) * inv(FiniteDiff.finite_difference_hessian(loss, x))
+function uncertainty_matrix(loss, x; kwargs...)
+    H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
+    return loss(x) * inv(H)
 end
 
 
