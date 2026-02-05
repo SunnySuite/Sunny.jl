@@ -2,8 +2,8 @@
 #
 # This is a Sunny adaption of [SpinW Tutorial
 # 35](https://spinw.org/tutorials/35tutorial). It fits a model to the dispersion
-# curves of LuVO₃ in its Phase III. Data is obtained from Fig. 1c of [Skoulatos
-# et al., Phys. Rev. B **91**, 161104(R)
+# curves of LuVO₃ in its undistorted Néel ordered phase, with data from
+# [Skoulatos et al., Phys. Rev. B **91**, 161104(R)
 # (2015)](https://doi.org/10.1103/PhysRevB.91.161104).
 #
 # Construct the [`Crystal`](@ref) using the custom ITA setting "P b n m" for
@@ -26,32 +26,31 @@ sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole_uncorrected)
 # Exchanges ``J_{ab}`` and ``J_{c}`` are in the x̂-ŷ plane and the ẑ
 # direction, respectively. The single-ion anisotropy term has the assumed form
 # ``- \sum_α K_{αα} S_α^2``. Note that a shift of all ``K_{xx}, K_{yy}, K_{zz}``
-# by some constant ``c`` amounts to a physically irrelevant shift ``- c |S|^2``
-# of the spin Hamiltonian. Without loss of generality, one can select ``K_{zz} =
-# 0``. With this convention, negative ``K_{xx}`` and ``K_{yy}`` amount to an
-# easy-axis anisotropy in ``ẑ``. 
+# by some ``c`` amounts to a physically irrelevant shift ``- c |S|^2`` of the
+# spin Hamiltonian. Therefore, without loss of generality, one can select
+# ``K_{zz} = 0``. With this convention, negative ``K_{xx}`` and ``K_{yy}``
+# amount to an easy-axis anisotropy in ``ẑ``. 
 
 set_exchange!(sys, 1.0, Bond(1, 2, (0, 0, 0)), :Jab => 0)
 set_exchange!(sys, 1.0,  Bond(1, 3, (0, 0, 0)), :Jc => 0)
 set_onsite_coupling!(sys, S -> -S[1]^2,  1, :Kxx => 0)
 set_onsite_coupling!(sys, S -> -S[2]^2,  1, :Kyy => 0)
 
-# Parameters for Phase III as reported in Table I of Skoulatos et al. Here, it
-# seems the paper has a typo. To get agreement in the calculated spin wave
-# spectrum, it is necessary to swap the reported exchange parameters, ``J_{ab} =
-# 4.24`` and ``J_{c} = 5.95`` (meV).
+# Parameters for Phase III are reported in Table I of Skoulatos et al. Here, it
+# seems the paper has a typo. The spin wave spectrum matches only after swapping
+# their reported parameters ``J_{ab}`` and ``J_{c}``.
 
 labels = [:Jab, :Jc, :Kxx, :Kyy]
-skoulatos_fit = [5.95, 4.24, -0.48, -0.06]
+skoulatos_fit = [5.95, 4.24, -0.48, -0.06] # Typo fixed
 set_params!(sys, labels, skoulatos_fit)
 
 # Energy minimization yields the expected (π, π, π) Néel order with easy axis
-# ẑ.
+# along ẑ.
 
 minimize_energy!(sys)
 plot_spins(sys; ghost_radius=4)
 
-# Magnon bands reproduce Fig. 1d of Skoulatos et al.
+# Magnon bands are consistent with Skoulatos et al.
 
 Q1 = [0, 1.0, 2.0]
 Q2 = [0, 1.0, 3.0]
@@ -62,8 +61,8 @@ swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities_bands(swt, path)
 plot_intensities(res, title="Previous work")
 
-# This tutorial will refit the model using the labeled points of Fig. 1d of
-# Skoulatos et al. The data below was extracted using the
+# This tutorial will refit the model parameters using the labeled peaks of Fig.
+# 1d of Skoulatos et al. These can be extracted using the
 # [WebPlotDigitizer](https://automeris.io/) tool.
 
 qs = [
@@ -78,11 +77,13 @@ Es = [
     [27.368], [31.798], [33.431]
 ];
 
-# Use [`make_loss_fn`](@ref) to define an optimization target. The system
-# already has the correct Néel magnetic order; to keep it fixed, the loss
-# function should _not_ call [`minimize_energy!`](@ref). Sunny provides
-# `bands_coverage_loss` for robust comparison of excitation energies. The
-# parameter `σ` is uncertainty of the experimental energies.
+# Use [`make_loss_fn`](@ref) to define an optimization target `loss`. Because
+# the system is already initialized to the correct Néel magnetic order, one
+# should not call [`minimize_energy!`](@ref) prior to the
+# [`intensities_bands`](@ref) calculation. Internally,
+# [`squared_error_bands`](@ref) assigns each labeled peak in `Es` to the closest
+# spin wave mode in `res`, subject to the constraint that each spin wave mode
+# can be assigned only once.
 
 loss = make_loss_fn(sys, labels) do sys
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
@@ -90,17 +91,18 @@ loss = make_loss_fn(sys, labels) do sys
     squared_error_bands(res, Es)
 end;
 
-# Select some relatively non-informative parameter guess. Measure its loss
-# (fitting mismatch) as a baseline.
+# Guess some arbitrary parameters that are consistent with the assumed Néel
+# order. Feasibility requires (Jab, Jc) to be positive and (Kxx, Kyy) to be
+# negative. The `squared_error_bands` function is normalized such that values
+# much less than 1 are expected for a good fit.
 
 guess = [3, 3, -0.2, -0.1] # Guess for [Jab, Jc, Kxx, Kyy]
 loss(guess)
 
 # The [Optim](https://github.com/JuliaNLSolvers/Optim.jl) package provides a
 # variety of powerful optimization methods. For example, it supports particle
-# swarm as used  the original SpinW tutorial. In the present context,
-# however, the simpler Nelder-Mead method is sufficient to find the optimal
-# model.
+# swarm as was used by the original SpinW tutorial. For our purposes, however,
+# the simpler Nelder-Mead method is sufficient to find the optimal model.
 
 import Optim
 
@@ -118,9 +120,9 @@ sqrt.(diag(U)) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
 #
 # | Parameter | This study (meV) | Skoulatos et al. (meV) |
 # |:----------|-----------------:|-----------------------:|
-# | Jab       | 6.1 ± 0.2        | 5.95                   |
-# | Jc        | 4.0 ± 0.2        | 4.24                   |
-# | Kxx       | -0.6 ± 0.08      | -0.48                  |
+# | Jab       | 6.11 ± 0.21      | 5.95                   |
+# | Jc        | 3.99 ± 0.19      | 4.24                   |
+# | Kxx       | -0.63 ± 0.08     | -0.48                  |
 # | Kyy       | -0.09 ± 0.04     | -0.06                  |
 #
 # Finally, plot the fitted spectrum in the context of the experimentally

@@ -268,22 +268,28 @@ function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
     # M×K, cost matrix for matching mode m to peak k
     C_bare = [((E0[m] - E[k]) / σ)^2 for m in 1:M, k in 1:K]
 
-    # TODO: Consider shifting each column of C_bare by, say,  
-    #    colmin = minimum(C_bare, dims=1)  
-    #    C_bare .- softmax.(colmin - 3, 0)  
-    # Doing so before taking the log preserves some numerical range.
-    # Effectively, it enlarges the occupation γ[m,k] of the mode m nearest to
-    # each k. But need to be careful that very far modes eventually get sent to
-    # the sink.
+    # Mathematically, the Sinkhorn loss is invariant to a uniform shift of each
+    # column. This is because the occupation probabilities γ are tied to
+    # exp(-ΔC/ϵ), where ΔC denotes the difference of column (or row) elements.
+    # In practice, floating point precision limits the numerical scale of ΔC.
+    # This can be combatted by regularizing C → log1p(C). The idea is that C ≈
+    # log1p(C) when C is small, while large values of C and log1p(C) can both be
+    # treated as "effectively infinite" in the sense that the corresponding
+    # occupations γ would vanish anyway. Shifting each column of C prior to the
+    # log1p(⋅) operation preserves the dynamic range of that column (i.e.,
+    # preserves the relative costs of mode assignment for a given labeled peak).
+    colmin = minimum(C_bare, dims=1)
+    C_reg = log1p.(C_bare .- colmin)
+
+    # FP64 has about 16 digits of precision. If σ gets truly small, such that
+    # C_reg/ϵ grows significantly larger than ~16, consider a cap to stabilize
+    # the numerics.  
+    #    @. C_reg = softcap(C_reg, 16.0*ϵ; β=1/ϵ)
 
     # M×(K+1) kernel for use in optimal transport. The final column is a "sink"
-    # to absorb unused modes. A constant shift to the sink column is arbitrary
-    # (no effect on transport plan γ).
-    C = hcat(log.(1 .+ C_bare), fill(ϵ, M))
-
-    # FP64 has limited range, and very large values of C/ϵ are effectively
-    # "infinite cost" anyway. Considering a cap to stabilize the numerics.  
-    #    @. C = softcap(C, 15.0*ϵ; β=1/ϵ)
+    # that absorbs unused modes (needed when M > K). The numerical value of the
+    # sink column is arbitrary; it has effect on assignments γ.
+    C = hcat(C_reg, zeros(M))
 
     μ = ones(M)              # uniform mass for SWT modes
     ν = vcat(ones(K), M - K) # uniform mass for labeled peaks, plus remainder in sink
@@ -294,16 +300,19 @@ function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
 end
 
 """
-    squared_error_bands_smoothed(res, Es; σ, ϵ, maxiter=1000)
+    squared_error_bands_smooth(res, Es; σ, maxiter=1000)
 
 Like `squared_error_bands` but uses entropy-regularized optimal transport to
 smoothly assign spin wave modes (`res`) to labeled peak energies (`Es`). Entropy
 regularization may be useful as part of an annealing procedure to search for a
 globally optimal fit.
+
+This function coincides with [`squared_error_bands`](@ref) in the limit of
+vanishing energy uncertainty `σ`.
 """
-function squared_error_bands_smoothed(res :: Sunny.BandIntensities,
-                                      Es :: Vector{Vector{Float64}};
-                                      σ, ϵ=1.0, maxiter=1_000)
+function squared_error_bands_smooth(res :: Sunny.BandIntensities,
+                                    Es :: Vector{Vector{Float64}};
+                                    σ, ϵ=1.0, maxiter=1_000)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
     X0s = eachcol(reshape(res.data, nbands, :))
@@ -319,15 +328,20 @@ end
 """
     squared_error_bands(res, Es)
 
-Squared error between the discrete modes of an [`intensities_bands`](@ref)
-calculation (`res`) and experimental intensity peak energies (`Es`) for the same
-set of ``𝐪``-points. Each element `Es[i]` is itself a list of labeled intensity
-peaks for the `i`th ``𝐪``-point. Every labeled peak must match some spin wave
-mode, but the converse may not be true: Spin wave modes without a labeled peak
-counterpart do not contribute to the squared error.
+Squared error between the discrete band energies of an
+[`intensities_bands`](@ref) calculation (`res`) and experimentally labeled
+intensity peak energies (`Es`) for the same set of ``𝐪``-points. Each element
+`Es[i]` is itself a list of labeled intensity peaks for the `i`th ``𝐪``-point.
+Every labeled peak must match some spin wave band, but the converse may not be
+true: Spin wave band without a labeled peak counterpart do not contribute to the
+squared error.
 
-Uses the [Hungarian package](https://github.com/Gnimuc/Hungarian.jl) for optimal
-assignment of modes to peaks.
+The return value is normalized by the squared magnitude of `Es`. Specifically,
+if the predicted mode are uniformly zero, then the return value is exactly 1.
+
+Internally, this function uses the [Hungarian
+algorithm](https://github.com/Gnimuc/Hungarian.jl) for optimal assignment of
+modes to peaks.
 """
 function squared_error_bands(res :: Sunny.BandIntensities,
                              Es :: Vector{Vector{Float64}})

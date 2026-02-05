@@ -284,8 +284,8 @@ end
 
         # Verify that gradient agrees with finite differences
         _, gradE1 = Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp)
-        f(s) = Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp)[1]
-        gradE2 = finite_difference_gradient(f, s)
+        f(s) = Sunny.energy_and_gradient_for_classical_anisotropy(Sunny.Vec3(s), stvexp)[1]
+        gradE2 = finite_difference_gradient(f, collect(s))
 
         # When calculating gradE2, the value X = |S|^2 is treated as varying
         # with S, such that dX/dS = 2S. Conversely, when calculating gradE1, the
