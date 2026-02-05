@@ -287,38 +287,33 @@ function bands_transport_loss(E0, X0s, E; σ, ν, ϵ, maxiter)
     colmin = minimum(C_bare, dims=1)
     C_reg = f.(C_bare .- colmin)
 
-    # FP64 has about 16 digits of precision. If σ gets truly small, such that
-    # C_reg/ϵ grows significantly larger than ~16, consider a cap to stabilize
-    # the numerics.  
-    #    @. C_reg = softcap(C_reg, 16.0*ϵ; β=1/ϵ)
-
     # M×(K+1) kernel for use in optimal transport. The final column is a "sink"
-    # that absorbs unused modes (needed when M > K). The numerical value of the
-    # sink column is arbitrary; it has effect on assignments γ.
+    # to absorb unused modes in the case of M > K. Its numerical value is
+    # arbitrary (no effect on γ).
     C = hcat(C_reg, zeros(M))
 
-    μ = ones(M)              # uniform mass for SWT modes
-    ν = vcat(ones(K), M - K) # uniform mass for labeled peaks, plus remainder in sink
-    γ = sinkhorn_simple(μ, ν, C, ϵ; maxiter)
+    μ = ones(M)              # mass for SWT modes
+    ν = vcat(ones(K), M - K) # mass for labeled peaks (leftover goes to sink)
+    γ = sinkhorn_simple(μ, ν, C, ϵ; maxiter) # fractional assignments of modes to peaks
 
-    L = dot(γ[:, 1:K], C_bare)
-    return L / K
+    return dot(γ[:, 1:K], C_bare) # squared error for the given assignments
 end
 
 """
-    squared_error_bands_smooth(res, Es; σ, maxiter=1000)
+    squared_error_bands_smooth(res, Es; σ)
 
 Like `squared_error_bands` but uses entropy-regularized optimal transport to
 smoothly assign spin wave modes (`res`) to labeled peak energies (`Es`). Entropy
 regularization may be useful as part of an annealing procedure to search for a
 globally optimal fit.
 
-This function coincides with [`squared_error_bands`](@ref) in the limit of
-vanishing energy uncertainty `σ`.
+The energy parameter `σ` can be interpreted as an uncertainty in the `Es` data
+and controls the amount of smoothing. This function coincides with
+[`squared_error_bands`](@ref) in the limit of vanishing `σ`.
 """
 function squared_error_bands_smooth(res :: Sunny.BandIntensities,
                                     Es :: Vector{Vector{Float64}};
-                                    σ, ν=0.1, ϵ=1.0, maxiter=1_000)
+                                    σ, ν=0.2, ϵ=1.0, maxiter=1_000)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
     X0s = eachcol(reshape(res.data, nbands, :))
@@ -328,8 +323,8 @@ function squared_error_bands_smooth(res :: Sunny.BandIntensities,
     ϵ > 0 || error("Entropic regularization ϵ must be positive")
     maxiter > 0 || error("Max iteration count must be positive")
 
-    # TODO: Fix normalization; use bare sums, then divide by `norm2(Es) / σ^2`.
-    return Statistics.mean(bands_transport_loss.(E0s, X0s, Es; σ, ν, ϵ, maxiter))
+    err = sum(bands_transport_loss.(E0s, X0s, Es; σ, ν, ϵ, maxiter))
+    return err / norm2(Es / σ)
 end
 
 """
