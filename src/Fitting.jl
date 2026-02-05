@@ -1,16 +1,26 @@
-struct FittingLoss{F}
+struct FittingLoss{F, T <: NamedTuple}
     f :: F
     sys :: System
     labels :: Vector{Symbol}
+    hp :: T
+end
+
+function with_hyperparams(loss::FittingLoss, hp)
+    hp = Base.merge(loss.hp, hp) # If keys overlapping, 2nd arg wins
+    return FittingLoss(loss.f, loss.sys, loss.labels, hp)
 end
 
 """
-    make_loss_fn(f, sys, labels)
+    make_loss_fn(f, sys, labels, hp=(;))
 
 Returns a loss function to be evaluated on values associated with the specified
 parameter `labels`. This loss function is suitable for optimization. If an
 intensity calculation throws an instability error, the loss function will catch
 it and return an infinite penalty.
+
+The callback `f` will receive a `sys` with updated parameter values as its first
+argument. If a second argument is accepted, it will receive updated
+hyperparameters `hp`, as set by `with_hyperparameters`.
 
 # Example
 
@@ -19,13 +29,13 @@ loss = make_loss_fn(sys, labels) do sys
     # When this code is executed, sys will contain updated parameter values
     scga = SCGA(sys; measure, kT, dq)
     res = intensities_static(scga, grid)
-    return squared_error(res.data, reference_data; rescale=true)
+    return squared_error_with_rescaling(res.data, reference_data)
 end
 
 # The loss function can be evaluated directly on parameter values
 loss(values)
 
-# Optim.jl is effective for model fitting
+# Optim.jl can be used for model fitting
 import Optim
 opts = Optim.Options(
     iterations = 500,
@@ -45,31 +55,43 @@ import DifferentiationInterface as DI
 res = Optim.optimize(loss, guess, Optim.LBFGS(), opts; autodiff=DI.AutoZygote())
 ```
 """
-function make_loss_fn(f, sys, labels)
-    return FittingLoss(f, sys, labels)
+function make_loss_fn(f, sys, labels, hp=(;))
+    return FittingLoss(f, sys, labels, hp)
 end
 
 function (fl::FittingLoss)(vals)
-    (; f, sys, labels) = fl
+    (; f, sys, labels, hp) = fl
 
     sys = clone_system(sys)
     set_params!(sys, labels, vals)
     sys.active_labels = labels
     try
-        return f(sys)
+        if applicable(f, sys, hp)
+            return f(sys, hp)
+        elseif applicable(f, sys)
+            return f(sys)
+        else
+            error("Loss function not callable")
+        end
     catch err
         (err isa InstabilityError) ? Inf : rethrow(err)
     end
 end
 
 function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
-    (; f, sys, labels) = fl
+    (; f, sys, labels, hp) = fl
 
     sys = clone_system(sys)
     set_params!(sys, labels, vals)
     sys.active_labels = labels
     (y, f_pb) = try
-        CRC.rrule_via_ad(rc, f, sys)
+        if applicable(f, sys, hp)
+            CRC.rrule_via_ad(rc, f, sys, hp)
+        elseif applicable(f, sys)
+            CRC.rrule_via_ad(rc, f, sys)
+        else
+            error("Loss function not callable")
+        end
     catch err
         (err isa InstabilityError) ? (Inf, nothing) : rethrow(err)
     end
@@ -183,82 +205,10 @@ function squared_error_with_rescaling(x, y; weights=nothing)
     return (; error, rescaling)
 end
 
-# Rescale v such that sum(v) = 1
-fractionalize(v) = iszero(v) ? one.(v) / length(v) : v ./ sum(v)
 
-function studentt_kernel(x::Real, ν::Real)
-    ν > 0 || error("ν must be positive")
-    if isinf(ν)
-        return exp(-x^2/2)
-    else
-        return exp(-((ν+1)/2) * log1p(x^2/ν))
-    end
-end
-
-
-function bands_coverage_loss_aux(E0, X0, E; σ, ν, r, α)
-    isempty(E) && return 0.0
-    all(>=(0), X0) || error("Intensity measure must be nonnegative")
-
-    a_0 = studentt_kernel(r, ν)
-    a = [@. studentt_kernel((E_k-E0)/σ, ν) for E_k in E] # a[k][m], affinity of mode m to peak k
-    A = sum(a)                                           # A[m] = ∑ₖ a[k][m]
-    q = [@. a_k / (a_0 + A) for a_k in a]                # q[k][m], fractional allocation of mode m across nearby peaks k
-
-    # It is tempting to construct w from flattened intensities X0 .^ α for α < 1
-    # to ensure "some mode m matches a peak k" without overemphasizing the
-    # intensity on m. But doing so naively would introduce a singularity in the
-    # decomposition of intensity X0 among degenerate modes. To incorporate α
-    # while maintaining smoothness, we'd need a preliminary step to "spread" the
-    # intensity uniformly between nearby modes.
-    w = fractionalize(X0)                             # w[m], fractional intensity in mode m
-    μ = [w' * q_k for q_k in q]                       # μ[k], fractional intensity collected by peak k over all m
-
-    # The positive loss term -log(μ_k) pushes for _some_ intensity in each peak
-    # k. The slow growth of log(⋅) helps to avoid the situation where one peak k
-    # accumulates more intensity than needed. By construction, L_coverage ≥ 0.
-    # Note that L_coverage = 0 only if μ_k = μ_ideal, which would indicate that
-    # every peak collects an equal and full amount of weight from each mode.
-    ϵ = 1e-12
-    μ_ideal = 1 / length(μ)
-    L_coverage = Statistics.mean(- log((μ_k + ϵ) / (μ_ideal + ϵ)) for μ_k in μ)
-
-    # TODO: Allow for optional X data and match it to X0 via an additional term
-    L_intensity = 0.0
-
-    return L_coverage + L_intensity
-end
-
-function bands_coverage_loss(res :: Sunny.BandIntensities,
-                             Es :: Vector{Vector{Float64}};
-                             σ,
-                             ν = 3.0,
-                             r = 1.0,
-                             α = 1.0)
-    eltype(res.data) <: Real || error("Intensities must be real scalar valued")
-    nbands = size(res.disp, 1)
-    E0s = eachcol(reshape(res.disp, nbands, :))
-    X0s = eachcol(reshape(res.data, nbands, :))
-    Nq = length(E0s)
-    length(Es) == Nq || error("Expected $Nq energy vectors")
-    σ > 0 || error("Energy uncertainty σ must be positive")
-    0 < r || error("Dummy activation fraction r must be positive")
-    0 ≤ α ≤ 1 || error("Intensity weighting exponent α must be in [0, 1] (currently unused)")
-    ν > 0 || error("Shape parameter ν of Student's t kernel must be positive")
-
-    return Statistics.mean(bands_coverage_loss_aux.(E0s, X0s, Es; σ, ν, r, α))
-end
-
-
-"""
-    sinkhorn_simple(μ, ν, C, ϵ; tol=1e-5, maxiter=1_000, check_every=10)
-
-Balanced entropic Sinkhorn (matrix scaling):
-  γ = diag(u) * K * diag(v),  K = exp.(-C/ϵ)
-
-Stops when both marginal constraints are satisfied to `tol` in ∞-norm.
-Returns γ.
-"""
+# Simple implementation of the Sinkhorn Gibbs algorithm for balanced optimal
+# transport with entropic regularization. Should be essentially the same as
+# OptimalTransport.sinkhorn.
 function sinkhorn_simple(μ::AbstractVector, ν::AbstractVector, C::AbstractMatrix, ϵ::Real;
                          tol=1e-8, maxiter=10_000)
     M, N = size(C)
@@ -309,66 +259,91 @@ function sinkhorn_simple(μ::AbstractVector, ν::AbstractVector, C::AbstractMatr
     return γ
 end
 
-
-# using OptimalTransport
-
-"""
-    bands_transport_loss_aux(E0, E; σ, ϵ, κ=3.0, maxiter=1000)
-
-Balanced entropic optimal transport with dummy "peak" to absorb extra modes.
-
-- μ[m] = 1     (each mode m supplies 1)
-- ν[k] = 1     (each peak k absorbs 1)
-- ν[K+1] = M-K (dummy peak absorbs remaining modes)
-
-Cost:  
-    C_mk     = (E0[m] - E[k])² / σ², with soft cap at κ².
-    C_m(K+1) = k² / 2
-
-Requires M ≥ K. Returns inner product ⟨γ, C⟩ without dummy column.
-"""
-function bands_transport_loss_aux(E0, X0s, E; σ, ϵ, κ, maxiter)
+# Use balanced optimal transport to smoothly assign labeled peaks E[k] to
+# theoretical modes E0[m].
+function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
     M, K = length(E0), length(E)
-    M ≥ K || error("Dummy-bin construction assumes M ≥ K (got M=$M, K=$K).")
-
-    # Upper bound on transport cost κ = ΔE_max / σ
-    maxcost = κ^2
+    M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
 
     # M×K, cost matrix for matching mode m to peak k
-    C = zeros(M, K+1)
-    for m in 1:M
-        for k in 1:K
-            u = (E0[m] - E[k])^2 / σ^2
-            C[m, k] = maxcost * (u / (u + maxcost))
-        end
-        C[m, K+1] = maxcost/2
-    end
+    C_bare = [((E0[m] - E[k]) / σ)^2 for m in 1:M, k in 1:K]
+
+    # TODO: Consider shifting each column of C_bare by, say,  
+    #    colmin = minimum(C_bare, dims=1)  
+    #    C_bare .- softmax.(colmin - 3, 0)  
+    # Doing so before taking the log preserves some numerical range.
+    # Effectively, it enlarges the occupation γ[m,k] of the mode m nearest to
+    # each k. But need to be careful that very far modes eventually get sent to
+    # the sink.
+
+    # M×(K+1) kernel for use in optimal transport. The final column is a "sink"
+    # to absorb unused modes. A constant shift to the sink column is arbitrary
+    # (no effect on transport plan γ).
+    C = hcat(log.(1 .+ C_bare), fill(ϵ, M))
+
+    # FP64 has limited range, and very large values of C/ϵ are effectively
+    # "infinite cost" anyway. Considering a cap to stabilize the numerics.  
+    #    @. C = softcap(C, 15.0*ϵ; β=1/ϵ)
 
     μ = ones(M)              # uniform mass for SWT modes
-    ν = vcat(ones(K), M - K) # uniform mass for labeled peaks, plus remainder in dummy
-
-    # γ = sinkhorn(μ, ν, C, ϵ, SinkhornStabilized(); maxiter)
+    ν = vcat(ones(K), M - K) # uniform mass for labeled peaks, plus remainder in sink
     γ = sinkhorn_simple(μ, ν, C, ϵ; maxiter)
 
-    L = dot(γ[:, 1:K], C[:, 1:K])
+    L = dot(γ[:, 1:K], C_bare)
     return L / K
 end
 
-function bands_transport_loss(res :: Sunny.BandIntensities,
-                              Es :: Vector{Vector{Float64}};
-                              σ, ϵ=1.0, κ=3.0, maxiter=1000)
-    eltype(res.data) <: Real || error("Intensities must be real scalar valued")
+"""
+    squared_error_bands_smoothed(res, Es; σ, ϵ, maxiter=1000)
+
+Like `squared_error_bands` but uses entropy-regularized optimal transport to
+smoothly assign spin wave modes (`res`) to labeled peak energies (`Es`). Entropy
+regularization may be useful as part of an annealing procedure to search for a
+globally optimal fit.
+"""
+function squared_error_bands_smoothed(res :: Sunny.BandIntensities,
+                                      Es :: Vector{Vector{Float64}};
+                                      σ, ϵ=1.0, maxiter=1_000)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
     X0s = eachcol(reshape(res.data, nbands, :))
-    Nq = length(E0s)
-    length(Es) == Nq || error("Expected $Nq energy vectors")
+    length(Es) == length(E0s) || error("Mismatch in bands vs data q-length ($(length(E0s))) ≠ $(length(Es))")
     σ > 0 || error("Energy uncertainty σ must be positive")
     ϵ > 0 || error("Entropic regularization ϵ must be positive")
-    κ > 0 || error("Max sensitivity distance κ must be positive")
     maxiter > 0 || error("Max iteration count must be positive")
 
-    return Statistics.mean(bands_transport_loss_aux.(E0s, X0s, Es; σ, ϵ, κ, maxiter))
+    # TODO: Fix normalization; use bare sums, then divide by `norm2(Es) / σ^2`.
+    return Statistics.mean(bands_transport_loss.(E0s, X0s, Es; σ, ϵ, maxiter))
+end
+
+"""
+    squared_error_bands(res, Es)
+
+Squared error between the discrete modes of an [`intensities_bands`](@ref)
+calculation (`res`) and experimental intensity peak energies (`Es`) for the same
+set of ``𝐪``-points. Each element `Es[i]` is itself a list of labeled intensity
+peaks for the `i`th ``𝐪``-point. Every labeled peak must match some spin wave
+mode, but the converse may not be true: Spin wave modes without a labeled peak
+counterpart do not contribute to the squared error.
+
+Uses the [Hungarian package](https://github.com/Gnimuc/Hungarian.jl) for optimal
+assignment of modes to peaks.
+"""
+function squared_error_bands(res :: Sunny.BandIntensities,
+                             Es :: Vector{Vector{Float64}})
+    nbands = size(res.disp, 1)
+    E0s = eachcol(reshape(res.disp, nbands, :))
+    X0s = eachcol(reshape(res.data, nbands, :))
+    length(Es) == length(E0s) || error("Mismatch in bands vs data q-length ($(length(E0s))) ≠ $(length(Es))")
+
+    err = sum(map(E0s, X0s, Es) do E0, X0, E
+        M, K = length(E0), length(E)
+        M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
+        C = [(E0[m] - E[k])^2 for m in 1:M, k in 1:K]
+        hungarian(C)[2]
+    end)
+
+    return err / norm2(Es)
 end
 
 
@@ -393,6 +368,7 @@ the uncertainty estimate may be too high.
 function uncertainty_matrix(loss, x)
     return loss(x) * inv(FiniteDiff.finite_difference_hessian(loss, x))
 end
+
 
 ### Autodiff
 

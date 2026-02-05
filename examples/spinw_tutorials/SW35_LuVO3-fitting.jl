@@ -60,11 +60,11 @@ path = q_space_path(cryst, [Q1, Q2, Q3], 500)
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities_bands(swt, path)
-plot_intensities(res)
+plot_intensities(res, title="Previous work")
 
-# This tutorial will refit the model parameters using points on the dispersion
-# curves. The energies below were extracted from Fig. 1d of Skoulatos et al.
-# using the [WebPlotDigitizer](https://automeris.io/) tool.
+# This tutorial will refit the model using the labeled points of Fig. 1d of
+# Skoulatos et al. The data below was extracted using the
+# [WebPlotDigitizer](https://automeris.io/) tool.
 
 qs = [
     [0.0, 1.0, 2.0], [0.0, 1.0, 2.1], [0.0, 1.0, 2.2], [0.0, 1.0, 2.3],
@@ -87,8 +87,7 @@ Es = [
 loss = make_loss_fn(sys, labels) do sys
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
     res = intensities_bands(swt, qs)
-    # Sunny.bands_coverage_loss(res, Es; σ=0.5)
-    Sunny.bands_transport_loss(res, Es; σ=2, ϵ=1.0, κ=3.0)
+    squared_error_bands(res, Es)
 end;
 
 # Select some relatively non-informative parameter guess. Measure its loss
@@ -97,53 +96,43 @@ end;
 guess = [3, 3, -0.2, -0.1] # Guess for [Jab, Jc, Kxx, Kyy]
 loss(guess)
 
-# The [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl) package provides a
-# variety of powerful optimization methods. The particle swarm method is
-# gradient free, has some ability to overcome local minima, and supports
-# specification of lower and upper bounds on the optimization variables. Use 10
-# independent runs of particle swarm to search for a good model.
+# The [Optim](https://github.com/JuliaNLSolvers/Optim.jl) package provides a
+# variety of powerful optimization methods. For example, it supports particle
+# swarm as used  the original SpinW tutorial. In the present context,
+# however, the simpler Nelder-Mead method is sufficient to find the optimal
+# model.
 
 import Optim
 
-lower = [0., 0, -4, -4]
-upper = [10., 10, 0, 0]
-method = Optim.ParticleSwarm(; lower, upper, n_particles=10)
-options = Optim.Options(; iterations=100)
-
-
-###
-for i in 1:10
-    best_fit = Optim.optimize(loss, guess + 0.1*randn(4), method, options)
-    @show best_fit.minimum
-    @show best_fit.minimizer
-end
-##
-
-fits = map(1:10) do i
-    fit = Optim.optimize(loss, guess, method, options)
-    println("Iteration $i, loss $(fit.minimum), params $(fit.minimizer)")
-    fit
-end;
-
-# Fine tune the best model to about 6 digits of accuracy in meV.
-
+method = Optim.NelderMead()
 options = Optim.Options(; g_tol=1e-6)
-best_fit = argmin(fit -> fit.minimum, fits)
-best_fit = Optim.optimize(loss, best_fit.minimizer, Optim.NelderMead(), options)
-best_fit.minimizer # [Jab, Jc, Kxx, Kyy]
+fit = Optim.optimize(loss, guess, method, options)
+fit.minimizer # [Jab, Jc, Kxx, Kyy]
 
-# A rough uncertainty estimate along each fitted parameter direction.
+# Approximate error bars can be obtained from [`uncertainty_matrix`](@ref).
 
-U = uncertainty_matrix(loss, best_fit.minimizer)
+U = uncertainty_matrix(loss, fit.minimizer)
 sqrt.(diag(U)) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
 
-# Compare the fitted spectrum to the experimentally measured peaks.
+# The parameter fits are in reasonable agreement with previous work:
+#
+# | Parameter | This study (meV) | Skoulatos et al. (meV) |
+# |:----------|-----------------:|-----------------------:|
+# | Jab       | 6.1 ± 0.2        | 5.95                   |
+# | Jc        | 4.0 ± 0.2        | 4.24                   |
+# | Kxx       | -0.6 ± 0.08      | -0.48                  |
+# | Kyy       | -0.09 ± 0.04     | -0.06                  |
+#
+# Finally, plot the fitted spectrum in the context of the experimentally
+# measured peaks. The helper function [`find_qs_along_path`](@ref) maps
+# ``𝐪``-points to indices. The latter can be used as ``x``-coordinates within
+# the [`plot_intensities`](@ref) scene.
 
-set_params!(sys, labels, best_fit.minimizer)
+set_params!(sys, labels, fit.minimizer)
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities_bands(swt, path)
-fig = plot_intensities(res, ylims=(0, 40))
-qinds = Sunny.find_qs_along_path(qs, path)
+fig = plot_intensities(res; ylims=(0, 40), title="Updated fit")
+qinds = find_qs_along_path(qs, path)
 data_pairs = [(q, Eq) for (q, Eqs) in zip(qinds, Es) for Eq in Eqs]
 plot!(fig[1, 1], data_pairs; color=:transparent, strokecolor=:magenta, strokewidth=3)
 fig

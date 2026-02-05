@@ -2,7 +2,7 @@
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Ewalder = "2efd4204-53b6-4d30-8cf4-11a055f037eb"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
-FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
+FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
 IOCapture = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

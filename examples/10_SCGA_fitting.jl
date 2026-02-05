@@ -134,18 +134,16 @@ opt.minimizer ./ units.K # [J1, J2, J3a, J3b]
 # can also be much faster when there are many model parameters. Sunny currently
 # supports autodiff in the special case of the [`SCGA`](@ref) calculator.
 #
-# Uncomment the code below to get the same fit using autodiff. It requires
-# installation of
+# **Optional**: Repeat the same fitting task with autodiff enabled. This
+# requires additional packages:
 # [DifferentiationInterface](https://github.com/JuliaDiff/DifferentiationInterface.jl)
-# and [Zygote](https://github.com/FluxML/Zygote.jl) packages.
+# and [Zygote](https://github.com/FluxML/Zygote.jl).
 
-#=
 import Zygote
 import DifferentiationInterface as DI
 
 opt = Optim.optimize(loss, guess, Optim.LBFGS(), options; autodiff=DI.AutoZygote())
 opt.minimizer
-=#
 
 # Compare ``\mathcal{S}(𝐪)`` in the low-resolution [H, K, 0] slice that was
 # used for model fitting. As a plotting trick, we reuse the `res` structure but

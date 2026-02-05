@@ -8,6 +8,7 @@ import ElasticArrays: ElasticArray
 import FFTW
 import FiniteDiff
 import HCubature: hcubature
+import Hungarian: hungarian
 import JLD2
 import LineSearches
 import OffsetArrays: OffsetArray
@@ -94,8 +95,8 @@ include("Measurements/QPoints.jl")
 include("Measurements/IntensitiesTypes.jl")
 include("Measurements/Broadening.jl")
 include("Measurements/RotationalAverages.jl")
-export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid, lorentzian, gaussian,
-    powder_average, domain_average
+export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid,
+    find_qs_along_path, lorentzian, gaussian, powder_average, domain_average
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
@@ -148,7 +149,8 @@ include("Binning/ExperimentData.jl")
 export BinningParameters, load_nxs
 
 include("Fitting.jl")
-export squared_error, squared_error_with_rescaling, make_loss_fn, uncertainty_matrix
+export squared_error, squared_error_with_rescaling, squared_error_bands,
+    make_loss_fn, uncertainty_matrix
 
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, dynamic_correlations,

@@ -42,6 +42,7 @@ energy
 energy_per_site
 excitations
 excitations!
+find_qs_along_path
 gaussian
 get_param
 get_params
@@ -107,6 +108,7 @@ spin_matrices
 spiral_energy
 spiral_energy_per_site
 squared_error
+squared_error_bands
 squared_error_with_rescaling
 ssf_custom
 ssf_custom_bm
