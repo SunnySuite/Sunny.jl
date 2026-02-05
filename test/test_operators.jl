@@ -263,7 +263,8 @@ end
     # Test evaluation of the classical Stevens functions (i.e. spherical
     # harmonics) and their gradients
     let
-        using LinearAlgebra, FiniteDiff, OffsetArrays
+        using LinearAlgebra, OffsetArrays
+        using FiniteDiff: finite_difference_gradient
 
         # Random dipole and Stevens coefficients
         s = normalize(randn(Sunny.Vec3))
