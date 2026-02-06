@@ -261,29 +261,28 @@ end
 
 # Use balanced optimal transport to smoothly assign labeled peaks E[k] to
 # theoretical modes E0[m].
-function bands_transport_loss(E0, X0s, E; σ, ν, ϵ, maxiter)
+function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
     M, K = length(E0), length(E)
     M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
 
     # M×K, cost matrix for matching mode m to peak k
     C_bare = [((E0[m] - E[k]) / σ)^2 for m in 1:M, k in 1:K]
 
-    # A suppression function that grows slightly faster than log(1 + x), but
-    # still subpolynomially. Designed so that f(x) ≈ x when x ≪ 1, and f(x) ~
-    # log(x)^(1+ν) when x ≫ 1.
-    f(x) = iszero(ν) ? log1p(x) : log1p(x^(1/(1+ν)))^(1+ν)
+    # A suppression function for the cost function used in optimal transport.
+    # Asymptotics: f(x) = x + O(x³) and f(x) ~ 2log(x) when x ≫ 1.
+    f(x) = log1p(x + x^2/2)
 
     # Mathematically, the Sinkhorn loss is invariant to a uniform shift of each
     # column. This is because the occupation probabilities γ are tied to
     # exp(-ΔC/ϵ), where ΔC denotes the difference of column (or row) elements.
     # In practice, floating point precision limits the numerical scale of ΔC.
-    # This can be combatted by regularizing C → f(C) where f(x) ~ log(1 + x).
-    # The idea is that C ≈ f(C) when C is small, while large values of C and
-    # f(C) can both be treated as "effectively infinite" in the sense that the
-    # corresponding occupations γ would vanish anyway. Shifting each column of C
-    # prior to the log1p(⋅) operation preserves the dynamic range of that column
-    # (i.e., preserves the relative costs of mode assignment for a given labeled
-    # peak).
+    # This can be combatted by regularizing C → f(C). Suppression function is
+    # faithful at small values, f(C) ≈ C, and grows logarithmically at large
+    # values. The idea is that C and log(C) can both be treated as "effectively
+    # infinite" in the sense that the corresponding occupations γ would vanish
+    # anyway. Shifting each column of C prior to the f(⋅) operation preserves
+    # the dynamic range of that column (i.e., preserves the relative costs of
+    # mode assignment for a given labeled peak).
     colmin = minimum(C_bare, dims=1)
     C_reg = f.(C_bare .- colmin)
 
@@ -313,17 +312,16 @@ and controls the amount of smoothing. This function coincides with
 """
 function squared_error_bands_smooth(res :: Sunny.BandIntensities,
                                     Es :: Vector{Vector{Float64}};
-                                    σ, ν=0.2, ϵ=1.0, maxiter=1_000)
+                                    σ, ϵ=1.0, maxiter=1_000)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
     X0s = eachcol(reshape(res.data, nbands, :))
     length(Es) == length(E0s) || error("Mismatch in bands vs data q-length ($(length(E0s))) ≠ $(length(Es))")
     σ > 0 || error("Energy uncertainty σ must be positive")
-    ν >= 0 || error("Acceleration exponent ν must be nonnegative")
     ϵ > 0 || error("Entropic regularization ϵ must be positive")
     maxiter > 0 || error("Max iteration count must be positive")
 
-    err = sum(bands_transport_loss.(E0s, X0s, Es; σ, ν, ϵ, maxiter))
+    err = sum(bands_transport_loss.(E0s, X0s, Es; σ, ϵ, maxiter))
     return err / norm2(Es / σ)
 end
 

@@ -61,9 +61,9 @@ swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities_bands(swt, path)
 plot_intensities(res, title="Previous work")
 
-# This tutorial will refit the model parameters using the labeled peaks of Fig.
-# 1d of Skoulatos et al. These can be extracted using the
-# [WebPlotDigitizer](https://automeris.io/) tool.
+# This tutorial refits model parameters using the labeled peaks in Fig. 1d of
+# Skoulatos et al. [WebPlotDigitizer](https://automeris.io/) is a convenient way
+# to extract this data.
 
 qs = [
     [0.0, 1.0, 2.0], [0.0, 1.0, 2.1], [0.0, 1.0, 2.2], [0.0, 1.0, 2.3],
