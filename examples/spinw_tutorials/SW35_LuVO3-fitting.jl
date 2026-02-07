@@ -110,11 +110,13 @@ method = Optim.NelderMead()
 options = Optim.Options(; g_tol=1e-6)
 fit = Optim.optimize(loss, guess, method, options)
 fit.minimizer # [Jab, Jc, Kxx, Kyy]
+@assert isapprox(fit.minimizer, [6.1057, 3.9897, -0.6266, -0.0899]; rtol=1e-5) #hide
 
 # Approximate error bars can be obtained from [`uncertainty_matrix`](@ref).
 
 U = uncertainty_matrix(loss, fit.minimizer)
 sqrt.(diag(U)) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
+@assert isapprox(sqrt.(diag(U)), [0.2121, 0.1924, 0.081, 0.0423]; rtol=1e-5) #hide
 
 # The parameter fits are in reasonable agreement with previous work:
 #
