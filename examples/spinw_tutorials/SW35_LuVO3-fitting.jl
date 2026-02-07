@@ -82,8 +82,7 @@ Es = [
 # should not call [`minimize_energy!`](@ref) prior to the
 # [`intensities_bands`](@ref) calculation. Internally,
 # [`squared_error_bands`](@ref) assigns each labeled peak in `Es` to the closest
-# spin wave mode in `res`, subject to the constraint that each spin wave mode
-# can be assigned only once.
+# spin wave mode in `res` (as a one-to-one mapping).
 
 loss = make_loss_fn(sys, labels) do sys
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
@@ -92,9 +91,9 @@ loss = make_loss_fn(sys, labels) do sys
 end;
 
 # Guess some arbitrary parameters that are consistent with the assumed Néel
-# order. Feasibility requires (Jab, Jc) to be positive and (Kxx, Kyy) to be
-# negative. The `squared_error_bands` function is normalized such that values
-# much less than 1 are expected for a good fit.
+# order. This requires positive ``J_{ab}``, ``J_c`` and negative ``K_{xx}``,
+# ``K_{yy}``. Evaluate the loss. A number much less than 1 would be expected for
+# a good fit.
 
 guess = [3, 3, -0.2, -0.1] # Guess for [Jab, Jc, Kxx, Kyy]
 loss(guess)
@@ -120,12 +119,12 @@ sqrt.(diag(U)) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
 
 # The parameter fits are in reasonable agreement with previous work:
 #
-# | Parameter | This study (meV) | Skoulatos et al. (meV) |
-# |:----------|-----------------:|-----------------------:|
-# | Jab       | 6.11 ± 0.21      | 5.95                   |
-# | Jc        | 3.99 ± 0.19      | 4.24                   |
-# | Kxx       | -0.63 ± 0.08     | -0.48                  |
-# | Kyy       | -0.09 ± 0.04     | -0.06                  |
+# | Parameter  | This study (meV) | Skoulatos et al. (meV) |
+# |:-----------|-----------------:|-----------------------:|
+# | ``J_{ab}`` | 6.11 ± 0.21      | 5.95                   |
+# | ``J_c``    | 3.99 ± 0.19      | 4.24                   |
+# | ``K_{xx}`` | -0.63 ± 0.08     | -0.48                  |
+# | ``K_{yy}`` | -0.09 ± 0.04     | -0.06                  |
 #
 # Finally, plot the fitted spectrum in the context of the experimentally
 # measured peaks. The helper function [`find_qs_along_path`](@ref) maps
