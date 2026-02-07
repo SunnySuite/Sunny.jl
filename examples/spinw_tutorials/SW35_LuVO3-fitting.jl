@@ -116,7 +116,7 @@ fit.minimizer # [Jab, Jc, Kxx, Kyy]
 
 U = uncertainty_matrix(loss, fit.minimizer)
 sqrt.(diag(U)) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
-@assert isapprox(sqrt.(diag(U)), [0.2121, 0.1924, 0.081, 0.0423]; rtol=1e-5) #hide
+@assert isapprox(sqrt.(diag(U)), [0.2121, 0.1924, 0.081, 0.0423]; rtol=1e-4) #hide
 
 # The parameter fits are in reasonable agreement with previous work:
 #

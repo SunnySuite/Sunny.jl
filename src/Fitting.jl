@@ -260,7 +260,8 @@ function sinkhorn_simple(μ::AbstractVector, ν::AbstractVector, C::AbstractMatr
 end
 
 # Use balanced optimal transport to smoothly assign labeled peaks E[k] to
-# theoretical modes E0[m].
+# theoretical modes E0[m]. The assignment matrix γ is used to calculate a smooth
+# squared error between all peaks and their closest modes.
 function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
     M, K = length(E0), length(E)
     M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
@@ -268,34 +269,50 @@ function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
     # M×K, cost matrix for matching mode m to peak k
     C_bare = [((E0[m] - E[k]) / σ)^2 for m in 1:M, k in 1:K]
 
-    # A suppression function for the cost function used in optimal transport.
-    # Asymptotics: f(x) = x + O(x³) and f(x) ~ 2log(x) when x ≫ 1.
-    f(x) = log1p(x + x^2/2)
+    # A compression function for the cost matrix used in optimal transport.
+    # Derived using x = log(exp(x)) = log(∑ₙ xⁿ/n!). The truncation below yields
+    # f(x) = x + O(x⁴) at small x and f(x) ~ 3log(x) at large x.
+    f(x) = log1p(x + x^2/2 + x^3/6)
 
-    # Mathematically, the Sinkhorn loss is invariant to a uniform shift of each
-    # column. This is because the occupation probabilities γ are tied to
-    # exp(-ΔC/ϵ), where ΔC denotes the difference of column (or row) elements.
-    # In practice, floating point precision limits the numerical scale of ΔC.
-    # This can be combatted by regularizing C → f(C). Suppression function is
-    # faithful at small values, f(C) ≈ C, and grows logarithmically at large
-    # values. The idea is that C and log(C) can both be treated as "effectively
-    # infinite" in the sense that the corresponding occupations γ would vanish
-    # anyway. Shifting each column of C prior to the f(⋅) operation preserves
-    # the dynamic range of that column (i.e., preserves the relative costs of
-    # mode assignment for a given labeled peak).
+    # Shift each column of the cost matrix so that its smallest value is 0. In
+    # principle, the Sinkhorn algorithm is invariant to such shifts -- its
+    # calculated occupations γ should depend only differences ΔC of column (or
+    # row) elements. Note, however, that this shift becomes geometrically
+    # meaningful once "compression" is performed in the next step.
     colmin = minimum(C_bare, dims=1)
-    C_reg = f.(C_bare .- colmin)
+    C_shift = C_bare .- colmin
+
+    # The Sinkhorn algorithm depends on C through K = exp(-C) (for simplicity,
+    # assume ϵ is scaled into C). If any matrix element of C is large (e.g.
+    # -37), the corresponding occupation γ would be exponentially suppressed
+    # (e.g. exp(-37) ≈ 1e-16, effectively 0 in Float64). To mitigate numerical
+    # issues, we compress the dynamical range of the cost matrix: C → f(C). The
+    # function f is designed so that f(C) ≈ C at small C, yet growing only
+    # logarithmically at large C. Empirically, it seems that the slower
+    # logarithmic growth of f(C) tames numerics while still "sufficiently"
+    # suppressing the γ solution where appropriate. Note: It is crucial to shift
+    # each column of C prior to this compression. This maintains accuracy in ΔC
+    # for the smallest elements of each column. The scheme effectively solves
+    # the problem: "For each labeled peak, C_compress should preserve the
+    # relative costs between the closest modes, but may sacrifice accuracy in
+    # costs of far away modes." In some sense, this compression strategy may be
+    # viewed as an additional geometrical regularization.
+    C_compress = f.(C_shift)
 
     # M×(K+1) kernel for use in optimal transport. The final column is a "sink"
     # to absorb unused modes in the case of M > K. Its numerical value is
     # arbitrary (no effect on γ).
-    C = hcat(C_reg, zeros(M))
+    C = hcat(C_compress, zeros(M))
 
+    # Calculate the fractional assignments γ of modes to peaks.
     μ = ones(M)              # mass for SWT modes
     ν = vcat(ones(K), M - K) # mass for labeled peaks (leftover goes to sink)
-    γ = sinkhorn_simple(μ, ν, C, ϵ; maxiter) # fractional assignments of modes to peaks
+    γ = sinkhorn_simple(μ, ν, C, ϵ; maxiter)
 
-    return dot(γ[:, 1:K], C_bare) # squared error for the given assignments
+    # Calculate the squared error for the smooth assignments γ. In this
+    # calculation it is essential to use C_bare because ultimately we do care
+    # about the _true_ distance squared for purposes of model fitting.
+    return dot(γ[:, 1:K], C_bare)
 end
 
 """
