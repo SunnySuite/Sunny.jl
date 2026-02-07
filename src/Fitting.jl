@@ -285,18 +285,17 @@ function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
     # The Sinkhorn algorithm depends on C through K = exp(-C) (for simplicity,
     # assume ϵ is scaled into C). If any matrix element of C is large (e.g.
     # -37), the corresponding occupation γ would be exponentially suppressed
-    # (e.g. exp(-37) ≈ 1e-16, effectively 0 in Float64). To mitigate numerical
-    # issues, we compress the dynamical range of the cost matrix: C → f(C). The
-    # function f is designed so that f(C) ≈ C at small C, yet growing only
-    # logarithmically at large C. Empirically, it seems that the slower
-    # logarithmic growth of f(C) tames numerics while still "sufficiently"
-    # suppressing the γ solution where appropriate. Note: It is crucial to shift
-    # each column of C prior to this compression. This maintains accuracy in ΔC
-    # for the smallest elements of each column. The scheme effectively solves
-    # the problem: "For each labeled peak, C_compress should preserve the
-    # relative costs between the closest modes, but may sacrifice accuracy in
-    # costs of far away modes." In some sense, this compression strategy may be
-    # viewed as an additional geometrical regularization.
+    # (e.g. exp(-37) ≈ 1e-16, effectively 0 in Float64). To mitigate precision
+    # issues, we compress the dynamical range of the cost matrix elements: C →
+    # f(C). The function f is designed so that f(C) ≈ C at small C, yet grows
+    # only logarithmically at large C. It is crucial to shift each column of C
+    # prior to applying f(⋅). This maintains accuracy in ΔC for the smallest
+    # elements of each column. In effect, for each peak k, C_compress[m, k]
+    # respects the relative costs of the closest modes m, but is allowed to
+    # underestimate costs of far away modes. For purposes of least-squares model
+    # fitting, empirical tests indicate that the logarithmic growth of f(C) is
+    # slow enough to tame numerics, but also fast enough to reasonably suppress
+    # occupations γ at large C.
     C_compress = f.(C_shift)
 
     # M×(K+1) kernel for use in optimal transport. The final column is a "sink"
@@ -304,14 +303,14 @@ function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
     # arbitrary (no effect on γ).
     C = hcat(C_compress, zeros(M))
 
-    # Calculate the fractional assignments γ of modes to peaks.
+    # Use the Sinkhorn algorithm to fractionally assign modes to peaks.
     μ = ones(M)              # mass for SWT modes
     ν = vcat(ones(K), M - K) # mass for labeled peaks (leftover goes to sink)
     γ = sinkhorn_simple(μ, ν, C, ϵ; maxiter)
 
-    # Calculate the squared error for the smooth assignments γ. In this
-    # calculation it is essential to use C_bare because ultimately we do care
-    # about the _true_ distance squared for purposes of model fitting.
+    # Calculate the squared error for the smooth assignments γ. It is essential
+    # to use C_bare because model fitting aims to minimize the _true_ squared
+    # error.
     return dot(γ[:, 1:K], C_bare)
 end
 
