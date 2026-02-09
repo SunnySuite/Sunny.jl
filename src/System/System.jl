@@ -634,7 +634,7 @@ This dipole rescaling convention may be helpful in combination with
 spins from the classical Boltzmann distribution. The estimated
 [`intensities_static`](@ref) ``\\mathcal{S}(𝐪)``, when integrated over all
 ``𝐪``, will be exactly consistent with the quantum-mechanical identity
-``⟨\\hat{S}^2⟩ = s(s+1)`` for dipole operator ``\\hat{S}``.
+``|\\hat{𝐒}|^2 = s(s+1)`` for dipole operator ``\\hat{𝐒}``.
 
 At high temperatures, this dipole rescaling may also be useful in combination
 with the [`SampledCorrelations`](@ref) calculator, which estimates structure

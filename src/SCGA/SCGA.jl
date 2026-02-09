@@ -1,25 +1,33 @@
 """
     SCGA(sys::System; measure, kT, dq)
 
-Constructs an object to calculate [`intensities_static`](@ref) within the
-self-consistent Gaussian approximation (SCGA). This theory assumes a classical
-Boltzmann distribution with temperature `kT`. It is expected to be meaningful
-above the ordering temperature, where fluctuations are approximately Gaussian.
+Constructs an object to perform self-consistent Gaussian approximation (SCGA)
+calculations at temperatures `kT` in the paramagnetic phase. As its name
+suggests, this theory treats the thermal fluctuations of classical spin dipoles
+as approximately Gaussian. SCGA can calculate ``\\mathcal{S}(𝐪)`` via
+[`intensities_static`](@ref) and ``χ`` via
+[`magnetic_susceptibility_per_site`](@ref). If an external magnetic field has
+been specified by [`set_field!`](@ref), SCGA will calculate a nontrivial induced
+[`magnetic_moment`](@ref) at each site.
 
-Only `:dipole` and `:dipole_uncorrected` system modes are supported.
+Prior to calling `SCGA`, it is recommended to rescale the classical dipole
+magnitudes via [`set_spin_rescaling_for_static_sum_rule!`](@ref). This rescaling
+is consistent with the identity ``|\\hat{𝐒}|^2 = s(s+1)`` for the quantum spin
+dipole ``\\hat{𝐒}``.
 
-The theory of SCGA approximates local spin magnitude constraints with a _weaker_
-global constraint condition. For each spin sublattice, the global spin sum rule
-can be expressed as an integral over the unit cube ``𝐪 ∈ [0,1]^3`` for
-wavevectors ``𝐪`` in reciprocal lattice units (RLU). Each such integral will be
-approximated as a discrete sum over a regular grid of `floor(1/dq)^3`
-wavevectors for the provided `dq` value.
+The need for "self-consistency" arises because SCGA replaces the local spin
+magnitude constraints with weaker global constraints. In Sunny, there is one
+global constraint per sublattice. Concretely, this global constraint fixes the
+sum of ``|𝐒|^2`` evaluated over all sites in the sublattice. When transformed
+to Fourier space, the global constraint can be expressed as an integral over one
+cell of the reciprocal lattice, ``𝐪 ∈ [0,1]^3``. This integral is evaluated as
+a discrete sum on a regular grid of `floor(1/dq)^3` wavevectors. Smaller `dq`
+therefore yields a more accurate approximation to the global sum rule. A
+conservative choice might be `dq = 1/10`.
 
 If the conventional crystal cell admits a smaller primitive cell, then the SCGA
-calculations can be accelerated. Construct a smaller system with
-[`reshape_supercell`](@ref) and [`primitive_cell`](@ref). In this case, the
-discretized ``𝐪``-point grid runs over the full Brillouin zone associated with
-the primitive cell of the crystal.
+calculations can be accelerated. See [`reshape_supercell`](@ref) and
+[`primitive_cell`](@ref).
 """
 struct SCGA
     sys :: System
