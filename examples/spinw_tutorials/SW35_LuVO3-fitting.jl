@@ -59,7 +59,7 @@ path = q_space_path(cryst, [Q1, Q2, Q3], 500)
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities_bands(swt, path)
-plot_intensities(res, title="Previous work")
+plot_intensities(res; ylims=(0, 35), title="Previous work")
 
 # This tutorial refits model parameters using the labeled peaks in Fig. 1d of
 # Skoulatos et al. [WebPlotDigitizer](https://automeris.io/) is a convenient way
@@ -134,7 +134,7 @@ sqrt.(diag(U)) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
 set_params!(sys, labels, fit.minimizer)
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities_bands(swt, path)
-fig = plot_intensities(res; ylims=(0, 40), title="Updated fit")
+fig = plot_intensities(res; ylims=(0, 35), title="Updated fit")
 qinds = find_qs_along_path(qs, path)
 data_pairs = [(q, Eq) for (q, Eqs) in zip(qinds, Es) for Eq in Eqs]
 plot!(fig[1, 1], data_pairs; color=:transparent, strokecolor=:magenta, strokewidth=3)
