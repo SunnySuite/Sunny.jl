@@ -150,7 +150,7 @@ export BinningParameters, load_nxs
 
 include("Fitting.jl")
 export squared_error, squared_error_with_rescaling, squared_error_bands,
-    make_loss_fn, uncertainty_matrix
+    make_loss_fn, with_hyperparams, uncertainty_matrix
 
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, dynamic_correlations,

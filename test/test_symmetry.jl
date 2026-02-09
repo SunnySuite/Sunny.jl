@@ -503,17 +503,17 @@ end
         Bond(1, 2, [0, 0, 0])
         Distance 0.3535533906, coordination 6
         Connects [0, 0, 0] to [1/4, 1/4, 0]
-        Allowed exchange matrix: [A C -D
-                                  C A -D
-                                  D D  B]
-        Allowed DM vector: [-D D 0]
+        Allowed exchange matrix: [ A  C D
+                                   C  A D
+                                  -D -D B]
+        Allowed DM vector: [D -D 0]
 
         Bond(3, 5, [0, 0, 0])
         Distance 0.6123724357, coordination 12
         Connects [1/2, 1/2, 0] to [1/4, 0, 1/4]
-        Allowed exchange matrix: [  A  C-E  D-F
-                                  C+E    B -C+E
-                                  D+F -C-E    A]
+        Allowed exchange matrix: [   A -C-E D-F
+                                  -C+E    B C+E
+                                   D+F  C-E   A]
         Allowed DM vector: [E F -E]
 
         Bond(1, 3, [0, 0, 0])
@@ -546,9 +546,9 @@ end
     @test capt.output == """
         Atom 5
         Position [1/4, 0, 1/4], Wyckoff 16c
-        Allowed g-tensor: [ A -B  B
-                           -B  A -B
-                            B -B  A]
+        Allowed g-tensor: [ A B -B
+                            B A  B
+                           -B B  A]
         Allowed anisotropy in Stevens operators:
             c₁*(𝒪[2,-2]+2𝒪[2,-1]-2𝒪[2,1]) +
             c₂*(-7𝒪[4,-3]-2𝒪[4,-2]+𝒪[4,-1]-𝒪[4,1]-7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +

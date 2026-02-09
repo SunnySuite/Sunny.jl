@@ -124,6 +124,7 @@ symmetry_equivalent_bonds
 to_inhomogeneous
 to_product_space
 uncertainty_matrix
+with_hyperparams
 @mix_proposals
 ```
 

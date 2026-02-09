@@ -105,8 +105,15 @@ function coupling_basis_strings(coup_basis; digits, tol=1e-12) :: Matrix{String}
         for idx in eachindex(basis_mat)
             coeff = basis_mat[idx]
             if abs(coeff) > tol
-                coeff_str = coefficient_to_math_string(coeff; digits, tol)
-                push!(J[idx], coeff_str * letter)
+                if is_integer(1/coeff; tol)
+                    s = coeff > 0 ? "" : "-"
+                    denom = round(Int, abs(1/coeff))
+                    denom_str = isone(denom) ? "" : "/$denom"
+                    push!(J[idx], s * letter * denom_str)
+                else
+                    coeff_str = coefficient_to_math_string(coeff; digits, tol)
+                    push!(J[idx], coeff_str * letter)
+                end
             end
         end
     end
@@ -320,4 +327,70 @@ function allowed_anisotropy_string(cryst::Crystal, i_ref::Int; R_global::Mat3, R
         ret *= "\nModified reference frame! Use R*g*R' or rotate_operator(op, R)."
     end
     return ret
+end
+
+
+### Code generation
+
+function generate_code_for_allowed_exchange_aux(cryst::Crystal, b::Bond, name; tol=1e-12)
+    b_str = string(b)
+    basis = basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond; b_ref=b, R_global=Mat3(I))
+
+    J_strs = map(basis) do J
+        row_strs = map(eachrow(J)) do J_i
+            join(number_to_math_string.(J_i; tol), " ")
+        end
+        "[" * join(row_strs, "; ") * "]"
+    end
+
+    labels = Symbol[]
+    maxlen = maximum(length, J_strs)
+
+    code = sprint() do io
+        foreach('A':'Z', J_strs) do letter, J_str
+            padding = repeat(' ', maxlen - length(J_str))
+            label = Symbol("$(name)_$letter")
+            push!(labels, label)
+            println(io, "set_exchange!(sys, $J_str,$padding $b_str, :$label => 0)")
+        end
+    end
+
+    return code, labels
+end
+
+function generate_code_for_allowed_exchange(cryst::Crystal, max_dist; tol=1e-12)
+    bonds = reference_bonds(cryst, max_dist)
+    isempty(bonds) && return ""
+
+    d = global_distance.(Ref(cryst), bonds)
+
+    bin_counts = Int[1]
+    for i in 2:length(d)
+        if isapprox(d[i-1], d[i]; rtol=tol)
+            bin_counts[end] += 1
+        else
+            push!(bin_counts, 1)
+        end
+    end
+
+    names = String[]
+    for (i, n) in enumerate(bin_counts)
+        if n == 1
+            push!(names, "J$i")
+        else
+            for lett in Iterators.take('a':'z', n)
+                push!(names, "J$i$lett")
+            end
+        end
+    end
+
+    all_code = String[]
+    all_labels = Symbol[]
+    foreach(bonds, names) do bond, name
+        code, labels = generate_code_for_allowed_exchange_aux(cryst, bond, name; tol)
+        push!(all_code, code)
+        append!(all_labels, labels)
+    end
+
+    return join(all_code, "\n"), all_labels
 end
