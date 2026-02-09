@@ -279,11 +279,10 @@ end
     magnetic_moment(scga::SCGA, site::Site)
 
 Returns ``- g 𝐒``, the local magnetic moment in units of the Bohr magneton. The
-spin dipole ``𝐒`` and ``g``-tensor may both be [`Site`](@ref) dependent.
+spin dipole ``𝐒`` and ``g``-tensor may both be [`Site`](@ref) dependent. See
+also [`magnetic_moment_per_site`](@ref) for an average over all sites.
 
 The [`SCGA`](@ref) calculator returns a thermodynamic average.
-
-See also [`magnetic_moment_per_site`](@ref).
 """
 function magnetic_moment(sys::System, site)
     site = to_cartesian(site)
@@ -296,8 +295,9 @@ end
 
 Returns the [`magnetic_moment`](@ref) dipole averaged over [`eachsite`](@ref) of
 the system. The return value is dimensionless (implicit units of the Bohr
-magneton). If passed an [`SCGA`](@ref) calculator, the result will be a
-thermodynamic average.
+magneton).
+
+The [`SCGA`](@ref) calculator returns a thermodynamic average.
 """
 function magnetic_moment_per_site(sys::System)
     Statistics.mean(magnetic_moment(sys, site) for site in eachsite(sys))
