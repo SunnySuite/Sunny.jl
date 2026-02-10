@@ -54,25 +54,25 @@ fit = Optim.optimize(loss, values, Optim.NelderMead(), opts)
 
 Hyperparameters `hp`, if provided, will be forwarded as a second argument to
 `f`. Use [`with_hyperparams`](@ref) to generate a new loss function with
-modified `hp`. This can be useful, e.g., to support annealing over a
-regularization strength.
+modified `hp`. This can be useful, e.g., to support annealing over a smoothing
+parameter.
 
 ```julia
-loss0 = make_loss_fn(sys, labels, (; ϵ=1.0)) do sys, (; ϵ)
-    ... # Loss function with regularization ϵ
+loss0 = make_loss_fn(sys, labels, (; ϵ=0.0)) do sys, hp
+    ... # Loss function involving hp.ϵ
 end
 
 for ϵ in (1, 0.5, 0.25, 0.1)
-    loss = with_hyperparams(loss0 (; ϵ))
+    loss = with_hyperparams(loss0, (; ϵ))
     fit = Optim.optimize(loss, values, method, opts)
     values = fit.minimizer
 end
 ```
 
-If the loss involves only the [`SCGA`](@ref) calculator, then automatic
-differentiation is supported, which can improve efficiency and accuracy. See
-[Tutorial 10](@ref "10. Fitting to diffuse scattering data") for a concrete
-example.
+Automatic differentiation of the loss function is supported in certain special
+cases (currently the [`SCGA`](@ref) calculator). This can improve efficiency and
+accuracy. See [Tutorial 10](@ref "10. Fitting to diffuse scattering data") for a
+concrete example.
 """
 function make_loss_fn(f, sys, labels, hp=(;))
     return FittingLoss(f, sys, labels, hp)

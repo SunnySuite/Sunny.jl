@@ -360,6 +360,10 @@ end
 
 function generate_code_for_allowed_exchange(cryst::Crystal, max_dist; tol=1e-12)
     bonds = reference_bonds(cryst, max_dist)
+    filter!(bonds) do b
+        global_distance(cryst, b) > 0.0
+    end
+
     isempty(bonds) && return ""
 
     d = global_distance.(Ref(cryst), bonds)

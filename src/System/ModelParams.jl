@@ -69,14 +69,28 @@ Functions like [`set_exchange!`](@ref), [`set_pair_coupling!`](@ref), and
 associates a `label` and `val` pair with the coupling strength. Modify the
 coupling strength with [`set_param!`](@ref) or [`set_params!`](@ref).
 
-# Example
+The code below sets an anisotropic exchange of the form ``J_{xx} S_i^x S_j^x``.
+and then updates the value of ``J_{xx}``.
 
 ```julia
-# Set a coupling in Jxx of strength 2.0
+# Set an anisotropic exchange with Jxx = 2.0
 set_exchange!(sys, Diagonal([1, 0, 0]), bond, :Jxx => 2.0)
 
-# Modify the coupling strength
+# Modify Jxx to become 3.0
 set_param!(sys, :Jxx, 3.0)
+```
+
+Multiple labeled couplings on the same site or bond will be additive. For
+example, the code below sets a single-ion anisotropy of the form ``K_{xx}
+(S_i^x)^2 + K_{yy} (S_i^x)^2``, and each term can be modified independently.
+
+```julia
+# Set a single-ion anisotropy with two parts
+set_onsite_coupling!(sys, S -> S[1]^2, i, :Kxx => 0.1)
+set_onsite_coupling!(sys, S -> S[2]^2, i, :Kyy => 0.2)
+
+# Modify just the Kxx part
+set_param!(sys, :Kxx, 0.3)
 ```
 """
 const Param = Pair{Symbol, <: Real}
