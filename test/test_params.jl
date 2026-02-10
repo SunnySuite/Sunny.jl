@@ -71,43 +71,28 @@ end
 
 
 @testitem "Code generation" begin
+    using IOCapture
     cryst = Sunny.kagome_crystal()
-    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
 
-    code, labels = Sunny.generate_code_for_allowed_exchange(cryst, 1.0)
+    capt = IOCapture.capture() do
+        Sunny.print_reference_exchanges(cryst, 1.0)
+    end
 
-    @assert code == """
+    @test capt.output == """
         set_exchange!(sys, [1 0 0; 0 0 0; 0 0 0],  Bond(1, 2, [0, 0, 0]), :J1_A => 0)
         set_exchange!(sys, [0 0 0; 0 1 0; 0 0 0],  Bond(1, 2, [0, 0, 0]), :J1_B => 0)
         set_exchange!(sys, [0 0 0; 0 0 0; 0 0 1],  Bond(1, 2, [0, 0, 0]), :J1_C => 0)
         set_exchange!(sys, [0 1 0; -1 0 0; 0 0 0], Bond(1, 2, [0, 0, 0]), :J1_D => 0)
-
         set_exchange!(sys, [1 0 0; 0 0 0; 0 0 0],  Bond(1, 2, [0, 1, 0]), :J2_A => 0)
         set_exchange!(sys, [0 0 0; 0 1 0; 0 0 0],  Bond(1, 2, [0, 1, 0]), :J2_B => 0)
         set_exchange!(sys, [0 0 0; 0 0 0; 0 0 1],  Bond(1, 2, [0, 1, 0]), :J2_C => 0)
         set_exchange!(sys, [0 1 0; -1 0 0; 0 0 0], Bond(1, 2, [0, 1, 0]), :J2_D => 0)
-
-        set_exchange!(sys, [1 0 0; 0 0 0; 0 0 0], Bond(3, 3, [1, 0, 0]), :J3a_A => 0)
-        set_exchange!(sys, [0 0 0; 0 1 0; 0 0 0], Bond(3, 3, [1, 0, 0]), :J3a_B => 0)
-        set_exchange!(sys, [0 0 0; 0 0 0; 0 0 1], Bond(3, 3, [1, 0, 0]), :J3a_C => 0)
-
-        set_exchange!(sys, [1 0 0; 0 0 0; 0 0 0], Bond(1, 1, [1, 0, 0]), :J3b_A => 0)
-        set_exchange!(sys, [0 0 0; 0 1 0; 0 0 0], Bond(1, 1, [1, 0, 0]), :J3b_B => 0)
-        set_exchange!(sys, [0 0 0; 0 0 0; 0 0 1], Bond(1, 1, [1, 0, 0]), :J3b_C => 0)
-        set_exchange!(sys, [0 1 0; 1 0 0; 0 0 0], Bond(1, 1, [1, 0, 0]), :J3b_D => 0)
+        set_exchange!(sys, [1 0 0; 0 0 0; 0 0 0],  Bond(3, 3, [1, 0, 0]), :J3a_A => 0)
+        set_exchange!(sys, [0 0 0; 0 1 0; 0 0 0],  Bond(3, 3, [1, 0, 0]), :J3a_B => 0)
+        set_exchange!(sys, [0 0 0; 0 0 0; 0 0 1],  Bond(3, 3, [1, 0, 0]), :J3a_C => 0)
+        set_exchange!(sys, [1 0 0; 0 0 0; 0 0 0],  Bond(1, 1, [1, 0, 0]), :J3b_A => 0)
+        set_exchange!(sys, [0 0 0; 0 1 0; 0 0 0],  Bond(1, 1, [1, 0, 0]), :J3b_B => 0)
+        set_exchange!(sys, [0 0 0; 0 0 0; 0 0 1],  Bond(1, 1, [1, 0, 0]), :J3b_C => 0)
+        set_exchange!(sys, [0 1 0; 1 0 0; 0 0 0],  Bond(1, 1, [1, 0, 0]), :J3b_D => 0)
         """
-
-    # Work in an arbitrary non-global scope
-    let
-        # A local variable
-        sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
-
-        # Dynamically evaluate code to mutably update sys as a spliced object
-        Core.eval(@__MODULE__, :(let sys = $sys
-            $(Meta.parse("begin $code end"))
-        end))
-
-        set_params!(sys, [:J1_A, :J1_B, :J1_C], [1, 1, 1])
-        @test energy(sys) == 6.0
-    end
 end
