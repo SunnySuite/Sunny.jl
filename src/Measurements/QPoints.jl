@@ -246,8 +246,8 @@ end
     find_qs_along_path(qs, path; atol=1e-8)
 
 Return indices of wavevectors `qs` within a [`q_space_path`](@ref). The `qs`
-must be in sorted along the direction of the `path` (returned indices in
-increasing order).
+must be in sorted order along the direction of the `path`. Consequently, the
+returned indices are non-decreasing.
 """
 function find_qs_along_path(qs, path; atol=1e-8)
     indices = Int[]

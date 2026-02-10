@@ -35,8 +35,6 @@ Note that the system provided to the callback `f` will be updated using
 spin wave calculation at a non energy minimizing state), then `loss` will return
 `Inf`.
 
-# Example
-
 ```julia
 # Construct the loss function
 loss = make_loss_fn(sys, labels) do sys
@@ -57,9 +55,7 @@ fit = Optim.optimize(loss, values, Optim.NelderMead(), opts)
 Hyperparameters `hp`, if provided, will be forwarded as a second argument to
 `f`. Use [`with_hyperparams`](@ref) to generate a new loss function with
 modified `hp`. This can be useful, e.g., to support annealing over a
-regularization strength ϵ.
-
-# Example
+regularization strength.
 
 ```julia
 loss0 = make_loss_fn(sys, labels, (; ϵ=1.0)) do sys, (; ϵ)
