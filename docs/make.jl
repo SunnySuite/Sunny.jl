@@ -154,8 +154,8 @@ Documenter.makedocs(;
                 :tags => "ams",
             ),
         )),
-        size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
-        size_threshold      = 300*2024, # 300KB
+        size_threshold_warn = 300*1024,
+        size_threshold      = 400*1024,
     ),
     draft = isdraft
 )
