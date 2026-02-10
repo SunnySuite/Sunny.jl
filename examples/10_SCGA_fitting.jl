@@ -16,8 +16,8 @@
 # agreement with [Bai et al., Phys. Rev. Lett. 122, 097201
 # (2019)](https://doi.org/10.1103/PhysRevLett.122.097201).
 #
-# Sunny's SCGA fitting workflow is inspired by the Spinteract code [J. Paddison,
-# J. Phys.: Condens. Matter **35**, 495802
+# Sunny's SCGA fitting workflow is inspired by the Spinteract code: [J.
+# Paddison, J. Phys.: Condens. Matter **35**, 495802
 # (2023)](https://doi.org/10.1088/1361-648X/acf261).
 
 using Sunny, GLMakie, LinearAlgebra
@@ -101,15 +101,15 @@ loss = make_loss_fn(sys, labels) do sys
     Sq_error = squared_error_with_rescaling(Sq.data, Sq_ref).error
 
     return 0.5 * χ_error + 0.5 * Sq_error
-end
+end;
 
-# The `loss` can be evaluated like a normal function. As an initial guess,
-# select a null model without any exchange coupling.
+# The loss function can be evaluated at any parameter values. As an initial
+# guess, select a null model without any exchange coupling.
 
 guess = [0.0, 0.0, 0.0, 0.0]
 loss(guess)
 
-# Fit ``[J_1, J_2, J_{3a}, J_{3b}]`` to minimize the `loss` using the
+# Fit ``[J_1, J_2, J_{3a}, J_{3b}]`` to minimize the loss using the
 # [Optim](https://github.com/JuliaNLSolvers/Optim.jl) package. Good methods to
 # try are `Optim.LBFGS()` (requires gradients, possibly faster) and
 # `Optim.NelderMead()` (gradient free, possibly more robust). A good stopping
@@ -214,10 +214,9 @@ sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 # decrease of ``J_2`` and ``J_{3a}`` to maintain consistency with the
 # high-temperature susceptibility data, which fixes the Curie-Weiss temperature.
 #
-# Error bars in the fitted parameters are only approximate because they cannot
-# account for model misspecification. In particular, the SCGA calculations of
-# ``\mathcal{S}(𝐪)`` at ``T = 20`` K are questionable. Note, for example, that
-# the SCGA-predicted susceptibility curve ``χ(T)`` deviates significantly from
-# the data when ``T ≲ 50`` K. As a rule of thumb, SCGA works best deep in the
-# paramagnetic phase, at temperatures large compared to the exchange energy
-# scale.
+# The error bars are likely underestimates, as they cannot account for model
+# misspecification. In particular, the SCGA calculations of ``\mathcal{S}(𝐪)``
+# at ``T = 20`` K are questionable. Note, for example, that the SCGA-predicted
+# susceptibility curve ``χ(T)`` deviates significantly from the data when ``T ≲
+# 50`` K. As a rule of thumb, SCGA works best deep in the paramagnetic phase, at
+# temperatures large compared to the exchange energy scale.
