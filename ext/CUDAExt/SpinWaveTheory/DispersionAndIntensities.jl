@@ -134,10 +134,8 @@ function Sunny.intensities_bands(swt::SpinWaveTheoryDevice, qpts; kT=0, with_neg
     H_d = CUDA.zeros(ComplexF64, 2L, 2L, Nq)
     Sunny.dynamical_matrix!(H_d, swt, reshaped_rlu, qs_d)
 
-    H_dp = [view(H_d,:,:,i) for i in 1:Nq]
-    CUSOLVER.potrfBatched!('L', H_dp)
-
     I_d = CUDA.zeros(ComplexF64, 2L, 2L, Nq)
+
     kernel = @cuda launch=false _set_identity(I_d)
     config = launch_configuration(kernel.fun)
     optimal_threads_1d = config.threads
@@ -152,12 +150,7 @@ function Sunny.intensities_bands(swt::SpinWaveTheoryDevice, qpts; kT=0, with_neg
 
     kernel(I_d; threads=threads, blocks=blocks)
 
-    I_dp = [view(I_d,:,:,i) for i in 1:Nq]
-    CUBLAS.trsm_batched!('R', 'L', 'C', 'N', ComplexF64(1.), H_dp, I_dp)
-    CUBLAS.trsm_batched!('L', 'L', 'N', 'N', ComplexF64(1.), H_dp, I_dp)
-    #evalues_d , _ = CUSOLVER.heevjBatched!('V', 'L', I_d)
-    evalues_d , _ = CUSOLVER.XsyevBatched!('V', 'L', I_d)
-    CUBLAS.trsm_batched!('L', 'L', 'C', 'N', ComplexF64(1.), H_dp, I_dp)
+    evalues_d = hegvd_batched!(H_d, I_d)
 
     kernel = @cuda launch=false _frequencies(I_d, evalues_d)
     config = launch_configuration(kernel.fun)

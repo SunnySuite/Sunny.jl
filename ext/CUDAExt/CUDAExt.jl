@@ -5,6 +5,7 @@ using CUDA
 using Sunny
 
 include("FormFactor.jl")
+include("EigenBatched.jl")
 include("Symmetry/Crystal.jl")
 include("Measurements/IntensitiesTypes.jl")
 include("Measurements/Broadening.jl")
