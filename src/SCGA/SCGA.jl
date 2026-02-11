@@ -242,6 +242,8 @@ end
 # - H⁻¹ vₖ, involving the Hessian H = ∂g/∂λ and the vectors of mixed partials,
 # vₖ = ∂g/∂θₖ.
 function lagrange_multiplier_jacobian(sys, qs, β, λs, labels)
+    iszero(sys.extfield) || error("SCGA autodiff currently requires zero field")
+
     Na = natoms(sys.crystal)
 
     J = zeros(ComplexF64, 3Na, 3Na)
@@ -393,7 +395,7 @@ units = Units(:meV, :angstrom)
 ```
 """
 function magnetic_susceptibility_per_site(scga)
-    iszero(scga.extfield) || error("Bulk susceptibility currently requires zero field")
+    iszero(scga.extfield) || error("SCGA magnetic susceptibility currently requires zero field")
     measure = ssf_custom((q, ssf) -> ssf, scga.sys)
     # Fluctuation dissipation: dμ/dB = ⟨δμ, δμ⟩/kT in inverse energy units
     cryst = orig_crystal(scga.sys)
