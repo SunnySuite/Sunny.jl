@@ -518,13 +518,15 @@ end
     end
 
     sys = System(Sunny.cubic_crystal(), [1 => Moment(s=1, g=1)], :SUN)
+    bond = Bond(1, 1, [1, 0, 0])
 
     q = [0.23, 0, 0]
 
-    set_pair_coupling!(sys, (Si, Sj) -> -(Si'*Sj), Bond(1,1,[1,0,0]); extract_parts=true)
+    set_pair_coupling!(sys, (Si, Sj) -> -(Si'*Sj), bond; extract_parts=true)
     H_conventional = make_lswt_hamiltonian(sys, q)
 
-    set_pair_coupling!(sys, (Si, Sj) -> -(Si'*Sj), Bond(1,1,[1,0,0]); extract_parts=false)
+    msg = "Overwriting coupling for $bond"
+    @test_logs (:warn, msg) set_pair_coupling!(sys, (Si, Sj) -> -(Si'*Sj), bond; extract_parts=false)
     H_alternative = make_lswt_hamiltonian(sys, q)
 
     @test H_conventional ≈ H_alternative

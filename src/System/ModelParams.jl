@@ -6,16 +6,6 @@ function is_unnamed(label::Symbol)
     return startswith(string(label), "Unnamed")
 end
 
-# Warn up to `OverrideWarningMax` times about overriding a coupling
-OverrideWarningCnt::Int = 0
-OverrideWarningMax::Int = 5
-function warn_coupling_overwrite(str)
-    global OverrideWarningCnt, OverrideWarningMax
-    OverrideWarningCnt < OverrideWarningMax && @info str
-    OverrideWarningCnt += 1
-    OverrideWarningCnt == OverrideWarningMax && @info "Suppressing future overwrite notifications."
-end
-
 function replace_model_param!(sys::System, paramspec; reference=nothing, onsites=Tuple{Int, OnsiteCoupling}[], pairs=PairCoupling[])
     paramspec isa Pair{Symbol, <: Real} || error("Use the syntax `:J1 => 1.0` to specify a labeled parameter")
 
@@ -23,13 +13,12 @@ function replace_model_param!(sys::System, paramspec; reference=nothing, onsites
     inds = findall(p.label == label for p in sys.params)
     if !isempty(inds)
         if is_unnamed(label)
-            # Older fitting workflows may repeatedly overwrite unlabeled
-            # couplings. Warn up to 5 times and then silence.
+            # If the parameter is unnamed then use the provided reference, e.g.
+            # "on atom i" or "on bond b".
             reference = @something reference repr(label)
-            warn_coupling_overwrite("Overwriting coupling $reference")
+            @warn "Overwriting coupling $reference"
         else
-            # Be noisy here as a nudge towards set_param! for fitting workflows
-            @info "Overwriting coupling $(repr(label))"
+            @warn "Overwriting coupling $(repr(label))"
         end
         deleteat!(sys.params, only(inds))
     end

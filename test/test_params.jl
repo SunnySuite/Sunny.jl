@@ -1,4 +1,4 @@
-@testitem "Accumulated model parameters" begin
+@testitem "Varying model parameters" begin
     using LinearAlgebra
 
     L = 6
@@ -40,13 +40,20 @@
     J0 = 1.3
     set_exchange!(sys, J0, b)
     E5 = energy(sys)
-    @test E5 ≈ E4 + L * J0
+    @test E5 ≈ (L/2) * (1.0 - 2.0) + L * J0
 
-    # Unnamed parameters can be overwritten in the natural way.
+    # Unnamed parameters can be overwritten in the traditional way
     J0 = 3.4
-    set_exchange!(sys, J0, b)
+    msg = "Overwriting coupling for Bond(1, 1, [0, 0, 1])"
+    @test_logs (:warn, msg) set_exchange!(sys, J0, b)
     E5 = energy(sys)
-    @test E5 ≈ E4 + L * J0
+    @test E5 ≈ (L/2) * (1.0 - 2.0) + L * J0
+
+    # Labeled parameters also
+    msg = "Overwriting coupling :Jxy"
+    @test_logs (:warn, msg) set_exchange!(sys, Diagonal([1.0, 1.0, 0.0]), b, :Jxy => 0.1)
+    E6 = energy(sys)
+    @test E6 ≈ (L/2) * (0.1 - 2.0) + L * J0
 end
 
 
