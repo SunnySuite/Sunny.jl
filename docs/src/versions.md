@@ -25,6 +25,8 @@ This release bring significant support for model fitting ([#471](@ref)).
 * Enhancements to the [`SCGA`](@ref) calculator. External field is now
   supported. One can calculate the [`magnetic_susceptibility_per_site`](@ref)
   and the thermally averaged [`magnetic_moment_per_site`](@ref).
+* Function [`find_qs_along_path`](@ref) is useful for drawing on top of a
+  [`plot_intensities`](@ref) figure for bands data.
 * [Adapted SpinW Tutorial 35](@ref "SW35 - LuVO₃ fitting") uses spin wave theory
   to fit inelastic neutron scattering peaks for LuVO₃.
 * [Tutorial 10](@ref "10. Fitting to diffuse scattering data") uses the SCGA
