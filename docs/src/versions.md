@@ -3,25 +3,24 @@
 ## v0.9.0
 (In development)
 
-This release bring significant support for model fitting as documented in PR
-([#471](@ref)).
+This release bring significant support for model fitting ([#471](@ref)).
 
 * Functions [`set_exchange!`](@ref), [`set_onsite_coupling!`](@ref), and
   [`set_pair_coupling!`](@ref) now accept a trailing [`Param`](@ref) pair of the
   form `label => value`. Labeled parameters can be accessed and modified using
-  the new functions [`get_param`](@ref), [`get_params!`](@ref),
+  the new functions [`get_param`](@ref), [`get_params`](@ref),
   [`set_param!`](@ref), and [`set_params!`](@ref).
 * A warning will always be emitted when overwriting a coupling. For fitting
   workflows, use the [`Param`](@ref) interface instead.
 * The constructor [`make_loss_fn`](@ref) assembles a loss function to be used
   for model fitting. The loss function can be used as input for optimization
-  packages like [Optim](https://github.com/JuliaNLSolvers/Optim.jl). Loss
+  packages like [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl). Loss
   hyperparameters can be controlled using [`with_hyperparams`](@ref).
 * New functions to compare simulation and experimental data.
   [`squared_error`](@ref) yields a dimensionless measure, ignoring NaN values.
   [`squared_error_with_rescaling`](@ref) is similar, but allows for an arbitrary
   rescaling (e.g. for experimental intensities of unknown scale).
-  [`squared_error_band`](@ref) can be used to compare spin wave modes with
+  [`squared_error_bands`](@ref) can be used to compare spin wave modes with
   experimental intensity peaks.
 * Enhancements to the [`SCGA`](@ref) calculator. External field is now
   supported. One can calculate the [`magnetic_susceptibility_per_site`](@ref)
