@@ -280,7 +280,7 @@ end
 
 Returns ``- g 𝐒``, the local magnetic moment in units of the Bohr magneton. The
 spin dipole ``𝐒`` and ``g``-tensor may both be [`Site`](@ref) dependent. See
-also [`magnetic_moment_per_site`](@ref) for an average over all sites.
+[`magnetic_moment_per_site`](@ref) for an average over all sites.
 
 The [`SCGA`](@ref) calculator returns a thermodynamic average.
 """

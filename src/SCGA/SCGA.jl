@@ -372,11 +372,11 @@ the number of sites in the chemical unit cell.
     \\frac{\\mathrm{emu/Oe/mol}}{N_A μ_0 μ_B^2 / 4π×10^{-6}} = 30.9331… / \\mathrm{meV}.
     ```
 
-    The conversion factor to (m³/mol) in SI units is provided by
+    The corresponding conversion factor to (m³/mol) in SI units is provided by
     `units.si_molar_susceptibility`. It is defined using,
 
     ```math
-    1 \\mathrm{emu/Oe/mol} = 4π×10^{-6} \\mathrm{m³/mol}.
+    \\mathrm{emu/Oe/mol} = 4π×10^{-6} \\mathrm{m}^3 / \\mathrm{mol}.
     ```
 
 # Example
