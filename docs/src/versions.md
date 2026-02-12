@@ -406,14 +406,14 @@ these will become hard errors Sunny v0.6.
 
 **New features**.
 
-Support for Linear Spin Wave Theory in `:dipole` and `:SUN` modes. (Thanks Hao
-Zhang!)
+Support for linear spin wave theory (SWT) in `:dipole` and `:SUN` modes. (Thanks
+Hao Zhang!)
 
 New function [`minimize_energy!`](@ref) to efficiently find an optimal
 configuration of spin dipoles or SU(_N_) coherent states.
 
 Major refactors and enhancements to intensity calculations. This new interface
-allows unification between LSWT and classical spin dynamics calculations. This
+allows unification between SWT and classical spin dynamics calculations. This
 interface allows: Custom observables as local quantum operators, better support
 for linebroadening, and automatic binning to facilitate comparison with
 experimental data. See `intensity_formula` for documentation. Use
@@ -443,7 +443,7 @@ sample).
 
 Remove `intensities` function. Instead, use one of `intensities_interpolated` or
 `intensities_binned`. These will require an `intensity_formula`, which defines a
-calculator (e.g., LSWT).
+calculator (e.g., SWT).
 
 Rename `connected_path` to `reciprocal_space_path`, which now returns an
 `xticks` object that can be used in plotting. Replace `spherical_shell` with

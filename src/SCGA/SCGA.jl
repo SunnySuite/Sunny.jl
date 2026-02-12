@@ -353,13 +353,14 @@ Returns the magnetic susceptibility tensor in units of inverse energy,
 ``𝐁`` is the physical applied field, and ``μ_B`` is the Bohr magneton. In terms
 of Sunny quantities, ``\\tilde{χ}`` can be understood as the derivative of
 [`magnetic_moment_per_site`](@ref) (dimensionless) with respect to the argument
-to [`set_field!`](@ref) (energy units).
+of [`set_field!`](@ref) (energy units).
 
-At zero field, fluctuation-dissipation states ``⟨M^α(q=0) M^β(q=0)⟩ / μ_B^2 N_s
-= k_B T \\tilde{χ}^{αβ}``, where ``M(q=0)`` is the magnetic dipole summed over
-all ``N_s`` sites in the sample. The structure factor on the left-hand side can
-be calculated as [`intensities_static`](@ref) (a per-cell quantity) divided by
-the number of sites in the chemical unit cell.
+For a non-magnetized system, fluctuation-dissipation states ``⟨\\hat{M}^α_{q=0}
+\\hat{M}^β_{q=0}⟩ / μ_B^2 N_s = k_B T \\tilde{χ}^{αβ}``, where
+``\\hat{M}_{q=0}`` is the magnetic dipole operator summed over all ``N_s`` sites
+in the sample. The structure factor on the left-hand side can be calculated as
+[`intensities_static`](@ref) (a per-cell quantity) divided by the number of
+sites in the chemical unit cell.
 
 !!! tip "Conversion to molar susceptibility units"
 

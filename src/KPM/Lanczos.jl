@@ -172,7 +172,7 @@ end
 
 Returns estimates of the extremal eigenvalues of the matrix (Ĩ D)^2 using the
 Lanczos algorithm. Here Ĩ is the Bogoliubov identity and D is the dynamical
-matrix from LSWT for the wavevector q_reshaped. `niters` should be given a value
+matrix from SWT for the wavevector q_reshaped. `niters` should be given a value
 smaller than the dimension of `A`.
 """
 function eigbounds(swt, q_reshaped, niters)

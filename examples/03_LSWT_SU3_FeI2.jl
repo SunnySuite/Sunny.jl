@@ -196,9 +196,9 @@ plot_spins(sys_min; color=[S[3] for S in sys_min.dipoles], ghost_radius=12)
 # ### Spin wave theory
 #
 # Now that the system has been relaxed to an energy minimized ground state, we
-# can calculate the spin wave spectrum. Because we are working with a system of
-# SU(3) coherent states, this calculation will require a multi-flavor boson
-# generalization of the usual spin wave theory.
+# can calculate the spin wave spectrum. Because the system was constructed in
+# `:SUN` mode, the spin wave calculation will automatically employ bosons with
+# ``N = 2s+1 = 3` flavors.
 
 swt = SpinWaveTheory(sys_min; measure=ssf_perp(sys_min))
 
