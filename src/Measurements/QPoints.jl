@@ -226,49 +226,57 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range
 end
 
 
-function is_vector_in_segment(x, v1, v2; atol=1e-8)
+function fractional_position_along_segment(x, v1, v2; tol)
     d = v2 - v1
-    norm_d = norm(d)
+    dd = dot(d, d)
 
-    # Degenerate segment
-    norm_d ≤ atol && return norm(x - v1) ≤ atol
+    # Check for degeneracy (segment becomes a point)
+    if dd ≤ tol^2
+        return norm(x - v1) ≤ tol ? 0.0 : NaN
+    end
 
-    # If x - v1 has a nonzero part r that is perpendicular to d, return false
-    r = proj(x - v1, d)
-    norm(r) > atol && return false
+    # Position along the line/segment
+    t = dot(x - v1, d) / dd
 
-    # If collinear, then t in [0, |d|] means within the segment
-    t = (x - v1) ⋅ d / norm_d
-    return 0 - atol ≤ t ≤ norm_d + atol
+    # Collinearity check: distance from x to the line through v1 → v2
+    r = (x - v1) - t * d
+    return norm(r) ≤ tol ? t : NaN
 end
 
 """
-    find_qs_along_path(qs, path; atol=1e-8)
+    find_qs_along_path(qs, path; tol=1e-12)
 
-Return indices of wavevectors `qs` within a [`q_space_path`](@ref). The `qs`
-must be in sorted order along the direction of the `path`. Consequently, the
-returned indices are non-decreasing.
+Return fractional indices of wavevectors `qs` within a [`q_space_path`](@ref).
+The `qs` must be in sorted order along the direction of the `path`.
+Consequently, the returned indices are non-decreasing.
 """
-function find_qs_along_path(qs, path; atol=1e-8)
-    indices = Int[]
+function find_qs_along_path(qs, path; tol=1e-12)
+    indices = Float64[]
+    npts = length(qs)
+    nsegments = length(path.qs) - 1
+
     i = j = 1
-    while i <= length(qs) && j <= length(path.qs) - 1
-        q = qs[i]
+    while i <= npts && j <= nsegments
+        q  = qs[i]
         v1 = path.qs[j]
         v2 = path.qs[j+1]
 
-        if is_vector_in_segment(q, v1, v2; atol)
-            closest_index = norm2(q-v1) < norm2(q-v2) ? j : j+1
-            push!(indices, closest_index)
-            i += 1 # move on to next q
+        t = fractional_position_along_segment(q, v1, v2; tol)
+
+        # t ∈ [0, 1] implies q is within segment [v1, v2]. Allow for some
+        # tolerance.
+        if !isnan(t) && 0-tol ≤ t ≤ 1+tol
+            push!(indices, j + clamp(t, 0, 1))
+            i += 1 # Accept and move to next q
         else
-            j += 1 # move on to next (v1, v2)
+            j += 1 # Move to next segment
         end
     end
 
     n = length(indices)
-    if n < length(qs)
-        error("Failed to find q=$(vec3_to_string(qs[n+1])) in path at tol=$tol")
+    if n < npts
+        q_str = vec3_to_string(qs[n+1])
+        error("Failed to find q=$q_str in path at tol=$tol")
     end
 
     return indices
