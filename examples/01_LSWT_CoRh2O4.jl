@@ -153,7 +153,7 @@ path = q_space_path(cryst, qs, 500)
 
 energies = range(0, 6, 300)
 res = intensities(swt, path; energies, kernel)
-plot_intensities(res; units, title="CoRh₂O₄ LSWT")
+plot_intensities(res; units, title="CoRh₂O₄ Broadened Spin Waves")
 
 # Sometimes experimental data is only available as a powder average, i.e., as an
 # average over all possible crystal orientations. Use [`powder_average`](@ref)

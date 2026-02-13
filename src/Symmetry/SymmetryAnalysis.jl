@@ -200,6 +200,8 @@ to the `max_dist` cutoff in length units. These reference bonds are
 heuristically selected to simplify the expression of symmetry-allowed
 interactions."""
 function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
+    isempty(cryst.sg.symops) && error("Crystal is missing symmetry information")
+
     # Bonds, one for each equivalence class
     ref_bonds = Bond[]
     for i in unique_indices(cryst.classes)
@@ -224,6 +226,26 @@ function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
     end
 end
 reference_bonds(cryst::Crystal, max_dist) = reference_bonds(cryst, convert(Float64, max_dist))
+
+# Like `reference_bonds` but supply a number of bonds
+function reference_bonds_upto(cryst, nbonds; ndims=3)
+    # Calculate heuristic maximum distance
+    min_a = minimum(svdvals(cryst.latvecs))
+    nclasses = length(unique(cryst.classes))
+    max_dist = 2 * min_a * (nbonds / (nclasses*natoms(cryst)))^(1/ndims)
+
+    # Find bonds up to distance, without self-bonds
+    refbonds = filter(reference_bonds(cryst, max_dist)) do b
+        return !(b.i == b.j && iszero(b.n))
+    end
+
+    # Verify max_dist heuristic
+    if length(refbonds) > 10nbonds
+        @warn "Found $(length(refbonds)) bonds using max_dist of $max_dist"
+    end
+
+    return first(refbonds, nbonds)
+end
 
 """
     all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b::Bond)

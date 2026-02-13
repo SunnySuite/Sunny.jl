@@ -25,29 +25,6 @@ function characteristic_length_between_atoms(cryst::Crystal)
     return min(ℓ0, ℓ)
 end
 
-# Like `reference_bonds` but supply a number of bonds
-function reference_bonds_upto(cryst, nbonds, ndims)
-    # Don't show bonds if symmetry information is missing
-    isempty(cryst.sg.symops) && return Bond[]
-
-    # Calculate heuristic maximum distance
-    min_a = minimum(svdvals(cryst.latvecs))
-    nclasses = length(unique(cryst.classes))
-    max_dist = 2 * min_a * (nbonds / (nclasses*natoms(cryst)))^(1/ndims)
-
-    # Find bonds up to distance, without self-bonds
-    refbonds = filter(reference_bonds(cryst, max_dist)) do b
-        return !(b.i == b.j && iszero(b.n))
-    end
-
-    # Verify max_dist heuristic
-    if length(refbonds) > 10nbonds
-        @warn "Found $(length(refbonds)) bonds using max_dist of $max_dist"
-    end
-
-    return first(refbonds, nbonds)
-end
-
 function propagate_reference_bond_for_cell(cryst, b_ref)
     symops = Sunny.canonical_group_order(cryst.sg.symops)
 
@@ -484,7 +461,11 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndim
     if refbonds isa Number
         @assert isinteger(refbonds)
         activate_refbonds = false
-        refbonds = reference_bonds_upto(cryst, Int(refbonds), ndims)
+        refbonds = if isempty(cryst.sg.symops)
+            Bond[] # Symmetry analysis unavailable, e.g., on reshaped crystals
+        else
+            Sunny.reference_bonds_upto(cryst, Int(refbonds); ndims)
+        end
     elseif refbonds isa AbstractArray{Bond}
         activate_refbonds = true
     else

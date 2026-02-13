@@ -1,16 +1,19 @@
 """
     energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
 
-Computes the [𝒪(1/λ) or 𝒪(1/S)] correction to the classical energy **per
-site** [𝒪(λ²) or 𝒪(S²)] given a [`SpinWaveTheory`](@ref). The correction
-[𝒪(λ) or 𝒪(S)] includes a uniform term (For instance, if the classical energy
-is αJS², the LSWT gives a correction like αJS) and the summation over the
-zero-point energy for all spin-wave modes, i.e., 1/2 ∑ₙ ∫d³q ω(q, n), where q
-belongs to the first magnetic Brillouin zone and n is the band index.
+Computes a perturbative correction to the classical energy per site assuming
+large ``s`` (spin magnitude in dipole mode) or large ``λ`` (representation label
+in SU(N) mode). The correction is a sum of two terms. The first is a uniform
+(``𝐪 = 0``) correction. The second integrates over the zero-point energy for
+all spin-wave modes, i.e., 1/2 ∑ₙ ∫d³q ω(q, n), where q belongs to the first
+magnetic Brillouin zone and n is the band index. The correction appears at
+sub-leading order in ``s`` or ``λ``. For instance, if the classical energy is
+``J s^2``, the correction appears at order ``J s``.
 
 A keyword argument `rtol`, `atol`, or `maxevals` is required to control the
-accuracy of momentum-space integration. See the HCubature package documentation
-for details.
+accuracy of momentum-space integration. See the
+[HCubature](https://github.com/JuliaMath/HCubature.jl) documentation for
+details.
 """
 function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
     any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")

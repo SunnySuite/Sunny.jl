@@ -46,11 +46,56 @@ function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
     return hermitianpart!(Jq)
 end
 
+function fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
+    @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
+    @assert sys.dims == (1, 1, 1) "System must have only a single cell"
+    q_reshaped = to_reshaped_rlu(sys, q)
+
+    Na = natoms(sys.crystal)
+    Jq .= 0
+    Jq = reshape(Jq, 3, Na, 3, Na)
+
+    # Ignore param.val because it appears linearly and vanishes under derivative
+    (; onsites, pairs) = lookup_param(sys, label)
+
+    for coupling in pairs
+        (; isculled, bond, bilin, biquad) = coupling
+        isculled && break
+        iszero(biquad) || error("Biquadratic interactions not supported")
+
+        (; i, j, n) = bond
+
+        J = exp(2π * im * dot(q_reshaped, n)) * Mat3(bilin*I)
+        view(Jq, :, i, :, j) .+= J
+        view(Jq, :, j, :, i) .+= J'
+    end
+
+    for (i, onsite_coupling) in onsites
+        (; c2, c4, c6) = onsite_coupling
+        iszero(c4) && iszero(c6) || error("Single-ion anisotropy beyond quadratic order not supported")
+        anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
+                              c2[5] -c2[1]-c2[3] 0.5c2[4];
+                           0.5c2[2]     0.5c2[4]   2c2[3]]
+        view(Jq, :, i, :, i) .+= 2 * anisotropy
+    end
+
+    Jq = reshape(Jq, 3Na, 3Na)
+    @assert diffnorm2(Jq, Jq') < 1e-15
+    return hermitianpart!(Jq)
+end
+
 function fourier_exchange_matrix(sys::System; q)
     Na = natoms(sys.crystal)
     Jq = zeros(ComplexF64, 3Na, 3Na)
     return fourier_exchange_matrix!(Jq, sys; q)
 end
+
+function fourier_exchange_matrix_sensitivity(sys::System, label; q)
+    Na = natoms(sys.crystal)
+    Jq = zeros(ComplexF64, 3Na, 3Na)
+    return fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
+end
+
 
 # Returns the Luttinger-Tisza predicted exchange energy associated with the
 # propagation wavevector k between chemical cells. The LT analysis minimizes

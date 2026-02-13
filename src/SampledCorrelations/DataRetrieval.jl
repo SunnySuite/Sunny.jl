@@ -72,7 +72,7 @@ end
 
 contains_dynamic_correlations(sc) = !isnan(sc.Δω)
 
-# Documented under intensities function for LSWT. TODO: As a hack, this function
+# Documented under intensities function for SWT. TODO: As a hack, this function
 # is also being used as the back-end to intensities_static.
 function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
     if !isnothing(kT) && kT <= 0
@@ -103,7 +103,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     end
     ffs = sc.measure.formfactors[1, :]
 
-    intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
+    intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic SWT
     q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
     crystal = @something sc.origin_crystal sc.crystal
     NCorr  = Val{size(sc.data, 1)}()

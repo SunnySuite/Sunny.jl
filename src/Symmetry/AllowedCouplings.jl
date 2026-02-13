@@ -213,11 +213,30 @@ function sparsify_columns(A::Matrix{T}; atol=1e-12) where T
     return Matrix{T}(rref!(copy(A'), atol)')
 end
 
+function basis_for_symmetry_allowed_couplings_from_projector(P; atol)
+    # Search for eigenvectors of P with eigenvalue 1. These provide an
+    # orthonormal basis for allowed couplings.
+    v = nullspace(P-I; atol)
+    v = sparsify_columns(v; atol)
 
-const basis_elements_by_priority = [1, 5, 9, 8, 3, 4]
+    # Permutation of matrix elements 1:9 to fix sign and ordering conventions of
+    # the allowed couplings. Prefer ascending labels and positive elements along
+    # the diagonal, e.g. [A, B, C]. Same for the DM vector, e.g. [G, H, I].
+    # Columns in v are symmetric or antisymmetric as 3×3 matrices. Omit matrix
+    # elements 6, 7, 2 (dual to 8, 3, 4) as an extra consistency check.
+    element_priority = [1, 5, 9, 8, 3, 4]
 
-function score_basis_matrix(J)
-    return findfirst(i -> abs(J[i]) > 1e-12, basis_elements_by_priority)
+    # Sign convention and normalization
+    ret = map(eachcol(v)) do x
+        i = findfirstval(i -> abs(x[i]) > atol, element_priority)
+        sign(x[i]) * x / maximum(abs, x)
+    end
+
+    # Ordering convention
+    score_basis_matrix(x) = findfirst(i -> abs(x[i]) > 1e-12, element_priority)
+    sort!(ret; by=score_basis_matrix)
+
+    return ret
 end
 
 # Returns a list of ``3×3`` matrices that form a linear basis for the
@@ -247,55 +266,28 @@ function basis_for_symmetry_allowed_couplings_aux(cryst::Crystal, b::BondPos; R_
     P_sym  = P *  sym_basis *  sym_basis'
     P_asym = P * asym_basis * asym_basis'
 
-    acc_sym = Vector{Float64}[]
-    acc_asym = Vector{Float64}[]
+    # Accumulator for allowed bases
+    ret = Vector{Float64}[]
 
-    # If any "reference" basis vectors are eigenvalues of P_sym with eigenvalue
-    # 1, use them as outputs, and remove them from P_sym.
-    for x in eachcol(sym_basis)
-        if isapprox(P_sym*x, x; atol)
-            push!(acc_sym, x)
-            P_sym = P_sym * (I - x*x')
-        end
-    end
-    # Same for P_asym.
-    for x in eachcol(asym_basis)
-        if isapprox(P_asym*x, x; atol)
-            push!(acc_asym, x)
-            P_asym = P_asym * (I - x*x')
-        end
-    end
+    # The identity matrix (Heisenberg coupling) is always allowed by symmetry.
+    # Uncomment below to prepend it to the list of return values. Projecting
+    # this direction out of P would make the remaining couplings traceless.
+    #=
+        I3 = Float64[1, 0, 0, 0, 1, 0, 0, 0, 1]
+        push!(ret, I3)
+        P_sym = P_sym * (I - I3*I3'/3)
+    =#
 
-    # Search for eigenvectors of P_sym with eigenvalue 1. These provide an
-    # orthonormal basis for symmetric couplings.
-    v = nullspace(P_sym-I; atol)
-    v = sparsify_columns(v; atol)
-    append!(acc_sym, eachcol(v))
-    # Same for P_asym
-    v = nullspace(P_asym-I; atol)
-    v = sparsify_columns(v; atol)
-    append!(acc_asym, eachcol(v))
+    # Fill basis matrices from the symmetry/antisymmetric projectors
+    append!(ret, basis_for_symmetry_allowed_couplings_from_projector(P_sym; atol))
+    append!(ret, basis_for_symmetry_allowed_couplings_from_projector(P_asym; atol))
 
-    # Sort basis elements according to the indices where the nonzero elements
-    # first appear
-    sort!(acc_sym;  by=score_basis_matrix)
-    sort!(acc_asym; by=score_basis_matrix)
-
-    acc = [acc_sym; acc_asym]
-    return map(acc) do x
-        # Normalize each basis vector so that its maximum component is 1. The
-        # shift by atol avoids unnecessary sign change in the case where the
-        # maximum magnitude values of x appear symmetrically as ±c.
-        x /= argmax(c -> abs(c + atol), x)
-
-        # Reinterpret as 3x3 matrix.
-        x = Mat3(reshape(x, 3, 3))
-
-        # Check that the coupling J satisifies the point group symmetries in the
-        # original coordinate system (after undoing the R_global rotation).
-        @assert is_coupling_valid(cryst, b, R_global' * x * R_global)
-
-        return x
+    # Map to 3×3 exchange matrices and return
+    return map(ret) do x
+        J = Mat3(reshape(x, 3, 3))
+        # Check symmetry-consistency after undoing the R_global rotation.
+        @assert is_coupling_valid(cryst, b, R_global' * J * R_global)
+        J
     end
 end
 

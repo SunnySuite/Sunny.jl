@@ -112,7 +112,7 @@ end
     @test isapprox(sum(res.data)/length(qs), s1^2 + s2^2; rtol=1e-2)
 end
 
-@testitem "Ferrimagnetic chain" begin
+@testitem "Ferrimagnetic chain intensities" begin
     latvecs = lattice_vectors(3, 5, 8, 90, 90, 90)
     positions = [[0, 0, 0], [0.5, 0, 0]]
     types = ["Ni2", "Fe3"]
@@ -129,6 +129,42 @@ end
     # println(round.(res.data; digits=10))
     golden_data = [5.2798224086, 4.8642933106, 16.3317444291, 4.8642933106, 5.2798224086]
     @test isapprox(golden_data, res.data; rtol=1e-7)
+end
+
+@testitem "Susceptibility consistency" begin
+    using LinearAlgebra
+
+    latvecs = lattice_vectors(3, 5, 8, 90, 90, 90)
+    positions = [[0, 0, 0], [0.5, 0, 0]]
+    types = ["Ni2", "Fe3"]
+    cryst = Crystal(latvecs, positions; types)
+    moments = [1 => Moment(; s=1, g=1), 2 => Moment(; s=5/2, g=1)]
+    sys = System(cryst, moments, :dipole)
+    set_spin_rescaling_for_static_sum_rule!(sys)
+    set_exchange!(sys, diagm([1.0, 1.5, 2.0]), Bond(1, 2, [0, 0, 0]))
+    set_onsite_coupling!(sys, S -> 0.2 * S[3]^2, 1)
+    set_onsite_coupling!(sys, S -> 0.3 * S[2]^2, 2)
+
+    kT = 17.5 * meV_per_K
+    dq = 1/8
+    measure = ssf_trace(sys)
+
+    # Calculate susceptibility tensor from S(q=0)/kT
+    set_field!(sys, [0, 0, 0])
+    scga = SCGA(sys; measure, kT, dq)
+    χ1 = magnetic_susceptibility_per_site(scga)
+
+    # Calculate susceptibility from finite differences of magnetization
+    ϵ = 1e-5
+    set_field!(sys, [0, 0, -ϵ])
+    scga = SCGA(sys; measure, kT, dq)
+    M1 = magnetic_moment_per_site(scga)[3]
+    set_field!(sys, [0, 0, ϵ])
+    scga = SCGA(sys; measure, kT, dq)
+    M2 = magnetic_moment_per_site(scga)[3]
+    χ2 = (M2 - M1) / 2ϵ
+
+    @assert χ1[3, 3] ≈ χ2
 end
 
 @testitem "SCGA Kitchen sink" begin

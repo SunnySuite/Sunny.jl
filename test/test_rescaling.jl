@@ -143,15 +143,16 @@ end
     s = 3/2
     sys1 = System(cryst, [1 => Moment(; s, g=2)], :dipole_uncorrected, seed=0)
     sys2 = System(cryst, [1 => Moment(; s, g=2)], :dipole, seed=0)
+    bond = Bond(1, 1, [1, 0, 0])
 
     # Reference scalar biquadratic without renormalization
-    set_exchange!(sys1, 0, Bond(1, 1, [1,0,0]); biquad=1)
+    set_exchange!(sys1, 0, bond; biquad=1)
     @test sys1.interactions_union[1].pair[1].bilin ≈ 0
     @test sys1.interactions_union[1].pair[1].biquad ≈ 1
 
     # Same thing, but with renormalization
     rcs = Sunny.rcs_factors(s)[2]^2
-    set_exchange!(sys2, 0, Bond(1, 1, [1,0,0]); biquad=1)
+    set_exchange!(sys2, 0, bond; biquad=1)
     @test rcs ≈ (1-1/2s)^2
     @test sys2.interactions_union[1].pair[1].bilin ≈ -1/2
     @test sys2.interactions_union[1].pair[1].biquad ≈ 1 * rcs
@@ -161,7 +162,8 @@ end
     # factor:
     #   1. (S1'*S2)^2 + S1'*S2/2 (a pure coupling of Stevens quadrupoles)
     #   2. -S1'*S2/2             (a Heisenberg shift)
-    set_pair_coupling!(sys2, (S1, S2) -> (S1'*S2)^2, Bond(1, 1, [1,0,0]))
+    msg = "Overwriting coupling for $bond"
+    @test_logs (:warn, msg) set_pair_coupling!(sys2, (S1, S2) -> (S1'*S2)^2, bond)
     @test sys2.interactions_union[1].pair[1].bilin ≈ -1/2
     @test sys2.interactions_union[1].pair[1].biquad ≈ 1 * rcs
 end
@@ -191,7 +193,8 @@ end
     set_dipole!(sys, v2, (1, 1, 1, 2))
     set_exchange!(sys, 0.0, bond; biquad)
     E_SUN_1 = energy(sys)
-    set_pair_coupling!(sys, (Si, Sj) -> biquad * (Si'*Sj)^2, bond)
+    msg = "Overwriting coupling for $bond"
+    @test_logs (:warn, msg) set_pair_coupling!(sys, (Si, Sj) -> biquad * (Si'*Sj)^2, bond)
     E_SUN_2 = energy(sys)
     @test E_dipole ≈ E_SUN_1 ≈ E_SUN_2
 

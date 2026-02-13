@@ -105,8 +105,15 @@ function coupling_basis_strings(coup_basis; digits, tol=1e-12) :: Matrix{String}
         for idx in eachindex(basis_mat)
             coeff = basis_mat[idx]
             if abs(coeff) > tol
-                coeff_str = coefficient_to_math_string(coeff; digits, tol)
-                push!(J[idx], coeff_str * letter)
+                if is_integer(1/coeff; tol)
+                    s = coeff > 0 ? "" : "-"
+                    denom = round(Int, abs(1/coeff))
+                    denom_str = isone(denom) ? "" : "/$denom"
+                    push!(J[idx], s * letter * denom_str)
+                else
+                    coeff_str = coefficient_to_math_string(coeff; digits, tol)
+                    push!(J[idx], coeff_str * letter)
+                end
             end
         end
     end
@@ -320,4 +327,74 @@ function allowed_anisotropy_string(cryst::Crystal, i_ref::Int; R_global::Mat3, R
         ret *= "\nModified reference frame! Use R*g*R' or rotate_operator(op, R)."
     end
     return ret
+end
+
+
+### Code generation
+
+
+function reference_exchanges(cryst::Crystal, max_dist; tol=1e-12)
+    bonds = reference_bonds(cryst, max_dist)
+    filter!(bonds) do b
+        global_distance(cryst, b) > 0.0
+    end
+
+    d = global_distance.(Ref(cryst), bonds)
+
+    bin_counts = Int[1]
+    for i in 2:length(d)
+        if isapprox(d[i-1], d[i]; rtol=tol)
+            bin_counts[end] += 1
+        else
+            push!(bin_counts, 1)
+        end
+    end
+
+    names = String[]
+    for (i, n) in enumerate(bin_counts)
+        if n == 1
+            push!(names, "J$i")
+        else
+            for l in Iterators.take('a':'z', n)
+                push!(names, "J$i$l")
+            end
+        end
+    end
+
+    all_bases = Mat3[]
+    all_bonds = Bond[]
+    all_labels = Symbol[]
+    foreach(bonds, names) do bond, name
+        basis = basis_for_symmetry_allowed_couplings(cryst, bond)
+        m = length(basis)
+        append!(all_bases, basis)
+        append!(all_bonds, fill(bond, m))
+        append!(all_labels, [Symbol(name * "_" * l) for l in Iterators.take('A':'Z', m)])
+    end
+
+    return (all_bases, all_bonds, all_labels)
+end
+
+function print_reference_exchanges(cryst::Crystal, max_dist; tol=1e-12)
+    exchanges, bonds, labels = reference_exchanges(cryst, max_dist; tol)
+
+    J_strs = map(exchanges) do J
+        row_strs = map(eachrow(J)) do J_i
+            join(number_to_math_string.(J_i; tol), " ")
+        end
+        "[" * join(row_strs, "; ") * "]"
+    end
+
+    b_strs = string.(bonds)
+
+    maxlen1 = maximum(length, J_strs)
+    maxlen2 = maximum(length, b_strs)
+
+    lines = map(J_strs, b_strs, labels) do J_str, b_str, label
+        pad1 = repeat(' ', maxlen1 - length(J_str))
+        pad2 = repeat(' ', maxlen2 - length(b_str))
+        "set_exchange!(sys, $J_str,$pad1 $b_str,$pad2 :$label => 0)"
+    end
+
+    println(join(lines, "\n"))
 end

@@ -34,7 +34,7 @@ end
     cryst = Sunny.diamond_crystal()
     sys = System(cryst, [1 => Moment(s=2, g=2)], :SUN; dims=(2, 2, 2))
     randomize_spins!(sys)
-    
+
     J = 0.5
     K = 1.0
     Γ = 0.2
@@ -43,23 +43,24 @@ end
               Γ   J   -D;
               D   D  J+K]
     bond = Bond(1, 2, [0, 0, 0])
-    
+
     set_exchange!(sys, J_exch, bond)
     E = energy(sys)
     dE_dZ = Sunny.energy_grad_coherents(sys)
-    
-    set_pair_coupling!(sys, (Si, Sj) -> Si'*J_exch*Sj, bond; extract_parts=false)
+
+    msg = "Overwriting coupling for $bond"
+    @test_logs (:warn, msg) set_pair_coupling!(sys, (Si, Sj) -> Si'*J_exch*Sj, bond; extract_parts=false)
     E′ = energy(sys)
     dE_dZ′ = Sunny.energy_grad_coherents(sys)
-    
+
     @test E ≈ E′
     @test dE_dZ ≈ dE_dZ′
 
-    set_pair_coupling!(sys, (Si, Sj) -> (Si'*Sj)^2, bond)
+    @test_logs (:warn, msg) set_pair_coupling!(sys, (Si, Sj) -> (Si'*Sj)^2, bond)
     E = energy_per_site(sys)
     dE_dZ = Sunny.energy_grad_coherents(sys)
 
-    set_pair_coupling!(sys, (Si, Sj) -> (Si'*Sj)^2, bond; extract_parts=false)
+    @test_logs (:warn, msg) set_pair_coupling!(sys, (Si, Sj) -> (Si'*Sj)^2, bond; extract_parts=false)
     E′ = energy_per_site(sys)
     dE_dZ′ = Sunny.energy_grad_coherents(sys)
 

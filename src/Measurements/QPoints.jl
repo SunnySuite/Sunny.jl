@@ -129,6 +129,9 @@ become orthogonal in global Cartesian ``𝐪`` coordinates.
 To specify a 1D grid, use [`q_space_path`](@ref) instead.
 """
 function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(Vec3), orthogonalize=false)
+    axes = hcat(axis1, axis2)
+    rank(axes; rtol=1e-12) == 2 || error("Axes are linearly dependent")
+
     # Axes in global coordinates
     A1 = cryst.recipvecs * axis1
     A2 = cryst.recipvecs * axis2
@@ -154,7 +157,6 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(
         length(range2)
     end
 
-    axes = hcat(axis1, axis2)
     coefs_lo = NTuple{2}(axes \ (q_lo - offset))
     coefs_hi = NTuple{2}(axes \ (q_hi - offset))
     coefs_sz = (length1, length2)
@@ -171,6 +173,9 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(
 end
 
 function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range3; orthogonalize=false)
+    axes = hcat(axis1, axis2, axis3)
+    rank(axes; rtol=1e-12) == 3 || error("Axes are linearly dependent")
+
     # Axes in global coordinates
     A1 = cryst.recipvecs * axis1
     A2 = cryst.recipvecs * axis2
@@ -205,7 +210,6 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range
         length(range3)
     end
 
-    axes = hcat(axis1, axis2, axis3)
     coefs_lo = NTuple{3}(axes \ q_lo)
     coefs_hi = NTuple{3}(axes \ q_hi)
     coefs_sz = (length1, length2, length3)
@@ -219,4 +223,61 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range
     @assert range(coefs_lo[1], coefs_hi[1], coefs_sz[1]) ≈ range1
 
     return QGrid{3}(qs, (axis1, axis2, axis3), coefs_lo, coefs_hi, zero(Vec3))
+end
+
+
+function fractional_position_along_segment(x, v1, v2; tol)
+    d = v2 - v1
+    dd = dot(d, d)
+
+    # Check for degeneracy (segment becomes a point)
+    if dd ≤ tol^2
+        return norm(x - v1) ≤ tol ? 0.0 : NaN
+    end
+
+    # Position along the line/segment
+    t = dot(x - v1, d) / dd
+
+    # Collinearity check: distance from x to the line through v1 → v2
+    r = (x - v1) - t * d
+    return norm(r) ≤ tol ? t : NaN
+end
+
+"""
+    find_qs_along_path(qs, path; tol=1e-12)
+
+Return fractional indices of wavevectors `qs` within a [`q_space_path`](@ref).
+The `qs` must be in sorted order along the direction of the `path`.
+Consequently, the returned indices are non-decreasing.
+"""
+function find_qs_along_path(qs, path; tol=1e-12)
+    indices = Float64[]
+    npts = length(qs)
+    nsegments = length(path.qs) - 1
+
+    i = j = 1
+    while i <= npts && j <= nsegments
+        q  = qs[i]
+        v1 = path.qs[j]
+        v2 = path.qs[j+1]
+
+        t = fractional_position_along_segment(q, v1, v2; tol)
+
+        # t ∈ [0, 1] implies q is within segment [v1, v2]. Allow for some
+        # tolerance.
+        if !isnan(t) && 0-tol ≤ t ≤ 1+tol
+            push!(indices, j + clamp(t, 0, 1))
+            i += 1 # Accept and move to next q
+        else
+            j += 1 # Move to next segment
+        end
+    end
+
+    n = length(indices)
+    if n < npts
+        q_str = vec3_to_string(qs[n+1])
+        error("Failed to find q=$q_str in path at tol=$tol")
+    end
+
+    return indices
 end

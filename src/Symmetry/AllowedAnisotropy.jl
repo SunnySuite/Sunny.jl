@@ -4,8 +4,8 @@ function colspace(A; atol::Float64)
     m, n = size(A, 1), size(A, 2)
     (m == 0 || n == 0) && return A
     SVD = svd(A)
-    indices = findall(>(atol), SVD.S)
-    return copy(SVD.U[:, indices])
+    inds = findall(>(atol), SVD.S)
+    return copy(SVD.U[:, inds])
 end
 
 

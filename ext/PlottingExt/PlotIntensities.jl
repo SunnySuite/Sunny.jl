@@ -10,10 +10,15 @@ function get_unit_energy(units, into)
 end
 
 function colorrange_from_data(; data, saturation, sensitivity, allpositive)
-    max_data = ndims(data) == 1 ? data : vec(maximum(data; dims=1))
-    min_data = ndims(data) == 1 ? data : vec(minimum(data; dims=1))
-    cmax = Statistics.quantile(filter(!isnan, max_data), saturation)
-    cmin = Statistics.quantile(filter(!isnan, min_data), 1 - saturation)
+    if ndims(data) == 1
+        max_data = data
+        min_data = data
+    else
+        max_data = mapreduce(x -> (isnan(x) ? -Inf : x), max, data; dims=1)
+        min_data = mapreduce(x -> (isnan(x) ? +Inf : x), min, data; dims=1)
+    end
+    cmax = Statistics.quantile(filter(isfinite, max_data), saturation)
+    cmin = Statistics.quantile(filter(isfinite, min_data), 1 - saturation)
 
     # The returned pair (lo, hi) should be strictly ordered, lo < hi, for use in
     # Makie.Colorbar
