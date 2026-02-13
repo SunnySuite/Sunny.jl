@@ -602,7 +602,7 @@ is the [`spin_label`](@ref) of the relevant magnetic moment. In SU(N) mode, this
 fixes each coherent state magnitude, ``|Z| = √α``, which leads to an effective
 renormalization of local expectation values, ``⟨A⟩ → α ⟨A⟩``.
 """
-function set_spin_rescaling!(sys::System{N}, pairs::Vector{Pair{Int, Real}}) where N
+function set_spin_rescaling!(sys::System{N}, pairs::Vector{<: Pair{Int, <: Real}}) where N
     αs = propagate_atom_data(orig_crystal(sys), sys.crystal, pairs)
     for site in eachsite(sys)
         α = αs[to_atom(site)]
@@ -615,8 +615,8 @@ function set_spin_rescaling!(sys::System{N}, pairs::Vector{Pair{Int, Real}}) whe
         end
     end
 end
-function set_spin_rescaling!(sys::System, α::Real)
-    idxs = unique_indices(orig_crystal(sys))
+function set_spin_rescaling!(sys::System, α)
+    idxs = unique_indices(orig_crystal(sys).classes)
     expr = "[" * join(repr.(idxs) .* " => α", ", ") * "]"
     @warn "Deprecated syntax! Use instead `set_spin_rescaling!(sys, $expr)`"
     set_spin_rescaling!(sys, idxs .=> α)
