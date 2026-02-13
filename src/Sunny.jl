@@ -2,10 +2,13 @@ module Sunny
 
 using LinearAlgebra
 
+import ChainRulesCore as CRC
 import DynamicPolynomials as DP
 import ElasticArrays: ElasticArray
 import FFTW
+import FiniteDiff
 import HCubature: hcubature
+import Hungarian: hungarian
 import JLD2
 import LineSearches
 import OffsetArrays: OffsetArray
@@ -58,17 +61,19 @@ export FormFactor
 include("System/Moment.jl")
 include("System/Types.jl")
 include("System/System.jl")
+include("System/ModelParams.jl")
 include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
-export Moment, System, Site, clone_system, eachsite, position_to_site, global_position,
-    magnetic_moment, set_coherent!, set_dipole!, polarize_spins!, copy_spins!, randomize_spins!,
+export Moment, System, Site, clone_system, eachsite, position_to_site, global_position, magnetic_moment,
+    magnetic_moment_per_site, set_coherent!, set_dipole!, polarize_spins!, copy_spins!, randomize_spins!,
     set_spin_rescaling!, set_spin_s_at!, set_spin_rescaling_for_static_sum_rule!,
     energy, energy_per_site, spin_label, set_onsite_coupling!, set_pair_coupling!,
     set_exchange!, dmvec, enable_dipole_dipole!, set_field!, to_inhomogeneous, set_field_at!,
     set_vacancy_at!, set_onsite_coupling_at!, set_exchange_at!, set_pair_coupling_at!,
-    symmetry_equivalent_bonds, remove_periodicity!, modify_exchange_with_truncated_dipole_dipole!
+    symmetry_equivalent_bonds, remove_periodicity!, modify_exchange_with_truncated_dipole_dipole!,
+    get_param, set_param!, get_params, set_params!, Param
 
 include("MagneticOrdering.jl")
 export print_wrapped_intensities, suggest_magnetic_supercell
@@ -90,8 +95,8 @@ include("Measurements/QPoints.jl")
 include("Measurements/IntensitiesTypes.jl")
 include("Measurements/Broadening.jl")
 include("Measurements/RotationalAverages.jl")
-export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid, lorentzian, gaussian, 
-    powder_average, domain_average
+export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid,
+    find_qs_along_path, lorentzian, gaussian, powder_average, domain_average
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
@@ -121,7 +126,7 @@ export SampledCorrelations, SampledCorrelationsStatic, add_sample!, clone_correl
 
 include("SCGA/NewtonBacktracking.jl")
 include("SCGA/SCGA.jl")
-export SCGA
+export SCGA, magnetic_susceptibility_per_site
 
 include("EntangledUnits/TypesAndAliasing.jl")
 include("EntangledUnits/EntangledUnits.jl")
@@ -142,6 +147,10 @@ export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSample
 include("Binning/Binning.jl")
 include("Binning/ExperimentData.jl")
 export BinningParameters, load_nxs
+
+include("Fitting.jl")
+export squared_error, squared_error_with_rescaling, squared_error_bands,
+    make_loss_fn, with_hyperparams, uncertainty_matrix
 
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, dynamic_correlations,

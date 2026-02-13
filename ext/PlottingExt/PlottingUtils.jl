@@ -132,8 +132,8 @@ function numbers_to_colors!(out::AbstractArray{Makie.RGBAf}, in::AbstractArray{<
         map!(out, in) do c
             # If `cmin ≤ in[i] ≤ cmax` then `0.5 ≤ x ≤ len+0.5`
             x = (c - cmin) / (cmax - cmin) * len + 0.5
-            # Round to integer and clip to range [1, len]
-            colormap[max(min(round(Int, x), len), 1)]
+            # Round to integer and clamp to range [1, len]
+            colormap[clamp(round(Int, x), 1, len)]
         end
     end
     return nothing

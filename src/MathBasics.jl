@@ -90,3 +90,47 @@ function ql(A)
     FRF = reverse!(R)
     return (; Q=QF, L=FRF)
 end
+
+# flatten_to_vec([1, ([2, 3], 4, [5, 6])]) == [1, 2, 3, 4, 5, 6]
+flatten_to_vec(x::Number) = [x]
+flatten_to_vec(x::Array{<: Number}) = vec(x)
+flatten_to_vec(xs) = reduce(vcat, (flatten_to_vec(x) for x in xs))
+
+
+# Rescale v such that sum(v) = 1
+fractionalize(v) = iszero(v) ? one.(v) / length(v) : v ./ sum(v)
+
+# Student's t-distribution, but normalized to 1 at x=0. Converges to exp(-x²/2)
+# when ν → ∞.
+function studentt_kernel(x::Real, ν::Real)
+    ν > 0 || error("ν must be positive")
+    if isinf(ν)
+        return exp(-x^2/2)
+    else
+        return exp(-((ν+1)/2) * log1p(x^2/ν))
+    end
+end
+
+"""
+    softplus(x; β=1) = log(1 + exp(β x)) / β
+
+Smooth approximation to `max(x, 0)`, exact in the limit `β = Inf`.
+"""
+function softplus(x; β=1)
+    β > 0 || error("β must be positive")
+    t = β*x
+    if t > 40
+        return x                 # log(1+exp(t)) ~ t
+    elseif t < -40
+        return exp(t) / β        # log(1+exp(t)) ~ exp(t)
+    else
+        return log1p(exp(t)) / β
+    end
+end
+
+"""
+    softcap(x, cap; β=1) = cap - softplus(cap - x; β)
+
+Smooth approximation to `min(x, cap)`, exact in the limit `β = Inf`.
+"""
+softcap(x, cap; β=1) = cap - softplus(cap - x; β)

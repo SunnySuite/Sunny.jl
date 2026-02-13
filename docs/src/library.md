@@ -19,6 +19,7 @@ ImplicitMidpoint
 Langevin
 LocalSampler
 Moment
+Param
 SampledCorrelations
 SampledCorrelationsStatic
 SCGA
@@ -41,7 +42,10 @@ energy
 energy_per_site
 excitations
 excitations!
+find_qs_along_path
 gaussian
+get_param
+get_params
 global_position
 intensities
 intensities_bands
@@ -51,6 +55,9 @@ lattice_vectors
 load_nxs
 lorentzian
 magnetic_moment
+magnetic_moment_per_site
+magnetic_susceptibility_per_site
+make_loss_fn
 merge_correlations
 minimize_energy!
 minimize_spiral_energy!
@@ -90,6 +97,8 @@ set_onsite_coupling!
 set_onsite_coupling_at!
 set_pair_coupling!
 set_pair_coupling_at!
+set_param!
+set_params!
 set_spin_rescaling!
 set_spin_rescaling_for_static_sum_rule!
 set_spin_s_at!
@@ -98,6 +107,9 @@ spin_label
 spin_matrices
 spiral_energy
 spiral_energy_per_site
+squared_error
+squared_error_bands
+squared_error_with_rescaling
 ssf_custom
 ssf_custom_bm
 ssf_perp
@@ -111,6 +123,8 @@ suggest_timestep
 symmetry_equivalent_bonds
 to_inhomogeneous
 to_product_space
+uncertainty_matrix
+with_hyperparams
 @mix_proposals
 ```
 

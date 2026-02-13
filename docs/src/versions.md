@@ -1,8 +1,36 @@
 # Release Notes
 
-## v0.8.2
+## v0.9.0
 (In development)
 
+This release bring significant support for model fitting ([#471](@ref)).
+
+* Functions [`set_exchange!`](@ref), [`set_onsite_coupling!`](@ref), and
+  [`set_pair_coupling!`](@ref) now accept a trailing [`Param`](@ref) pair of the
+  form `label => value`. Labeled parameters can be accessed and modified using
+  the new functions [`get_param`](@ref), [`get_params`](@ref),
+  [`set_param!`](@ref), and [`set_params!`](@ref).
+* A warning will always be emitted when overwriting a coupling. For fitting
+  workflows, use the [`Param`](@ref) interface instead.
+* The constructor [`make_loss_fn`](@ref) assembles a loss function for model
+  fitting. The loss function can be passed to optimization packages like
+  [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl). Loss hyperparameters
+  can be controlled using [`with_hyperparams`](@ref). Approximate error bars can
+  be calculated from the loss curvature via [`uncertainty_matrix`](@ref).
+* New functions for comparing simulation and experimental data.
+  [`squared_error`](@ref) yields a dimensionless measure, ignoring NaN values.
+  [`squared_error_with_rescaling`](@ref) is similar, but accepts experimental
+  intensities with unknown scale. [`squared_error_bands`](@ref) can be used to
+  compare spin wave bands with experimental intensity peaks.
+* Enhancements to the [`SCGA`](@ref) calculator. External field is now
+  supported. One can calculate the [`magnetic_susceptibility_per_site`](@ref)
+  and the thermally averaged [`magnetic_moment_per_site`](@ref).
+* Function [`find_qs_along_path`](@ref) is useful for drawing on top of a
+  [`plot_intensities`](@ref) figure for bands data.
+* [Adapted SpinW Tutorial 35](@ref "SW35 - LuVO₃ fitting") uses spin wave theory
+  to fit inelastic neutron scattering peaks for LuVO₃.
+* [Tutorial 10](@ref "10. Fitting to diffuse scattering data") uses the SCGA
+  calculator to fit MgCr2O4 exchange interactions up to third nearest-neighbor.
 * Fix SCGA convergence in multi-sublattice case ([#468](@ref)).
 
 ## v0.8.1
@@ -378,14 +406,14 @@ these will become hard errors Sunny v0.6.
 
 **New features**.
 
-Support for Linear Spin Wave Theory in `:dipole` and `:SUN` modes. (Thanks Hao
-Zhang!)
+Support for linear spin wave theory (SWT) in `:dipole` and `:SUN` modes. (Thanks
+Hao Zhang!)
 
 New function [`minimize_energy!`](@ref) to efficiently find an optimal
 configuration of spin dipoles or SU(_N_) coherent states.
 
 Major refactors and enhancements to intensity calculations. This new interface
-allows unification between LSWT and classical spin dynamics calculations. This
+allows unification between SWT and classical spin dynamics calculations. This
 interface allows: Custom observables as local quantum operators, better support
 for linebroadening, and automatic binning to facilitate comparison with
 experimental data. See `intensity_formula` for documentation. Use
@@ -415,7 +443,7 @@ sample).
 
 Remove `intensities` function. Instead, use one of `intensities_interpolated` or
 `intensities_binned`. These will require an `intensity_formula`, which defines a
-calculator (e.g., LSWT).
+calculator (e.g., SWT).
 
 Rename `connected_path` to `reciprocal_space_path`, which now returns an
 `xticks` object that can be used in plotting. Replace `spherical_shell` with

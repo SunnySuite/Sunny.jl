@@ -1,15 +1,18 @@
 name = "Sunny"
 uuid = "2b4a2ac8-8f8b-43e8-abf4-3cb0c45e8736"
-version = "0.8.2"
+version = "0.9.0"
 authors = ["The Sunny team"]
 
 [deps]
 Brillouin = "23470ee3-d0df-4052-8b1a-8cbd6363e7f0"
+ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 CrystalInfoFramework = "6007d9b0-c6b2-11e8-0510-1d10e825f3f1"
 DynamicPolynomials = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
 ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
 HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
+Hungarian = "e91730f6-4275-51fb-a7a0-7064cfbd3b39"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 LineSearches = "d3d80556-e9d4-5f37-9878-2ab0fcc64255"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -39,12 +42,15 @@ WGLMakiePrecompilesExt = ["Makie", "WGLMakie"]
 
 [compat]
 Brillouin = "0.5.19"
+ChainRulesCore = "1.26.0"
 CrystalInfoFramework = "0.8, 1, 2"
 DynamicPolynomials = "0.6.0"
 ElasticArrays = "1.2.12"
 FFTW = "1.4.5"
+FiniteDiff = "2.29.0"
 GLMakie = "0.13"
 HCubature = "1.7.0"
+Hungarian = "0.7.0"
 JLD2 = "0.6.0"
 LineSearches = "7.4.1"
 LinearAlgebra = "1.10"

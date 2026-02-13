@@ -115,10 +115,10 @@ See also the Sunny documentation on [Structure Factor Conventions](@ref).
 function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
     observables = all_dipole_observables(sys; apply_g)
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
-    combiner(q, data) = f(q, SA[
-        data[6]       data[5]       data[3]
-        conj(data[5]) data[4]       data[2]
-        conj(data[3]) conj(data[2]) data[1]
+    combiner(q, corr) = f(q, SA[
+        corr[6]       corr[5]       corr[3]
+        conj(corr[5]) corr[4]       corr[2]
+        conj(corr[3]) conj(corr[2]) corr[1]
     ])
     formfactors = if isnothing(formfactors)
         fill(one(FormFactor), natoms(sys.crystal))
@@ -128,6 +128,9 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
     end
     return MeasureSpec(observables, corr_pairs, combiner, formfactors)
 end
+
+CRC.@non_differentiable MeasureSpec(observables, corr_pairs, combiner, formfactors)
+CRC.@non_differentiable ssf_custom(f, sys)
 
 """
     ssf_custom_bm(f, sys::System; u, v, apply_g=true, formfactors=nothing)

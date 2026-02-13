@@ -1,12 +1,15 @@
-#=
-julia --project=@. --compiled-modules=existing make.jl
-=#
+# julia make.jl [--fast]
 
-isdraft = false # set `true` to disable cell evaluation
+import Pkg
+Pkg.activate(@__DIR__)
+Pkg.instantiate()
 
 import Literate, Documenter, CodecZlib, Tar, Downloads
 using Sunny # Load `export`s into namespace to define API
 import GLMakie, WriteVTK # Enable package extensions
+
+# Optionally disable cell evaluation
+isdraft = ("--fast" in ARGS) 
 
 # Generate high resolution GLMakie images (two pixels per "size unit")
 GLMakie.set_theme!(; GLMakie=(px_per_unit=2,))
@@ -151,8 +154,8 @@ Documenter.makedocs(;
                 :tags => "ams",
             ),
         )),
-        size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
-        size_threshold      = 300*2024, # 300KB
+        size_threshold_warn = 300*1024,
+        size_threshold      = 400*1024,
     ),
     draft = isdraft
 )

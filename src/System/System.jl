@@ -73,6 +73,8 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     gs = reshape(gs, 1, 1, 1, :)
 
     interactions = empty_interactions(mode, na, N)
+    params = ModelParam[]
+    active_labels = Symbol[]
     ewald = nothing
 
     extfield = zeros(Vec3, 1, 1, 1, na)
@@ -83,8 +85,9 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
 
     rng = isnothing(seed) ? Random.Xoshiro(rand(UInt64, 4)...) : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, interactions, ewald,
-                 extfield, dipoles, coherents, dipole_buffers, coherent_buffers, rng)
+    ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, params, active_labels,
+                 interactions, ewald, extfield, dipoles, coherents, dipole_buffers,
+                 coherent_buffers, rng)
     polarize_spins!(ret, (0,0,1))
     return dims == (1, 1, 1) ? ret : repeat_periodically(ret, dims)
 end
@@ -139,22 +142,26 @@ Creates a full clone of the system, such that mutable updates to one copy will
 not affect the other, and thread safety is guaranteed.
 """
 function clone_system(sys::System{N}) where N
-    (; origin, mode, crystal, dims, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, rng) = sys
+    (; origin, mode, crystal, dims, Ns, gs, κs, extfield, interactions_union,
+       params, active_labels, ewald, dipoles, coherents, rng) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
-    ewald_clone = nothing # TODO: use clone_ewald(ewald)
+
+    # Copy element-wise because each param.scale is mutable
+    params_clone = copy.(params)
 
     # Dynamically dispatch to the correct `map` function for either homogeneous
     # (Vector) or inhomogeneous interactions (4D Array)
     interactions_clone = map(clone_interactions, interactions_union)
-    
+
     # Empty buffers are required for thread safety.
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
     ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
-                 interactions_clone, ewald_clone, copy(extfield), copy(dipoles), copy(coherents),
-                 empty_dipole_buffers, empty_coherent_buffers, copy(rng))
+                 params_clone, active_labels, interactions_clone, nothing, copy(extfield),
+                 copy(dipoles), copy(coherents), empty_dipole_buffers,
+                 empty_coherent_buffers, copy(rng))
 
     if !isnothing(ewald)
         # At the moment, clone_ewald is unavailable, so instead rebuild the
@@ -269,13 +276,31 @@ end
 
 """
     magnetic_moment(sys::System, site::Site)
+    magnetic_moment(scga::SCGA, site::Site)
 
 Returns ``- g 𝐒``, the local magnetic moment in units of the Bohr magneton. The
-spin dipole ``𝐒`` and ``g``-tensor may both be [`Site`](@ref) dependent.
+spin dipole ``𝐒`` and ``g``-tensor may both be [`Site`](@ref) dependent. See
+[`magnetic_moment_per_site`](@ref) for an average over all sites.
+
+The [`SCGA`](@ref) calculator returns a thermodynamic average.
 """
 function magnetic_moment(sys::System, site)
     site = to_cartesian(site)
     return - sys.gs[site] * sys.dipoles[site]
+end
+
+"""
+    magnetic_moment_per_site(sys::System)
+    magnetic_moment_per_site(scga::SCGA)
+
+Returns the [`magnetic_moment`](@ref) dipole averaged over [`eachsite`](@ref) of
+the system. The return value is dimensionless (implicit units of the Bohr
+magneton).
+
+The [`SCGA`](@ref) calculator returns a thermodynamic average.
+"""
+function magnetic_moment_per_site(sys::System)
+    Statistics.mean(magnetic_moment(sys, site) for site in eachsite(sys))
 end
 
 # Total volume of system
@@ -609,7 +634,7 @@ This dipole rescaling convention may be helpful in combination with
 spins from the classical Boltzmann distribution. The estimated
 [`intensities_static`](@ref) ``\\mathcal{S}(𝐪)``, when integrated over all
 ``𝐪``, will be exactly consistent with the quantum-mechanical identity
-``⟨\\hat{S}^2⟩ = s(s+1)`` for dipole operator ``\\hat{S}``.
+``|\\hat{𝐒}|^2 = s(s+1)`` for dipole operator ``\\hat{𝐒}``.
 
 At high temperatures, this dipole rescaling may also be useful in combination
 with the [`SampledCorrelations`](@ref) calculator, which estimates structure

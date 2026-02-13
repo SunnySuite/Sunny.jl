@@ -36,7 +36,7 @@
         B = randn(Sunny.Vec3)
         Z = randn(Sunny.CVec{N})
         @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*spin_matrices((N-1)/2)) * Z
-    end    
+    end
 end
 
 @testitem "Quadrupole operators" begin
@@ -116,7 +116,7 @@ end
         S = spin_matrices((N-1)/2)
         Sp = S[1] + im*S[2]
         Sm = S[1] - im*S[2]
-        
+
         for k in 0:N-1
             # Spherical tensors acting on N-dimensional Hilbert space
             T = spherical_tensors(k; N)
@@ -155,7 +155,7 @@ end
             # Check that Stevens operators are proper linear combination of
             # spherical tensors
             @test O ≈ Sunny.stevens_α[k] * T
-    
+
             # Check conversion of coefficients
             c = randn(2k+1)
             b = Sunny.transform_spherical_to_stevens_coefficients(k, c)
@@ -208,7 +208,7 @@ end
     let
         for s in (3, Inf)
             O = stevens_matrices(s)
-            
+
             # Cannot use [O[2, q] for q in 2:-1:-2] because:
             # https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/149
             Q = [O[2, 2], O[2, 1], O[2, 0], O[2, -1], O[2, -2]]
@@ -245,25 +245,26 @@ end
     let
         R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3; special=true))
         A = randn(5, 5)
-        
+
         N = 3
         O = Sunny.stevens_matrices_of_dim(2; N)
         Oi, Oj = to_product_space(O, O)
-        
+
         O′ = Sunny.rotate_operator.(O, Ref(R))
         Oi′, Oj′ = to_product_space(O′, O′)
-        
+
         A′ = Sunny.transform_coupling_by_symmetry(Sunny.Mat5(A), R, true)
         @test Oi′' * A′ * Oj′ ≈ Oi' * A * Oj
-        
+
         A″ = Sunny.transform_coupling_by_symmetry(Sunny.Mat5(A), R, false)
         @test Oj′' * A″ * Oi′ ≈ Oi' * A * Oj
     end
 
     # Test evaluation of the classical Stevens functions (i.e. spherical
     # harmonics) and their gradients
-    let 
-        using LinearAlgebra, FiniteDifferences, OffsetArrays
+    let
+        using LinearAlgebra, OffsetArrays
+        using FiniteDiff: finite_difference_gradient
 
         # Random dipole and Stevens coefficients
         s = normalize(randn(Sunny.Vec3))
@@ -283,8 +284,8 @@ end
 
         # Verify that gradient agrees with finite differences
         _, gradE1 = Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp)
-        f(s) = Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp)[1]
-        gradE2 = grad(central_fdm(5, 1), f, s)[1]
+        f(s) = Sunny.energy_and_gradient_for_classical_anisotropy(Sunny.Vec3(s), stvexp)[1]
+        gradE2 = finite_difference_gradient(f, collect(s))
 
         # When calculating gradE2, the value X = |S|^2 is treated as varying
         # with S, such that dX/dS = 2S. Conversely, when calculating gradE1, the

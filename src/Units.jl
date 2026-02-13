@@ -87,8 +87,18 @@ function Base.getproperty(u::Units, name::Symbol)
     end
 
     if name == :vacuum_permeability
-        # 0.6745... = μ0 μB² / Å³ meV
+        # 0.6745… = μ0 μB² / Å³ meV
         return 0.6745817653324668 * u.angstrom^3 * u.meV
+    end
+
+    if name == :cgs_molar_susceptibility
+        # 30.93… / meV = (emu/Oe/mol) / (N_A μ_0 μ_B² / 4π×10⁻⁶)
+        return 30.93316552744359 / u.meV
+    end
+
+    if name == :si_molar_susceptibility
+        # 2.461…×10⁶ / meV = (m³/mol) / (N_A μ_0 μ_B²)
+        return u.cgs_molar_susceptibility / (4π*1e-6)
     end
 
     error("Unknown unit :$name")
