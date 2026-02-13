@@ -15,7 +15,8 @@ This release bring significant support for model fitting ([#471](@ref)).
 * The constructor [`make_loss_fn`](@ref) assembles a loss function for model
   fitting. The loss function can be passed to optimization packages like
   [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl). Loss hyperparameters
-  can be controlled using [`with_hyperparams`](@ref).
+  can be controlled using [`with_hyperparams`](@ref). Approximate error bars can
+  be calculated from the loss curvature via [`uncertainty_matrix`](@ref).
 * New functions for comparing simulation and experimental data.
   [`squared_error`](@ref) yields a dimensionless measure, ignoring NaN values.
   [`squared_error_with_rescaling`](@ref) is similar, but accepts experimental
