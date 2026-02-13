@@ -18,7 +18,7 @@
 
 ## Overview
 
-Sunny is a Julia package for modeling magnetic materials. It emphasizes _symmetry-aware_ Hamiltonians, careful treatment of _quantum-spin_ degrees of freedom, and a full toolkit for _quantitative comparison with scattering data_, e.g., neutrons or x-rays. Ease of use is a priority: Sunny is extensively documented, supports interactive visualization, and provides robust model fitting tools.
+Sunny is a Julia package for modeling magnetic materials. It emphasizes _symmetry-aware_ Hamiltonians, careful treatment of _quantum-spin_ degrees of freedom, and a toolkit for _quantitative comparison with scattering data_, e.g., neutrons or x-rays. Ease of use is a priority: Sunny is extensively documented, supports interactive visualization, and provides robust model fitting tools.
 
 ## Try it out!
 
@@ -36,7 +36,7 @@ Sunny supports most standard tools for modeling spin systems and also several un
 - **Finite-temperature dynamics and sampling**. This includes the Landau-Lifshitz dynamics with Langevin coupling to a thermal bath ([example](https://sunnysuite.github.io/Sunny.jl/stable/examples/02_LLD_CoRh2O4.html)) and its generalization to spin multipoles via SU(_N_) coherent states ([example](https://sunnysuite.github.io/Sunny.jl/stable/examples/04_GSD_FeI2.html)). Monte Carlo methods such as parallel tempering accelerate the sampling of highly frustrated magnets ([examples](https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra/Advanced_MC)).
 - **Self-consistent Gaussian approximation** [(SCGA)](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SCGA) for efficient paramagnetic-phase observables, e.g. susceptibility and diffuse scattering intensity.
 - **Long-range dipole-dipole interactions** with proper Ewald summation and customizable demagnetization tensor ([example](https://sunnysuite.github.io/Sunny.jl/stable/examples/07_Dipole_Dipole.html)).
-- **Model fitting** to experimental data. This includes fitting to magnon bands ([example](https://sunnysuite.github.io/Sunny.jl/dev/examples/spinw/SW35_LuVO3-fitting.html)) and diffuse scattering intensities ([example](https://sunnysuite.github.io/Sunny.jl/dev/examples/10_SCGA_fitting.html)).
+- **Model fitting** to experimental data including magnon bands ([example](https://sunnysuite.github.io/Sunny.jl/dev/examples/spinw/SW35_LuVO3-fitting.html)) and diffuse scattering intensities ([example](https://sunnysuite.github.io/Sunny.jl/dev/examples/10_SCGA_fitting.html)).
 
 Many of these features build on our team's [theoretical research](https://sunnysuite.github.io/Sunny.jl/stable/why.html#Advanced-theory-made-accessible).
 
