@@ -122,7 +122,7 @@ mutable struct ImplicitMidpoint <: AbstractIntegrator
 
         # Noise in the implicit midpoint method can be problematic, because rare
         # events can lead to very slow convergence of the fixed point
-        # iterations. Perhaps it could be made to work if we clip the sampled
+        # iterations. Perhaps it could be made to work if we clamp the sampled
         # noise to a restricted magnitude? For now, simply disable the feature.
         iszero(kT) || error("ImplicitMidpoint with a Langevin thermostat is not currently supported.")
 
