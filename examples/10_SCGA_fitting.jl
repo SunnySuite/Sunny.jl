@@ -126,8 +126,8 @@ options = Optim.Options(
     show_every = 5,
 )
 opt = Optim.optimize(loss, guess, Optim.LBFGS(), options)
-opt.minimizer ./ units.K # [J1, J2, J3a, J3b]
 @assert isapprox(opt.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
+opt.minimizer ./ units.K # [J1, J2, J3a, J3b]
 
 # Optim defaults to finite differences for its gradient estimation. An
 # alternative is reverse-mode automatic differentiation. It is more precise and
@@ -143,8 +143,8 @@ import Zygote
 import DifferentiationInterface as DI
 
 opt = Optim.optimize(loss, guess, Optim.LBFGS(), options; autodiff=DI.AutoZygote())
-opt.minimizer ./ units.K
 @assert isapprox(opt.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
+opt.minimizer ./ units.K
 
 # Compare ``\mathcal{S}(𝐪)`` in the low-resolution ``[H, K, 0]`` slice that was
 # used for model fitting. As a plotting trick, we reuse the `res` object but
