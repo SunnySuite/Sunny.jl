@@ -44,7 +44,7 @@ Related packages include [SpinW](https://github.com/SpinW/spinw) (symmetry-guide
 
 ## Join our community
 
-We want to interact with you! [Join our Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, ask on the Slack `#helpdesk` channel. If you find Sunny useful, please cite the main [JOSS paper](https://doi.org/10.21105/joss.08138) and any relevant [methodology papers](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods). Finally, share your work with others on the [Sunny Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+We want to interact with you! [Join our Slack workspace](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you encounter a problem, ask on the Slack `#helpdesk` channel. If you find Sunny useful, please cite the main [JOSS paper](https://doi.org/10.21105/joss.08138) and any relevant [methodology papers](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods). Finally, share your work with others on the [Sunny Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 <br>
 <div>
