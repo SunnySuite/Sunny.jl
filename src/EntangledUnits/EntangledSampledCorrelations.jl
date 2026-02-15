@@ -136,8 +136,8 @@ end
 
 
 function add_sample!(esc::EntangledSampledCorrelations, esys::EntangledSystem; window=:cosine)
-    new_sample!(esc.sc, esys.sys)
-    accum_sample!(esc.sc; window)
+    calculate_correlations!(esc.sc, esys.sys)
+    accum_correlations!(esc.sc; window)
 end
 
 function add_sample!(esc::EntangledSampledCorrelationsStatic, esys::EntangledSystem; window=:cosine)

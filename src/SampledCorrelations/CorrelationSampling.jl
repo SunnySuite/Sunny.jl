@@ -30,7 +30,7 @@ function trajectory!(buf, sys, integrator, nsnaps, observables, atom_idcs; measp
     return nothing
 end
 
-function new_sample!(sc::SampledCorrelations, sys::System)
+function calculate_correlations!(sc::SampledCorrelations, sys::System)
     (; integrator, samplebuf, measperiod, observables, atom_idcs) = sc
 
     # Only fill the sample buffer half way; the rest is zero-padding
@@ -45,7 +45,7 @@ function new_sample!(sc::SampledCorrelations, sys::System)
     return nothing
 end
 
-function accum_sample!(sc::SampledCorrelations; window)
+function accum_correlations!(sc::SampledCorrelations; window)
     (; data, M, corr_pairs, samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!) = sc
     npos = size(samplebuf)[5]
     num_time_offsets = size(samplebuf, 6)
@@ -171,8 +171,11 @@ function add_sample!(sc::SampledCorrelations, sys::System; window=:cosine)
     # The hidden option `window=:rectangular` will disable smooth windowing.
     # This may be of interest for extracting real-time dynamical correlations.
 
-    new_sample!(sc, sys)
-    accum_sample!(sc; window)
+    # Generate a sample of spin-spin correlations and accumulate them.
+    calculate_correlations!(sc, sys)
+    accum_correlations!(sc; window)
+
+    # Accumulate statistics for magnetization
 end
 
 function add_sample!(sc::SampledCorrelationsStatic, sys::System; window=:cosine)
