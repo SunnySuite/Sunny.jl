@@ -127,7 +127,7 @@ Documenter.makedocs(;
         "index.md",
         "why.md",
         "Examples" => [
-            example_mds...,
+            "Tutorials" => example_mds,
             "SpinW ports" => spinw_mds,
             "Contributed" => contributed_mds,
         ],
