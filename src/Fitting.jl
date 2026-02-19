@@ -1,8 +1,16 @@
-struct FittingLoss{F, T <: NamedTuple}
-    f :: F
+struct FittingLoss
+    f :: Function
     sys :: System
     labels :: Vector{Symbol}
-    hp :: T
+    to_params :: Function
+    hp :: NamedTuple
+end
+
+function Base.show(io::IO, loss::FittingLoss)
+    (; labels, hp, to_params) = loss
+    hp_str = isempty(hp) ? "" : ", $hp"
+    map_str = (to_params === identity) ? "" : ", param_mapping=..."
+    println(io, "FittingLoss($labels$hp_str$map_str)")
 end
 
 """
@@ -13,76 +21,84 @@ function with individual hyperparameters overridden by the elements of `hp`.
 """
 function with_hyperparams(loss::FittingLoss, hp::NamedTuple)
     hp = Base.merge(loss.hp, hp) # If keys overlapping, 2nd arg wins
-    return FittingLoss(loss.f, loss.sys, loss.labels, hp)
+    return FittingLoss(loss.f, loss.sys, loss.labels, loss.to_params, hp)
 end
 
 """
-    make_loss_fn(f, sys, labels, hp=(;))
+    make_loss_fn(f, sys, labels; to_params=identity, hp=NamedTuple())
 
-Returns a `loss` function to measure goodness of fit for the parameter `labels`.
-This loss will commonly be used for model optimization.
-
-Evaluation of `loss(values)` is roughly equivalent to,
-
-```julia
-sys2 = clone_system(sys)
-set_params!(sys2, labels, values)
-f(sys2)
-```
-
-Note that the system provided to the callback `f` will be updated using
-[`set_params!`](@ref). If `f` generates an instability error (e.g., a linear
-spin wave calculation at a non energy minimizing state), then `loss` will return
-`Inf`.
+Creates a `loss` function for use in model fitting. For example,
 
 ```julia
 # Construct the loss function
 loss = make_loss_fn(sys, labels) do sys
+    minimize_energy!(sys)
     swt = SpinWaveTheory(sys; measure)
     res = intensities_bands(swt, path)
     return squared_error_bands(res, reference_energies)
 end
 
-# Measure goodness of fit for the parameter values
-loss(values)
-
-# Fit parameter values to about 6 digits of accuracy
-import Optim
-opts = Optim.Options(g_tol=1e-6/energy_unit, show_trace=true)
-fit = Optim.optimize(loss, values, Optim.NelderMead(), opts)
+# Measure goodness of fit for the labeled parameters x
+loss(x)
 ```
 
-Hyperparameters `hp`, if provided, will be forwarded as a second argument to
-`f`. Use [`with_hyperparams`](@ref) to generate a new loss function with
-modified `hp`. This can be useful, e.g., to support annealing over a smoothing
-parameter.
+Arbitrary code may appear in the callback `f`. [`SpinWaveTheory`](@ref) and
+[`SCGA`](@ref) calculations are common choices because they are fast and
+deterministic.
+
+The loss function is suitable for use in parameter optimization,
 
 ```julia
-loss0 = make_loss_fn(sys, labels, (; ϵ=0.0)) do sys, hp
+# Fit optimal parameters to about 6 digits of accuracy
+import Optim
+options = Optim.Options(g_tol=1e-6/energy_unit, show_trace=true)
+fit = Optim.optimize(loss, values, Optim.NelderMead(), options)
+fit.minimizer
+```
+
+Internally, each evaluation of `loss(x)` takes these steps,
+
+```julia
+sys2 = clone_system(sys)
+set_params!(sys2, labels, to_params(x))
+f(sys2)
+```
+
+Furthermore, if `f` throws an instability error, then `loss` catches it and
+returns `Inf`. This may happen, for example, if `f` calls
+[`intensities_bands`](@ref) on a non-energy-minimizing magnetic state.
+
+Hyperparameters `hp` can be accepted as a second argument to `f`. Use
+[`with_hyperparams`](@ref) to generate a new loss function with modified `hp`.
+This might be useful for annealing a regularization strength ϵ.
+
+```julia
+loss0 = make_loss_fn(sys, labels; hp=(; ϵ=0.0)) do sys, hp
     ... # Loss function involving hp.ϵ
 end
 
+x = guess
 for ϵ in (1, 0.5, 0.25, 0.1)
     loss = with_hyperparams(loss0, (; ϵ))
-    fit = Optim.optimize(loss, values, method, opts)
-    values = fit.minimizer
+    fit = Optim.optimize(loss, x, method, options)
+    x = fit.minimizer
 end
 ```
 
-Automatic differentiation of the loss function is supported in certain special
-cases (currently the [`SCGA`](@ref) calculator). This can improve efficiency and
+Automatic differentiation of the loss function is supported by certain special
+calculators (currently, just [`SCGA`](@ref)). This can improve efficiency and
 accuracy. See [Tutorial 10](@ref "10. Fitting to diffuse scattering data") for a
 concrete example.
 """
-function make_loss_fn(f, sys, labels, hp=(;))
-    return FittingLoss(f, sys, labels, hp)
+function make_loss_fn(f, sys, labels; to_params=identity, hp=NamedTuple())
+    return FittingLoss(f, sys, labels, to_params, hp)
 end
 
-function (fl::FittingLoss)(vals)
-    (; f, sys, labels, hp) = fl
+function (fl::FittingLoss)(x)
+    (; f, sys, labels, to_params, hp) = fl
 
     sys = clone_system(sys)
-    set_params!(sys, labels, vals)
+    set_params!(sys, labels, to_params(x))
     sys.active_labels = labels
     try
         if applicable(f, sys, hp)
@@ -97,13 +113,14 @@ function (fl::FittingLoss)(vals)
     end
 end
 
-function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
-    (; f, sys, labels, hp) = fl
+function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, x)
+    (; f, sys, labels, to_params, hp) = fl
 
+    (vals, to_params_pb) = CRC.rrule_via_ad(rc, to_params, x)
     sys = clone_system(sys)
     set_params!(sys, labels, vals)
     sys.active_labels = labels
-    (y, f_pb) = try
+    (L, f_pb) = try
         if applicable(f, sys, hp)
             CRC.rrule_via_ad(rc, f, sys, hp)
         elseif applicable(f, sys)
@@ -115,17 +132,19 @@ function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
         (err isa InstabilityError) ? (Inf, nothing) : rethrow(err)
     end
 
-    function pullback(Δy)
-        Δvals = if isinf(y)
-            fill!(similar(vals), NaN)
+    function pullback(ΔL)
+        Δx = if isinf(L)
+            fill!(similar(x), NaN)
         else
-            _, Δsys = f_pb(Δy)
-            CRC.unthunk(Δsys).vals
+            _, Δsys = f_pb(ΔL)
+            Δvals = CRC.unthunk(Δsys).vals
+            _, Δx = to_params_pb(Δvals)
+            CRC.unthunk(Δx)
         end
-        return (CRC.NoTangent(), Δvals)
+        return (CRC.NoTangent(), Δx)
     end
 
-    return y, pullback
+    return L, pullback
 end
 
 
