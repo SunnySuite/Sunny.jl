@@ -43,9 +43,9 @@ end
 loss(x)
 ```
 
-Arbitrary code may appear in the callback `f`. [`SpinWaveTheory`](@ref) and
-[`SCGA`](@ref) calculations are common choices because they are fast and
-deterministic.
+Arbitrary code may appear in the callback `f` defined by the `do ... end` block.
+[`SpinWaveTheory`](@ref) and [`SCGA`](@ref) calculations are common choices
+because they are fast and deterministic.
 
 The loss function is suitable for use in parameter optimization,
 
@@ -67,7 +67,7 @@ f(sys2)
 
 Furthermore, if `f` throws an instability error, then `loss` will catch it and
 return `Inf`. This may happen, for example, if `f` attempts a spin wave
-calculation on magnetic state that is not energy-minimized for the new model
+calculation on a magnetic state that is not energy-minimized for the new model
 parameters.
 
 Hyperparameters `hp` are passed as an optional second argument to `f`. Use
@@ -87,7 +87,7 @@ for ϵ in (1, 0.5, 0.25, 0.1)
 end
 ```
 
-Automatic differentiation of the loss function is supported by certain special
+Automatic differentiation of the loss function is supported for certain
 calculators (currently, just [`SCGA`](@ref)). This can improve efficiency and
 accuracy. See [Tutorial 10](@ref "10. Fitting to diffuse scattering data") for a
 concrete example.
