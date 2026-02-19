@@ -63,8 +63,8 @@ end
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :J1 => 0.0)
 
     # Something simple to exercise the plumbing
-    to_params(x) = 2*x
-    loss1 = make_loss_fn(sys, [:J1]; to_params, hp=(; ϵ=2)) do sys, hp
+    param_mapping(x) = 2*x
+    loss1 = make_loss_fn(sys, [:J1]; param_mapping, hp=(; ϵ=2)) do sys, hp
         return get_param(sys, :J1) + hp.ϵ
     end
     @assert loss1([3.0]) == 8.0
