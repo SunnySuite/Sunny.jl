@@ -44,8 +44,8 @@ loss(x)
 ```
 
 Arbitrary code may appear in the callback `f` defined by the `do ... end` block.
-[`SpinWaveTheory`](@ref) and [`SCGA`](@ref) calculations are common choices
-because they are fast and deterministic.
+[`SpinWaveTheory`](@ref) and [`SCGA`](@ref) calculators are convenient because
+they are fast and deterministic.
 
 The loss function is suitable for use in parameter optimization,
 
