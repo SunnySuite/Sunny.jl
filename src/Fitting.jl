@@ -72,7 +72,7 @@ parameters.
 
 Hyperparameters `hp` are passed as an optional second argument to `f`. Use
 [`with_hyperparams`](@ref) to generate a new loss function with modified `hp`.
-For example, to perform annealing a regularization strength ϵ,
+For example, one could anneal a smoothing parameter ϵ,
 
 ```julia
 loss0 = make_loss_fn(sys, labels; hp=(; ϵ=0.0)) do sys, hp
@@ -88,7 +88,7 @@ end
 ```
 
 Automatic differentiation of the loss function is supported for certain
-calculators (currently, just [`SCGA`](@ref)). This can improve efficiency and
+calculators (currently, just [`SCGA`](@ref)). This improves efficiency and
 accuracy. See [Tutorial 10](@ref "10. Fitting to diffuse scattering data") for a
 concrete example.
 """
