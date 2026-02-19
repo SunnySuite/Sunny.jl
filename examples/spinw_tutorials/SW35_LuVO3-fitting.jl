@@ -78,17 +78,17 @@ Es = [
 ];
 
 # Use [`make_loss_fn`](@ref) to define an optimization target `loss`. Because
-# the system is already initialized to the correct Néel magnetic order, one
-# should not call [`minimize_energy!`](@ref) prior to the
-# [`intensities_bands`](@ref) calculation. Internally,
-# [`squared_error_bands`](@ref) assigns each labeled peak in `Es` to the closest
-# spin wave mode in `res` (as a one-to-one mapping).
+# the system is already initialized to the correct Néel magnetic order, we opt
+# not to call [`minimize_energy!`](@ref) prior to the [`SpinWaveTheory`](@ref)
+# calculation. Internally, [`squared_error_bands`](@ref) assigns each labeled
+# peak in `Es` to the closest spin wave mode in `res` (as a one-to-one mapping).
 
 loss = make_loss_fn(sys, labels) do sys
+    ## minimize_energy!(sys) # Uncomment if the spin state should vary with params
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
     res = intensities_bands(swt, qs)
     squared_error_bands(res, Es)
-end;
+end
 
 # Guess some arbitrary parameters that are consistent with the assumed Néel
 # order. This requires positive ``J_{ab}``, ``J_c`` and negative ``K_{xx}``,
