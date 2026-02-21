@@ -8,7 +8,7 @@
         # positions in global coordinates
         pos = [global_position(sys, site) for site in eachsite(sys)][:]
         # magnetic moments
-        dipoles = [magnetic_moment(sys, site) for site in eachsite(sys)][:]
+        dipoles = [magnetic_moment_at(sys, site) for site in eachsite(sys)][:]
         # energy from traditional Ewald summation
         Ewalder.energy(Ewalder.System(; latvecs, pos); dipoles) / 4π
     end
@@ -52,7 +52,7 @@
 
     # Comparison with Ewalder reference plus explicit surface energy term E_s
     V = det(cryst.latvecs)
-    M = sum(magnetic_moment(sys, site) for site in eachsite(sys))
+    M = sum(magnetic_moment_at(sys, site) for site in eachsite(sys))
     E_s = (M' * demag * M) / 2V
     @test isapprox(energy(sys), μ0_μB² * (ewalder_energy(sys) + E_s); atol=1e-12)
 

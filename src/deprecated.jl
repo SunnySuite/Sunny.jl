@@ -98,6 +98,10 @@ function Base.getproperty(value::Crystal, name::Symbol)
     return getfield(value, name)
 end
 
+Base.@deprecate magnetic_moment(args...; kwargs...) let
+    error("Use magnetic_moment_at instead of magnetic_moment; see also magnetic_moment_per_site")
+end
+
 # REMEMBER TO ALSO DELETE:
 #
 # * view_crystal(cryst, max_dist)

@@ -54,7 +54,7 @@ lattice_params
 lattice_vectors
 load_nxs
 lorentzian
-magnetic_moment
+magnetic_moment_at
 magnetic_moment_per_site
 magnetic_susceptibility_per_site
 make_loss_fn
