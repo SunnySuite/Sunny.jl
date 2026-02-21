@@ -133,7 +133,6 @@ end
 
 @testitem "Susceptibility consistency" begin
     using LinearAlgebra
-    import Statistics
 
     latvecs = lattice_vectors(3, 5, 8, 90, 90, 90)
     positions = [[0, 0, 0], [0.5, 0, 0]]
@@ -159,10 +158,10 @@ end
     ϵ = 1e-5
     set_field!(sys, [0, 0, -ϵ])
     scga = SCGA(sys; measure, kT, dq)
-    M1 = Statistics.mean(magnetic_moments(scga))[3]
+    M1 = sum(magnetic_moments(scga))[3] / length(eachsite(sys))
     set_field!(sys, [0, 0, ϵ])
     scga = SCGA(sys; measure, kT, dq)
-    M2 = Statistics.mean(magnetic_moments(scga))[3]
+    M2 = sum(magnetic_moments(scga))[3] / length(eachsite(sys))
     χ2 = (M2 - M1) / 2ϵ
 
     @assert χ1[3, 3] ≈ χ2
