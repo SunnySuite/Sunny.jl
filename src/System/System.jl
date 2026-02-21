@@ -286,9 +286,7 @@ The [`SCGA`](@ref) calculator returns the thermodynamic average for each site.
 magnetic_moments(sys::System) = magnetic_moments_aux(sys.gs, sys.dipoles)
 
 function magnetic_moments_aux(gs, dipoles)
-    Base.Broadcast.broadcasted(CartesianIndices(dipoles)) do site
-        - gs[site] * dipoles[site]
-    end
+    mappedarray((g, S) -> -g * S, gs, dipoles)
 end
 
 

@@ -11,6 +11,7 @@ import HCubature: hcubature
 import Hungarian: hungarian
 import JLD2
 import LineSearches
+import MappedArrays: mappedarray
 import OffsetArrays: OffsetArray
 import Optim
 import Printf: Printf, @printf, @sprintf
