@@ -345,9 +345,9 @@ end
 Returns the magnetic susceptibility tensor in units of inverse energy,
 ``\\tilde{χ} = (dμ/d𝐁) / μ_B^2`` , where ``μ`` is the magnetic dipole per site,
 ``𝐁`` is the physical applied field, and ``μ_B`` is the Bohr magneton. In terms
-of Sunny quantities, ``\\tilde{χ}`` can be understood as the derivative of
-[`magnetic_moment_per_site`](@ref) (dimensionless) with respect to the argument
-of [`set_field!`](@ref) (energy units).
+of Sunny quantities, ``\\tilde{χ}`` can be understood as the derivative of the
+site-averaged [`magnetic_moments`](@ref) (dimensionless) with respect to the
+argument of [`set_field!`](@ref) (energy units).
 
 For a non-magnetized system, fluctuation-dissipation states ``⟨\\hat{M}^α_{q=0}
 \\hat{M}^β_{q=0}⟩ / μ_B^2 N_s = k_B T \\tilde{χ}^{αβ}``, where

@@ -279,10 +279,9 @@ end
     magnetic_moments(scga::SCGA)
 
 Returns ``μ = - g 𝐒``, the local magnetic moment in units of the Bohr magneton,
-for each site in the system. Use [`magnetic_moment_per_site`](@ref) to average
-over all sites.
+for each site in the system.
 
-The [`SCGA`](@ref) calculator returns a thermodynamic average.
+The [`SCGA`](@ref) calculator returns the thermodynamic average for each site.
 """
 magnetic_moments(sys::System) = magnetic_moments_aux(sys.gs, sys.dipoles)
 
@@ -292,16 +291,6 @@ function magnetic_moments_aux(gs, dipoles)
     end
 end
 
-
-"""
-    magnetic_moment_per_site(sys::System)
-    magnetic_moment_per_site(scga::SCGA)
-
-The average of [`magnetic_moments`](@ref).
-"""
-function magnetic_moment_per_site(sys)
-    Statistics.mean(magnetic_moments(sys))
-end
 
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.dims)
