@@ -98,9 +98,9 @@ function Base.getproperty(value::Crystal, name::Symbol)
     return getfield(value, name)
 end
 
-Base.@deprecate magnetic_moment(args...; kwargs...) let
-    error("Use magnetic_moments(sys)[site] instead of magnetic_moment(sys, site)")
-end
+Base.@deprecate magnetic_moment(sys, site) magnetic_moments(sys)[to_cartesian(site)]
+Base.@deprecate global_position(sys, site) global_positions(sys)[to_cartesian(site)]
+
 
 # REMEMBER TO ALSO DELETE:
 #

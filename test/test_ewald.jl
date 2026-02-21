@@ -6,7 +6,7 @@
         # super-lattice vectors
         latvecs = eachcol(sys.crystal.latvecs) .* sys.dims
         # positions in global coordinates
-        pos = [global_position(sys, site) for site in eachsite(sys)][:]
+        pos = global_positions(sys)[:]
         # magnetic moments
         dipoles = magnetic_moments(sys)[:]
         # energy from traditional Ewald summation

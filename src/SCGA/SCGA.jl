@@ -279,7 +279,8 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
     Λ = Diagonal(repeat(λs, inner=3))
 
     qpts = convert(AbstractQPoints, qpts)
-    cryst = orig_crystal(scga.sys)
+    cryst = orig_crystal(sys)
+    rs_global = global_positions(sys)
 
     Na = nsites(sys)
     Ncells = Na / natoms(cryst)
@@ -302,7 +303,7 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
         q_global = cryst.recipvecs * q
 
         for i in 1:Na, μ in 1:Nobs
-            r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
+            r_global = rs_global[i] # + offsets[μ, i]
             ff = get_swt_formfactor(measure, μ, i)
             c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
             for α in 1:3
@@ -468,6 +469,8 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
         (; sys, λs, β) = scga
         measure = @something measure scga.measure
         cryst = orig_crystal(sys)
+        rs_global = global_positions(sys)
+
         Na = nsites(sys)
         Ncells = Na / natoms(cryst)
 
@@ -501,7 +504,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             q_global = cryst.recipvecs * q
 
             for i in 1:Na, μ in 1:Nobs
-                r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
+                r_global = rs_global[i] # + offsets[μ, i]
                 ff = get_swt_formfactor(measure, μ, i)
                 c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
                 for α in 1:3

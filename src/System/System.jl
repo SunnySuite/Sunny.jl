@@ -249,7 +249,9 @@ An iterator over all [`Site`](@ref)s in the system.
 @inline eachsite_sublattice(sys::System, i) = CartesianIndices((sys.dims..., i:i))
 
 """
-nsites(sys::System) = length(eachsite(sys))
+    nsites(sys::System)
+
+Number of sites in the system, i.e., `length(eachsite(sys))`.
 """
 nsites(sys::System) = length(eachsite(sys))
 
@@ -258,20 +260,12 @@ ncells(sys::System) = nsites(sys) / natoms(orig_crystal(sys))
 
 
 """
-    global_position(sys::System, site::Site)
+    global_positions(sys::System)
 
-Position of a [`Site`](@ref) in global coordinates.
-
-To precompute a full list of positions, one can use [`eachsite`](@ref) as
-below:
-
-```julia
-pos = [global_position(sys, site) for site in eachsite(sys)]
-```
+Position of each site in global Cartesian coordinates.
 """
-function global_position(sys::System, site)
-    r = sys.crystal.positions[site[4]] + Vec3(site[1]-1, site[2]-1, site[3]-1)
-    return sys.crystal.latvecs * r
+function global_positions(sys::System)
+    mappedarray(site -> global_position_at(sys, site), eachsite(sys))
 end
 
 """
@@ -297,13 +291,17 @@ volume(sys::System) = cell_volume(sys.crystal) * prod(sys.dims)
 # the "conventional" unit cell.
 orig_crystal(sys) = something(sys.origin, sys).crystal
 
-"""
-    position(sys::System, site::Site)
+# Position of a site in global Cartesian coordinates
+function global_position_at(sys::System, site)
+    site = to_cartesian(site)
+    r = sys.crystal.positions[site[4]] + Vec3(site[1]-1, site[2]-1, site[3]-1)
+    return sys.crystal.latvecs * r
+end
 
-Position of a [`Site`](@ref) in units of lattice vectors for the original
-crystal.
-"""
-position(sys::System, site) = orig_crystal(sys).latvecs \ global_position(sys, site)
+# Position of a site in units of lattice vectors for the original crystal.
+function position_at(sys::System, site)
+    return orig_crystal(sys).latvecs \ global_position_at(sys, site)
+end
 
 """
     position_to_site(sys::System, r)
@@ -333,14 +331,6 @@ function position_to_site(sys::System, r; tol=1e-12)
     return to_cartesian((cell..., i))
 end
 
-
-# Given a [`Site`](@ref) for a possibly reshaped system, return the
-# corresponding atom index for the original (unreshaped) crystal.
-function site_to_atom(sys::System{N}, site) where N
-    site = to_cartesian(site)
-    r = position(sys, site)
-    return position_to_atom(orig_crystal(sys), r)
-end
 
 # Maps atom `i` in `cryst` to the corresponding atom in `other_cryst`
 function map_atom_to_other_crystal(cryst::Crystal, i, other_cryst::Crystal)

@@ -46,7 +46,7 @@ find_qs_along_path
 gaussian
 get_param
 get_params
-global_position
+global_positions
 intensities
 intensities_bands
 intensities_static
@@ -61,6 +61,7 @@ merge_correlations
 minimize_energy!
 minimize_spiral_energy!
 modify_exchange_with_truncated_dipole_dipole!
+nsites
 polarize_spins!
 position_to_site
 powder_average

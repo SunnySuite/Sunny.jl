@@ -88,7 +88,7 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
     lengthscale = 0.6a0
 
     # Positions in fractional coordinates of supercell vectors
-    rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
+    rs = Ref(supervecs) .\ global_positions(sys)
 
     for isghost in (false, true)
         if isghost

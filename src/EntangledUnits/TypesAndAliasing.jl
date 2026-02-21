@@ -116,7 +116,7 @@ eachsite(esys::EntangledSystem) = eachsite(esys.sys_origin)
 eachunit(esys::EntangledSystem) = eachsite(esys.sys)
 
 energy(esys::EntangledSystem) = energy(esys.sys)
-energy_per_site(esys::EntangledSystem) = energy(esys.sys) / length(eachsite(esys.sys_origin))
+energy_per_site(esys::EntangledSystem) = energy(esys.sys) / nsites(esys.sys_origin)
 
 function clone_system(esys::EntangledSystem)
     sys = clone_system(esys.sys)
