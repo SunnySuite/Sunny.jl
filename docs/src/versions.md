@@ -33,7 +33,7 @@ This release bring significant support for model fitting ([#471](@ref)).
   calculator to fit MgCr2O4 exchange interactions up to third nearest-neighbor.
 * Fix SCGA convergence in multi-sublattice case ([#468](@ref)).
 * **Breaking** [`magnetic_moment_at`](@ref) replaces `magnetic_moment(sys,
-  site)`.
+  site)` ([#474](@ref)).
 
 ## v0.8.1
 (Dec 23, 2025)
@@ -501,7 +501,7 @@ reduce confusion with the physical instantaneous intensities.
 The function `spherical_shell` now takes a radius in physical units of inverse
 Å.
 
-New exported functions [`global_position`](@ref), [`magnetic_moment_at`](@ref),
+New exported functions [`global_position`](@ref), `magnetic_moment`,
 `all_sites`.
 
 Remove all uses of
