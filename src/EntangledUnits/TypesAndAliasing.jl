@@ -211,8 +211,8 @@ function minimize_energy!(esys::EntangledSystem; kwargs...)
     return optout
 end
 
-function magnetic_moment_at(esys::EntangledSystem, site; kwargs...) 
-    magnetic_moment_at(esys.sys_origin, site; kwargs...)
+function magnetic_moments(esys::EntangledSystem)
+    magnetic_moments(esys.sys_origin)
 end
 
 function plot_spins(esys::EntangledSystem; kwargs...)

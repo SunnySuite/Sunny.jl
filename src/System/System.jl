@@ -275,32 +275,30 @@ function global_position(sys::System, site)
 end
 
 """
-    magnetic_moment_at(sys::System, site::Site)
-    magnetic_moment_at(scga::SCGA, site::Site)
+    magnetic_moments(sys::System)
+    magnetic_moments(scga::SCGA)
 
-Returns ``- g 𝐒``, a local magnetic moment in units of the Bohr magneton. The
-spin dipole ``𝐒`` and ``g``-tensor may both be [`Site`](@ref) dependent. See
-[`magnetic_moment_per_site`](@ref) for an average over all sites.
+Returns ``μ = - g 𝐒``, the local magnetic moment in units of the Bohr magneton,
+for each site in the system. Use [`magnetic_moment_per_site`](@ref) to average
+over all sites.
 
 The [`SCGA`](@ref) calculator returns a thermodynamic average.
 """
-function magnetic_moment_at(sys::System, site)
-    site = to_cartesian(site)
-    return - sys.gs[site] * sys.dipoles[site]
+function magnetic_moments(sys::System)
+    Base.Broadcast.broadcasted(eachsite(sys)) do site
+        - sys.gs[site] * sys.dipoles[site]
+    end
 end
+
 
 """
     magnetic_moment_per_site(sys::System)
     magnetic_moment_per_site(scga::SCGA)
 
-Returns the [`magnetic_moment_at`](@ref) dipole averaged over [`eachsite`](@ref)
-of the system. The return value is dimensionless (implicit units of the Bohr
-magneton).
-
-The [`SCGA`](@ref) calculator returns a thermodynamic average.
+The average of [`magnetic_moments`](@ref).
 """
-function magnetic_moment_per_site(sys::System)
-    Statistics.mean(magnetic_moment_at(sys, site) for site in eachsite(sys))
+function magnetic_moment_per_site(sys)
+    Statistics.mean(magnetic_moments(sys))
 end
 
 # Total volume of system
@@ -583,8 +581,7 @@ end
 Polarize all spin dipoles in the direction `dir`.
 
 In the common case where the ``g``-factor is scalar, this corresponds to
-aligning the [`magnetic_moment_per_site`](@ref) in the direction _opposite_ to
-`dir`.
+aligning the [`magnetic_moments`](@ref) in the direction _opposite_ to `dir`.
 """
 function polarize_spins!(sys::System{N}, dir) where N
     for site in eachsite(sys)

@@ -66,7 +66,7 @@ include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
-export Moment, System, Site, clone_system, eachsite, position_to_site, global_position, magnetic_moment_at,
+export Moment, System, Site, clone_system, eachsite, position_to_site, global_position, magnetic_moments,
     magnetic_moment_per_site, set_coherent!, set_dipole!, polarize_spins!, copy_spins!, randomize_spins!,
     set_spin_rescaling!, set_spin_s_at!, set_spin_rescaling_for_static_sum_rule!,
     energy, energy_per_site, spin_label, set_onsite_coupling!, set_pair_coupling!,

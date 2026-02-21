@@ -7,8 +7,8 @@ suggests, this theory treats the thermal fluctuations of classical spin dipoles
 as approximately Gaussian. SCGA can calculate ``\\mathcal{S}(𝐪)`` via
 [`intensities_static`](@ref) and ``χ`` via
 [`magnetic_susceptibility_per_site`](@ref). If an external magnetic field has
-been specified by [`set_field!`](@ref), SCGA will calculate a nontrivial induced
-[`magnetic_moment_at`](@ref) at each site.
+been specified by [`set_field!`](@ref), SCGA will calculate nontrivial induced
+[`magnetic_moments`](@ref) for each site.
 
 Prior to calling `SCGA`, it is recommended to rescale the classical dipole
 magnitudes via [`set_spin_rescaling_for_static_sum_rule!`](@ref). This rescaling
@@ -81,13 +81,11 @@ struct SCGA
     end
 end
 
-function magnetic_moment_at(scga::SCGA, site)
-    site = to_cartesian(site)
-    return - scga.sys.gs[site] * scga.dipoles[site]
-end
-
-function magnetic_moment_per_site(scga::SCGA)
-    Statistics.mean(magnetic_moment_at(scga, site) for site in eachsite(scga.sys))
+function magnetic_moments(scga::SCGA)
+    (; sys) = scga
+    Base.Broadcast.broadcasted(eachsite(sys)) do site
+        - sys.gs[site] * scga.dipoles[site]
+    end
 end
 
 function make_q_grid(sys, dq)

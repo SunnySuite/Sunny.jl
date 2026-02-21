@@ -99,7 +99,7 @@ function Base.getproperty(value::Crystal, name::Symbol)
 end
 
 Base.@deprecate magnetic_moment(args...; kwargs...) let
-    error("Use magnetic_moment_at instead of magnetic_moment; see also magnetic_moment_per_site")
+    error("Use magnetic_moments(sys)[site] instead of magnetic_moment(sys, site); see also magnetic_moment_per_site")
 end
 
 # REMEMBER TO ALSO DELETE:

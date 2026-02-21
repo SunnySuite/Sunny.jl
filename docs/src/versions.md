@@ -32,7 +32,7 @@ This release bring significant support for model fitting ([#471](@ref)).
 * [Tutorial 10](@ref "10. Fitting to diffuse scattering data") uses the SCGA
   calculator to fit MgCr2O4 exchange interactions up to third nearest-neighbor.
 * Fix SCGA convergence in multi-sublattice case ([#468](@ref)).
-* **Breaking** [`magnetic_moment_at`](@ref) replaces `magnetic_moment(sys,
+* **Breaking** [`magnetic_moments`](@ref) replaces `magnetic_moment(sys,
   site)` ([#474](@ref)).
 
 ## v0.8.1
