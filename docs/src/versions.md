@@ -211,10 +211,10 @@ This release bring significant support for model fitting ([#471](@ref)).
 ## v0.6.1
 (Aug 2, 2024)
 
-* **Breaking changes**: [`magnetic_moment`](@ref) is now reported in units of
-  the Bohr magneton, ``μ_B``. For model systems where the Zeeman coupling aligns
-  spin dipole with field (e.g., the Ising model convention), create a `SpinInfo`
-  with `g=-1` ([#284](@ref)).
+* **Breaking changes**: `magnetic_moment` is now reported in units of the Bohr
+  magneton, ``μ_B``. For model systems where the Zeeman coupling aligns spin
+  dipole with field (e.g., the Ising model convention), create a `SpinInfo` with
+  `g=-1` ([#284](@ref)).
 * More flexible [`Units`](@ref) system. `set_external_field!` is deprecated in
   favor of [`set_field!`](@ref), which now expects a field in energy units.
   [`enable_dipole_dipole!`](@ref) now expects a scale parameter ``μ_0 μ_B^2``
