@@ -129,8 +129,7 @@ become orthogonal in global Cartesian ``𝐪`` coordinates.
 To specify a 1D grid, use [`q_space_path`](@ref) instead.
 """
 function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(Vec3), orthogonalize=false)
-    axes = hcat(axis1, axis2)
-    rank(axes; rtol=1e-12) == 2 || error("Axes are linearly dependent")
+    rank(hcat(axis1, axis2); rtol=1e-12) == 2 || error("Axes are linearly dependent")
 
     # Axes in global coordinates
     A1 = cryst.recipvecs * axis1
@@ -157,6 +156,7 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(
         length(range2)
     end
 
+    axes = hcat(axis1, axis2)
     coefs_lo = NTuple{2}(axes \ (q_lo - offset))
     coefs_hi = NTuple{2}(axes \ (q_hi - offset))
     coefs_sz = (length1, length2)
@@ -173,8 +173,7 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(
 end
 
 function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range3; orthogonalize=false)
-    axes = hcat(axis1, axis2, axis3)
-    rank(axes; rtol=1e-12) == 3 || error("Axes are linearly dependent")
+    rank(hcat(axis1, axis2, axis3); rtol=1e-12) == 3 || error("Axes are linearly dependent")
 
     # Axes in global coordinates
     A1 = cryst.recipvecs * axis1
@@ -210,6 +209,7 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range
         length(range3)
     end
 
+    axes = hcat(axis1, axis2, axis3)
     coefs_lo = NTuple{3}(axes \ q_lo)
     coefs_hi = NTuple{3}(axes \ q_hi)
     coefs_sz = (length1, length2, length3)

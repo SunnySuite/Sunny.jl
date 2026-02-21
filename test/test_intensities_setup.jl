@@ -14,6 +14,9 @@
     grid = q_space_grid(cryst, [1, 0, 0], range(0, 1, 10), [0, 1, 0], (0, 1); orthogonalize=true)
     @test collect(grid.axes) ≈ [[1.0, 0.0, 0.0], [-0.44703287356193794, 1.0, 0.0]]
     @test size(grid.qs) == (10, 7)
+    c1s, c2s = range.(grid.coefs_lo, grid.coefs_hi, size(grid.qs))
+    qs_reconstructed = [c1 * grid.axes[1] + c2 * grid.axes[2] + grid.offset for c1 in c1s, c2 in c2s]
+    @test grid.qs ≈ qs_reconstructed
 
     grid = q_space_grid(cryst, [1, 0, 0], range(0, 1, 10), [0, 1, 0], (0, 1), [0, 0, 1], (0, 1))
     @test collect(grid.axes) ≈ [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
@@ -22,6 +25,9 @@
     grid = q_space_grid(cryst, [1, 0, 0], range(0, 1, 10), [0, 1, 0], (0, 1), [0, 0, 1], (0, 1); orthogonalize=true)
     @test collect(grid.axes) ≈ [[1.0, 0.0, 0.0], [-0.44703287356193794, 1.0, 0.0], [0.17101007166283427, 0.48209070726490455, 1.0]]
     @test size(grid.qs) == (10, 7, 4)
+    c1s, c2s, c3s = range.(grid.coefs_lo, grid.coefs_hi, size(grid.qs))
+    qs_reconstructed = [c1 * grid.axes[1] + c2 * grid.axes[2] + c3 * grid.axes[3] for c1 in c1s, c2 in c2s, c3 in c3s]
+    @test grid.qs ≈ qs_reconstructed
 end
 
 
