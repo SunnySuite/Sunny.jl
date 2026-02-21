@@ -186,8 +186,8 @@ function accum_ewald_grad!(∇E, dipoles, sys::System{N}) where N
     (; ewald, gs) = sys
     (; μ, FA, Fμ, Fϕ, ϕ, plan, ift_plan) = ewald
 
-    # Fourier transformed magnetic moments
-    μ .= magnetic_moments(sys)
+    # Fourier transformed magnetic moments for the provided trial dipoles
+    μ .= magnetic_moments_aux(sys.gs, dipoles)
     mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
 
     # Calculate magneto-potential ϕ in Fourier space. Without @inbounds,

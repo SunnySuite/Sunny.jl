@@ -245,7 +245,7 @@ end
 
 An iterator over all [`Site`](@ref)s in the system.
 """
-@inline eachsite(sys::System) = CartesianIndices(size(sys.dipoles))
+@inline eachsite(sys::System) = CartesianIndices(sys.dipoles)
 @inline eachsite_sublattice(sys::System, i) = CartesianIndices((sys.dims..., i:i))
 
 """
@@ -284,9 +284,11 @@ over all sites.
 
 The [`SCGA`](@ref) calculator returns a thermodynamic average.
 """
-function magnetic_moments(sys::System)
-    Base.Broadcast.broadcasted(eachsite(sys)) do site
-        - sys.gs[site] * sys.dipoles[site]
+magnetic_moments(sys::System) = magnetic_moments_aux(sys.gs, sys.dipoles)
+
+function magnetic_moments_aux(gs, dipoles)
+    Base.Broadcast.broadcasted(CartesianIndices(dipoles)) do site
+        - gs[site] * dipoles[site]
     end
 end
 

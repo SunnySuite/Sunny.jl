@@ -81,12 +81,8 @@ struct SCGA
     end
 end
 
-function magnetic_moments(scga::SCGA)
-    (; sys) = scga
-    Base.Broadcast.broadcasted(eachsite(sys)) do site
-        - sys.gs[site] * scga.dipoles[site]
-    end
-end
+magnetic_moments(scga::SCGA) = magnetic_moments_aux(scga.sys.gs, scga.dipoles)
+
 
 function make_q_grid(sys, dq)
     # Round up to integer grid length
