@@ -8,7 +8,7 @@
         # positions in global coordinates
         pos = [global_position(sys, site) for site in eachsite(sys)][:]
         # magnetic moments
-        dipoles = collect(magnetic_moments(sys))[:]
+        dipoles = magnetic_moments(sys)[:]
         # energy from traditional Ewald summation
         Ewalder.energy(Ewalder.System(; latvecs, pos); dipoles) / 4π
     end

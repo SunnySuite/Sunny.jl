@@ -158,11 +158,11 @@ end
     ϵ = 1e-5
     set_field!(sys, [0, 0, -ϵ])
     scga = SCGA(sys; measure, kT, dq)
-    M1 = sum(magnetic_moments(scga))[3] / length(eachsite(sys))
+    M1 = sum(magnetic_moments(scga))[3]
     set_field!(sys, [0, 0, ϵ])
     scga = SCGA(sys; measure, kT, dq)
-    M2 = sum(magnetic_moments(scga))[3] / length(eachsite(sys))
-    χ2 = (M2 - M1) / 2ϵ
+    M2 = sum(magnetic_moments(scga))[3]
+    χ2 = (M2 - M1) / (2ϵ * length(eachsite(sys)))
 
     @assert χ1[3, 3] ≈ χ2
 end

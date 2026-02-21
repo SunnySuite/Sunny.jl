@@ -36,6 +36,7 @@ end
         crystal = Crystal(latvecs, [[0, 0, 0]])
         L = 2
         sys = System(crystal, [1 => Moment(s=1, g=2)], mode; dims=(L, L, 1))
+        enable_dipole_dipole!(sys, 1.0)
         set_exchange!(sys, -1.0, Bond(1, 1, (1, 0, 0)))
         polarize_spins!(sys, [0, 0, 1])
 
