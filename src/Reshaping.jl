@@ -225,12 +225,10 @@ function repeat_periodically_as_spiral(sys::System, counts::NTuple{3,Int}; k, ax
     # Positions of original sites in units of sys supervecs (components between 0 and 1)
     rs = Ref(supervecs) .\ global_positions(sys)
 
-    # Positions of new sites in units of sys supervecs
-    new_rs = Ref(supervecs) .\ global_positions(new_sys)
-
     # Copy per-site quantities
     for new_site in eachsite(new_sys)
-        new_r = new_rs[new_site]
+        # Position of new site in units of sys supervecs
+        new_r = supervecs \ global_position_at(new_sys, new_site)
 
         # Find index into original sys corresponding to a periodic copy of new_r
         site = findfirst(r -> is_periodic_copy(new_r, r), rs)
