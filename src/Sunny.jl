@@ -11,6 +11,7 @@ import HCubature: hcubature
 import Hungarian: hungarian
 import JLD2
 import LineSearches
+import MappedArrays: mappedarray
 import OffsetArrays: OffsetArray
 import Optim
 import Printf: Printf, @printf, @sprintf
@@ -66,8 +67,8 @@ include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
-export Moment, System, Site, clone_system, eachsite, position_to_site, global_position, magnetic_moment,
-    magnetic_moment_per_site, set_coherent!, set_dipole!, polarize_spins!, copy_spins!, randomize_spins!,
+export Moment, System, Site, clone_system, eachsite, nsites, position_to_site, global_positions,
+    magnetic_moments, set_coherent!, set_dipole!, polarize_spins!, copy_spins!, randomize_spins!,
     set_spin_rescaling!, set_spin_s_at!, set_spin_rescaling_for_static_sum_rule!,
     energy, energy_per_site, spin_label, set_onsite_coupling!, set_pair_coupling!,
     set_exchange!, dmvec, enable_dipole_dipole!, set_field!, to_inhomogeneous, set_field_at!,

@@ -57,7 +57,7 @@ end
 # Effectively, one can replace `exp(i (q+k)⋅r) → cos(k⋅r)` because the imaginary
 # part cancels in the symmetric sum over ±k. Specifically, replace `cis(x) ≡
 # exp(i x) = cos(x) + i sin(x)` with just `cos(x)` for efficiency. The parameter
-# `T ∈ {Float64, ComplexF64}` controls the return type in a type-stable way. 
+# `T ∈ {Float64, ComplexF64}` controls the return type in a type-stable way.
 function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag, q_reshaped, cis, ::Val{T}) where T
     na = natoms(cryst)
     A = zeros(SMatrix{3, 3, T, 9}, dims..., na, na)
@@ -105,7 +105,7 @@ function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag,
                 r³ = r²*r
                 rhat = rvec/r
                 erfc0 = erfc(r/(√2*σ))
-                gauss0 = √(2/π) * (r/σ) * exp(-r²/2σ²)    
+                gauss0 = √(2/π) * (r/σ) * exp(-r²/2σ²)
                 phase = cis(2π * dot(q_reshaped, n))
                 acc += phase * (1/4π) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
             end
@@ -157,11 +157,8 @@ function ewald_energy(sys::System{N}) where N
     dims = size(sys.dipoles)[1:3]
     even_rft_size = dims[1] % 2 == 0
 
-    for site in eachsite(sys)
-        μ[site] = magnetic_moment(sys, site)
-    end
-
     E = 0.0
+    @. μ = - sys.gs * sys.dipoles # i.e., magnetic_moments(sys)
     mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
 
     # rfft() is missing half the elements of the first Fourier transformed
@@ -189,10 +186,8 @@ function accum_ewald_grad!(∇E, dipoles, sys::System{N}) where N
     (; ewald, gs) = sys
     (; μ, FA, Fμ, Fϕ, ϕ, plan, ift_plan) = ewald
 
-    # Fourier transformed magnetic moments
-    for site in eachsite(sys)
-        μ[site] = gs[site] * dipoles[site]
-    end
+    # Fourier transformed magnetic moments for the provided trial dipoles
+    @. μ = - sys.gs * dipoles
     mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
 
     # Calculate magneto-potential ϕ in Fourier space. Without @inbounds,
@@ -207,9 +202,9 @@ function accum_ewald_grad!(∇E, dipoles, sys::System{N}) where N
     # Inverse Fourier transform to get ϕ in real space
     ϕr = reinterpret(reshape, Float64, ϕ)
     mul!(ϕr, ift_plan, Fϕ)
-    
+
     for site in eachsite(sys)
-        ∇E[site] += gs[site]' * ϕ[site]
+        ∇E[site] -= gs[site]' * ϕ[site]
     end
 end
 
@@ -239,7 +234,7 @@ end
 function ewald_energy_delta(sys::System{N}, site, S::Vec3) where N
     (; dipoles, ewald) = sys
     ΔS = S - dipoles[site]
-    Δμ = sys.gs[site] * ΔS
+    Δμ = - sys.gs[site] * ΔS
     i = to_atom(site)
     ∇E = ewald_grad_at(sys, site)
     return ΔS⋅∇E + dot(Δμ, ewald.A[1, 1, 1, i, i], Δμ) / 2

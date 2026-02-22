@@ -19,8 +19,8 @@
         step!(sys_sun, integrator)
     end
 
-    dip_is_lefthanded = B ⋅ (ic × magnetic_moment(sys_dip, (1,1,1,1))) < 0
-    sun_is_lefthanded = B ⋅ (ic × magnetic_moment(sys_sun, (1,1,1,1))) < 0
+    dip_is_lefthanded = B ⋅ (ic × magnetic_moments(sys_dip)[1, 1, 1, 1]) < 0
+    sun_is_lefthanded = B ⋅ (ic × magnetic_moments(sys_sun)[1, 1, 1, 1]) < 0
 
     @test dip_is_lefthanded == sun_is_lefthanded == true
 end

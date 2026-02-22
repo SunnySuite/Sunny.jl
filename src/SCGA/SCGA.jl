@@ -7,8 +7,8 @@ suggests, this theory treats the thermal fluctuations of classical spin dipoles
 as approximately Gaussian. SCGA can calculate ``\\mathcal{S}(𝐪)`` via
 [`intensities_static`](@ref) and ``χ`` via
 [`magnetic_susceptibility_per_site`](@ref). If an external magnetic field has
-been specified by [`set_field!`](@ref), SCGA will calculate a nontrivial induced
-[`magnetic_moment`](@ref) at each site.
+been specified by [`set_field!`](@ref), SCGA will calculate nontrivial induced
+[`magnetic_moments`](@ref) for each site.
 
 Prior to calling `SCGA`, it is recommended to rescale the classical dipole
 magnitudes via [`set_spin_rescaling_for_static_sum_rule!`](@ref). This rescaling
@@ -81,14 +81,8 @@ struct SCGA
     end
 end
 
-function magnetic_moment(scga::SCGA, site)
-    site = to_cartesian(site)
-    return - scga.sys.gs[site] * scga.dipoles[site]
-end
+magnetic_moments(scga::SCGA) = magnetic_moments_aux(scga.sys.gs, scga.dipoles)
 
-function magnetic_moment_per_site(scga::SCGA)
-    Statistics.mean(magnetic_moment(scga, site) for site in eachsite(scga.sys))
-end
 
 function make_q_grid(sys, dq)
     # Round up to integer grid length
@@ -285,7 +279,8 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
     Λ = Diagonal(repeat(λs, inner=3))
 
     qpts = convert(AbstractQPoints, qpts)
-    cryst = orig_crystal(scga.sys)
+    cryst = orig_crystal(sys)
+    rs_global = global_positions(sys)
 
     Na = nsites(sys)
     Ncells = Na / natoms(cryst)
@@ -308,7 +303,7 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
         q_global = cryst.recipvecs * q
 
         for i in 1:Na, μ in 1:Nobs
-            r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
+            r_global = rs_global[i] # + offsets[μ, i]
             ff = get_swt_formfactor(measure, μ, i)
             c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
             for α in 1:3
@@ -351,9 +346,9 @@ end
 Returns the magnetic susceptibility tensor in units of inverse energy,
 ``\\tilde{χ} = (dμ/d𝐁) / μ_B^2`` , where ``μ`` is the magnetic dipole per site,
 ``𝐁`` is the physical applied field, and ``μ_B`` is the Bohr magneton. In terms
-of Sunny quantities, ``\\tilde{χ}`` can be understood as the derivative of
-[`magnetic_moment_per_site`](@ref) (dimensionless) with respect to the argument
-of [`set_field!`](@ref) (energy units).
+of Sunny quantities, ``\\tilde{χ}`` can be understood as the derivative of the
+site-averaged [`magnetic_moments`](@ref) (dimensionless) with respect to the
+argument of [`set_field!`](@ref) (energy units).
 
 For a non-magnetized system, fluctuation-dissipation states ``⟨\\hat{M}^α_{q=0}
 \\hat{M}^β_{q=0}⟩ / μ_B^2 N_s = k_B T \\tilde{χ}^{αβ}``, where
@@ -474,6 +469,8 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
         (; sys, λs, β) = scga
         measure = @something measure scga.measure
         cryst = orig_crystal(sys)
+        rs_global = global_positions(sys)
+
         Na = nsites(sys)
         Ncells = Na / natoms(cryst)
 
@@ -507,7 +504,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             q_global = cryst.recipvecs * q
 
             for i in 1:Na, μ in 1:Nobs
-                r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
+                r_global = rs_global[i] # + offsets[μ, i]
                 ff = get_swt_formfactor(measure, μ, i)
                 c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
                 for α in 1:3

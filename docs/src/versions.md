@@ -24,7 +24,7 @@ This release bring significant support for model fitting ([#471](@ref)).
   compare spin wave bands with experimental intensity peaks.
 * Enhancements to the [`SCGA`](@ref) calculator. External field is now
   supported. One can calculate the [`magnetic_susceptibility_per_site`](@ref)
-  and the thermally averaged [`magnetic_moment_per_site`](@ref).
+  and the thermally averaged [`magnetic_moments`](@ref).
 * Function [`find_qs_along_path`](@ref) is useful for drawing on top of a
   [`plot_intensities`](@ref) figure for bands data.
 * [Adapted SpinW Tutorial 35](@ref "SW35 - LuVO₃ fitting") uses spin wave theory
@@ -32,6 +32,10 @@ This release bring significant support for model fitting ([#471](@ref)).
 * [Tutorial 10](@ref "10. Fitting to diffuse scattering data") uses the SCGA
   calculator to fit MgCr2O4 exchange interactions up to third nearest-neighbor.
 * Fix SCGA convergence in multi-sublattice case ([#468](@ref)).
+* [`magnetic_moments`](@ref) replaces `magnetic_moment(sys, site)`. Similarly,
+  [`global_positions`](@ref) replaces `global_position(sys, site)`. The new
+  functions return mapped arrays ([#474](@ref)).
+* [`nsites`](@ref) counts the number of sites in a system.
 
 ## v0.8.1
 (Dec 23, 2025)
@@ -209,10 +213,10 @@ This release bring significant support for model fitting ([#471](@ref)).
 ## v0.6.1
 (Aug 2, 2024)
 
-* **Breaking changes**: [`magnetic_moment`](@ref) is now reported in units of
-  the Bohr magneton, ``μ_B``. For model systems where the Zeeman coupling aligns
-  spin dipole with field (e.g., the Ising model convention), create a `SpinInfo`
-  with `g=-1` ([#284](@ref)).
+* **Breaking changes**: `magnetic_moment` is now reported in units of the Bohr
+  magneton, ``μ_B``. For model systems where the Zeeman coupling aligns spin
+  dipole with field (e.g., the Ising model convention), create a `SpinInfo` with
+  `g=-1` ([#284](@ref)).
 * More flexible [`Units`](@ref) system. `set_external_field!` is deprecated in
   favor of [`set_field!`](@ref), which now expects a field in energy units.
   [`enable_dipole_dipole!`](@ref) now expects a scale parameter ``μ_0 μ_B^2``
@@ -499,7 +503,7 @@ reduce confusion with the physical instantaneous intensities.
 The function `spherical_shell` now takes a radius in physical units of inverse
 Å.
 
-New exported functions [`global_position`](@ref), [`magnetic_moment`](@ref),
+New exported functions `global_position`, `magnetic_moment`,
 `all_sites`.
 
 Remove all uses of
