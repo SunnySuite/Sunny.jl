@@ -133,8 +133,8 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
 
     # See "spiral_energy.lyx" for derivation
     if !isnothing(sys.ewald)
-        (; demag, μ0_μB², A) = sys.ewald
-        μ = [magnetic_moment(sys, site) for site in eachsite(sys)]
+        (; μ, demag, μ0_μB², A) = sys.ewald
+        μ .= magnetic_moments(sys)
 
         A0 = reshape(A, Na, Na)
 
@@ -164,7 +164,7 @@ end
 # Sets sys.dipoles and returns k, according to data in params
 function unpack_spiral_params!(sys::System{0}, x)
     x = reinterpret(Vec3, x)
-    L = length(sys.dipoles)
+    L = nsites(sys)
     for i in 1:L
         sys.dipoles[i] = sys.κs[i] * x[i]
     end
@@ -191,7 +191,7 @@ function spiral_g!(G, sys::System{0}, axis, x, λ)
     k = unpack_spiral_params!(sys, x)
     G = reinterpret(Vec3, G)
 
-    L = length(sys.dipoles)
+    L = nsites(sys)
     dEdS = view(G, 1:L)
     _E, dEdk = spiral_energy_and_gradient_aux!(dEdS, sys; k, axis)
 
@@ -243,7 +243,7 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     # See `minimize_energy!` for discussion of the tolerance settings.
     x_abstol = 1e-12
     g_abstol = 1e-12 * characteristic_energy_scale(sys)
-    manifold = SpinManifold(3, length(eachsite(sys)))
+    manifold = SpinManifold(3, nsites(sys))
     method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10.0), manifold)
     options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
 

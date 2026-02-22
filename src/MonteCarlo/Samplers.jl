@@ -131,7 +131,7 @@ function Base.copy(sampler::LocalSampler{F}) where F
 end
 
 function step!(sys::System{N}, sampler::LocalSampler) where N
-    niters = round(Int, sampler.nsweeps*length(sys.dipoles), RoundUp)
+    niters = round(Int, sampler.nsweeps*nsites(sys), RoundUp)
     for _ in 1:niters
         site = rand(sys.rng, eachsite(sys))
         state = sampler.propose(sys, site)

@@ -245,63 +245,45 @@ end
 
 An iterator over all [`Site`](@ref)s in the system.
 """
-@inline eachsite(sys::System) = CartesianIndices(size(sys.dipoles))
+@inline eachsite(sys::System) = CartesianIndices(sys.dipoles)
 @inline eachsite_sublattice(sys::System, i) = CartesianIndices((sys.dims..., i:i))
 
 """
-nsites(sys::System) = length(eachsite(sys))
+    nsites(sys::System)
+
+Number of sites in the system, i.e., the length of the [`eachsite`](@ref)
+iterator.
 """
-nsites(sys::System) = length(eachsite(sys))
+nsites(sys::System) = length(sys.dipoles)
 
 # Number of (original) crystal cells in the system
 ncells(sys::System) = nsites(sys) / natoms(orig_crystal(sys))
 
 
 """
-    global_position(sys::System, site::Site)
+    global_positions(sys::System)
 
-Position of a [`Site`](@ref) in global coordinates.
-
-To precompute a full list of positions, one can use [`eachsite`](@ref) as
-below:
-
-```julia
-pos = [global_position(sys, site) for site in eachsite(sys)]
-```
+Position of each site in global Cartesian coordinates.
 """
-function global_position(sys::System, site)
-    r = sys.crystal.positions[site[4]] + Vec3(site[1]-1, site[2]-1, site[3]-1)
-    return sys.crystal.latvecs * r
+function global_positions(sys::System)
+    mappedarray(site -> global_position_at(sys, site), eachsite(sys))
 end
 
 """
-    magnetic_moment(sys::System, site::Site)
-    magnetic_moment(scga::SCGA, site::Site)
+    magnetic_moments(sys::System)
+    magnetic_moments(scga::SCGA)
 
-Returns ``- g 𝐒``, the local magnetic moment in units of the Bohr magneton. The
-spin dipole ``𝐒`` and ``g``-tensor may both be [`Site`](@ref) dependent. See
-[`magnetic_moment_per_site`](@ref) for an average over all sites.
+Returns ``μ = - g 𝐒``, the local magnetic moment in units of the Bohr magneton,
+for each site in the system.
 
-The [`SCGA`](@ref) calculator returns a thermodynamic average.
+The [`SCGA`](@ref) calculator returns the thermodynamic average for each site.
 """
-function magnetic_moment(sys::System, site)
-    site = to_cartesian(site)
-    return - sys.gs[site] * sys.dipoles[site]
+magnetic_moments(sys::System) = magnetic_moments_aux(sys.gs, sys.dipoles)
+
+function magnetic_moments_aux(gs, dipoles)
+    mappedarray((g, S) -> -g * S, gs, dipoles)
 end
 
-"""
-    magnetic_moment_per_site(sys::System)
-    magnetic_moment_per_site(scga::SCGA)
-
-Returns the [`magnetic_moment`](@ref) dipole averaged over [`eachsite`](@ref) of
-the system. The return value is dimensionless (implicit units of the Bohr
-magneton).
-
-The [`SCGA`](@ref) calculator returns a thermodynamic average.
-"""
-function magnetic_moment_per_site(sys::System)
-    Statistics.mean(magnetic_moment(sys, site) for site in eachsite(sys))
-end
 
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.dims)
@@ -310,13 +292,17 @@ volume(sys::System) = cell_volume(sys.crystal) * prod(sys.dims)
 # the "conventional" unit cell.
 orig_crystal(sys) = something(sys.origin, sys).crystal
 
-"""
-    position(sys::System, site::Site)
+# Position of a site in global Cartesian coordinates
+function global_position_at(sys::System, site)
+    site = to_cartesian(site)
+    r = sys.crystal.positions[site[4]] + Vec3(site[1]-1, site[2]-1, site[3]-1)
+    return sys.crystal.latvecs * r
+end
 
-Position of a [`Site`](@ref) in units of lattice vectors for the original
-crystal.
-"""
-position(sys::System, site) = orig_crystal(sys).latvecs \ global_position(sys, site)
+# Position of a site in units of lattice vectors for the original crystal.
+function position_at(sys::System, site)
+    return orig_crystal(sys).latvecs \ global_position_at(sys, site)
+end
 
 """
     position_to_site(sys::System, r)
@@ -346,14 +332,6 @@ function position_to_site(sys::System, r; tol=1e-12)
     return to_cartesian((cell..., i))
 end
 
-
-# Given a [`Site`](@ref) for a possibly reshaped system, return the
-# corresponding atom index for the original (unreshaped) crystal.
-function site_to_atom(sys::System{N}, site) where N
-    site = to_cartesian(site)
-    r = position(sys, site)
-    return position_to_atom(orig_crystal(sys), r)
-end
 
 # Maps atom `i` in `cryst` to the corresponding atom in `other_cryst`
 function map_atom_to_other_crystal(cryst::Crystal, i, other_cryst::Crystal)
@@ -583,8 +561,7 @@ end
 Polarize all spin dipoles in the direction `dir`.
 
 In the common case where the ``g``-factor is scalar, this corresponds to
-aligning all [`magnetic_moment`](@ref) dipoles in the direction _opposite_ to
-`dir`.
+aligning the [`magnetic_moments`](@ref) in the direction _opposite_ to `dir`.
 """
 function polarize_spins!(sys::System{N}, dir) where N
     for site in eachsite(sys)

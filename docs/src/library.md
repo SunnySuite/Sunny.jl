@@ -46,7 +46,7 @@ find_qs_along_path
 gaussian
 get_param
 get_params
-global_position
+global_positions
 intensities
 intensities_bands
 intensities_static
@@ -54,14 +54,14 @@ lattice_params
 lattice_vectors
 load_nxs
 lorentzian
-magnetic_moment
-magnetic_moment_per_site
+magnetic_moments
 magnetic_susceptibility_per_site
 make_loss_fn
 merge_correlations
 minimize_energy!
 minimize_spiral_energy!
 modify_exchange_with_truncated_dipole_dipole!
+nsites
 polarize_spins!
 position_to_site
 powder_average

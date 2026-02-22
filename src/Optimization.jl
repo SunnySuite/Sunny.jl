@@ -152,7 +152,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, jitter=1e-8, kwargs...)
     # the p=Inf norm (largest vector component).
     x_abstol = 1e-12
     g_abstol = 1e-12 * characteristic_energy_scale(sys)
-    manifold = SpinManifold(iszero(N) ? 3 : N, length(eachsite(sys)))
+    manifold = SpinManifold(iszero(N) ? 3 : N, nsites(sys))
     method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10.0), manifold)
     options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
     (; res, niters) = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)

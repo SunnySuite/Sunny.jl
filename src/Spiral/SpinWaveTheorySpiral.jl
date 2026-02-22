@@ -30,7 +30,7 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
         end
 
         k_case = spiral_propagation_case(to_reshaped_rlu(sys, k))
-        L = length(eachsite(sys))
+        L = nsites(sys)
         buffers = [zeros(CMat3, L, L) for _ in 1:6]
         return new(SpinWaveTheory(sys; measure, regularization), k, k_case, normalize(axis), buffers)
     end
@@ -261,6 +261,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
+    rs_global = global_positions(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
@@ -301,9 +302,8 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
         end
 
         for i in 1:Na
-            r_global = global_position(sys, (1, 1, 1, i))
             ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = exp(- im * dot(q_global, r_global))
+            Avec_pref[i] = exp(- im * dot(q_global, rs_global[i]))
             Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 

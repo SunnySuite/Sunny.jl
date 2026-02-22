@@ -1,7 +1,7 @@
 struct SWTDataEntangled
     local_unitaries           :: Vector{Matrix{ComplexF64}}   # Aligns to quantization axis on each site
     observables_localized     :: Array{HermitianC64, 3}   # Observables in local frame for each subsite (for intensity calcs)
-    observable_buf            :: Array{ComplexF64, 2}   # Buffer for use while constructing boson rep of observables 
+    observable_buf            :: Array{ComplexF64, 2}   # Buffer for use while constructing boson rep of observables
 end
 
 struct EntangledSpinWaveTheory <: AbstractSpinWaveTheory
@@ -14,7 +14,7 @@ struct EntangledSpinWaveTheory <: AbstractSpinWaveTheory
     contraction_info :: CrystalContractionInfo
     Ns_unit          :: Vector{Vector{Int64}}
 end
- 
+
 
 function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
     (; sys, sys_origin) = esys
@@ -24,7 +24,7 @@ function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
     end
 
     measure = @something measure empty_measurespec(sys)
-    if length(eachsite(sys_origin)) != prod(size(measure.observables)[2:5])
+    if nsites(sys_origin) != prod(size(measure.observables)[2:5])
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
@@ -63,11 +63,11 @@ end
 
 # obs are observables _given in terms of `sys_original`_
 function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
-    
+
     # Calculate transformation matrices into local reference frames
-    N = sys.Ns[1] # Assume uniform contraction for now 
-    nunits = length(eachsite(sys))
-    natoms = length(eachsite(sys_origin)) 
+    N = sys.Ns[1] # Assume uniform contraction for now
+    nunits = nsites(sys)
+    natoms = nsites(sys_origin)
     nobs = size(measure.observables, 1)
     observables = reshape(measure.observables, nobs, natoms)
 
@@ -78,7 +78,7 @@ function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
 
     Ns_contracted = map(Ns -> prod(Ns), Ns_unit)
     @assert allequal(Ns_contracted) "All units must have the same dimension local Hilbert space"
-    @assert Ns_contracted[1] == N "Unit dimension inconsistent with system"  # Sanity check. This should never happen. 
+    @assert Ns_contracted[1] == N "Unit dimension inconsistent with system"  # Sanity check. This should never happen.
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, nunits)
@@ -111,7 +111,7 @@ function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
         int = sys.interactions_union[unit]
 
         # Rotate onsite anisotropy (not that, for entangled units, onsite already includes Zeeman)
-        int.onsite = Hermitian(U' * int.onsite * U) 
+        int.onsite = Hermitian(U' * int.onsite * U)
 
         # Transform pair couplings into tensor decomposition and rotate.
         pair_new = PairCoupling[]
@@ -144,10 +144,11 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
+    rs_global = global_positions(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
-    nunits = length(eachsite(sys))
+    nunits = nsites(sys)
     # Number of chemical cells in magnetic cell
     # Ncells = Na / natoms(cryst)         # TODO: Pass information about natoms in unreshaped, uncontracted system
     Ncells = 1
@@ -175,8 +176,7 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:nunits
-            r_global = global_position(sys, (1,1,1,i))
-            Avec_pref[i] = exp(- im * dot(q_global, r_global))
+            Avec_pref[i] = exp(- im * dot(q_global, rs_global[i]))
         end
 
         Avec = zeros(ComplexF64, Nobs)
@@ -296,7 +296,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
 
     N = sys.Ns[1]
     Na = natoms(sys.crystal)
-    L = (N-1) * Na   
+    L = (N-1) * Na
 
     # Clear the Hamiltonian
     @assert size(H) == (2L, 2L)
@@ -332,7 +332,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
             # Set "general" pair interactions of the form Aᵢ⊗Bⱼ. Note that Aᵢ
             # and Bᵢ have already been transformed according to the local frames
             # of sublattice i and j, respectively.
-            for (Ai, Bj) in coupling.general.data 
+            for (Ai, Bj) in coupling.general.data
                 for m in 1:N-1, n in 1:N-1
                     c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
                     H11[m, i, n, i] += c

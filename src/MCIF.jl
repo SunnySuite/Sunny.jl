@@ -82,7 +82,7 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString; symprec=n
                 rethrow(ErrorException("Magnetic symops inconsistent with spacegroup symmetry"))
             end
 
-            # Get spin dipole by inverting the `magnetic_moment` transformation
+            # Get spin dipole by inverting the `magnetic_moments` transformation
             dipole = - sys.gs[site] \ μ_new
             s_prev = sys.dipoles[site]
             set_dipole!(sys, dipole, site)

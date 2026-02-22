@@ -76,7 +76,7 @@ end
     # and (2) It does not account for canting, which is a q=0 contribution
     # to the S(q). For this problem, the canting effect can be counteracted
     # by a halving of the Zeeman energy of a site.
-    lt_exch = Sunny.luttinger_tisza_exchange(sys; k) / length(eachsite(sys))
+    lt_exch = Sunny.luttinger_tisza_exchange(sys; k) / nsites(sys)
     zeeman = sys.dipoles[1]' * sys.gs[1] * sys.extfield[1]
     constant_shift = sys.interactions_union[1].onsite.c0[1]
     @test spiral_energy_per_site(sys; k, axis) ≈ lt_exch + constant_shift + zeeman/2

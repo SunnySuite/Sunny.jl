@@ -128,13 +128,13 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
         # Inhomogeneous interactions must be transferred directly. This path
         # only exists to support SpinWaveTheory reshaping.
         @assert new_sys.dims == (1, 1, 1)
-        @assert length(eachsite(new_sys)) == length(eachsite(sys))
+        @assert nsites(new_sys) == nsites(sys)
         transfer_interactions_from_inhomogeneous!(new_sys, sys)
     end
 
     # Copy per-site quantities
     for new_site in eachsite(new_sys)
-        site = position_to_site(sys, position(new_sys, new_site))
+        site = position_to_site(sys, position_at(new_sys, new_site))
         new_sys.Ns[new_site]        = sys.Ns[site]
         new_sys.κs[new_site]        = sys.κs[site]
         new_sys.gs[new_site]        = sys.gs[site]
@@ -222,13 +222,13 @@ function repeat_periodically_as_spiral(sys::System, counts::NTuple{3,Int}; k, ax
     # Lattice vectors for sys, the magnetic cell 
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.dims))
 
-    # Original positions units of supervecs (components between 0 and 1)
-    rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
+    # Positions of original sites in units of sys supervecs (components between 0 and 1)
+    rs = Ref(supervecs) .\ global_positions(sys)
 
     # Copy per-site quantities
     for new_site in eachsite(new_sys)
-        # Positions of new_sys in units of supervecs
-        new_r = supervecs \ global_position(new_sys, new_site)
+        # Position of new site in units of sys supervecs
+        new_r = supervecs \ global_position_at(new_sys, new_site)
 
         # Find index into original sys corresponding to a periodic copy of new_r
         site = findfirst(r -> is_periodic_copy(new_r, r), rs)
