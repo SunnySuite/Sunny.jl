@@ -76,7 +76,7 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
     # Quantum spin-s averaged over sites. Will be used to normalize dipoles.
-    N0 = norm(sys.Ns) / sqrt(length(sys.Ns))
+    N0 = norm(sys.Ns) / sqrt(nsites(sys))
     s0 = (N0 - 1) / 2
 
     # Parameters defining arrow shape
@@ -110,7 +110,7 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
             # In this case, we can precompute the fixed `rgba_colors` array
             # according to `color`
             if color isa AbstractArray
-                @assert length(color) == length(sys.dipoles)
+                @assert length(color) == nsites(sys)
                 if eltype(color) <: Number
                     dyncolorrange = @something colorrange extrema(color)
                     numbers_to_colors!(rgba_colors, color, cmap_with_alpha, dyncolorrange)

@@ -28,7 +28,7 @@ See [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-starte
 
 ## Key features
 
-Sunny supports many standard tools for modeling spin systems and introduces several unique ones.
+Sunny offers many standard tools for modeling spin systems and introduces some unique ones.
 
 - **Symmetry-guided modeling**, including enumeration of [symmetry-allowed couplings](https://sunnysuite.github.io/Sunny.jl/dev/examples/03_LSWT_SU3_FeI2.html#Symmetry-analysis) and propagation of interactions by symmetry equivalence.
 - **General spin couplings**. [Arbitrary single-ion anisotropy](https://sunnysuite.github.io/Sunny.jl/dev/library.html#Sunny.set_onsite_coupling!) may be specified via Stevens operator expansion or as a general spin polynomial. [Arbitrary multipolar coupling](https://sunnysuite.github.io/Sunny.jl/dev/library.html#Sunny.set_pair_coupling!) between site-pairs is also supported.

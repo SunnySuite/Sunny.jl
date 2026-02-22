@@ -370,8 +370,8 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
             # Show dipoles. Mostly consistent with code in plot_spins.
             if !isnothing(sys) && ismagnetic
                 sites = Sunny.position_to_site.(Ref(sys), rs)
-                g0 = norm(sys.gs) / sqrt(length(sys.gs) * 3)
-                N0 = norm(sys.Ns) / sqrt(length(sys.Ns))
+                g0 = norm(sys.gs) / sqrt(nsites(sys) * 3)
+                N0 = norm(sys.Ns) / sqrt(nsites(sys))
                 s0 = (N0 - 1) / 2
                 spin_dipoles = sys.dipoles[sites] / s0
                 magn_dipoles = magnetic_moments(sys)[sites] / (s0*g0)

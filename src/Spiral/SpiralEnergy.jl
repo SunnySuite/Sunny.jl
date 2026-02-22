@@ -164,7 +164,7 @@ end
 # Sets sys.dipoles and returns k, according to data in params
 function unpack_spiral_params!(sys::System{0}, x)
     x = reinterpret(Vec3, x)
-    L = length(sys.dipoles)
+    L = nsites(sys)
     for i in 1:L
         sys.dipoles[i] = sys.κs[i] * x[i]
     end
@@ -191,7 +191,7 @@ function spiral_g!(G, sys::System{0}, axis, x, λ)
     k = unpack_spiral_params!(sys, x)
     G = reinterpret(Vec3, G)
 
-    L = length(sys.dipoles)
+    L = nsites(sys)
     dEdS = view(G, 1:L)
     _E, dEdk = spiral_energy_and_gradient_aux!(dEdS, sys; k, axis)
 

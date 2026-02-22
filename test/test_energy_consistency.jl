@@ -47,7 +47,7 @@
 
         # Fluctuations should scale like square-root of system size,
         # independent of trajectory length
-        sqrt_size = sqrt(length(sys.dipoles))
+        sqrt_size = sqrt(nsites(sys))
         ΔE = (maximum(energies) - minimum(energies)) / sqrt_size
         @test ΔE < 1e-3
     end

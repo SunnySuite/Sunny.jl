@@ -251,9 +251,10 @@ An iterator over all [`Site`](@ref)s in the system.
 """
     nsites(sys::System)
 
-Number of sites in the system, i.e., `length(eachsite(sys))`.
+Number of sites in the system, i.e., the length of the [`eachsite`](@ref)
+iterator.
 """
-nsites(sys::System) = length(eachsite(sys))
+nsites(sys::System) = length(sys.dipoles)
 
 # Number of (original) crystal cells in the system
 ncells(sys::System) = nsites(sys) / natoms(orig_crystal(sys))

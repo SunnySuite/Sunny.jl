@@ -158,7 +158,7 @@ function ewald_energy(sys::System{N}) where N
     even_rft_size = dims[1] % 2 == 0
 
     E = 0.0
-    μ .= magnetic_moments(sys)
+    @. μ = - sys.gs * sys.dipoles # i.e., magnetic_moments(sys)
     mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
 
     # rfft() is missing half the elements of the first Fourier transformed
@@ -187,7 +187,7 @@ function accum_ewald_grad!(∇E, dipoles, sys::System{N}) where N
     (; μ, FA, Fμ, Fϕ, ϕ, plan, ift_plan) = ewald
 
     # Fourier transformed magnetic moments for the provided trial dipoles
-    μ .= magnetic_moments_aux(sys.gs, dipoles)
+    @. μ = - sys.gs * dipoles
     mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
 
     # Calculate magneto-potential ϕ in Fourier space. Without @inbounds,
@@ -234,7 +234,7 @@ end
 function ewald_energy_delta(sys::System{N}, site, S::Vec3) where N
     (; dipoles, ewald) = sys
     ΔS = S - dipoles[site]
-    Δμ = sys.gs[site] * ΔS
+    Δμ = - sys.gs[site] * ΔS
     i = to_atom(site)
     ∇E = ewald_grad_at(sys, site)
     return ΔS⋅∇E + dot(Δμ, ewald.A[1, 1, 1, i, i], Δμ) / 2
