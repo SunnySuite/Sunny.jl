@@ -69,7 +69,7 @@ set_exchange!(sys, Diagonal([1, 0, 0]), bond, :Jxx => 2.0)
 set_param!(sys, :Jxx, 3.0)
 ```
 
-Multiple labeled couplings on the same site or bond will be additive. For
+Distinct labeled couplings on the same site or bond will be additive. For
 example, the code below sets a single-ion anisotropy of the form ``K_{xx}
 (S_i^x)^2 + K_{yy} (S_i^x)^2``, and each term can be modified independently.
 

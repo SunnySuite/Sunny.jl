@@ -142,8 +142,9 @@ O = stevens_matrices(spin_label(sys, i))
 set_onsite_coupling!(sys, O[4,0] + 5*O[4,4], i)
 ```
 
-The optional trailing [`Param`](@ref) argument labels the coupling and allows to
-mutably update the coupling strength.
+An optional trailing [`Param`](@ref) argument labels the coupling and allows to
+mutably update the coupling strength. Couplings with distinct labels accumulate
+on each site.
 
 !!! warning "Limitations arising from quantum spin operators"  
     Single-ion anisotropy is physically impossible in a bare Hamiltonian with

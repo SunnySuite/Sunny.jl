@@ -240,6 +240,7 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
     paramspec = @something paramspec (get_unnamed_label(sys, bond_matches) => 1.0)
     replace_model_param!(sys, paramspec; reference="for $bond", pairs)
     repopulate_couplings_from_params!(sys)
+    return
 end
 
 
@@ -247,12 +248,11 @@ end
     set_pair_coupling!(sys::System, op, bond, param=nothing)
 
 Sets an arbitrary coupling `op` along `bond`. This coupling will be propagated
-to equivalent bonds in consistency with crystal symmetry. Any previous
-interactions on these bonds will be overwritten. The parameter `bond` has the
-form `Bond(i, j, offset)`, where `i` and `j` are atom indices within the unit
-cell, and `offset` is a displacement in unit cells. The operator `op` may be
-provided as an anonymous function that accepts two spin dipole operators, or as
-a matrix that acts in the tensor product space of the two sites.
+to equivalent bonds in consistency with crystal symmetry. The parameter `bond`
+has the form `Bond(i, j, offset)`, where `i` and `j` are atom indices within the
+unit cell, and `offset` is a displacement in unit cells. The operator `op` may
+be provided as an anonymous function that accepts two spin dipole operators, or
+as a matrix that acts in the tensor product space of the two sites.
 
 # Examples
 ```julia
@@ -265,8 +265,9 @@ Si, Sj = to_product_space(S, S)
 set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 ```
 
-The optional trailing [`Param`](@ref) argument labels the coupling and allows to
-mutably update the coupling strength.
+An optional trailing [`Param`](@ref) argument labels the coupling and allows to
+mutably update the coupling strength. Couplings with distinct labels accumulate
+on each bond.
 
 See also [`spin_matrices`](@ref), [`to_product_space`](@ref).
 """
@@ -343,14 +344,13 @@ end
 
 Sets an exchange interaction ``𝐒_i⋅J 𝐒_j`` along the specified `bond`. This
 interaction will be propagated to equivalent bonds in consistency with crystal
-symmetry. Any previous interactions on these bonds will be overwritten. The
-parameter `bond` has the form `Bond(i, j, offset)`, where `i` and `j` are atom
-indices within the unit cell, and `offset` is a displacement in unit cells.
+symmetry. The parameter `bond` has the form `Bond(i, j, offset)`, where `i` and
+`j` are atom indices within the unit cell, and `offset` is a displacement in
+unit cells.
 
-As a convenience, scalar `J` can be used to specify a Heisenberg interaction.
-Also, the function [`dmvec(D)`](@ref dmvec) can be used to construct the
-antisymmetric part of the exchange, where `D` is the Dzyaloshinskii-Moriya
-pseudo-vector. The resulting interaction will be ``𝐃⋅(𝐒_i×𝐒_j)``.
+As a convenience, scalar `J` will be interpreted as an isotropic (Heisenberg)
+exchange strength. Also, [`dmvec(D)`](@ref dmvec) will build the antisymmetric
+exchange matrix for the Dzyaloshinskii-Moriya coupling ``𝐃⋅(𝐒_i×𝐒_j)``.
 
 The optional numeric parameter `biquad` multiplies a scalar biquadratic
 interaction, ``(𝐒_i⋅𝐒_j)^2``, with [Interaction Renormalization](@ref) if
@@ -372,8 +372,9 @@ J = [2 3 0;
 set_exchange!(sys, J, bond)
 ```
 
-The optional trailing [`Param`](@ref) argument labels the coupling and allows to
-mutably update the coupling strength.
+An optional trailing [`Param`](@ref) argument labels the coupling and allows to
+mutably update the coupling strength. Couplings with distinct labels accumulate
+on each bond.
 """
 function set_exchange!(sys::System{N}, J, bond::Bond, paramspec=nothing; biquad=0.0) where N
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
