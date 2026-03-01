@@ -206,7 +206,7 @@ function spiral_g!(G, sys::System{0}, axis, x, λ)
 end
 
 """
-    minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
+    minimize_spiral_energy!(sys, axis; maxiters=1000, k_guess=randn(sys.rng, 3))
 
 Finds a generalized spiral order that minimizes the [`spiral_energy`](@ref).
 This involves optimization of the spin configuration in `sys`, and the
@@ -219,7 +219,7 @@ unless otherwise provided.
 See also [`suggest_magnetic_supercell`](@ref) to find a system shape that is
 approximately commensurate with the returned propagation wavevector ``𝐤``.
 """
-function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3), δ=1e-8, kwargs...)
+function minimize_spiral_energy!(sys, axis; maxiters=1000, k_guess=randn(sys.rng, 3), jitter=1e-8, kwargs...)
     axis = normalize(axis)
 
     sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")
@@ -230,7 +230,7 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     # is a weaker constraint.
     check_rotational_symmetry(sys; axis, θ=0.01)
 
-    perturb_spins!(sys, δ)
+    perturb_spins!(sys, jitter)
 
     x = normalize.(vec(sys.dipoles))
     push!(x, Vec3(k_guess))
@@ -247,14 +247,18 @@ function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10.0), manifold)
     options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)
 
-    # First, optimize with regularization λ that pushes spins away from
-    # alignment with the spiral `axis`. See `spiral_f` for precise definition.
+    # Optimize with regularization λ that pushes spins away from alignment with
+    # the spiral `axis`. See `spiral_f` for precise definition.
     λ = 1 * abs(spiral_energy_per_site(sys; k=k_guess, axis))
     res0, _ = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
 
-    # Second, disable regularization to find true energy minimum.
-    λ = 0
+    # Wrap spiral wavevector to first reciprocal cell to save some FP precision
     x = Optim.minimizer(res0)
+    k = @view x[end-2:end]
+    k .= mod.(k, 1)
+
+    # Finally, re-optimize without regularization
+    λ = 0
     res, _ = optimize_with_restarts(; calc_f, calc_g!, x, method, maxiters, options_args)
 
     k = unpack_spiral_params!(sys, Optim.minimizer(res))
