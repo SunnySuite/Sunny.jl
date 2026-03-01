@@ -206,7 +206,7 @@ function spiral_g!(G, sys::System{0}, axis, x, λ)
 end
 
 """
-    minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
+    minimize_spiral_energy!(sys, axis; maxiters=1000, k_guess=randn(sys.rng, 3))
 
 Finds a generalized spiral order that minimizes the [`spiral_energy`](@ref).
 This involves optimization of the spin configuration in `sys`, and the
