@@ -245,7 +245,7 @@ end
 
 
 """
-    set_pair_coupling!(sys::System, op, bond, param=nothing)
+    set_pair_coupling!(sys::System, op, bond, paramspec=nothing)
 
 Sets an arbitrary coupling `op` along `bond`. This coupling will be propagated
 to equivalent bonds in consistency with crystal symmetry. The parameter `bond`
@@ -265,9 +265,9 @@ Si, Sj = to_product_space(S, S)
 set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 ```
 
-An optional trailing [`Param`](@ref) argument labels the coupling and allows to
-mutably update the coupling strength. Couplings with distinct labels accumulate
-on each bond.
+An optional trailing [`ParamSpec`](@ref) labels the coupling to support mutable
+rescaling of its strength. Couplings with distinct labels accumulate on each
+bond.
 
 See also [`spin_matrices`](@ref), [`to_product_space`](@ref).
 """
@@ -340,7 +340,7 @@ function adapt_for_biquad(scalar, bilin, biquad, sys, site1, site2)
 end
 
 """
-    set_exchange!(sys::System, J, bond::Bond, param=nothing; biquad=0)
+    set_exchange!(sys::System, J, bond::Bond, paramspec=nothing; biquad=0)
 
 Sets an exchange interaction ``𝐒_i⋅J 𝐒_j`` along the specified `bond`. This
 interaction will be propagated to equivalent bonds in consistency with crystal
@@ -372,9 +372,9 @@ J = [2 3 0;
 set_exchange!(sys, J, bond)
 ```
 
-An optional trailing [`Param`](@ref) argument labels the coupling and allows to
-mutably update the coupling strength. Couplings with distinct labels accumulate
-on each bond.
+An optional trailing [`ParamSpec`](@ref) labels the coupling to support mutable
+rescaling of its strength. Couplings with distinct labels accumulate on each
+bond.
 """
 function set_exchange!(sys::System{N}, J, bond::Bond, paramspec=nothing; biquad=0.0) where N
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")

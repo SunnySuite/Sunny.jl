@@ -51,10 +51,10 @@ function lookup_param(sys::System, label::Symbol)
 end
 
 """
-    (label => val) :: Param
+    (label => val) :: ParamSpec
 
 Functions like [`set_exchange!`](@ref), [`set_pair_coupling!`](@ref), and
-[`set_onsite_coupling!`](@ref) accept a trailing `Param` argument that
+[`set_onsite_coupling!`](@ref) accept a trailing `ParamSpec` argument that
 associates a `label` and `val` pair with the coupling strength. Modify the
 coupling strength with [`set_param!`](@ref) or [`set_params!`](@ref).
 
@@ -82,7 +82,7 @@ set_onsite_coupling!(sys, S -> S[2]^2, i, :Kyy => 0.2)
 set_param!(sys, :Kxx, 0.3)
 ```
 """
-const Param = Pair{Symbol, <: Real}
+const ParamSpec = Pair{Symbol, <: Real}
 
 
 """
