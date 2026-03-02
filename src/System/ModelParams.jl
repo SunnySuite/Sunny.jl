@@ -71,14 +71,14 @@ set_param!(sys, :Jxx, 3.0)
 
 Distinct labeled couplings on the same site or bond will be additive. For
 example, the code below sets a single-ion anisotropy of the form ``K_{xx}
-(S_i^x)^2 + K_{yy} (S_i^x)^2``, and each term can be modified independently.
+(S_i^x)^2 + K_{yy} (S_i^y)^2``.
 
 ```julia
 # Set a single-ion anisotropy with two parts
 set_onsite_coupling!(sys, S -> S[1]^2, i, :Kxx => 0.1)
 set_onsite_coupling!(sys, S -> S[2]^2, i, :Kyy => 0.2)
 
-# Modify just the Kxx part
+# Modify Kxx while fixing Kyy
 set_param!(sys, :Kxx, 0.3)
 ```
 """

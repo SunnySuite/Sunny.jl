@@ -37,8 +37,8 @@ loss = make_loss_fn(sys, labels) do sys
     return squared_error_bands(res, reference_energies)
 end
 
-# Measure goodness of fit for the labeled parameters x
-loss(x)
+# Measure goodness of fit for given parameter values
+loss(vals)
 ```
 
 Arbitrary code may appear in the callback `f` defined by the `do ... end` block.
@@ -133,7 +133,7 @@ function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
 
     function pullback(ΔL)
         Δvals = if isinf(L)
-            fill!(similar(x), NaN)
+            fill!(similar(vals), NaN)
         else
             _, Δsys = f_pb(ΔL)
             Δvals = CRC.unthunk(Δsys).vals
