@@ -18,7 +18,7 @@
 
 ## Overview
 
-Sunny is a Julia package for modeling magnetic materials. It emphasizes _symmetry-aware_ Hamiltonians, careful treatment of _quantum spin_, and _comparison to experimental data_, e.g., neutron or X-ray scattering. Ease of use is a priority: Sunny is extensively documented, supports interactive visualization, and provides model-fitting tools.
+Sunny is a Julia package for modeling magnetic materials. It emphasizes _symmetry-aware_ Hamiltonians, careful treatment of _quantum spin operators_, and _comparison with experimental data_, e.g., neutron or X-ray scattering. Sunny is extensively documented, supports interactive visualization, and offers model-fitting tools.
 
 ## Try it out
 
@@ -28,7 +28,7 @@ See [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-starte
 
 ## Key features
 
-Sunny offers many standard tools for modeling spin systems and introduces some unique ones.
+Sunny implements many standard tools for modeling spin systems and introduces some unique ones.
 
 - **Symmetry-guided modeling**, including enumeration of [symmetry-allowed couplings](https://sunnysuite.github.io/Sunny.jl/dev/examples/03_LSWT_SU3_FeI2.html#Symmetry-analysis) and propagation of interactions by symmetry equivalence.
 - **General spin couplings**. [Arbitrary single-ion anisotropy](https://sunnysuite.github.io/Sunny.jl/dev/library.html#Sunny.set_onsite_coupling!) may be specified via Stevens operator expansion or as a general spin polynomial. [Arbitrary multipolar coupling](https://sunnysuite.github.io/Sunny.jl/dev/library.html#Sunny.set_pair_coupling!) between site pairs is also supported.
@@ -44,7 +44,7 @@ Related packages include [SpinW](https://github.com/SpinW/spinw) (symmetry-guide
 
 ## Join our community
 
-We'd love to hear from you. [Join our Slack workspace](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you run into issues, ask in the Slack `#helpdesk` channel. If you find Sunny useful, please cite the main [JOSS paper](https://doi.org/10.21105/joss.08138) and any relevant [methodology papers](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods). Finally, share your work with others on the [Sunny Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+We'd love to hear from you. [Join our Slack workspace](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you run into issues, ask in the Slack `#helpdesk` channel. If you find Sunny useful, please cite the main [JOSS paper](https://doi.org/10.21105/joss.08138) and any relevant [methodology papers](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods). Share your work with others on the [Sunny Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 <br>
 <div>
