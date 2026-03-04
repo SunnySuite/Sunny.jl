@@ -55,31 +55,30 @@ end
 
 Functions like [`set_exchange!`](@ref), [`set_pair_coupling!`](@ref), and
 [`set_onsite_coupling!`](@ref) accept a trailing `ParamSpec` argument that
-associates a `label` and `val` pair with the coupling strength. Modify the
-coupling strength with [`set_param!`](@ref) or [`set_params!`](@ref).
+associates a `label` with the coupling strength `val`. The coupling strength can
+then be updated with [`set_param!`](@ref) or [`set_params!`](@ref).
 
-The code below sets an anisotropic exchange of the form ``J_{xx} S_i^x S_j^x``.
-and then updates the value of ``J_{xx}``.
+For example, set Heisenberg couplings along two distinct bonds and then optimize
+their strengths.
 
 ```julia
-# Set an anisotropic exchange with Jxx = 2.0
-set_exchange!(sys, Diagonal([1, 0, 0]), bond, :Jxx => 2.0)
+set_exchange!(sys, 1.0, bond1, :J1 => 1.8)
+set_exchange!(sys, 1.0, bond2, :J2 => 0.5)
 
-# Modify Jxx to become 3.0
-set_param!(sys, :Jxx, 3.0)
+# ... later, during optimization
+set_params!(sys, [:J1, :J2], [1.9, 0.4])
 ```
 
-Distinct labeled couplings on the same site or bond will be additive. For
-example, the code below sets a single-ion anisotropy of the form ``K_{xx}
-(S_i^x)^2 + K_{yy} (S_i^y)^2``.
+Couplings with distinct labels on the same site or bond will accumulate. For
+example, one could add anisotropic terms on top of the Heisenberg exchange.
 
 ```julia
-# Set a single-ion anisotropy with two parts
-set_onsite_coupling!(sys, S -> S[1]^2, i, :Kxx => 0.1)
-set_onsite_coupling!(sys, S -> S[2]^2, i, :Kyy => 0.2)
+set_exchange!(sys, 1.0, bond1, :J1 => 1.8)
+set_exchange!(sys, Diagonal([1.0, -1.0, 0.0]), bond1, :J1pm => 0.1)
+set_exchange!(sys, Diagonal([0.0, 0.0, 1.0]), bond1, :J1zz => -0.2)
 
-# Modify Kxx while fixing Kyy
-set_param!(sys, :Kxx, 0.3)
+# ... it's possible to optimize only J1zz, fixing J1 and J1pm
+set_param!(sys, :J1zz, -0.15)
 ```
 """
 const ParamSpec = Pair{Symbol, <: Real}
