@@ -233,7 +233,7 @@ end
     set_exchange!(sys, diagm(0.8 * axis) + dmvec(D * axis), Bond(1, 1, [0, 0, 1]))
 
     randomize_spins!(sys)
-    k_guess=randn(3)
+    k_guess = randn(3)
     k = minimize_spiral_energy!(sys, axis; k_guess)
     @test k[3] ≈ 3/4
 

@@ -6,12 +6,12 @@
 This release bring significant support for model fitting ([#471](@ref)).
 
 * Functions [`set_exchange!`](@ref), [`set_onsite_coupling!`](@ref), and
-  [`set_pair_coupling!`](@ref) now accept a trailing [`Param`](@ref) pair of the
+  [`set_pair_coupling!`](@ref) now accept a trailing [`ParamSpec`](@ref) of the
   form `label => value`. Labeled parameters can be accessed and modified using
   the new functions [`get_param`](@ref), [`get_params`](@ref),
   [`set_param!`](@ref), and [`set_params!`](@ref).
 * A warning will always be emitted when overwriting a coupling. For fitting
-  workflows, use the [`Param`](@ref) interface instead.
+  workflows, use the [`ParamSpec`](@ref) interface instead.
 * The constructor [`make_loss_fn`](@ref) assembles a loss function for model
   fitting. The loss function can be passed to optimization packages like
   [Optim.jl](https://github.com/JuliaNLSolvers/Optim.jl). Loss hyperparameters

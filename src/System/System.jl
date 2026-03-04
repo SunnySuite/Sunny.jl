@@ -147,7 +147,7 @@ function clone_system(sys::System{N}) where N
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
 
-    # Copy element-wise because each param.scale is mutable
+    # Copy element-wise because each param has a mutable val
     params_clone = copy.(params)
 
     # Dynamically dispatch to the correct `map` function for either homogeneous

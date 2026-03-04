@@ -125,9 +125,9 @@ options = Optim.Options(
     show_trace = true,
     show_every = 5,
 )
-opt = Optim.optimize(loss, guess, Optim.LBFGS(), options)
-@assert isapprox(opt.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
-opt.minimizer ./ units.K # [J1, J2, J3a, J3b]
+fit = Optim.optimize(loss, guess, Optim.LBFGS(), options)
+@assert isapprox(fit.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
+fit.minimizer ./ units.K # [J1, J2, J3a, J3b]
 
 # Optim defaults to finite differences for its gradient estimation. An
 # alternative is reverse-mode automatic differentiation. It is more precise and
@@ -142,15 +142,15 @@ opt.minimizer ./ units.K # [J1, J2, J3a, J3b]
 import Zygote
 import DifferentiationInterface as DI
 
-opt = Optim.optimize(loss, guess, Optim.LBFGS(), options; autodiff=DI.AutoZygote())
-@assert isapprox(opt.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
-opt.minimizer ./ units.K
+fit = Optim.optimize(loss, guess, Optim.LBFGS(), options; autodiff=DI.AutoZygote())
+@assert isapprox(fit.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
+fit.minimizer ./ units.K
 
 # Compare ``\mathcal{S}(𝐪)`` in the low-resolution ``[H, K, 0]`` slice that was
 # used for model fitting. As a plotting trick, we reuse the `res` object but
 # overwrite its `data` field.
 
-set_params!(sys, labels, opt.minimizer)
+set_params!(sys, labels, fit.minimizer)
 scga = SCGA(sys; measure, kT=20*units.K, dq)
 
 fig = Figure(; size=(800, 300))
@@ -196,7 +196,7 @@ current_figure()
 # Approximate error bars can be obtained from diagonal elements of the
 # [`uncertainty_matrix`](@ref).
 
-uncertainty = uncertainty_matrix(loss, opt.minimizer)
+uncertainty = uncertainty_matrix(loss, fit.minimizer)
 sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 
 # The parameter fits are in reasonable agreement with previous work:
