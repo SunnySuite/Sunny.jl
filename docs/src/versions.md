@@ -1,7 +1,7 @@
 # Release Notes
 
 ## v0.9.0
-(In development)
+(Mar 4, 2026)
 
 This release bring significant support for model fitting ([#471](@ref)).
 
