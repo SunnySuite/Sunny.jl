@@ -55,7 +55,7 @@ end
 
 Functions like [`set_exchange!`](@ref), [`set_pair_coupling!`](@ref), and
 [`set_onsite_coupling!`](@ref) accept a trailing `ParamSpec` argument that
-associates a `label` with the coupling strength `val`. The coupling strength can
+introduces a `label` for the coupling strength `val`. The coupling strength can
 then be updated with [`set_param!`](@ref) or [`set_params!`](@ref).
 
 For example, set Heisenberg couplings along two distinct bonds and then optimize
