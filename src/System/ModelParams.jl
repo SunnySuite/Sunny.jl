@@ -58,8 +58,7 @@ Functions like [`set_exchange!`](@ref), [`set_pair_coupling!`](@ref), and
 introduces a `label` for the coupling strength `val`. The coupling strength can
 then be updated with [`set_param!`](@ref) or [`set_params!`](@ref).
 
-For example, set Heisenberg couplings along two distinct bonds and then optimize
-their strengths.
+For example, set two Heisenberg couplings and then optimize their strengths.
 
 ```julia
 set_exchange!(sys, 1.0, bond1, :J1 => 1.8)
