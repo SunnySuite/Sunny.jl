@@ -18,7 +18,7 @@
 
 ## Overview
 
-Sunny is a Julia package for modeling magnetic materials. It emphasizes _symmetry-aware_ Hamiltonians, careful treatment of _quantum spin operators_, and _comparison with experimental data_, e.g., neutron or X-ray scattering. Sunny is extensively documented, supports interactive visualization, and offers model-fitting tools.
+Sunny is a Julia package for modeling magnetic materials. It emphasizes _symmetry-aware_ Hamiltonians, careful treatment of _quantum spin effects_, and _comparison with experimental data_, e.g., neutron or X-ray scattering. Sunny is extensively documented, supports interactive visualization, and offers model-fitting tools.
 
 ## Try it out
 

@@ -1,19 +1,18 @@
 # Welcome
 
-Sunny supports the simulation of magnetic materials phenomena in and out of
-equilibrium. It facilitates the development of theoretical models that can be
-quantitatively compared to experimental data, e.g., neutron or X-ray scattering.
+Sunny is a package for simulating magnetic materials in and out of equilibrium.
+It facilitates the development of theoretical models that can be quantitatively
+compared to experimental data such as scattering intensities.
 
 [_**Feature highlights**_](@ref "Why Choose Sunny?") include symmetry-guided
 modeling, interactive visualization, and careful treatment of quantum spin
-degrees of freedom.
+effects.
 
 [_**Browse the tutorials**_](@ref "1. Spin wave simulations of CoRh₂O₄") to get
 started. See also [SpinW ports](@ref "SW01 - FM Heisenberg chain") for
 traditional spin wave theory.
 
-[_**Library Reference**_](@ref "Library Reference") lists all functions and
-their doc-strings.
+[_**Library Reference**_](@ref "Library Reference") lists all public functions.
 
 If you find Sunny useful, please cite the main [JOSS
 paper](https://doi.org/10.21105/joss.08138) and any relevant [methodology
