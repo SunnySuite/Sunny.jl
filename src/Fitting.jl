@@ -2,15 +2,13 @@ struct FittingLoss
     f :: Function
     sys :: System
     labels :: Vector{Symbol}
-    param_mapping :: Function
     hp :: NamedTuple
 end
 
 function Base.show(io::IO, loss::FittingLoss)
-    (; labels, hp, param_mapping) = loss
+    (; labels, hp) = loss
     hp_str = isempty(hp) ? "" : ", $hp"
-    map_str = (param_mapping === identity) ? "" : ", param_mapping=..."
-    println(io, "FittingLoss($labels$hp_str$map_str)")
+    println(io, "FittingLoss($labels$hp_str)")
 end
 
 """
@@ -22,11 +20,11 @@ function where individual hyperparameters are overridden by the elements of
 """
 function with_hyperparams(loss::FittingLoss, hp::NamedTuple)
     hp = Base.merge(loss.hp, hp) # If keys overlapping, 2nd arg wins
-    return FittingLoss(loss.f, loss.sys, loss.labels, loss.param_mapping, hp)
+    return FittingLoss(loss.f, loss.sys, loss.labels, hp)
 end
 
 """
-    make_loss_fn(f, sys, labels; param_mapping=identity, hp=NamedTuple())
+    make_loss_fn(f, sys, labels; hp=NamedTuple())
 
 Creates a `loss` function for use in model fitting. For example,
 
@@ -39,8 +37,8 @@ loss = make_loss_fn(sys, labels) do sys
     return squared_error_bands(res, reference_energies)
 end
 
-# Measure goodness of fit for the labeled parameters x
-loss(x)
+# Measure goodness of fit for given parameter values
+loss(vals)
 ```
 
 Arbitrary code may appear in the callback `f` defined by the `do ... end` block.
@@ -57,11 +55,11 @@ fit = Optim.optimize(loss, values, Optim.NelderMead(), options)
 fit.minimizer
 ```
 
-Internally, each evaluation of `loss(x)` performs these steps,
+Internally, each evaluation of `loss(vals)` performs these three steps,
 
 ```julia
 sys2 = clone_system(sys)
-set_params!(sys2, labels, param_mapping(x))
+set_params!(sys2, labels, vals)
 f(sys2)
 ```
 
@@ -92,15 +90,15 @@ calculators (currently, just [`SCGA`](@ref)). This improves efficiency and
 accuracy. See [Tutorial 10](@ref "10. Fitting to diffuse scattering data") for a
 concrete example.
 """
-function make_loss_fn(f, sys, labels; param_mapping=identity, hp=NamedTuple())
-    return FittingLoss(f, sys, labels, param_mapping, hp)
+function make_loss_fn(f, sys, labels; hp=NamedTuple())
+    return FittingLoss(f, sys, labels, hp)
 end
 
-function (fl::FittingLoss)(x)
-    (; f, sys, labels, param_mapping, hp) = fl
+function (fl::FittingLoss)(vals)
+    (; f, sys, labels, hp) = fl
 
     sys = clone_system(sys)
-    set_params!(sys, labels, param_mapping(x))
+    set_params!(sys, labels, vals)
     sys.active_labels = labels
     try
         if applicable(f, sys, hp)
@@ -115,10 +113,9 @@ function (fl::FittingLoss)(x)
     end
 end
 
-function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, x)
-    (; f, sys, labels, param_mapping, hp) = fl
+function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
+    (; f, sys, labels, hp) = fl
 
-    (vals, param_mapping_pb) = CRC.rrule_via_ad(rc, param_mapping, x)
     sys = clone_system(sys)
     set_params!(sys, labels, vals)
     sys.active_labels = labels
@@ -135,15 +132,13 @@ function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, x)
     end
 
     function pullback(ΔL)
-        Δx = if isinf(L)
-            fill!(similar(x), NaN)
+        Δvals = if isinf(L)
+            fill!(similar(vals), NaN)
         else
             _, Δsys = f_pb(ΔL)
             Δvals = CRC.unthunk(Δsys).vals
-            _, Δx = param_mapping_pb(Δvals)
-            CRC.unthunk(Δx)
         end
-        return (CRC.NoTangent(), Δx)
+        return (CRC.NoTangent(), Δvals)
     end
 
     return L, pullback

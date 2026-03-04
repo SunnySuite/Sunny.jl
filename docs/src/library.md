@@ -19,7 +19,7 @@ ImplicitMidpoint
 Langevin
 LocalSampler
 Moment
-Param
+ParamSpec
 SampledCorrelations
 SampledCorrelationsStatic
 SCGA
