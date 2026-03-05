@@ -1,9 +1,12 @@
 # Release Notes
 
+## v0.9.1
+(In development)
+
 ## v0.9.0
 (Mar 4, 2026)
 
-This release bring significant support for model fitting ([#471](@ref)).
+This release brings significant support for model fitting ([#471](@ref)).
 
 * Functions [`set_exchange!`](@ref), [`set_onsite_coupling!`](@ref), and
   [`set_pair_coupling!`](@ref) now accept a trailing [`ParamSpec`](@ref) of the
