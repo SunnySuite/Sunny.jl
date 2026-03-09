@@ -25,13 +25,13 @@ function Adapt.adapt_structure(to, inter::InteractionsDevice)
     InteractionsDevice(onsite)
 end
 
-struct EwaldDevice
-    μ0_μB²   :: Float64               # Strength of dipole-dipole interactions
-    demag    :: Sunny.Mat3                  # Demagnetization factor
-    A        :: CUDA.CuArray{Sunny.Mat3, 5}        # Interaction matrices in real-space         [offset+1,i,j]
+struct EwaldDevice{TArrA}
+    μ0_μB²   :: Float64           # Strength of dipole-dipole interactions
+    demag    :: Sunny.Mat3        # Demagnetization factor
+    A        :: TArrA             # Interaction matrices in real-space         [offset+1,i,j]
 end
 
-EwaldDevice(host::Sunny.Ewald) = EwaldDevice(μ0_μB², demag, CUDA.CuArray(host.A))
+EwaldDevice(host::Sunny.Ewald) = EwaldDevice(host.μ0_μB², host.demag, CUDA.CuArray(host.A))
 EwaldDevice(host::Nothing) = Nothing()
 
 function Adapt.adapt_structure(to, sys::EwaldDevice)
@@ -57,7 +57,7 @@ function mode_to_enum(sys::System{N}) where N
     end
 end
 
-struct SystemDevice{TCrystal, TArrField, TArrInt, TPairs, TIndices, TArrGs, TDipole}
+struct SystemDevice{TCrystal, TArrField, TArrInt, TPairs, TIndices, TArrGs, TEwald, TDipole}
     original_crystal   :: TCrystal
     mode               :: SystemMode
     crystal            :: TCrystal
@@ -67,19 +67,19 @@ struct SystemDevice{TCrystal, TArrField, TArrInt, TPairs, TIndices, TArrGs, TDip
     pairs              :: TPairs
     indices            :: TIndices
     gs                 :: TArrGs # g-tensor per atom in unit cell
-    #ewald              :: Union{EwaldDevice, Nothing}
+    ewald              :: TEwald
     dipoles            :: TDipole # Expected dipoles
 end
 
 function SystemDevice(host::Sunny.System)
     @assert host.mode in (:dipole, :dipole_uncorrected)
-    @assert isnothing(host.ewald)
     original_crystal = CrystalDevice(Sunny.orig_crystal(host))
     mode = mode_to_enum(host)
     @assert mode in (dipole, dipole_uncorrected)
     crystal = CrystalDevice(host.crystal)
     dims = host.dims
     extfield = CUDA.CuArray(host.extfield)
+    ewald = EwaldDevice(host.ewald)
     gs = CUDA.CuArray(host.gs)
     dipoles = CUDA.CuArray(host.dipoles)
 
@@ -99,7 +99,7 @@ function SystemDevice(host::Sunny.System)
     pairs_d = CuVector(pairs_h)
     indices_d = CuVector(indices_h)
     interactions_d = CuVector(interactions_h)
-    return SystemDevice(original_crystal, mode, crystal, dims, extfield, interactions_d, pairs_d, indices_d, gs, dipoles)
+    return SystemDevice(original_crystal, mode, crystal, dims, extfield, interactions_d, pairs_d, indices_d, gs, ewald, dipoles)
 end
 
 function Adapt.adapt_structure(to, sys::SystemDevice)
@@ -111,12 +111,12 @@ function Adapt.adapt_structure(to, sys::SystemDevice)
     pairs = Adapt.adapt_structure(to, sys.pairs)
     indices = Adapt.adapt_structure(to, sys.indices)
     gs = Adapt.adapt_structure(to, sys.gs)
-    #ewald = Adapt.adapt_structure(to, sys.ewald)
+    ewald = Adapt.adapt_structure(to, sys.ewald)
     dipoles = Adapt.adapt_structure(to, sys.dipoles)
-    SystemDevice(original_crystal, sys.mode, crystal, dims, extfield, interactions_union, pairs, indices, gs, dipoles)
+    SystemDevice(original_crystal, sys.mode, crystal, dims, extfield, interactions_union, pairs, indices, gs, ewald, dipoles)
 end
 
-struct SystemDeviceSUN{TCrystal, TArrField, TPairs, TIndices, TOnsite, TArrGs, TDipole, TGeneral}
+struct SystemDeviceSUN{TCrystal, TArrField, TPairs, TIndices, TOnsite, TArrGs, TEwald, TDipole, TGeneral}
     original_crystal   :: TCrystal
     mode               :: SystemMode
     crystal            :: TCrystal
@@ -126,7 +126,7 @@ struct SystemDeviceSUN{TCrystal, TArrField, TPairs, TIndices, TOnsite, TArrGs, T
     indices            :: TIndices
     onsite             :: TOnsite
     gs                 :: TArrGs # g-tensor per atom in unit cell
-    #ewald              :: Union{EwaldDevice, Nothing}
+    ewald              :: TEwald
     dipoles            :: TDipole # Expected dipoles
     Ns                 :: Int
     general            :: TGeneral
@@ -142,6 +142,7 @@ function SystemDeviceSUN(host::Sunny.System)
     dims = host.dims
     extfield = CUDA.CuArray(host.extfield)
     gs = CUDA.CuArray(host.gs)
+    ewald = EwaldDevice(host.ewald)
     dipoles = CUDA.CuArray(host.dipoles)
     Ns = host.Ns[1]
 
@@ -180,7 +181,7 @@ function SystemDeviceSUN(host::Sunny.System)
     indices_d = CuVector(indices_h)
     onsite_d = CuArray(onsite_h)
     general_d = CuArray(general_h)
-    return SystemDeviceSUN(original_crystal, SUN, crystal, dims, extfield, pairs_d, indices_d, onsite_d, gs, dipoles, Ns, general_d)
+    return SystemDeviceSUN(original_crystal, SUN, crystal, dims, extfield, pairs_d, indices_d, onsite_d, gs, ewald, dipoles, Ns, general_d)
 end
 
 function Adapt.adapt_structure(to, sys::SystemDeviceSUN)
@@ -192,8 +193,8 @@ function Adapt.adapt_structure(to, sys::SystemDeviceSUN)
     indices = Adapt.adapt_structure(to, sys.indices)
     onsite = Adapt.adapt_structure(to, sys.onsite)
     gs = Adapt.adapt_structure(to, sys.gs)
-    #ewald = Adapt.adapt_structure(to, sys.ewald)
+    ewald = Adapt.adapt_structure(to, sys.ewald)
     dipoles = Adapt.adapt_structure(to, sys.dipoles)
     general = Adapt.adapt_structure(to, sys.general)
-    SystemDeviceSUN(original_crystal, sys.mode, crystal, dims, extfield, pairs, indices, onsite, gs, dipoles, sys.Ns, general)
+    SystemDeviceSUN(original_crystal, sys.mode, crystal, dims, extfield, pairs, indices, onsite, gs, ewald, dipoles, sys.Ns, general)
 end
