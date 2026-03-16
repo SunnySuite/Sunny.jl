@@ -184,7 +184,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
         for i in 1:Na, μ in 1:Nobs
             r_global = rs_global[i] # + offsets[μ, i]
             ff = get_swt_formfactor(measure, μ, i)
-            Avec_pref[μ, i] = exp(- im * dot(q_global, r_global))
+            Avec_pref[μ, i] = cis(-dot(q_global, r_global))
             Avec_pref[μ, i] *= compute_form_factor(ff, norm2(q_global))
         end
 

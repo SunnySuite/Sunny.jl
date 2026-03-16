@@ -69,7 +69,7 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
             j = bond.j
 
             J_lab = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo transformation in `swt_data`
-            J = exp(-2π * im * dot(q_reshaped, bond.n)) * J_lab
+            J = cispi(-2 * dot(q_reshaped, bond.n)) * J_lab
             Jq[i, j] += J
             Jq[j, i] += J'
         end
@@ -303,7 +303,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
 
         for i in 1:Na
             ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = exp(- im * dot(q_global, rs_global[i]))
+            Avec_pref[i] = cis(- dot(q_global, rs_global[i]))
             Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 

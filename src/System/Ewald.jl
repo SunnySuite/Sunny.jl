@@ -38,11 +38,11 @@ end
 
 
 function precompute_dipole_ewald(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3)
-    precompute_dipole_ewald_aux(cryst, dims, demag, Vec3(0,0,0), cos, Val{Float64}())
+    precompute_dipole_ewald_aux(cryst, dims, demag, Vec3(0,0,0), cos, cospi, Val{Float64}())
 end
 
 function precompute_dipole_ewald_at_wavevector(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3, q_reshaped::Vec3)
-    precompute_dipole_ewald_aux(cryst, dims, demag, q_reshaped, cis, Val{ComplexF64}())
+    precompute_dipole_ewald_aux(cryst, dims, demag, q_reshaped, cis, cispi, Val{ComplexF64}())
 end
 
 # Precompute the pairwise interaction matrix A between magnetic moments μ. For
@@ -58,7 +58,7 @@ end
 # part cancels in the symmetric sum over ±k. Specifically, replace `cis(x) ≡
 # exp(i x) = cos(x) + i sin(x)` with just `cos(x)` for efficiency. The parameter
 # `T ∈ {Float64, ComplexF64}` controls the return type in a type-stable way.
-function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag, q_reshaped, cis, ::Val{T}) where T
+function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag, q_reshaped, cis, cispi, ::Val{T}) where T
     na = natoms(cryst)
     A = zeros(SMatrix{3, 3, T, 9}, dims..., na, na)
 
@@ -106,7 +106,7 @@ function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag,
                 rhat = rvec/r
                 erfc0 = erfc(r/(√2*σ))
                 gauss0 = √(2/π) * (r/σ) * exp(-r²/2σ²)
-                phase = cis(2π * dot(q_reshaped, n))
+                phase = cispi(2 * dot(q_reshaped, n))
                 acc += phase * (1/4π) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
             end
         end

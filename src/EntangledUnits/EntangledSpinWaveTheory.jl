@@ -176,7 +176,7 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:nunits
-            Avec_pref[i] = exp(- im * dot(q_global, rs_global[i]))
+            Avec_pref[i] = cis(-dot(q_global, rs_global[i]))
         end
 
         Avec = zeros(ComplexF64, Nobs)
@@ -194,7 +194,7 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
                     for (subsite, inverse_info) in enumerate(inverse_infos)
                         site_original, offset = inverse_info.site, inverse_info.offset
                         ff = get_swt_formfactor(measure, 1, site_original)
-                        prefactor = exp(-2π*im*(q_reshaped ⋅ offset)) * compute_form_factor(ff, norm2(q_global))
+                        prefactor = cispi(-2 * (q_reshaped ⋅ offset)) * compute_form_factor(ff, norm2(q_global))
                         O += prefactor * data.observables_localized[subsite, μ, i]
                     end
                     for α in 1:N-1
@@ -327,7 +327,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
             @assert i == bond.i
             j = bond.j
 
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            phase = cispi(2 * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             # Set "general" pair interactions of the form Aᵢ⊗Bⱼ. Note that Aᵢ
             # and Bᵢ have already been transformed according to the local frames

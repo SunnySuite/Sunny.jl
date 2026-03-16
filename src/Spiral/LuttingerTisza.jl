@@ -16,7 +16,7 @@ function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
             @assert i == bond.i
             j = bond.j
 
-            J = exp(2π * im * dot(q_reshaped, bond.n)) * Mat3(bilin*I)
+            J = cispi(2 * dot(q_reshaped, bond.n)) * Mat3(bilin*I)
             view(Jq, :, i, :, j) .+= J
             view(Jq, :, j, :, i) .+= J'
         end
@@ -65,7 +65,7 @@ function fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
 
         (; i, j, n) = bond
 
-        J = exp(2π * im * dot(q_reshaped, n)) * Mat3(bilin*I)
+        J = cispi(2 * dot(q_reshaped, n)) * Mat3(bilin*I)
         view(Jq, :, i, :, j) .+= J
         view(Jq, :, j, :, i) .+= J'
     end

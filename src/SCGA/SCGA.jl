@@ -305,7 +305,7 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
         for i in 1:Na, μ in 1:Nobs
             r_global = rs_global[i] # + offsets[μ, i]
             ff = get_swt_formfactor(measure, μ, i)
-            c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
+            c = cis(dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
             for α in 1:3
                 pref_reshaped[α, i, μ] = c * O[μ, i][α]
             end
@@ -506,7 +506,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             for i in 1:Na, μ in 1:Nobs
                 r_global = rs_global[i] # + offsets[μ, i]
                 ff = get_swt_formfactor(measure, μ, i)
-                c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
+                c = cis(dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
                 for α in 1:3
                     pref_reshaped[α, i, μ] = c * O[μ, i][α]
                 end

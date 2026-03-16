@@ -38,7 +38,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             @assert i == bond.i
             j = bond.j
 
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            phase = cispi(2 * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             # Set "general" pair interactions of the form Aᵢ⊗Bⱼ. Note that Aᵢ
             # and Bᵢ have already been transformed according to the local frames
@@ -175,7 +175,7 @@ function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::Abstract
             j = bond.j
 
             map!(phases, qs_reshaped) do q
-                cis(2π*dot(q, bond.n))
+                cispi(2*dot(q, bond.n))
             end
 
             # General pair interactions

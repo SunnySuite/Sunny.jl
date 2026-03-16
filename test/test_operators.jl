@@ -131,8 +131,8 @@ end
             # A random axis-angle
             θ = randn(3)
             # Different representations of the same physical rotation
-            D = exp(-im * θ' * K)
-            U = exp(-im * θ' * S)
+            D = cis(- θ' * K)
+            U = cis(- θ' * S)
 
             for q in -k:k
                 # Racah's commutation relations

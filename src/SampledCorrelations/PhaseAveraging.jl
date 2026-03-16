@@ -5,7 +5,7 @@ function prefactors_for_phase_averaging(q_absolute::Vec3, recipvecs, positions, 
     # Overall phase factor for each site
     q = recipvecs \ q_absolute
     r = positions
-    prefactor = ntuple(i -> ffs[i] * exp(- 2π*im * (q ⋅ r[i])), Val{NAtoms}())
+    prefactor = ntuple(i -> ffs[i] * cispi(-2 * (q ⋅ r[i])), Val{NAtoms}())
 
     return prefactor 
 end
