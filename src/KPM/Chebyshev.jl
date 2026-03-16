@@ -6,7 +6,7 @@ function apply_jackson_kernel!(coefs)
     Mp = lastindex(coefs) + 2
     for i in eachindex(coefs)
         m = i-1
-        coefs[i] *= (1/Mp)*((Mp-m)cos(m*π/Mp) + sin(m*π/Mp)/tan(π/Mp))
+        coefs[i] *= (1/Mp)*((Mp-m)cospi(m/Mp) + sinpi(m/Mp)/tanpi(1/Mp))
     end
     return coefs
 end
@@ -15,7 +15,7 @@ end
 function cheb_coefs!(M, func, bounds; buf, plan)
     N = length(buf)
     for i in eachindex(buf)
-        x_i = cos((i-0.5)π / N)
+        x_i = cospi((i-0.5) / N)
         buf[i] = func(cheb_unscale(x_i, bounds))
     end
 
@@ -75,7 +75,7 @@ function cheb_moments_to_density(μs, N; γ=1)
 
     for i in 1:N
         n = i-1
-        x = cos((π/N) * (n+1/2))
+        x = cospi((n+1/2) / N)
         push!(xs, x)
         w = 1 / sqrt(1 - x^2)
         ρs[i] *= w / π
