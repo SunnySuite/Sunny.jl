@@ -3,6 +3,9 @@
 ## v0.9.1
 (In development)
 
+* Rename `g_lande` to `gJ` for the Landé g-factor appearing in
+  [`FormFactor`](@ref).
+
 ## v0.9.0
 (Mar 4, 2026)
 
