@@ -161,9 +161,9 @@ end
     function test_biquad(mode, q, s)
         # System
         sys = System(cryst, [1 => Moment(; s, g=2)], mode; dims=(2, 2, 2))
-        α = -0.4π
+        α = -0.4
         J = 1.0
-        JL, JQ = J * cos(α), J * sin(α) / s^2
+        JL, JQ = J * cospi(α), J * sinpi(α) / s^2
         set_pair_coupling!(sys, (Si, Sj) -> Si'*JL*Sj + JQ*(Si'*Sj)^2, Bond(1, 1, [1, 0, 0]))
 
         # Initialize Néel order
@@ -176,8 +176,8 @@ end
         disp = dispersion(swt, [q])
 
         # Analytical result
-        γq = 2 * (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*q[3]))
-        disp_ref = J * (s*cos(α) - (2*s-2+1/s) * sin(α)) * √(36 - γq^2)
+        γq = 2 * (cospi(2*q[1]) + cospi(2*q[2]) + cospi(2*q[3]))
+        disp_ref = J * (s*cospi(α) - (2*s-2+1/s) * sinpi(α)) * √(36 - γq^2)
 
         @test disp[end-1] ≈ disp[end] ≈ disp_ref
     end
@@ -348,8 +348,8 @@ end
     set_exchange!(sys, 0.24,  Bond(3, 2, [1,1,1]))   # J5
 
     for i in 1:3
-        θ = -2π*(i-1)/3
-        set_dipole!(sys, [cos(θ),sin(θ),0], (1,1,1,i))
+        θ = -2*(i-1)/3
+        set_dipole!(sys, [cospi(θ),sinpi(θ),0], (1,1,1,i))
     end
 
     sys = repeat_periodically_as_spiral(sys, (1, 1, 7); k=[0,0,1/7], axis=[0,0,1])

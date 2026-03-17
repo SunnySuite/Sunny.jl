@@ -88,7 +88,7 @@ end
     # Analytical check on dispersion
 
     θ = acos(h / (2s*(4J+D)))
-    Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
+    Jq = 2J*(cospi(2*q[1])+cospi(2*q[2]))
     disp_ref = real(√Complex(4J*s*(4J*s+2D*s*sin(θ)^2) + cos(2θ)*(Jq*s)^2 + 2s*Jq*(4J*s*cos(θ)^2 + D*s*sin(θ)^2)))
     @test res.disp[1] ≈ res.disp[2] ≈ disp_ref
 
@@ -190,11 +190,11 @@ end
     J7 = -0.00461
 
     # Constrain J6 and J2 to make k_ref exact
-    J6 = (sin((-2*ka+kc)*pi)*J7+sin(kc*pi)*J4)/(-sin((2*ka+kc)*pi))
-    J2 = (2*sin((2*ka+kc)*pi)*J6-sin(ka*pi)*(J1+J5)-3*sin(3*ka*pi)*J3-(sin(2*pi*(ka-kc/2+1/2))-sin(2*pi*(-ka+kc/2+1/2)))*J7)/(-2*sin(2*ka*pi))
+    J6 = (sinpi(-2*ka+kc)*J7+sinpi(kc)*J4)/(-sinpi(2*ka+kc))
+    J2 = (2*sinpi(2*ka+kc)*J6-sinpi(ka)*(J1+J5)-3*sinpi(3*ka)*J3-(sinpi(2*(ka-kc/2+1/2))-sinpi(2*(-ka+kc/2+1/2)))*J7)/(-2*sinpi(2*ka))
 
     # Exact energy reference
-    E_ref = (-((J1+J5)*cos(pi*ka))+J2*cos(2*pi*ka)-J3*cos(3*pi*ka)+J4*cos(pi*kc)+J6*cos(pi*(2*ka+kc))+J7*cos(pi*(2*ka-kc)))*5/2*(5/2)*4
+    E_ref = (-((J1+J5)*cospi(ka))+J2*cospi(2*ka)-J3*cospi(3*ka)+J4*cospi(kc)+J6*cospi(2*ka+kc)+J7*cospi(2*ka-kc))*5/2*(5/2)*4
 
     sys = System(cryst, [1 => Moment(s=5/2, g=2)], :dipole, seed=0)
     set_exchange!(sys, J1, bond1)
