@@ -3,8 +3,11 @@
 ## v0.9.1
 (In development)
 
-* Rename `g_lande` to `gJ` for the Landé g-factor appearing in
-  [`FormFactor`](@ref).
+* [`FormFactor`](@ref) now tabulates the correct Landé factor ``g_J`` for each
+  electronic configuration. Consequently, `g_lande` is deprecated. (Its previous
+  default value of 2 was incorrect.) Use `j2_coefficient` to manually override
+  the coefficient ``c = (2-g_J)/g_J`` that scales the ``⟨j_2⟩`` contribution to
+  the form factor.
 
 ## v0.9.0
 (Mar 4, 2026)
