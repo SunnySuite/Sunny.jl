@@ -3,11 +3,14 @@
 ## v0.9.1
 (In development)
 
-* [`FormFactor`](@ref) now tabulates the correct Landé factor ``g_J`` for each
-  electronic configuration. Consequently, `g_lande` is deprecated. (Its previous
-  default value of 2 was incorrect.) Use `j2_coefficient` to manually override
-  the coefficient ``c = (2-g_J)/g_J`` that scales the ``⟨j_2⟩`` contribution to
-  the form factor.
+* [`FormFactor`](@ref) uses the correct Landé factor ``g_J`` for each electronic
+  configuration. This change improves accuracy. The Landé factor appears through
+  the coefficient ``(2-g_J)/g_J`` which scales the ``⟨j_2⟩`` contribution to the
+  form factor. To reproduce the previous default behavior (``g_J = 2``), select
+  `j2_coefficient=0`. Another change is that ambiguous electronic configurations
+  must be resolved with an explicit `config` argument. For example, calling
+  `FormFactor("Ir0")` will list the possible `config` values: `"6s⁰5d⁹"`,
+  `"6s¹5d⁸"`, or `"6s²5d⁷"`.
 
 ## v0.9.0
 (Mar 4, 2026)
