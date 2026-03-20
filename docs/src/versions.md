@@ -7,9 +7,10 @@
   to the form factor. The special value `c_j2=:free_ion` selects ``(2-g_J)/g_J``
   where ``g_J`` is the Landé factor for the free-ion ground multiplet. The
   argument `g_lande` is now deprecated. Ambiguity in the electronic
-  configuration must be resolved with an explicit `config` keyword. For example,
-  calling `FormFactor("Ir0")` will list `"6s⁰5d⁹"`, `"6s¹5d⁸"`, or `"6s²5d⁷"` as
-  possible options.
+  configuration must be resolved with an explicit `config` keyword argument. For
+  example, calling `FormFactor("Ir0")` will list `"6s⁰5d⁹"`, `"6s¹5d⁸"`, or
+  `"6s²5d⁷"` as possible options. A letter suffix, e.g. `FormFactor("Ir0a")`,
+  can no longer be used to select the electronic configuration.
 
 ## v0.9.0
 (Mar 4, 2026)

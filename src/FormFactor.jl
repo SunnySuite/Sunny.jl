@@ -96,10 +96,10 @@ FormFactor("Ir0")
 ERROR: Select electronic `config` from "6s⁰5d⁹" or "6s¹5d⁸" or "6s²5d⁷"
 ```
 
-The keyword `c_j2` accepts either a real number or the symbol `:free_ion`. If
-numeric, it is the dimensionless coefficient that scales the ``⟨j_2⟩``
-contribution to the form factor. The default `c_j2 = 0` retains only the
-``⟨j_0⟩`` term; this is often a good approximation when orbital magnetism is
+The keyword argument `c_j2` accepts either a real number or the symbol
+`:free_ion`. If numeric, it is the dimensionless coefficient that scales the
+``⟨j_2⟩`` contribution to the form factor. The default `c_j2 = 0` retains only
+the ``⟨j_0⟩`` term; this is often a good approximation when orbital magnetism is
 strongly quenched, as in many 3d transition-metal magnets. With
 `c_j2=:free_ion`, Sunny instead sets ``c_{j_2} = (2-g_J)/g_J``. Here, ``g_J`` is
 computed from the LS-coupling Landé formula using the ground-state term symbol
