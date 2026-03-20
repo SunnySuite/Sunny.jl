@@ -3,14 +3,13 @@
 ## v0.9.1
 (In development)
 
-* [`FormFactor`](@ref) uses the correct Landé factor ``g_J`` for each electronic
-  configuration. This change improves accuracy. The Landé factor appears through
-  the coefficient ``(2-g_J)/g_J`` which scales the ``⟨j_2⟩`` contribution to the
-  form factor. To reproduce the previous default behavior (``g_J = 2``), select
-  `j2_coefficient=0`. Another change is that ambiguous electronic configurations
-  must be resolved with an explicit `config` argument. For example, calling
-  `FormFactor("Ir0")` will list the possible `config` values: `"6s⁰5d⁹"`,
-  `"6s¹5d⁸"`, or `"6s²5d⁷"`.
+* [`FormFactor`](@ref) accepts a `c_j2` that scales the ``⟨j_2⟩`` contribution
+  to the form factor. The special value `c_j2=:free_ion` selects ``(2-g_J)/g_J``
+  where ``g_J`` is the Landé factor for the free-ion ground multiplet. The
+  argument `g_lande` is now deprecated. Ambiguity in the electronic
+  configuration must be resolved with an explicit `config` keyword. For example,
+  calling `FormFactor("Ir0")` will list `"6s⁰5d⁹"`, `"6s¹5d⁸"`, or `"6s²5d⁷"` as
+  possible options.
 
 ## v0.9.0
 (Mar 4, 2026)

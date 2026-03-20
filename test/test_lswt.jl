@@ -55,7 +55,7 @@
     @test isapprox(res.data, data_golden; atol=1e-8)
 
     # Test first 5 output matrices
-    formfactors = [1 => FormFactor("Fe2"; j2_coefficient=0)]
+    formfactors = [1 => FormFactor("Fe2")]
     measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false, formfactors)
     swt = SpinWaveTheory(sys; measure)
     res = intensities_bands(swt, qs)
@@ -414,7 +414,7 @@ end
     q2 = [0.2360,0.7492,0.9596]
     q3 = [0.1131,0.7654,0.2810]
     q = [q1,q2,q3]
-    formfactors = [1 => FormFactor("Cr4"; j2_coefficient=0)]
+    formfactors = [1 => FormFactor("Cr4")]
     measure = ssf_custom((q, ssf) -> ssf, sys; formfactors)
     swt = SpinWaveTheory(sys; measure)
     res = intensities_bands(swt, q)
