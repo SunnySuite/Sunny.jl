@@ -72,23 +72,23 @@ end
 """
     FormFactor(label::String; config=nothing, c_j2=0.0, length=:angstrom)
 
-Selects the magnetic form factor ``F(|𝐐|)`` of a labeled ion. The form factor
-accounts for the finite spatial extent of the atomic magnetization density and
-is normalized so that ``F(0) = 1``. Scattering intensities typically scale like
-``F(|𝐐|)^2``, where ``𝐐`` denotes momentum transfer in absolute units (inverse
-`length`).
+Constructs an isotropic magnetic form factor ``F(|𝐐|)`` to account for the
+finite real-space extent of atomic magnetization density. For single-species
+compounds, scattering intensities scale like ``F(|𝐐|)^2``, where ``𝐐`` is the
+momentum transfer in physical units of inverse `length`.
 
-Sunny calculates the form factor in the dipole approximation,
+Sunny uses the dipole approximation,
 
 ```math
 F(|𝐐|) = ⟨j_0(|𝐐|)⟩ + c_{j_2} ⟨j_2(|𝐐|)⟩,
 ```
 
-where ``⟨j_l⟩`` are standard radial integrals. The `label` string identifies an
-ion by concatenating its element symbol with its charge-state label. For
-example, `"Fe2"` denotes Fe²⁺, while `"Fe0"` denotes neutral iron (see below for
-all possible labels). If a label allows for multiple electronic configurations,
-then omitting `config` throws an error with the possible choices:
+where ``⟨j_l⟩`` are standard radial integrals. The ion `label` is an element
+symbol followed by an ionization state index. For example, `"Fe2"` denotes Fe²⁺
+while `"Fe0"` denotes neutral iron. For a few weakly ionized 5d elements, the
+same label allows multiple electronic configurations with distinct form factors.
+In such cases a `config` string is required. Omitting it throws an informative
+error:
 
 ```
 FormFactor("Ir0")
@@ -96,29 +96,27 @@ FormFactor("Ir0")
 ERROR: Select electronic `config` from "6s⁰5d⁹" or "6s¹5d⁸" or "6s²5d⁷"
 ```
 
-The keyword argument `c_j2` accepts either a real number or the symbol
-`:free_ion`. If numeric, it is the dimensionless coefficient that scales the
-``⟨j_2⟩`` contribution to the form factor. The default `c_j2 = 0` retains only
-the ``⟨j_0⟩`` term; this is often a good approximation when orbital magnetism is
-strongly quenched, as in many 3d transition-metal magnets. With
-`c_j2=:free_ion`, Sunny instead sets ``c_{j_2} = (2-g_J)/g_J``. Here, ``g_J`` is
-computed from the LS-coupling Landé formula using the ground-state term symbol
-assigned by the NIST Atomic Spectra Database [1] for the selected configuration.
-This free-ion choice is a common starting point for rare-earth and actinide
-ions, though effects such as crystal-field mixing, covalency, or intermediate
-coupling may motivate a custom `c_j2`.
+The argument `c_j2` accepts either a real number or the special value
+`:free_ion`. If numeric, it is the dimensionless ``c_{j_2}`` value that scales
+``⟨j_2⟩``. The default ``c_j2 = 0`` can be a good approximation when orbital
+magnetism is strongly quenched, as in many 3d transition-metal magnets. The
+special value `c_j2 = :free_ion` makes Sunny infer ``c_{j_2} = (2-g_J)/g_J``
+with Landé factor ``g_J`` obtained from NIST atomic level data [1]. The free-ion
+picture is natural for rare-earth and actinide ions, though effects such as
+crystal-field mixing, covalency, or intermediate coupling may motivate a custom
+`c_j2`.
 
-Approximations to ``⟨j_0⟩`` are tabulated as a sum of Gaussians in the
+Fitted ``⟨j_0⟩`` curves are available as a sum of Gaussians in the
 inverse-length ``s = |𝐐|/4π``,
 
 ```math
-⟨j_0⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E.
+⟨j_0⟩ ≈ A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E.
 ```
 
-Approximations to ``⟨j_2⟩`` are fitted in a similar form,
+Fitted ``⟨j_2⟩`` curves use the slightly modified form,
 
 ```math
-⟨j_2⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2.
+⟨j_2⟩ ≈ (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2.
 ```
 
 Sunny's tables for ``A, a, B, b, …`` match those of the McPhase package [2]. For
@@ -131,10 +129,10 @@ The `length` unit must be consistent with the [`lattice_vectors`](@ref) of the
 relevant [`Crystal`](@ref), otherwise the ``|𝐐|``-dependence will be incorrect.
 See [`Units`](@ref) for possible length-scale options.
 
-Two special, ``𝐐``-independent form factors ``F`` are also available:
-`one(FormFactor)` and `zero(FormFactor)`. The first idealizes the magnetic ion
-as a perfect point particle, while the second sets all contributions from the
-magnetic ion to zero.
+Sunny also defines the constant form factors `one(FormFactor)` and
+`zero(FormFactor)` representing ``F(|𝐐|) = 1`` and ``0`` respectively. The
+first idealizes the magnetic ion as a point particle, while the second
+suppresses all contributions from that ion.
 
 ## Available `label` strings
 
@@ -150,9 +148,8 @@ Ta3, Ta4, Tb2, Tb3, Tc0, Tc1, Ti0, Ti1, Ti2, Ti3, Tm2, Tm3, U3, U4, U5, V0, V1,
 V2, V3, V4, W0, W1, W2, W3, W4, W5, Y0, Yb2, Yb3, Zr0, Zr1
 ```
 
-A choice of `config` is needed only for the cases "W0", "Re0", "Re1", "Os1",
-"Ir0", and "Ir1". This electronic configuration is used to determine the radial
-integrals ``⟨j_l⟩`` and the `:free_ion` assignment of ``c_{j_2}``.
+Only "W0", "Re0", "Re1", "Os1", "Ir0", and "Ir1" require an electronic `config`
+option.
 
 ## References
 
