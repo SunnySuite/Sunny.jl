@@ -70,8 +70,8 @@ end
 """
     FormFactor(label::String; config=nothing, j2_weight=0.0, length=:angstrom)
 
-Constructs the magnetic form factor ``F(|𝐐|)`` for an ion with a given `label`.
-This accounts for the finite spatial extent of atomic magnetization density.
+Constructs the magnetic form factor ``F(|𝐐|)`` for an ion specified by `label`.
+This accounts for the finite spatial extent of the atomic magnetization density.
 Magnetic scattering intensity from a given ion is modulated by ``F(|𝐐|)^2``,
 where ``𝐐`` is the momentum transfer in physical units of inverse `length`.
 
@@ -104,14 +104,14 @@ factor ``g_J`` derived from NIST atomic level data [1]. The free-ion picture is
 natural for rare-earth and actinide ions, though effects such as crystal-field
 mixing, covalency, or intermediate coupling may motivate a custom `j2_weight`.
 
-Fitted ``⟨j_0⟩`` curves are available as a sum of Gaussians in the inverse
-length ``s = |𝐐|/4π``,
+Fitted ``⟨j_0⟩`` curves are available as a sum of Gaussians in the
+inverse-length variable ``s = |𝐐|/4π``,
 
 ```math
 ⟨j_0⟩ ≈ A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E.
 ```
 
-Fitted ``⟨j_2⟩`` curves use instead the form,
+Fitted ``⟨j_2⟩`` curves use the modified form,
 
 ```math
 ⟨j_2⟩ ≈ (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2.
@@ -131,22 +131,44 @@ Sunny also defines `one(FormFactor)` and `zero(FormFactor)` to represent
 ``F(|𝐐|) = 1`` and ``0``, respectively. The first treats the magnetic ion as a
 point particle, while the second suppresses all contributions from that ion.
 
-## Available `label` strings
+!!! tip "An example free-ion calculation"
 
-```
-Am2, Am3, Am4, Am5, Am6, Am7, Au1, Au2, Au3, Au4, Au5, Ce2, Ce3, Co0, Co1, Co2,
-Co3, Co4, Cr0, Cr1, Cr2, Cr3, Cr4, Cu0, Cu1, Cu2, Cu3, Cu4, Dy2, Dy3, Er2, Er3,
-Eu2, Eu3, Fe0, Fe1, Fe2, Fe3, Fe4, Gd2, Gd3, Hf2, Hf3, Ho2, Ho3, Ir0, Ir1, Ir2,
-Ir3, Ir4, Ir5, Ir6, Mn0, Mn1, Mn2, Mn3, Mn4, Mn5, Mo0, Mo1, Nb0, Nb1, Nd2, Nd3,
-Ni0, Ni1, Ni2, Ni3, Ni4, Np3, Np4, Np5, Np6, Os0, Os1, Os2, Os3, Os4, Os5, Os6,
-Os7, Pd0, Pd1, Pr3, Pr4, Pt1, Pt2, Pt3, Pt4, Pt5, Pt6, Pu3, Pu4, Pu5, Pu6, Re0,
-Re1, Re2, Re3, Re4, Re5, Re6, Rh0, Rh1, Ru0, Ru1, Sc0, Sc1, Sc2, Sm2, Sm3, Ta2,
-Ta3, Ta4, Tb2, Tb3, Tc0, Tc1, Ti0, Ti1, Ti2, Ti3, Tm2, Tm3, U3, U4, U5, V0, V1,
-V2, V3, V4, W0, W1, W2, W3, W4, W5, Y0, Yb2, Yb3, Zr0, Zr1
-```
+    Displaying any `FormFactor` will show its `config` and `j2_weight` fields. For
+    example,
 
-Only "W0", "Re0", "Re1", "Os1", "Ir0", and "Ir1" require an electronic `config`
-option.
+    ```julia
+    julia> FormFactor("Fe2"; j2_weight=:free_ion)
+    FormFactor("Fe2"; config="3d⁶", j2_weight=1/3)
+    ```
+
+    To compute this free-ion `j2_weight`, Sunny begins with the NIST-assigned ground
+    multiplet. Fe²⁺ has the term symbol ⁵D₄, which translates to ``(S = 2, L = 2, J
+    = 4)``. The Landé factor,
+
+    ```math
+    g_J = 1 + (J(J+1) + S(S+1) - L(L+1)) / (2J(J+1)),
+    ```
+
+    is therefore ``g_J = 3/2``. This yields ``(2-g_J)/g_J = 1/3`` as reported above.
+
+!!! tip "Available label strings"
+
+    ```
+    Am2, Am3, Am4, Am5, Am6, Am7, Au1, Au2, Au3, Au4, Au5, Ce2, Ce3, Co0, Co1, Co2,
+    Co3, Co4, Cr0, Cr1, Cr2, Cr3, Cr4, Cu0, Cu1, Cu2, Cu3, Cu4, Dy2, Dy3, Er2, Er3,
+    Eu2, Eu3, Fe0, Fe1, Fe2, Fe3, Fe4, Gd2, Gd3, Hf2, Hf3, Ho2, Ho3, Ir0, Ir1, Ir2,
+    Ir3, Ir4, Ir5, Ir6, Mn0, Mn1, Mn2, Mn3, Mn4, Mn5, Mo0, Mo1, Nb0, Nb1, Nd2, Nd3,
+    Ni0, Ni1, Ni2, Ni3, Ni4, Np3, Np4, Np5, Np6, Os0, Os1, Os2, Os3, Os4, Os5, Os6,
+    Os7, Pd0, Pd1, Pr3, Pr4, Pt1, Pt2, Pt3, Pt4, Pt5, Pt6, Pu3, Pu4, Pu5, Pu6, Re0,
+    Re1, Re2, Re3, Re4, Re5, Re6, Rh0, Rh1, Ru0, Ru1, Sc0, Sc1, Sc2, Sm2, Sm3, Ta2,
+    Ta3, Ta4, Tb2, Tb3, Tc0, Tc1, Ti0, Ti1, Ti2, Ti3, Tm2, Tm3, U3, U4, U5, V0, V1,
+    V2, V3, V4, W0, W1, W2, W3, W4, W5, Y0, Yb2, Yb3, Zr0, Zr1
+    ```
+
+    Only W0, Re0, Re1, Os1, Ir0, and Ir1 require an electronic `config` option.
+
+    _Some important charge states are missing. If you can provide data, please
+    contact us!_
 
 ## References
 
@@ -195,7 +217,11 @@ function FormFactor(label::String; config=nothing, j2_weight=0.0, g_lande=nothin
     end
 
     if isnothing(entry)
-        error("Select electronic `config` from " * join(repr.(first.(candidates)), " or "))
+        if Base.length(candidates) == 1
+            error("$label only supports config=" * repr(first(only(candidates))))
+        else
+            error("Select electronic `config` from " * join(repr.(first.(candidates)), " or "))
+        end
     end
 
     (config, term, j0, j2) = entry
