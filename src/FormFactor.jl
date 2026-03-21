@@ -97,7 +97,7 @@ ERROR: Select electronic `config` from "6s⁰5d⁹" or "6s¹5d⁸" or "6s²5d⁷
 
 The argument `j2_weight` may be a number or the special value `:free_ion`. It
 sets the dimensionless ``c`` parameter that scales ``⟨j_2⟩``. By default
-``j2_weight = 0``, which can be a good approximation when orbital magnetism is
+`j2_weight = 0`, which can be a good approximation when orbital magnetism is
 strongly quenched, as in many 3d transition-metal magnets. If `j2_weight =
 :free_ion`, then Sunny computes ``c = (2-g_J)/g_J`` using an effective Landé
 factor ``g_J`` derived from NIST atomic level data [1]. The free-ion picture is
