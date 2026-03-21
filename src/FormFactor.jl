@@ -12,30 +12,28 @@ struct ExpandedBesselIntegral
     E :: Float64
 end
 
-# Atomic magnetic form factor in the dipole approximation,  
-#   f(Q) = ⟨j0(Q)⟩ + c ⟨j2(Q)⟩.  
-# By default, c = (2-gJ)/gJ where  
-#   gJ = 1 + (j(j+1) + s(s+1) - l(l+1)) / (2j(j+1))  
-# is the atomic Landé factor.
+# Magnetic form factor in the dipole approximation,  
+#   F(Q) = ⟨j0(Q)⟩ + c ⟨j2(Q)⟩,  
+# with tuneable j2_weight c.
 struct FormFactor
     j0 :: ExpandedBesselIntegral
     j2 :: ExpandedBesselIntegral
-    c_j2 :: Float64
+    j2_weight :: Float64
     label :: String  # element and charge state
     config :: String # electronic configuration
     term :: String   # atomic spectroscopic term symbol
 end
 
 function Base.show(io::IO, form_factor::FormFactor)
-    (; label, config, c_j2) = form_factor
+    (; label, config, j2_weight) = form_factor
 
     if label == "One"
         print(io, "one(FormFactor)")
     elseif label == "Zero"
         print(io, "zero(FormFactor)")
     else
-        c = number_to_math_string(c_j2)
-        print(io, "FormFactor(\"$label\"; config=\"$config\", c_j2=$c)")
+        c = number_to_math_string(j2_weight)
+        print(io, "FormFactor(\"$label\"; config=\"$config\", j2_weight=$c)")
     end
 end
 
@@ -46,15 +44,15 @@ end
 function Base.one(::Type{FormFactor})
     j0 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 0, 0, 1)
     j2 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 0, 0, 0)
-    c_j2 = 0
-    FormFactor(j0, j2, c_j2, "One", "", "")
+    j2_weight = 0
+    FormFactor(j0, j2, j2_weight, "One", "", "")
 end
 
 function Base.zero(::Type{FormFactor})
     j0 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 0, 0, 0)
     j2 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 0, 0, 0)
-    c_j2 = 0
-    FormFactor(j0, j2, c_j2, "Zero", "", "")
+    j2_weight = 0
+    FormFactor(j0, j2, j2_weight, "Zero", "", "")
 end
 
 # Parse an atomic spectroscopic term symbol into angular momenta values. For
@@ -70,25 +68,26 @@ end
 
 
 """
-    FormFactor(label::String; config=nothing, c_j2=0.0, length=:angstrom)
+    FormFactor(label::String; config=nothing, j2_weight=0.0, length=:angstrom)
 
-Constructs an isotropic magnetic form factor ``F(|𝐐|)`` to account for the
-finite real-space extent of atomic magnetization density. For single-species
-compounds, scattering intensities scale like ``F(|𝐐|)^2``, where ``𝐐`` is the
-momentum transfer in physical units of inverse `length`.
+Constructs the magnetic form factor ``F(|𝐐|)`` for an ion with a given `label`.
+This accounts for the finite spatial extent of atomic magnetization density.
+Magnetic scattering intensity from a given ion is modulated by ``F(|𝐐|)^2``,
+where ``𝐐`` is the momentum transfer in physical units of inverse `length`.
 
-Sunny uses the dipole approximation,
+Sunny uses the standard dipole approximation involving radial integrals
+``⟨j_l⟩``,
 
 ```math
-F(|𝐐|) = ⟨j_0(|𝐐|)⟩ + c_{j_2} ⟨j_2(|𝐐|)⟩,
+F(|𝐐|) = ⟨j_0(|𝐐|)⟩ + c ⟨j_2(|𝐐|)⟩.
 ```
 
-where ``⟨j_l⟩`` are standard radial integrals. The ion `label` is an element
-symbol followed by an ionization state index. For example, `"Fe2"` denotes Fe²⁺
-while `"Fe0"` denotes neutral iron. For a few weakly ionized 5d elements, the
-same label allows multiple electronic configurations with distinct form factors.
-In such cases a `config` string is required. Omitting it throws an informative
-error:
+The `label` must contain an element symbol followed by a charge index. For
+example, `"Fe2"` denotes Fe²⁺ while `"Fe0"` denotes neutral iron.
+
+A few weakly ionized 5d elements allow multiple electronic configurations for
+the same label. In such cases a `config` string is required. Omitting it throws
+a descriptive error:
 
 ```
 FormFactor("Ir0")
@@ -96,24 +95,23 @@ FormFactor("Ir0")
 ERROR: Select electronic `config` from "6s⁰5d⁹" or "6s¹5d⁸" or "6s²5d⁷"
 ```
 
-The argument `c_j2` accepts either a real number or the special value
-`:free_ion`. If numeric, it is the dimensionless ``c_{j_2}`` value that scales
-``⟨j_2⟩``. The default ``c_j2 = 0`` can be a good approximation when orbital
-magnetism is strongly quenched, as in many 3d transition-metal magnets. The
-special value `c_j2 = :free_ion` makes Sunny infer ``c_{j_2} = (2-g_J)/g_J``
-with Landé factor ``g_J`` obtained from NIST atomic level data [1]. The free-ion
-picture is natural for rare-earth and actinide ions, though effects such as
-crystal-field mixing, covalency, or intermediate coupling may motivate a custom
-`c_j2`.
+The argument `j2_weight` may be a number or the special value `:free_ion`. It
+sets the dimensionless ``c`` parameter that scales ``⟨j_2⟩``. By default
+``j2_weight = 0``, which can be a good approximation when orbital magnetism is
+strongly quenched, as in many 3d transition-metal magnets. If `j2_weight =
+:free_ion`, then Sunny computes ``c = (2-g_J)/g_J`` using an effective Landé
+factor ``g_J`` derived from NIST atomic level data [1]. The free-ion picture is
+natural for rare-earth and actinide ions, though effects such as crystal-field
+mixing, covalency, or intermediate coupling may motivate a custom `j2_weight`.
 
-Fitted ``⟨j_0⟩`` curves are available as a sum of Gaussians in the
-inverse-length ``s = |𝐐|/4π``,
+Fitted ``⟨j_0⟩`` curves are available as a sum of Gaussians in the inverse
+length ``s = |𝐐|/4π``,
 
 ```math
 ⟨j_0⟩ ≈ A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E.
 ```
 
-Fitted ``⟨j_2⟩`` curves use the slightly modified form,
+Fitted ``⟨j_2⟩`` curves use instead the form,
 
 ```math
 ⟨j_2⟩ ≈ (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2.
@@ -129,10 +127,9 @@ The `length` unit must be consistent with the [`lattice_vectors`](@ref) of the
 relevant [`Crystal`](@ref), otherwise the ``|𝐐|``-dependence will be incorrect.
 See [`Units`](@ref) for possible length-scale options.
 
-Sunny also defines the constant form factors `one(FormFactor)` and
-`zero(FormFactor)` representing ``F(|𝐐|) = 1`` and ``0`` respectively. The
-first idealizes the magnetic ion as a point particle, while the second
-suppresses all contributions from that ion.
+Sunny also defines `one(FormFactor)` and `zero(FormFactor)` to represent
+``F(|𝐐|) = 1`` and ``0``, respectively. The first treats the magnetic ion as a
+point particle, while the second suppresses all contributions from that ion.
 
 ## Available `label` strings
 
@@ -165,10 +162,10 @@ option.
    factor of 5d transition elements_, Acta Cryst. A **67**, 473–480
    (2011)](https://doi.org/10.1107/S010876731102633X).
 """
-function FormFactor(label::String; config=nothing, c_j2=0.0, g_lande=nothing, length=:angstrom)
+function FormFactor(label::String; config=nothing, j2_weight=0.0, g_lande=nothing, length=:angstrom)
     if !isnothing(g_lande)
-        c_j2 = (2 - g_lande) / g_lande
-        @warn "`g_lande` is deprecated! Use `c_j2=$(number_to_math_string(c_j2))` instead"
+        j2_weight = (2 - g_lande) / g_lande
+        @warn "`g_lande` is deprecated! Use `j2_weight=$(number_to_math_string(j2_weight))` instead"
     end
 
     Base.length(label) >= 2 || error("Provide element and ionization state, e.g. \"Fe2\" for Fe²⁺")
@@ -203,13 +200,13 @@ function FormFactor(label::String; config=nothing, c_j2=0.0, g_lande=nothing, le
 
     (config, term, j0, j2) = entry
 
-    if c_j2 == :free_ion
+    if j2_weight == :free_ion
         (; s, l, j) = parse_term_symbol(term)
         iszero(j) && error("Free-ion Landé factor is ambiguous when J=0 (config $config)")
         gJ = 1 + (j*(j+1) + s*(s+1) - l*(l+1)) / (2*j*(j+1))
-        c_j2 = (2-gJ) / gJ
+        j2_weight = (2-gJ) / gJ
     else
-        c_j2 isa Real || error("c_j2 must be a number or the symbol :free_ion")
+        j2_weight isa Real || error("j2_weight must be a number or the symbol :free_ion")
     end
 
     # The tables are in units of Å². Convert to arbitrary `length` unit.
@@ -219,7 +216,7 @@ function FormFactor(label::String; config=nothing, c_j2=0.0, g_lande=nothing, le
 
     j0 = ExpandedBesselIntegral(j0...)
     j2 = ExpandedBesselIntegral(j2...)
-    return FormFactor(j0, j2, c_j2, label, config, term)
+    return FormFactor(j0, j2, j2_weight, label, config, term)
 end
 
 function compute_gaussian_expansion(j::ExpandedBesselIntegral, s2)
@@ -228,18 +225,18 @@ function compute_gaussian_expansion(j::ExpandedBesselIntegral, s2)
 end
 
 function compute_form_factor(form_factor::FormFactor, q2_absolute::Float64)
-    (; j0, j2, c_j2) = form_factor
+    (; j0, j2, j2_weight) = form_factor
 
     # Return early if this is the identity form factor
-    (j0.A == j0.B == j0.C == j0.D == 0) && (j0.E == 1) && iszero(c_j2) && return 1.0
+    (j0.A == j0.B == j0.C == j0.D == 0) && (j0.E == 1) && iszero(j2_weight) && return 1.0
 
     s2 = q2_absolute / (4π)^2
-    if iszero(c_j2)
+    if iszero(j2_weight)
         return compute_gaussian_expansion(j0, s2)
     else
         J0 = compute_gaussian_expansion(j0, s2)
         J2 = compute_gaussian_expansion(j2, s2) * s2
-        return J0 + c_j2 * J2
+        return J0 + j2_weight * J2
     end
 end
 
