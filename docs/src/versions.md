@@ -9,8 +9,8 @@
   `g_lande` is now deprecated. Ambiguity in the electronic configuration must be
   resolved with an explicit `config` keyword argument. For example, calling
   `FormFactor("Ir0")` will list `"6s⁰5d⁹"`, `"6s¹5d⁸"`, or `"6s²5d⁷"` as
-  possible options. A letter suffix, e.g. `FormFactor("Ir0a")`, is no longer
-  accepted to select the electronic configuration.
+  possible options; a letter suffix like `"Ir0a"` is no longer accepted
+  ([#482](@ref)). 
 
 ## v0.9.0
 (Mar 4, 2026)
