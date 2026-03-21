@@ -101,8 +101,9 @@ sets the dimensionless ``c`` parameter that scales ``⟨j_2⟩``. By default
 strongly quenched, as in many 3d transition-metal magnets. If `j2_weight =
 :free_ion`, then Sunny computes ``c = (2-g_J)/g_J`` using an effective Landé
 factor ``g_J`` derived from NIST atomic level data [1]. The free-ion picture is
-natural for rare-earth and actinide ions, though effects such as crystal-field
-mixing, covalency, or intermediate coupling may motivate a custom `j2_weight`.
+most natural for rare-earth and actinide ions. It can also serve as a starting
+point for some 4d and 5d transition-metal ions, though effects such as
+crystal-field mixing or covalency may motivate a custom `j2_weight`.
 
 Fitted ``⟨j_0⟩`` curves are available as a sum of Gaussians in the
 inverse-length variable ``s = |𝐐|/4π``,
@@ -137,19 +138,20 @@ point particle, while the second suppresses all contributions from that ion.
     example,
 
     ```julia
-    julia> FormFactor("Fe2"; j2_weight=:free_ion)
-    FormFactor("Fe2"; config="3d⁶", j2_weight=1/3)
+    julia> FormFactor("Yb3"; j2_weight=:free_ion)
+    FormFactor("Yb3"; config="4f¹³", j2_weight=3/4)
     ```
 
-    To compute this free-ion `j2_weight`, Sunny begins with the NIST-assigned ground
-    multiplet. Fe²⁺ has the term symbol ⁵D₄, which translates to ``(S = 2, L = 2, J
-    = 4)``. The Landé factor,
+    Yb³⁺ is a rare-earth ion, which makes the free-ion value `j2_weight = 3/4` a
+    natural choice. To calculate it, Sunny begins with the NIST-assigned term symbol
+    ``{}^2F_{7/2}``, or equivalently, ``(S = 1/2, L = 3, J = 7/2)``. The Landé
+    factor,
 
     ```math
-    g_J = 1 + (J(J+1) + S(S+1) - L(L+1)) / (2J(J+1)),
+    g_J = 1 + \\frac{J(J+1)+S(S+1)-L(L+1)}{2J(J+1)},
     ```
 
-    is therefore ``g_J = 3/2``. This yields ``(2-g_J)/g_J = 1/3`` as reported above.
+    then evaluates to ``g_J = 8/7``. Hence ``(2-g_J)/g_J = 3/4``.
 
 !!! tip "Available label strings"
 
@@ -227,6 +229,9 @@ function FormFactor(label::String; config=nothing, j2_weight=0.0, g_lande=nothin
     (config, term, j0, j2) = entry
 
     if j2_weight == :free_ion
+        if startswith(config, "3d")
+            @warn "Consider j2_weight=0 or an empirically tuned value for 3d-block ions"
+        end
         (; s, l, j) = parse_term_symbol(term)
         iszero(j) && error("Free-ion Landé factor is ambiguous when J=0 (config $config)")
         gJ = 1 + (j*(j+1) + s*(s+1) - l*(l+1)) / (2*j*(j+1))

@@ -130,7 +130,7 @@ langevin.dt = 0.040;
 
 dt = 2*langevin.dt
 energies = range(0, 7.5, 120)
-formfactors = [1 => FormFactor("Fe2", j2_weight=:free_ion)]
+formfactors = [1 => FormFactor("Fe2")]
 sc = SampledCorrelations(sys; dt, energies, measure=ssf_perp(sys; formfactors))
 
 # The function [`add_sample!`](@ref) will collect data by running a dynamical
