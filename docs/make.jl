@@ -1,4 +1,5 @@
-# julia make.jl [--fast]
+# julia --compiled-modules=existing make.jl
+# julia --compiled-modules=existing make.jl --fast
 
 import Pkg
 Pkg.activate(@__DIR__)

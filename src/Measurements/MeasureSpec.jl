@@ -97,8 +97,8 @@ The optional `formfactors` comprise a list of pairs `[i1 => FormFactor(...), i2
 each [`FormFactor`](@ref) implements ``𝐪``-space attenuation for the given
 atom.
 
-Intended for use with [`SpinWaveTheory`](@ref) and instances of
-[`SampledCorrelations`](@ref).
+Intended for use with calculators such as [`SpinWaveTheory`](@ref),
+[`SampledCorrelations`](@ref), and [`SCGA`](@ref).
 
 # Examples
 
