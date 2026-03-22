@@ -72,8 +72,9 @@ end
 
 Constructs the magnetic form factor ``F(|𝐐|)`` for an ion specified by `label`.
 This accounts for the finite spatial extent of the atomic magnetization density.
-Magnetic scattering intensity from a given ion is modulated by ``F(|𝐐|)^2``,
-where ``𝐐`` is the momentum transfer in physical units of inverse `length`.
+Magnetic scattering intensity for a given ion type is modulated by
+``F(|𝐐|)^2``, where ``𝐐`` is the momentum transfer in physical units of
+inverse `length`.
 
 Sunny uses the standard dipole approximation,
 
