@@ -1,39 +1,67 @@
 @testitem "Form factors" begin
+
+    # Check parsing of spectroscopic term symbols
+
+    @test Sunny.parse_term_symbol("6S5/2") == (; s=5/2, l=0, j=5/2)
+    @test Sunny.parse_term_symbol("10D0") == (; s=9/2, l=2, j=0)
+    @test Sunny.parse_term_symbol("2F5/2") == (; s=1/2, l=3, j=5/2)
+
+    # Check display
+
+    @test repr(FormFactor("Fe2")) == "FormFactor(\"Fe2\"; config=\"3d⁶\", j2_weight=0)"
+    msg = "Consider a custom j2_weight to account for orbital quenching in 3d transition metals"
+    ff = @test_logs (:warn, msg) FormFactor("Fe2"; j2_weight=:free_ion)
+    @test repr(ff) == "FormFactor(\"Fe2\"; config=\"3d⁶\", j2_weight=1/3)"
+    @test repr(one(FormFactor)) == "one(FormFactor)"
+    @test repr(zero(FormFactor)) == "zero(FormFactor)"
+
     # Compute form factors for all ion types, and on arbitrary arguments
 
     q2 = 0.57
-    g_lande = 2.15
-
-    brown_keys = ["Sc0", "Sc1", "Sc2", "Ti0", "Ti1", "Ti2", "Ti3", "V0", "V1", "V2", "V3", "V4", "Cr0", "Cr1", "Cr2", "Cr3", "Cr4", "Mn0", "Mn1", "Mn2", "Mn3", "Mn4", "Mn5", "Fe0", "Fe1", "Fe2", "Fe3", "Fe4", "Co0", "Co1", "Co2", "Co3", "Co4", "Ni0", "Ni1", "Ni2", "Ni3", "Ni4", "Cu0", "Cu1", "Cu2", "Cu3", "Cu4", "Y0", "Zr0", "Zr1", "Nb0", "Nb1", "Mo0", "Mo1", "Tc0", "Tc1", "Ru0", "Ru1", "Rh0", "Rh1", "Pd0", "Pd1", "Ce2", "Nd2", "Nd3", "Sm2", "Sm3", "Eu2", "Eu3", "Gd2", "Gd3", "Tb2", "Tb3", "Dy2", "Dy3", "Ho2", "Ho3", "Er2", "Er3", "Tm2", "Tm3", "Yb2", "Yb3", "Pr3", "U3", "U4", "U5", "Np3", "Np4", "Np5", "Np6", "Pu3", "Pu4", "Pu5", "Pu6", "Am2", "Am3", "Am4", "Am5", "Am6", "Am7", "Ce3"]
-    brown_refs = [0.8612304997894441, 0.8881300904340745, 0.9230918862523916, 0.923467579984288, 0.9139840048505373, 0.9372367736681745, 0.9496672486192593, 0.9387414436352444, 0.9296780689558954, 0.9466896598740736, 0.9567365809554337, 0.9630889096843591, 0.9435941305046178, 0.9406231660592046, 0.9537320763330333, 0.9618915054196684, 0.9675316114002389, 0.9546973880547955, 0.9474245296765115, 0.9592875197450461, 0.9656789198525291, 0.9705818851479407, 0.9748399613636751, 0.9596325798238697, 0.9535707956813343, 0.963008881420943, 0.969332007705793, 0.9730528909464593, 0.963233554128305, 0.958147661850175, 0.9662171638122391, 0.9717639318914623, 0.9758919894599727, 0.9732576975562593, 0.9623747292536808, 0.9693692337032696, 0.9742397060244375, 0.9773755323244421, 0.9648586405606043, 0.9664889420493662, 0.9719718550880967, 0.975904640706173, 0.9789175124873787, 0.8271642655429379, 0.8661713785257669, 0.8595231612899285, 0.8892116937907717, 0.8811771880487423, 0.9166729281833833, 0.8990961824003825, 0.9264667954432715, 0.9097177310213524, 0.9346442091094386, 0.9203083819563623, 0.9401635985262097, 0.9349213581508373, 0.9458897741902882, 0.9353451090447322, 0.964989678872764, 0.9634099730196004, 0.9701656928428026, 0.9686572579366843, 0.974069907386716, 0.9708396316260214, 0.9753447859629438, 0.9726037618955405, 0.9766326639300998, 0.9740158115499955, 0.9779189399577168, 0.9754234616758197, 0.9789669113679258, 0.9765868636964733, 0.9799536264857678, 0.9779706795387256, 0.9809020140109214, 0.9788891348258091, 0.9816084737914827, 0.9797343518427208, 0.9822502742748633, 0.9710354228204524, 0.9382202626915205, 0.9457005540596318, 0.9512587524191554, 0.9435727750700562, 0.9500730615174079, 0.954629838657609, 0.9573368607795035, 0.9576336180945146, 0.9533286737306728, 0.9574656306522278, 0.9606964270024043, 0.9448332619034078, 0.951915957832326, 0.9565527341540118, 0.9599410708710203, 0.9626472692866624, 0.9646791721103257, 0.9679665362762234]
-
-    kobayashi_keys = ["Hf2", "Hf3", "Ta2", "Ta3", "Ta4", "W0a", "W0b", "W0c", "W1a", "W1b", "W2c", "W3", "W4", "W5", "Re0a", "Re0b", "Re0c", "Re1a", "Re1b", "Re2", "Re3", "Re4", "Re5", "Re6", "Os0a", "Os0b", "Os0c", "Os1a", "Os1b", "Os2", "Os3", "Os4", "Os5", "Os6", "Os7", "Ir0a", "Ir0b", "Ir0c", "Ir1a", "Ir1b", "Ir2", "Ir3", "Ir4", "Ir5", "Ir6", "Pt1", "Pt2", "Pt3", "Pt4", "Pt5", "Pt6", "Au1", "Au2", "Au3", "Au4", "Au5"]
-    kobayashi_refs = [0.8689440651253271, 0.8888136177131588, 0.8840686215950699, 0.8994004337496564, 0.9101528391610143, 0.8472388078049689, 0.8650067638665045, 0.879267908902524, 0.8779398246381942, 0.8880602665398635, 0.896093849382087, 0.9084055597571624, 0.9174422350375753, 0.9244679050355514, 0.8681630254808739, 0.8822371232551307, 0.8933169474106295, 0.8915297871341744, 0.8998453622986089, 0.9060230528912959, 0.9161468433220479, 0.9237747655215364, 0.9296393376164646, 0.9345562156909509, 0.8841187378321346, 0.8954374822984409, 0.904413051738971, 0.9025244946804027, 0.9094578103795641, 0.9143596889560148, 0.9228623215928715, 0.9293869806624924, 0.9345241242095418, 0.9387633528752165, 0.9423464867717495, 0.896643858631712, 0.9061310241612465, 0.9135576034496984, 0.9117017027338759, 0.9174776840032718, 0.9214765103783157, 0.9286788274192451, 0.9342761922806214, 0.9387216006635983, 0.9425685778782177, 0.9192223249722434, 0.9275720974747921, 0.9337847095781193, 0.9386221417937619, 0.9426937750124552, 0.9460141761165295, 0.9301232355721594, 0.9328984199721937, 0.9384038365877813, 0.9425634681355087, 0.9461716107116591]
-
-    for (ref, key) in zip(brown_refs, brown_keys)
-        @test ref ≈ Sunny.compute_form_factor(FormFactor(key; g_lande), q2)
+    function check_ffs(keys, refs, configs=fill(nothing, length(keys)); j2_weight)
+        for (key, config, ref) in zip(keys, configs, refs)
+            @test ref ≈ Sunny.compute_form_factor(FormFactor(key; config, j2_weight), q2)
+        end
     end
 
-    for (ref, key) in zip(kobayashi_refs, kobayashi_keys)
-        @test ref ≈ Sunny.compute_form_factor(FormFactor(key; g_lande), q2)
-    end
+    brown_3d_keys = ["Sc0", "Sc1", "Sc2", "Ti0", "Ti1", "Ti2", "Ti3", "V0", "V2", "V3", "V4", "Cr0", "Cr1", "Cr3", "Cr4", "Mn0", "Mn1", "Mn2", "Mn4", "Mn5", "Fe0", "Fe1", "Fe2", "Fe3", "Co0", "Co1", "Co2", "Co3", "Co4", "Ni0", "Ni1", "Ni2", "Ni3", "Ni4", "Cu0", "Cu2", "Cu3", "Cu4", "V1", "Cr2", "Mn3", "Fe4", "Cu1"]
+    brown_3d_refs = [0.8697961854, 0.8948823223, 0.9280679196, 0.9284788524, 0.9192421914, 0.9411439174, 0.9528748452, 0.9425756230, 0.9500344548, 0.9595439920, 0.9655051866, 0.9470527864, 0.9442752111, 0.9643926517, 0.9696910698, 0.9575192927, 0.9506780639, 0.9618982113, 0.9725302343, 0.9748460372, 0.9622332230, 0.9564842003, 0.9654220904, 0.9713328208, 0.9655125121, 0.9607398355, 0.9683228814, 0.9735555925, 0.9774696305, 0.9750228207, 0.9647047030, 0.9713015478, 0.9758901268, 0.9788421653, 0.9670133332, 0.9737428228, 0.9774373048, 0.9802693376, 0.9340088191, 0.9566815141, 0.9679234542, 0.9747800566, 0.9685835750]
+    check_ffs(brown_3d_keys, brown_3d_refs; j2_weight=0.1)
+
+    brown_keys = ["Y0", "Zr0", "Zr1", "Nb0", "Mo0", "Mo1", "Tc0", "Tc1", "Ru0", "Ru1", "Rh0", "Rh1", "Pd1", "Ce2", "Nd2", "Nd3", "Sm3", "Eu2", "Gd2", "Gd3", "Tb2", "Tb3", "Dy2", "Dy3", "Ho2", "Ho3", "Er2", "Er3", "Tm2", "Tm3", "Yb3", "Pr3", "U3", "U4", "U5", "Np3", "Np4", "Np5", "Np6", "Pu3", "Pu4", "Pu5", "Pu6", "Am2", "Am4", "Am5", "Am6", "Am7", "Ce3"]
+    brown_refs = [0.9237751814, 0.9665886930, 1.0693536967, 0.8755127829, 0.9188644657, 0.9017249567, 0.9284121234, 0.9120487339, 0.9469756019, 0.9374084434, 0.9530682750, 0.9514340450, 0.9529680222, 0.9859644599, 0.9965196236, 0.9911020302, 1.0353711653, 0.9716200199, 0.9707082381, 0.9772613581, 0.9796652823, 0.9813662594, 0.9817183183, 0.9836009799, 0.9831343698, 0.9851486780, 0.9846378588, 0.9863509727, 0.9855360814, 0.9871936270, 0.9878390389, 0.9889365244, 0.9796871913, 0.9776921513, 0.9772919614, 0.9936497864, 0.9848881540, 0.9822462046, 0.9802356766, 1.0568699926, 0.9956884083, 0.9873548394, 0.9847976634, 0.9462331063, 1.0577468360, 0.9971133930, 0.9889680030, 0.9858637400, 0.9840897557]
+    check_ffs(brown_keys, brown_refs; j2_weight=:free_ion)
+
+    kobayashi_keys = ["Hf2", "Hf3", "Ta2", "Ta3", "Ta4", "W0", "W0", "W1", "W1", "W3", "W4", "W5", "Re0", "Re0", "Re0", "Re1", "Re1", "Re2", "Re4", "Re5", "Re6", "Os0", "Os0", "Os0", "Os1", "Os1", "Os2", "Os3", "Os5", "Os6", "Os7", "Ir0", "Ir0", "Ir0", "Ir1", "Ir1", "Ir2", "Ir3", "Ir4", "Ir6", "Pt1", "Pt2", "Pt3", "Pt4", "Pt5", "Au1", "Au2", "Au3", "Au4", "Au5"]
+    kobayashi_configs = [nothing, nothing, nothing, nothing, nothing, "6s⁰5d⁶", "6s¹5d⁵", "6s⁰5d⁵", "6s¹5d⁴", nothing, nothing, nothing, "6s⁰5d⁷", "6s¹5d⁶", "6s²5d⁵", "6s⁰5d⁶", "6s¹5d⁵", nothing, nothing, nothing, nothing, "6s⁰5d⁸", "6s¹5d⁷", "6s²5d⁶", "6s⁰5d⁷", "6s¹5d⁶", nothing, nothing, nothing, nothing, nothing, "6s⁰5d⁹", "6s¹5d⁸", "6s²5d⁷", "6s⁰5d⁸", "6s¹5d⁷", nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing, nothing]
+    kobayashi_refs = [0.9697898796, 0.9545865128, 1.0603393256, 0.9780727435, 0.9637145024, 0.8700261400, 0.8685191095, 0.8811491124, 0.8740740070, 1.0494421964, 0.9825141085, 0.9698399600, 0.8961489116, 0.8979473918, 0.8961276144, 0.9080587312, 0.9024973689, 0.9085204449, 1.0420620141, 0.9852956945, 0.9739488132, 0.9131917824, 0.9150620109, 0.9190058841, 0.9235770719, 0.9217021429, 0.9275322677, 0.9249061720, 1.0365922415, 0.9874125646, 0.9771334021, 0.9252574144, 0.9263532230, 0.9322720419, 0.9341928215, 0.9331499710, 0.9385768259, 0.9397049516, 0.9360282199, 1.0323550076, 0.9418560047, 0.9461298470, 0.9482647373, 0.9481314065, 0.9442348506, 0.9453306935, 0.9518189600, 0.9542743103, 0.9550841600, 0.9545380045]
+    check_ffs(kobayashi_keys, kobayashi_refs, kobayashi_configs; j2_weight=:free_ion)
+
+    brown_singlet_keys = ["Nb1", "Pd0", "Sm2", "Eu3", "Yb2", "Am3"]
+    brown_singlet_refs = [0.8886670644, 0.9493697730, 0.9706780518, 0.9769639669, 0.9810535685, 0.9550229409]
+    check_ffs(brown_singlet_keys, brown_singlet_refs; j2_weight=0.1)
+
+    kobayashi_singlet_keys = ["W0", "W2", "Re3", "Os4", "Ir5", "Pt6"]
+    kobayashi_singlet_configs = ["6s²5d⁴", "6s⁰5d⁴", nothing, nothing, nothing, nothing]
+    kobayashi_singlet_refs = [0.8869759320, 0.9027027582, 0.9215934489, 0.9339654429, 0.9427037649, 0.9495372842]
+    check_ffs(kobayashi_singlet_keys, kobayashi_singlet_refs, kobayashi_singlet_configs; j2_weight=0.1)
 
     # Check error messages
 
-    @test_throws "Form factor requires species name" FormFactor("Fe")
-
-    @test_throws """
-        Disambiguate form factor according to electronic configuration:
-            "Ir0a" -- 6s⁰5d⁹
-            "Ir0b" -- 6s¹5d⁸
-            "Ir0c" -- 6s²5d⁷
-        """ FormFactor("Ir0")
+    @test_throws "Provide element and ionization state, e.g. \"Fe2\" for Fe²⁺" FormFactor("Fe")
+    @test_throws "Select electronic `config` from \"6s⁰5d⁹\" or \"6s¹5d⁸\" or \"6s²5d⁷\"" FormFactor("Ir0")
+    @test_logs (:warn, r"Suffix `a` is deprecated and will be ignored") begin
+        @test_throws "Select electronic `config` from \"6s⁰5d⁹\" or \"6s¹5d⁸\" or \"6s²5d⁷\"" FormFactor("Ir0a")
+    end
+    @test_throws "No form factor data for \"Pr5\"; contact us if you can provide it" FormFactor("Pr5")
+    @test_throws "Unrecognized magnetic element" FormFactor("H0")
+    @test_throws "Free-ion Landé factor is ambiguous when J=0 (config 3d¹⁰)" Sunny.compute_form_factor(FormFactor("Cu1"; j2_weight=:free_ion), q2)
 
     # Check length units
 
     units1 = Units(:meV, :angstrom)
     units2 = Units(:meV, :nm)
-    x1 = Sunny.compute_form_factor(FormFactor("Sc0"; g_lande, units1.length), q2 * units1.angstrom^(-2))
-    x2 = Sunny.compute_form_factor(FormFactor("Sc0"; g_lande, units2.length), q2 * units2.angstrom^(-2))
+    x1 = Sunny.compute_form_factor(FormFactor("Sc0"; units1.length), q2 * units1.angstrom^(-2))
+    x2 = Sunny.compute_form_factor(FormFactor("Sc0"; units2.length), q2 * units2.angstrom^(-2))
     @test isapprox(x1, x2; atol=1e-14)
 end
