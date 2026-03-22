@@ -75,19 +75,18 @@ This accounts for the finite spatial extent of the atomic magnetization density.
 Magnetic scattering intensity from a given ion is modulated by ``F(|𝐐|)^2``,
 where ``𝐐`` is the momentum transfer in physical units of inverse `length`.
 
-Sunny uses the standard dipole approximation involving radial integrals
-``⟨j_l⟩``,
+Sunny uses the standard dipole approximation,
 
 ```math
 F(|𝐐|) = ⟨j_0(|𝐐|)⟩ + c ⟨j_2(|𝐐|)⟩.
 ```
 
-The `label` must contain an element symbol followed by a charge index. For
-example, `"Fe2"` denotes Fe²⁺ while `"Fe0"` denotes neutral iron.
+Radial integrals ``⟨j_l⟩`` are tabulated for each magnetic ion. The ion is
+selected by a `label` string that contains the element symbol and charge index.
+For example, `"Fe2"` denotes Fe²⁺ while `"Fe0"` denotes neutral iron.
 
 A few weakly ionized 5d elements allow multiple electronic configurations for
-the same label. In such cases a `config` string is required. Omitting it throws
-a descriptive error:
+the same label. In such cases a `config` string is required:
 
 ```
 FormFactor("Ir0")
@@ -96,33 +95,14 @@ ERROR: Select electronic `config` from "6s⁰5d⁹" or "6s¹5d⁸" or "6s²5d⁷
 ```
 
 The argument `j2_weight` may be a number or the special value `:free_ion`. It
-sets the dimensionless ``c`` parameter that scales ``⟨j_2⟩``. By default
-`j2_weight = 0`, which can be a good approximation when orbital magnetism is
-strongly quenched, as in many 3d transition-metal magnets. If `j2_weight =
-:free_ion`, then Sunny computes ``c = (2-g_J)/g_J`` using an effective Landé
-factor ``g_J`` derived from NIST atomic level data [1]. The free-ion picture is
-most natural for rare-earth and actinide ions. It can also serve as a starting
-point for some 4d and 5d transition-metal ions, though effects such as
-crystal-field mixing or covalency may motivate a custom `j2_weight`.
-
-Fitted ``⟨j_0⟩`` curves are available as a sum of Gaussians in the
-inverse-length variable ``s = |𝐐|/4π``,
-
-```math
-⟨j_0⟩ ≈ A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E.
-```
-
-Fitted ``⟨j_2⟩`` curves use the modified form,
-
-```math
-⟨j_2⟩ ≈ (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2.
-```
-
-Sunny's tables for ``A, a, B, b, …`` match those of the McPhase package [2]. For
-3d and 4d transition atoms and ions, rare-earth ions (4f), and actinide ions
-(5f), the coefficients follow the Neutron Data Booklet [3]. Ce³⁺ follows Lisher
-and Forsyth [4]. 5d transition elements (Hf–Au) follow Kobayashi, Nagao, and Ito
-[5].
+sets the dimensionless ``c`` parameter that scales ``⟨j_2⟩``. The default of
+zero can be a good approximation when orbital magnetism is strongly quenched, as
+in many 3d transition-metal magnets. If `j2_weight = :free_ion`, then Sunny
+computes ``c = (2-g_J)/g_J`` using an effective Landé factor ``g_J`` derived
+from NIST atomic level data [1]. The free-ion picture is most natural for
+rare-earth and actinide ions. It can also serve as a starting point for some 4d
+and 5d transition-metal ions, though effects such as crystal-field mixing or
+covalency may motivate a custom `j2_weight`.
 
 The `length` unit must be consistent with the [`lattice_vectors`](@ref) of the
 relevant [`Crystal`](@ref), otherwise the ``|𝐐|``-dependence will be incorrect.
@@ -153,7 +133,9 @@ point particle, while the second suppresses all contributions from that ion.
 
     then evaluates to ``g_J = 8/7``. Hence ``(2-g_J)/g_J = 3/4``.
 
-!!! tip "Available label strings"
+!!! tip "Tabulated form factor data"
+
+    The available `label` strings are:
 
     ```
     Am2, Am3, Am4, Am5, Am6, Am7, Au1, Au2, Au3, Au4, Au5, Ce2, Ce3, Co0, Co1, Co2,
@@ -167,10 +149,28 @@ point particle, while the second suppresses all contributions from that ion.
     V2, V3, V4, W0, W1, W2, W3, W4, W5, Y0, Yb2, Yb3, Zr0, Zr1
     ```
 
-    Only W0, Re0, Re1, Os1, Ir0, and Ir1 require an electronic `config` option.
+    Only W0, Re0, Re1, Os1, Ir0, and Ir1 require an electronic `config` selection.
 
-    _Some important charge states are missing. If you can provide data, please
-    contact us!_
+    Fitted ``⟨j_0⟩`` curves are available as a sum of Gaussians in the
+    inverse-length variable ``s = |𝐐|/4π``,
+
+    ```math
+    ⟨j_0⟩ ≈ A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E.
+    ```
+
+    Fitted ``⟨j_2⟩`` curves use the modified form,
+
+    ```math
+    ⟨j_2⟩ ≈ (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2.
+    ```
+
+    Sunny's tables for ``A, a, B, b, …`` match those of the McPhase package [2]. For
+    3d and 4d transition atoms and ions, rare-earth ions (4f), and actinide ions
+    (5f), the coefficients follow the Neutron Data Booklet [3]. Ce³⁺ follows Lisher
+    and Forsyth [4]. 5d transition elements (Hf–Au) follow Kobayashi, Nagao, and Ito
+    [5].
+
+    _Some important ions are missing. If you can provide data, please contact us!_
 
 ## References
 
@@ -229,11 +229,11 @@ function FormFactor(label::String; config=nothing, j2_weight=0.0, g_lande=nothin
     (config, term, j0, j2) = entry
 
     if j2_weight == :free_ion
-        if startswith(config, "3d")
-            @warn "Consider j2_weight=0 or an empirically tuned value for 3d-block ions"
-        end
         (; s, l, j) = parse_term_symbol(term)
         iszero(j) && error("Free-ion Landé factor is ambiguous when J=0 (config $config)")
+        if startswith(config, "3d")
+            @warn "Consider a custom j2_weight to account for orbital quenching in 3d transition metals"
+        end
         gJ = 1 + (j*(j+1) + s*(s+1) - l*(l+1)) / (2*j*(j+1))
         j2_weight = (2-gJ) / gJ
     else
