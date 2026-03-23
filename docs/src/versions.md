@@ -11,6 +11,8 @@
   `FormFactor("Ir0")` will list `"6s⁰5d⁹"`, `"6s¹5d⁸"`, or `"6s²5d⁷"` as
   possible options; a letter suffix like `"Ir0a"` is no longer accepted
   ([#482](@ref)). 
+* Fix form factor typo for Ce³⁺. Model form factor of Pr⁴⁺ as Ce³⁺ with
+  contraction of the radius of 4f orbital orbitals.
 
 ## v0.9.0
 (Mar 4, 2026)
