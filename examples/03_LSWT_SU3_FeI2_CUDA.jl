@@ -225,20 +225,20 @@ res = intensities_bands(swt, path) #; energies, kernel)
 # must account for empirical broadening of the data. Model this using a
 # [`lorentzian`](@ref) kernel, with a full-width at half-maximum of 0.3 meV.
 
-kernel = lorentzian(fwhm=0.3)
-energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
+#kernel = lorentzian(fwhm=0.3)
+#energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
 # Also, a real FeI₂ sample will exhibit competing magnetic domains. We use
 # [`domain_average`](@ref) to average over the three possible domain
 # orientations. This involves 120° rotations about the axis ``\hat{z} = [0, 0,
 # 1]`` in global Cartesian coordinates.
 
-rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
-weights = [1, 1, 1]
-res = domain_average(cryst, path; rotations, weights) do path_rotated
-    intensities(swt, path_rotated; energies, kernel)
-end
-plot_intensities(res; units, colormap=:viridis, title="Domain Averaged Intensities")
+#rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
+#weights = [1, 1, 1]
+#res = domain_average(cryst, path; rotations, weights) do path_rotated
+#    intensities(swt, path_rotated; energies, kernel)
+#end
+#plot_intensities(res; units, colormap=:viridis, title="Domain Averaged Intensities")
 
 # This result can be directly compared to experimental neutron scattering data
 # from [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)

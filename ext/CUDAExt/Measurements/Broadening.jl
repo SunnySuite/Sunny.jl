@@ -1,5 +1,5 @@
 struct BroadeningDevice{F} <: Sunny.AbstractBroadening
-    kernel :: F   # Function mapping x = (ω - ϵ) to an intensity scaling factor
+    kernel :: F        # Function mapping x = (ω - ϵ) to an intensity scaling factor
     fwhm :: Float64
 end
 
@@ -15,6 +15,29 @@ function (b::BroadeningDevice)(ϵ, ω)
     b.kernel(ω - ϵ)
 end
 
+function Sunny.to_device(host::Sunny.Broadening)
+    return BroadeningDevice(host)
+end
+
+struct NonstationaryBroadeningDevice{F} <: Sunny.AbstractBroadening
+    kernel :: F    # (ϵ, ω) -> intensity
+end
+
+NonstationaryBroadeningDevice(host::Sunny.NonstationaryBroadening) = NonstationaryBroadeningDevice(host.kernel)
+
+function Adapt.adapt_structure(to, data::NonstationaryBroadeningDevice)
+    kernel = Adapt.adapt_structure(to, data.kernel)
+    NonstationaryBroadeningDevice(kernel)
+end
+
+function (b::NonstationaryBroadeningDevice)(ϵ, ω)
+    b.kernel(ϵ, ω)
+end
+
+function Sunny.to_device(host::Sunny.NonstationaryBroadening)
+    return NonstationaryBroadeningDevice(host)
+end
+
 function _broaden(data, bands_data, disp, energies, kernel)
     iω = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
     if iω > length(energies)
@@ -25,30 +48,31 @@ function _broaden(data, bands_data, disp, energies, kernel)
         return
     end
 
-    bands_buf = CuDynamicSharedArray(Float64, (size(bands_data, 1), blockDim().y))
-    bands_bufq = view(bands_buf, :, threadIdx().y)
-    k = threadIdx().x
-    while k <= size(bands_data, 1)
-        bands_bufq[k] = bands_data[k, iq]
-        k += blockDim().x
-    end
+    @inbounds begin
+        bands_buf = CuDynamicSharedArray(Float64, (size(bands_data, 1), blockDim().y))
+        bands_bufq = view(bands_buf, :, threadIdx().y)
+        k = threadIdx().x
+        while k <= size(bands_data, 1)
+            bands_bufq[k] = bands_data[k, iq]
+            k += blockDim().x
+        end
 
-    disp_buf = CuDynamicSharedArray(Float64, (size(disp, 1), blockDim().y), size(bands_data, 1) * blockDim().y* sizeof(Float64))
-    disp_bufq = view(disp_buf, :, threadIdx().y)
-    k = threadIdx().x
-    while k <= size(disp, 1)
-        disp_bufq[k] = disp[k, iq]
-        k += blockDim().x
-    end
-    CUDA.sync_threads()
+        disp_buf = CuDynamicSharedArray(Float64, (size(disp, 1), blockDim().y), size(bands_data, 1) * blockDim().y* sizeof(Float64))
+        disp_bufq = view(disp_buf, :, threadIdx().y)
+        k = threadIdx().x
+        while k <= size(disp, 1)
+            disp_bufq[k] = disp[k, iq]
+            k += blockDim().x
+        end
+        CUDA.sync_threads()
 
-    ω = energies[iω]
-    total = 0.
-    for ib in eachindex(disp_bufq)
-        total += kernel(disp_bufq[ib], ω) * bands_bufq[ib]
+        ω = energies[iω]
+        total = 0.
+        for ib in eachindex(disp_bufq)
+            total += kernel(disp_bufq[ib], ω) * bands_bufq[ib]
+        end
+        data[iω, iq] = total
     end
-    data[iω, iq] = total
-
     return
 end
 
@@ -63,14 +87,13 @@ function broaden!(data::CuArray{Ret}, bands::BandIntensitiesDevice{Ret}; energie
     #asdf = norm.(vec(bands.data))
     #cutoff = 1e-12 * Statistics.quantile(asdf, 0.95)
 
-    kernel_d = BroadeningDevice(kernel)
-    gpu_kernel = CUDA.@cuda launch=false _broaden(data, bands.data, bands.disp, energies_d, kernel_d)
+    gpu_kernel = CUDA.@cuda launch=false _broaden(data, bands.data, bands.disp, energies_d, kernel)
 
-    function get_shmem(threads; rows=size(bands.data,1))
+    function get_shmem(threads; rows=size(bands.data,1), nω=nω)
         if length(threads) == 2
             return 2 * threads[2] * rows * sizeof(Float64)
         else
-            return 2 * threads * rows * sizeof(Float64)
+            return 2 * cld(threads, nω) * rows * sizeof(Float64)
         end
     end
 
@@ -85,7 +108,7 @@ function broaden!(data::CuArray{Ret}, bands::BandIntensitiesDevice{Ret}; energie
     blocks_y = cld(nq, threads_y)
     blocks = (blocks_x, blocks_y)
 
-    gpu_kernel(data, bands.data, bands.disp, energies_d, kernel_d; threads=threads, blocks=blocks, shmem=get_shmem(threads))
+    gpu_kernel(data, bands.data, bands.disp, energies_d, kernel; threads=threads, blocks=blocks, shmem=get_shmem(threads))
     return data
 end
 

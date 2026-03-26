@@ -136,6 +136,7 @@ swt = SpinWaveTheory(sys_prim; measure)
 # (FWHM) of 0.8 meV. 
 
 kernel = lorentzian(fwhm=0.8)
+kernel_d = Sunny.to_device(kernel)
 
 # Define a [`q_space_path`](@ref) that connects high-symmetry points in
 # reciprocal space. The ``𝐪``-points are given in reciprocal lattice units
@@ -152,8 +153,8 @@ path_d = to_device(path)
 
 energies = range(0, 6, 300)
 swt_d = to_device(swt)
-@time res_d = intensities(swt_d, path_d; energies, kernel)
-@time res_d = intensities(swt_d, path_d; energies, kernel)
+@time res_d = intensities(swt_d, path_d; kernel=kernel_d, energies=energies)
+@time res_d = intensities(swt_d, path_d; kernel=kernel_d, energies=energies)
 res = Sunny.Intensities(res_d, cryst)
 plot_intensities(res; units, title="CoRh₂O₄ LSWT")
 
@@ -166,8 +167,9 @@ plot_intensities(res; units, title="CoRh₂O₄ LSWT")
 # cell, the calculation would be an order of magnitude slower.
 
 radii = range(0, 3, 200) # (1/Å)
-res_d = powder_average(cryst, radii, 200) do qs
-    intensities(swt_d, qs; energies, kernel)
+ext = Base.get_extension(Sunny, :CUDAExt)
+res_d = ext.powder_average(cryst, radii, 200) do qs
+    intensities(swt_d, qs; energies=energies, kernel=kernel_d)
 end
 res = Sunny.PowderIntensities(res_d, cryst)
 plot_intensities(res; units, saturation=1.0, title="CoRh₂O₄ Powder Average")

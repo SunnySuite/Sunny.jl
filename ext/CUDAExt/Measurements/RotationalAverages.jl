@@ -20,7 +20,7 @@ end
 plot_intensities(res)
 ```
 """
-function powder_average(f, cryst, radii, n::Int, seed::Int, batch_size::Int)
+function powder_average(f, cryst, radii, n::Int; seed=0, batch_size=1)
     res = f(CUDA.CuArray([Sunny.Vec3(0,0,0)])) # Dummy call to learn types
     if res isa IntensitiesDevice
         data = CUDA.zeros(Float64, length(res.energies), length(radii))

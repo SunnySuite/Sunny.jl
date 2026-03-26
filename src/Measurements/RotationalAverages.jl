@@ -121,11 +121,6 @@ plot_intensities(res)
 ```
 """
 function powder_average(f, cryst, radii, n::Int; seed=0, batch_size=1)
-    ext = Base.get_extension(@__MODULE__, :CUDAExt)
-    if ext !== nothing
-        return ext.powder_average(f, cryst, radii, n, seed, batch_size)
-    end
-    
     res = f([Vec3(0,0,0)]) # Dummy call to learn types
     if res isa Intensities
         data = Array{Float64}(undef, length(res.energies), length(radii))

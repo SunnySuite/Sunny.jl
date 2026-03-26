@@ -68,13 +68,15 @@ swt_d = to_device(swt)
 radii = range(0, 2.5, 200)
 energies = range(0, 2.5, 200)
 kernel = gaussian(fwhm=0.05)
-@time res_d = powder_average(cryst, radii, 200, batch_size=3) do qs
-    intensities(swt_d, qs; energies, kernel)
+kernel_d = to_device(kernel)
+ext = Base.get_extension(Sunny, :CUDAExt)
+@time res_d = ext.powder_average(cryst, radii, 200, batch_size=3) do qs
+    intensities(swt_d, qs; kernel=kernel_d, energies=energies)
 end
 for i in 1:3
     println(i)
-    @time global res_d = powder_average(cryst, radii, 200, batch_size=i) do qs
-        intensities(swt_d, qs; energies, kernel)
+    @time global res_d = ext.powder_average(cryst, radii, 200, batch_size=i) do qs
+        intensities(swt_d, qs; kernel=kernel_d, energies=energies)
     end
 end
 res = Sunny.PowderIntensities(res_d, cryst)

@@ -188,8 +188,16 @@ function swt_hamiltonian_ewald!(H::CUDA.CuArray{ComplexF64, 3}, swt::SpinWaveThe
     A_qs_d = CUDA.zeros(Sunny.SMatrix{3,3,ComplexF64,9}, 1, 1, 1, na, na, Nq)
     kernel = CUDA.@cuda launch=false precompute_dipole_ewald_at_wavevector_kernel(A_qs_d, swt.sys.crystal, (1,1,1), demag, qs_reshaped, qs, μ0_μB²)
     config = launch_configuration(kernel.fun)
-    threads = Base.min(Nq, config.threads)
-    blocks = cld(Nq, threads)
+    optimal_threads_1d = config.threads
+    threads_x = Base.min(na, optimal_threads_1d)
+    threads_y = Base.min(na, optimal_threads_1d ÷ threads_x)
+    threads_z = Base.min(Nq, optimal_threads_1d ÷ threads_x ÷ threads_y)
+    threads = (threads_x, threads_y, threads_z)
+
+    blocks_x = cld(na, threads_x)
+    blocks_y = cld(na, threads_y)
+    blocks_z = cld(Nq, threads_z)
+    blocks = (blocks_x, blocks_y, blocks_z)
     kernel(A_qs_d, swt.sys.crystal, (1,1,1), demag, qs_reshaped, qs, μ0_μB²; threads=threads, blocks=blocks)
     A_qs_reshape = reshape(A_qs_d, L, L, Nq)
 
