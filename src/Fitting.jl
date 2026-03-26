@@ -241,6 +241,104 @@ function squared_error_with_rescaling(x, y; weights=nothing)
 end
 
 
+"""
+wasserstein1_distance(p, q; γ=1.0)
+
+Compute a Wasserstein-like distance between real-valued signals `p` and `q`,
+uniformly sampled in one-dimension. This distance may be useful for comparing
+energy-dependent spectral functions. For example, if ``p(E)`` and ``q(E)`` each
+comprise a single spectral peak, then the returned Wasserstein distance is the
+energy difference ``ΔE`` between peak centers divided by the full energy range.
+By comparison, the naive [`squared_error`](@ref) between ``p(E)`` and ``q(E)``
+would vanish uniformly for all nonzero ``ΔE``. The Wasserstein distance can
+therefore be a powerful tool when fitting models to spectral data.
+
+This function allows for _signed_ inputs. This can be important when processing
+experimental data that, after background subtraction, may contain regions that
+fluctuate about zero intensity. The returned distance measure properly accounts
+for cancellations within these fluctuations.
+
+For each input ``p`` (likewise ``q``) construct a cumulative signal ``P`` (or
+``Q``) in two steps:
+
+Step 1: Use the exponent ``γ ∈ (0, 1]`` to perform dynamic range compression
+while preserving sign,
+
+```math
+\\tilde p_i = \\mathrm{sgn}(p_i) |p_i / c|^γ.
+```
+
+The default value ``γ = 1`` leaves the input signals unchanged. The coefficient
+``c`` is arbitrary and cancels in the next step.
+
+Step 2: Build the cumulative signal with normalization by total intensity
+(assumed positive),
+
+```math
+P_i = \\frac{∑_{j=1}^i \\tilde p_j}{∑_{j=1}^n \\tilde p_j}.
+```
+
+Given cumulative signals ``P_i`` and ``Q_i``, this function returns their
+``L_1`` distance,
+
+```math
+W_1 = \\frac{1}{n-1} ∑_{i=1}^{n-1} |P_i - Q_i|.
+```
+
+For nonnegative inputs, this is the usual Wasserstein distance scaled to the
+range ``[0, 1]``. More generally, it is a transport-like measure.
+
+If either `p[i]` or `q[i]` is `NaN`, then the elements at `i` are treated as
+missing data and removed from both signals. Doing so effectively compresses any
+gaps in the original grid.
+"""
+function wasserstein1_distance(
+    p::AbstractVector{<: Real},
+    q::AbstractVector{<: Real};
+    γ::Real = 1.0,
+)
+    @assert length(p) == length(q)
+    @assert 0 < γ ≤ 1
+
+    ϕ(x) = isone(γ) ? x : copysign(abs(x)^γ, x)
+
+    Mp = 0.0
+    Mq = 0.0
+    nvalid = 0
+
+    foreach(p, q) do p_i, q_i
+        if !isnan(p_i) && !isnan(q_i)
+            nvalid += 1
+            Mp += ϕ(p_i)
+            Mq += ϕ(q_i)
+        end
+    end
+
+    nvalid >= 2 || error("Input signals must have at least two valid points")
+    (Mp > 0 && Mq > 0) || error("Net intensity must be positive")
+
+    inv_Mp = 1 / Mp
+    inv_Mq = 1 / Mq
+
+    Δ = 0.0
+    W₁ = 0.0
+    started = false
+
+    foreach(p, q) do p_i, q_i
+        if !isnan(p_i) && !isnan(q_i)
+            if started
+                W₁ += abs(Δ)
+            else
+                started = true
+            end
+            Δ += ϕ(p_i) * inv_Mp - ϕ(q_i) * inv_Mq
+        end
+    end
+
+    return W₁ / (nvalid - 1)
+end
+
+
 # Simple implementation of the Sinkhorn Gibbs algorithm for balanced optimal
 # transport with entropic regularization. Should be essentially the same as
 # OptimalTransport.sinkhorn.
