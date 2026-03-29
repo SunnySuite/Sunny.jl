@@ -34,7 +34,7 @@ loss = make_loss_fn(sys, labels) do sys
     minimize_energy!(sys)
     swt = SpinWaveTheory(sys; measure)
     res = intensities_bands(swt, path)
-    return squared_error_bands(res, reference_energies)
+    return squared_error_bands(reference_energies, res)
 end
 
 # Measure goodness of fit for given parameter values
@@ -194,15 +194,15 @@ end
 """
     squared_error_with_rescaling(x, y; weights=nothing)
 
-Normalized sum of squared errors, ``L = (1/c) \\min_α \\sum_i w_i |α y_i -
-x_i|^2``, allowing for an arbitrary rescaling ``α`` of the ``y`` data. Weights
+Normalized sum of squared errors, ``L = (1/c) \\min_α \\sum_i w_i |y_i -
+α x_i|^2``, allowing for an arbitrary rescaling ``α`` of the ``x`` data. Weights
 ``w_i`` must be nonnegative and default to one. Returns a named tuple with
-fields `(; error, rescaling)` that correspond to ``L`` and the optimal ``α``,
+fields `(; error, scale)` that correspond to ``L`` and the optimal ``α``,
 respectively.
 
 The normalization factor,
 ```math
-c = \\sum_i w_i |x_i|^2,
+c = \\sum_i w_i |y_i|^2,
 ```
 leads to a symmetry of ``L`` in its arguments ``(x, y)``.
 
@@ -215,11 +215,11 @@ omitted from the sum.
     ```math
         ⟨u,v⟩ = \\sum_i w_i u_i^* v_i,
     ```
-    and its associated norm, ``|u|^2 = ⟨u,u⟩``. In this notation, ``L = |α y - x|^2
-    / |x|^2``. The optimal ``α`` is obtained by setting the Wirtinger derivative to
+    and its associated norm, ``|u|^2 = ⟨u,u⟩``. In this notation, ``L = |y - α x|^2
+    / |y|^2``. The optimal ``α`` is obtained by setting the Wirtinger derivative to
     zero, ``∂L/∂α^* = 0``, with solution
     ```math
-        α = ⟨y, x⟩ / |y|².
+        α = ⟨x, y⟩ / |x|².
     ```
     In case of complex inputs, this optimal ``α`` absorbs an arbitrary scale _and_
     complex phase. 
@@ -234,10 +234,10 @@ omitted from the sum.
 function squared_error_with_rescaling(x, y; weights=nothing)
     (; x², y², xy) = squared_error_aux(x, y; weights)
 
-    # |α y - x|² / |x|² where α = ⟨y, x⟩ / |y|²
+    # |y - α x|² / |y|² where α = ⟨x, y⟩ / |x|²
     error = 1 - abs2(xy) / (x² * y²)
-    rescaling = conj(xy) / y²
-    return (; error, rescaling)
+    scale = xy / x²
+    return (; error, scale)
 end
 
 
@@ -395,7 +395,7 @@ end
 # Use balanced optimal transport to smoothly assign labeled peaks E[k] to
 # theoretical modes E0[m]. The assignment matrix γ is used to calculate a smooth
 # squared error between all peaks and their closest modes.
-function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
+function bands_transport_loss(E, E0, X0s; σ, ϵ, maxiter)
     M, K = length(E0), length(E)
     M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
 
@@ -448,10 +448,10 @@ function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
 end
 
 """
-    squared_error_bands_smooth(res, Es; σ)
+    squared_error_bands_smooth(Es, res; σ)
 
 Like `squared_error_bands` but uses entropy-regularized optimal transport to
-smoothly assign spin wave modes (`res`) to labeled peak energies (`Es`). Entropy
+smoothly assign labeled peak energies (`Es`) to spin wave modes (`res`). Entropy
 regularization may be useful as part of an annealing procedure to search for a
 globally optimal fit.
 
@@ -459,8 +459,8 @@ The energy parameter `σ` can be interpreted as an uncertainty in the `Es` data
 and controls the amount of smoothing. This function coincides with
 [`squared_error_bands`](@ref) in the limit of vanishing `σ`.
 """
-function squared_error_bands_smooth(res :: Sunny.BandIntensities,
-                                    Es :: Vector{Vector{Float64}};
+function squared_error_bands_smooth(Es :: Vector{Vector{Float64}},
+                                    res :: Sunny.BandIntensities;
                                     σ, ϵ=1.0, maxiter=1_000)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
@@ -470,36 +470,34 @@ function squared_error_bands_smooth(res :: Sunny.BandIntensities,
     ϵ > 0 || error("Entropic regularization ϵ must be positive")
     maxiter > 0 || error("Max iteration count must be positive")
 
-    err = sum(bands_transport_loss.(E0s, X0s, Es; σ, ϵ, maxiter))
+    err = sum(bands_transport_loss.(Es, E0s, X0s; σ, ϵ, maxiter))
     return err / norm2(Es / σ)
 end
 
 """
-    squared_error_bands(res, Es)
+    squared_error_bands(Es, res)
 
-Squared error between the discrete band energies of an
-[`intensities_bands`](@ref) calculation (`res`) and experimentally labeled
-intensity peak energies (`Es`) for the same set of ``𝐪``-points. Each element
-`Es[i]` is itself a list of labeled intensity peaks for the `i`th ``𝐪``-point.
-Every labeled peak must match some spin wave band, but the converse may not be
-true: Spin wave band without a labeled peak counterpart do not contribute to the
-squared error.
+Squared error between experimentally labeled intensity peaks (`Es`) and the
+discrete energies of an [`intensities_bands`](@ref) calculation (`res`) for the
+same ``𝐪``-points. Each element `Es[i]` is a list of labeled intensity peaks
+for the `i`th ``𝐪``-point. Every labeled peak in `Es` will be assigned to some
+spin wave band in `res`, but the converse is not true; any "extra" spin wave
+bands do not contribute to the squared error.
 
-The return value is normalized by the squared magnitude of `Es`. Specifically,
-if the predicted mode are uniformly zero, then the return value is exactly 1.
+The return value is normalized by the squared magnitude of `Es`. For example, if
+the predicted modes are uniformly zero, then the return value is exactly 1.
 
 Internally, this function uses the [Hungarian
 algorithm](https://github.com/Gnimuc/Hungarian.jl) for optimal assignment of
 modes to peaks.
 """
-function squared_error_bands(res :: Sunny.BandIntensities,
-                             Es :: Vector{Vector{Float64}})
+function squared_error_bands(Es :: Vector{Vector{Float64}}, res :: Sunny.BandIntensities)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
     X0s = eachcol(reshape(res.data, nbands, :))
     length(Es) == length(E0s) || error("Mismatch in bands vs data q-length ($(length(E0s))) ≠ $(length(Es))")
 
-    err = sum(map(E0s, X0s, Es) do E0, X0, E
+    err = sum(map(Es, E0s, X0s) do E, E0, X0
         M, K = length(E0), length(E)
         M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
         C = [(E0[m] - E[k])^2 for m in 1:M, k in 1:K]

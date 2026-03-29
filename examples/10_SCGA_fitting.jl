@@ -94,11 +94,11 @@ loss = make_loss_fn(sys, labels) do sys
         χ̃ = magnetic_susceptibility_per_site(scga) # dμ/dB / μ_B²
         χ̃[1, 1] / units.cgs_molar_susceptibility   # dμ/dH (emu/Oe/mol-Cr)
     end
-    χ_error = squared_error(χ, χ_ref)
+    χ_error = squared_error(χ_ref, χ)
 
     scga = SCGA(sys; measure, kT=20*units.K, dq)
     Sq = intensities_static(scga, grid_ref)
-    Sq_error = squared_error_with_rescaling(Sq.data, Sq_ref).error
+    Sq_error = squared_error_with_rescaling(Sq_ref, Sq.data).error
 
     return 0.5 * χ_error + 0.5 * Sq_error
 end;

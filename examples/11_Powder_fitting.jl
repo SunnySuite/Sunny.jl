@@ -105,7 +105,7 @@ loss = make_loss_fn(sys, labels) do sys
         intensities(swt, qs; energies, kernel)
     end
 
-    return squared_error_with_rescaling(res.data, ref_data).error
+    return squared_error_with_rescaling(ref_data, res.data).error
 end
 
 loss([0.9, -0.5, 0.9, +0.5]) # Lower is better
@@ -153,11 +153,11 @@ println(round.(fit.minimizer; digits=2), " ± ", round.(errs; digits=2))
 # many qualitative features are captured, but a more complicated model would be
 # required to get precise quantitative agreement.
 #
-# Implementation notes: [`squared_error_with_rescaling`](@ref) returns a
-# `rescaling` field. Use it to bring experimental data onto the well-defined
-# [theoretical intensity scale](@ref "Structure Factor Conventions"). Also, we
-# can reuse `res` for a second plot by overwriting its `res.data` with scaled
-# experimental data.
+# Note that [`squared_error_with_rescaling`](@ref) returns a `scale` factor that
+# brings the binned experimental data into the [theoretical intensity
+# scale](@ref "Structure Factor Conventions"). To plot the scaled experimental
+# data, we overwrite `res.data` field and call [`plot_intensities!`](@ref) a
+# second time.
 
 set_params!(sys, labels, param_mapping(fit.minimizer))
 
@@ -168,11 +168,11 @@ res = powder_average(cryst, radii, 1000) do qs
     intensities(swt, qs; energies, kernel)
 end
 
-(; rescaling) = squared_error_with_rescaling(res.data, ref_data)
+(; scale) = squared_error_with_rescaling(ref_data, res.data)
 
 fig = Figure(; size=(600, 800))
 plot_intensities!(fig[2, 1], res; colormap=:jet1, colorrange=(0, 10.0), title="Model with J = 1.18 and Γ = -0.30", units)
-res.data .= ref_data * rescaling
+res.data .= ref_data * scale
 plot_intensities!(fig[1, 1], res; colormap=:jet1, colorrange=(0, 10.0), title="Coarsened experimental data", units)
 fig
 

@@ -11,7 +11,13 @@
   `FormFactor("Ir0")` will list `"6s⁰5d⁹"`, `"6s¹5d⁸"`, or `"6s²5d⁷"` as
   possible options; a letter suffix like `"Ir0a"` is no longer accepted
   ([#482](@ref)). 
-* Model Pr⁴⁺ form factor from Ce³⁺ with length-scale contraction ([#483](@ref)).
+* Add Pr⁴⁺ form factor as Ce³⁺ form factor with length-scale contraction
+  ([#483](@ref)).
+* Revise tutorials to call squared-error functions with target data first and
+  model calculations second. To facilitate this,
+  [`squared_error_with_rescaling`](@ref) returns a `scale` field that scales the
+  first argument. This replaces the `rescaling` field, which scaled the second
+  argument.
 
 ## v0.9.0
 (Mar 4, 2026)
