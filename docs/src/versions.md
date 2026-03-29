@@ -17,7 +17,7 @@
   model calculations second. To facilitate this,
   [`squared_error_with_rescaling`](@ref) returns a `scale` field that scales the
   first argument. This replaces the `rescaling` field, which scaled the second
-  argument.
+  argument ([#484](@ref)).
 
 ## v0.9.0
 (Mar 4, 2026)
