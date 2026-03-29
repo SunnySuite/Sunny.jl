@@ -149,15 +149,11 @@ println(round.(fit.minimizer; digits=2), " ± ", round.(errs; digits=2))
 # | J         |  1.19 ± 0.14     |  1.22              |
 # | Γ         | -0.30 ± 0.12     | -0.27              |
 #
-# Visual comparison of experimental and simulated powder intensities shows that
-# many qualitative features are captured, but a more complicated model would be
-# required to get precise quantitative agreement.
-#
-# Note that [`squared_error_with_rescaling`](@ref) returns a `scale` factor that
-# brings the binned experimental data into the [theoretical intensity
-# scale](@ref "Structure Factor Conventions"). To plot the scaled experimental
-# data, we overwrite `res.data` field and call [`plot_intensities!`](@ref) a
-# second time.
+# Plot the experimental and simulated intensities side by side. Note that
+# [`squared_error_with_rescaling`](@ref) returns a `scale` factor that brings
+# the binned experimental data into the [theoretical intensity scale](@ref
+# "Structure Factor Conventions"). To plot the scaled experimental data, we
+# overwrite `res.data` field and call [`plot_intensities!`](@ref) a second time.
 
 set_params!(sys, labels, param_mapping(fit.minimizer))
 
@@ -171,16 +167,24 @@ end
 (; scale) = squared_error_with_rescaling(ref_data, res.data)
 
 fig = Figure(; size=(600, 800))
-plot_intensities!(fig[2, 1], res; colormap=:jet1, colorrange=(0, 10.0), title="Model with J = 1.18 and Γ = -0.30", units)
+plot_intensities!(fig[2, 1], res; colormap=:jet1, colorrange=(0, 10.0),
+                  title="Model with J = 1.18 and Γ = -0.30", units)
 res.data .= ref_data * scale
-plot_intensities!(fig[1, 1], res; colormap=:jet1, colorrange=(0, 10.0), title="Coarsened experimental data", units)
+plot_intensities!(fig[1, 1], res; colormap=:jet1, colorrange=(0, 10.0),
+                  title="Coarsened experimental data", units)
 fig
 
+# This comparison suggests that, although certain qualitative features can be
+# captured, a more complicated model form is required to reach true quantitative
+# agreement. Note that the error bar estimates above are contingent on the
+# validity of the model ansatz. In this case, the true errors are likely to be
+# significantly larger than is suggested by the estimated error bars.
+#
 # If more parameters are added to the model ansatz, then the above fitting
 # procedure quickly becomes unreliable. A first problem is that the optimizer
-# easily gets trapped in a local minimum. A second problem is overfitting: an
+# can easily be trapped in a local minimum. A second problem is overfitting: an
 # over-complicated model might reduce the simple "squared error on pixels"
-# measure, while moving further from the true physics. Both problems could be
-# mitigated by designing a better loss function that incorporates more physical
-# knowledge, e.g., that directly targets subtle features of the spectrum, or
-# that incorporates other data modalities.
+# measure, but for unphysical reasons. Both problems could be mitigated by
+# designing a refined loss function that incorporates more physical knowledge,
+# e.g., to directly target subtle features of the spectrum, or to incorporate
+# other data modalities.
