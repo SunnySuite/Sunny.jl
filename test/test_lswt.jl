@@ -682,7 +682,7 @@ end
     using LinearAlgebra
     # Test example 2: The magnetization is smaller than `s` due to easy-plane
     # single-ion anisotropy The results are derived in the Supplemental
-    # Information (Note 12) of Nature Comm. 12.1 (2021): 5331.
+    # Information (Note 12) of https://doi.org/10.1038/s41467-021-25591-7.
     a = b = 8.3193
     c = 5.3348
     lat_vecs = lattice_vectors(a, b, c, 90, 90, 90)

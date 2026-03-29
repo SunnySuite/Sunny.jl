@@ -315,7 +315,7 @@ function wasserstein1_distance(
     end
 
     nvalid >= 2 || error("Input signals must have at least two valid points")
-    (Mp > 0 && Mq > 0) || error("Net intensity must be positive")
+    (Mp > 0 && Mq > 0) || return Inf # Punish vanishing model prediction
 
     inv_Mp = 1 / Mp
     inv_Mq = 1 / Mq

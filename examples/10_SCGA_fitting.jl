@@ -13,7 +13,7 @@
 # This tutorial uses SCGA to fit diffuse scattering and magnetic susceptibility
 # data for the frustrated pyrochlore antiferromagnet MgCr₂O₄. The fitted
 # exchange interactions, up to third nearest neighbor, are in reasonable
-# agreement with [Bai et al., Phys. Rev. Lett. 122, 097201
+# agreement with [Bai et al., Phys. Rev. Lett. **122**, 097201
 # (2019)](https://doi.org/10.1103/PhysRevLett.122.097201).
 #
 # Sunny's SCGA fitting workflow is inspired by the Spinteract code: [J.

@@ -50,6 +50,12 @@ function lookup_param(sys::System, label::Symbol)
     return sys.params[only(inds)]
 end
 
+function print_all_params(sys::System)
+    for p in sys.params
+        println(repr(p.label), " => ", number_to_math_string(p.val; digits=4))
+    end
+end
+
 """
     (label => val) :: ParamSpec
 
