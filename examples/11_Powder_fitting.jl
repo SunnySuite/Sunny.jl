@@ -1,52 +1,59 @@
 # # 11. Fitting to inelastic powder-averaged data
 #
-# This tutorial fits an effective spin model for β-Na₂PrO₃ using inelastic,
-# powder-averaged neutron scattering data. The study follows [Okuma et al., Nat.
-# Commun., **15**, 10615 (2024)](https://doi.org/10.1038/s41467-024-53345-8).
+# This tutorial fits an effective spin model for the hyperhoneycomb magnet
+# β-Na₂PrO₃ using inelastic, powder-averaged neutron scattering data. The study
+# follows [Okuma et al., Nat. Commun., **15**, 10615
+# (2024)](https://doi.org/10.1038/s41467-024-53345-8).
 
 using Sunny, GLMakie, LinearAlgebra
-using Statistics: mean
 
-# The Pr ions occupy Wyckoff 16g of spacegroup Fddd, and form two families of
-# zigzag chains.
+# The Pr ions occupy the single Wyckoff site 16g of spacegroup Fddd. They form
+# two families of ``c``-axis connected zigzag chains that run alternatingly
+# along the ``a+b`` and ``a-b`` diagonals.
 
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(6.74560, 9.74653, 20.4972, 90, 90, 90)
 positions = [[1/8, 1/8, 0.7087]]
 cryst = Crystal(latvecs, positions, 70)
 
-# The magnetic cell of interest coincides with the crystallographic primitive
-# cell. Reduce the system size to accelerate the calculations.
+# The magnetic unit cell coincides with the crystallographic primitive cell,
+# which contains only 4 Pr ions. Selecting this smallest possible system size
+# will accelerate the intensity calculations to follow.
 
 sys = System(cryst, [1 => Moment(s=1/2, g=0.94)], :dipole)
 sys = reshape_supercell(sys, primitive_cell(cryst))
 
+# Label the effective spin interactions in the language of the compass model.
+# The expressions are taken directly from "Supplementary Note 4" of the Okuma et
+# al. paper.
+#
 # Each Pr ion is surrounded by an O₆ octahedron, which defines a natural local
-# frame. Define a rotation matrix ``R`` that maps from the global Cartesian
-# frame to the local frame.
+# frame. The rotation matrix ``R`` maps from the global Cartesian frame to this
+# local frame.
 
 R = [-1/√2 0 -1/√2; 1/√2 0 -1/√2; 0 -1 0];
 
-# Nearest-neighbors in the crystallographic ``c`` direction connect different
-# zigzag chains. In the language of the compass-model, these are the "z-bonds".
-# Label coupling strengths ``(J, Γ, K)``.
+# Nearest-neighbor bonds along the ``c``-axis connect different zigzag chains.
+# These are the "z-bonds" of the compass-model. Label coupling strengths ``(J,
+# Γ, K)``. For example, the notation `:J => 0.0` assigns the symbol `:J` to the
+# Heisenberg coupling strength and initializes its value to zero. Labeled
+# parameters can be quickly modified using, e.g., [`set_params!`](@ref).
 
 zbond = Bond(1, 3, [0, 0, 0])
 set_exchange!(sys, 1.0, zbond, :J => 0.0)
 set_exchange!(sys, R' * [0 1 0; 1 0 0; 0 0 0] * R, zbond, :Γ => 0.0)
 set_exchange!(sys, R' * [0 0 0; 0 0 0; 0 0 1] * R, zbond, :K => 0.0)
 
-# Nearest-neighbors along the zigzag chains are the "x-bonds" and "y-bonds" of
-# the compass-model. Their equivalence is fixed by Fddd spacegroup symmetries.
-# Label coupling strengths ``(J', Γ', K')``.
+# Nearest-neighbor bonds along the zigzag chains are the "x-bonds" and "y-bonds"
+# of the compass-model. Their equivalence is fixed by Fddd spacegroup
+# symmetries. Label coupling strengths ``(J', Γ', K')``.
 
 xbond = Bond(3, 5, [0, 0, 0])
 set_exchange!(sys, 1.0, xbond, :J′ => 0.0)
 set_exchange!(sys, R' * [0 0 0; 0 0 1; 0 1 0] * R, xbond, :Γ′ => 0.0)
 set_exchange!(sys, R' * [1 0 0; 0 0 0; 0 0 0] * R, xbond, :K′ => 0.0)
 
-# The model ansatz sets ``K = K' = 0``, which leaves four parameters for the
-# fit.
+# The model ansatz sets ``K = K' = 0``, which leaves four parameters to be fit.
 
 labels = [:J, :Γ, :J′, :Γ′];
 
@@ -65,16 +72,16 @@ plot_spins(sys; ghost_radius=6)
 # The energy-minimized dipoles of the primitive cell can be directly inspected.
 # Their Cartesian coordinates are also available with
 # [`global_positions`](@ref). Sites 1 and 4 belong to one zigzag chain, while
-# sites 2 and 3 belong to the other. 
+# sites 2 and 3 belong to the other.
 
 vec(sys.dipoles)
 
 # It is easiest to visualize the magnetic structure in the context of a chemical
 # unit cell. Do so by passing `sys` to [`view_crystal`](@ref). To see the spins,
-# toggle "No dipoles" to "Spin dipoles". To see all edges of the hyperhoneycomb
-# lattice, toggle on bonds for atoms `(3, 5)` and `(1, 3)`. The symmetric
-# exchange tensor along each bond is depicted as an ellipsoid; elongated
-# directions show the strengths of anisotropic couplings.
+# toggle from "No dipoles" to "Spin dipoles". To see all edges of the
+# hyperhoneycomb lattice, toggle on bonds `(3, 5)` and `(1, 3)`. The symmetric
+# exchange tensor along each bond is depicted as an ellipsoid; its elongations
+# are a visual representation of the anisotropic coupling strengths.
 
 view_crystal(sys)
 
@@ -88,9 +95,21 @@ radii = range(0.2, 2.25; length=30)
 energies = range(0.0, 2.45; length=100);
 
 # Use [`make_loss_fn`](@ref) to define a loss function that compares calculated
-# intensities with the experimental target. The function
-# [`squared_error_with_rescaling`](@ref) allows for an unknown overall scale in
-# the experimental intensities.
+# intensities with the experimental target.
+#
+# It is important that we initialized the system into a canted AFM state prior
+# to calling `make_loss_fn`. This way, each time the loss function is executed,
+# [`minimize_energy!`](@ref) will receive a system with this same magnetic
+# state, and only needs to refine the canting angle for the updated model
+# parameters.
+#
+# The function [`squared_error_with_rescaling`](@ref) automatically accounts for
+# an arbitrary overall scale in the experimental intensities.
+#
+# Note that the squared error becomes misleading if some model intensity "leaks"
+# beyond the energy bounds of the experimental data. To combat this, the loss
+# function includes a regularization term that penalizes any intensity at the
+# grid points with maximum energy (2.45 meV).
 
 formfactors = [1 => FormFactor("Pr4")]
 measure = ssf_perp(sys; formfactors)
@@ -104,7 +123,9 @@ loss = make_loss_fn(sys, labels) do sys
         intensities(swt, qs; energies, kernel)
     end
 
-    return squared_error_with_rescaling(ref_data, res.data).error
+    leakage_penalty = 1e-2 * norm(res.data[end, :])^2 / length(radii)
+
+    return squared_error_with_rescaling(ref_data, res.data).error + leakage_penalty
 end
 
 loss([0.9, -0.5, 0.9, +0.5]) # Lower is better
@@ -119,8 +140,7 @@ loss_reduced(x) = loss(param_mapping(x))
 @assert loss_reduced([0.9, -0.5]) == loss([0.9, -0.5, 0.9, +0.5])
 
 # Minimize the loss using the
-# [Optim](https://github.com/JuliaNLSolvers/Optim.jl) package. The Nelder-Mead
-# method is often a good choice because it does not require gradient estimation.
+# [Optim](https://github.com/JuliaNLSolvers/Optim.jl) package.
 
 import Optim
 
@@ -134,28 +154,25 @@ options = Optim.Options(
 guess = [0.9, -0.5]
 fit = Optim.optimize(loss_reduced, guess, Optim.NelderMead(), options)
 
-# Report the optimal parameters with error bars derived from the loss function
-# curvature. Because this model ansatz was designed to be simple, the error bar
-# estimates are likely too low. See [`uncertainty_matrix`](@ref) for discussion.
-
-errs = sqrt.(diag(uncertainty_matrix(loss_reduced, fit.minimizer)))
-@assert isapprox(fit.minimizer, [1.186, -0.302]; rtol=1e-2) #hide
-println(round.(fit.minimizer; digits=2), " ± ", round.(errs; digits=2))
-
-# The results are close to prior work:
+# The optimized parameters are close to prior work:
 #
 # | Parameter | This study (meV) | Okuma et al. (meV) |
 # |:----------|-----------------:|-------------------:|
 # | J         |  1.19            |  1.22              |
 # | Γ         | -0.30            | -0.27              |
 #
-# Plot the experimental and simulated intensities side by side. Use the `scale`
-# factor returned by [`squared_error_with_rescaling`](@ref) to put both plots on
-# the same [global intensity scale](@ref "Structure Factor Conventions").
-#
-# The fitted model, with just two free parameters, captures various spectral
-# features at a qualitative level. A more complicated model, however, would be
-# required for precise quantitative agreement.
+# Because the model ansatz is intentionally simplified, the error bar estimates
+# are likely too small. The documentation of [`uncertainty_matrix`](@ref) has
+# some discussion.
+
+@assert isapprox(fit.minimizer, [1.186, -0.302]; rtol=1e-2) #hide
+errs = sqrt.(diag(uncertainty_matrix(loss_reduced, fit.minimizer)))
+println(round.(fit.minimizer; digits=2), " ± ", round.(errs; digits=2))
+
+# Compare experimental and simulated intensities as they are seen by the loss
+# function. Use the `scale` factor returned by
+# [`squared_error_with_rescaling`](@ref) to put both plots on the same [global
+# intensity scale](@ref "Structure Factor Conventions").
 
 set_params!(sys, labels, param_mapping(fit.minimizer))
 
@@ -169,8 +186,11 @@ end
 (; scale) = squared_error_with_rescaling(ref_data, res.data)
 
 fig = Figure(; size=(600, 800))
+
+res.data[findall(isnan, ref_data)] .= NaN
 plot_intensities!(fig[2, 1], res; colormap=:jet1, colorrange=(0, 10.0),
                   title="Model fit", units)
+
 res.data .= ref_data * scale
 plot_intensities!(fig[1, 1], res; colormap=:jet1, colorrange=(0, 10.0),
                   title="Re-binned experimental data", units)
