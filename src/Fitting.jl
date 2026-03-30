@@ -521,7 +521,7 @@ the normalized direction ``n`` of parameter space.
 
 There are situations where the above uncertainty estimates deviate strongly from
 the true model error. For example, if the loss function is highly constraining
-about the wrong minimum (e.g., due to model mispecification), then the
+about the wrong minimum (e.g., due to model misspecification), then the
 uncertainty estimate may be too low. Conversely, if the loss function does not
 vanish for a perfect model fit (e.g., it is not a sum of squared errors), then
 the uncertainty estimate may be too high.
