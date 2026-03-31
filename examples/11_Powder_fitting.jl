@@ -163,16 +163,15 @@ uncertainty = uncertainty_matrix(loss_reduced, fit.minimizer)
 error_bars = sqrt.(diag(uncertainty))
 println(round.(fit.minimizer; digits=2), " ± ", round.(error_bars; digits=2))
 
-
-# The optimized parameters are close to prior work:
+# The optimized parameters are in good agreement with previous work:
 #
 # | Parameter | This study (meV) | Okuma et al. (meV) |
 # |:----------|-----------------:|-------------------:|
 # | J         |  1.19            |  1.22              |
 # | Γ         | -0.30            | -0.27              |
 #
-# Finally, we visually compare experimental and simulated intensities as they
-# are seen by the loss function. The `scale` factor returned by
+# Finally, we compare experimental and simulated intensities as they are seen by
+# the loss function. The `scale` factor returned by
 # [`squared_error_with_rescaling`](@ref) allows to put both plots on the same
 # [global intensity scale](@ref "Structure Factor Conventions").
 
@@ -191,9 +190,9 @@ fig = Figure(; size=(600, 800))
 
 res.data[findall(isnan, ref_data)] .= NaN
 plot_intensities!(fig[2, 1], res; colormap=:jet1, colorrange=(0, 10.0),
-                  title="Model fit", units)
+                  title="Optimized model fit", units)
 
 res.data .= ref_data * scale
 plot_intensities!(fig[1, 1], res; colormap=:jet1, colorrange=(0, 10.0),
-                  title="Re-binned experimental data", units)
+                  title="Experimental data (coarsened)", units)
 fig
