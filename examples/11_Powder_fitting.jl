@@ -7,9 +7,9 @@
 
 using Sunny, GLMakie, LinearAlgebra
 
-# The Pr ions occupy the single Wyckoff site 16g of spacegroup Fddd. They form
-# two families of zigzag chains that run alternatingly along the ``a+b`` and
-# ``a-b`` diagonals, with bonding between families along the ``c`` axis.
+# The Pr ions occupy the single Wyckoff site 16g of spacegroup Fddd. The ions
+# form two families of zigzag chains that run alternatingly along the ``a+b``
+# and ``a-b`` diagonals, with inter-chain bonding along ``c``.
 
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(6.74560, 9.74653, 20.4972, 90, 90, 90)
@@ -17,15 +17,14 @@ positions = [[1/8, 1/8, 0.7087]]
 cryst = Crystal(latvecs, positions, 70)
 
 # The magnetic unit cell coincides with the crystallographic primitive cell,
-# which contains only 4 Pr ions. Selecting this smallest possible system size
-# will accelerate the intensity calculations to follow.
+# which consists of 4 Pr ions. Selecting this smallest possible system size will
+# accelerate the intensity calculations to follow.
 
 sys = System(cryst, [1 => Moment(s=1/2, g=0.94)], :dipole)
 sys = reshape_supercell(sys, primitive_cell(cryst))
 
 # Label the effective spin interactions in the language of the compass model.
-# The expressions are taken directly from "Supplementary Note 4" of the Okuma et
-# al. paper.
+# The expressions come from "Supplementary Note 4" of the Okuma et al. paper.
 #
 # Each Pr ion is surrounded by an O₆ octahedron, which defines a natural local
 # frame. The rotation matrix ``R`` maps from the global Cartesian frame to this
@@ -33,19 +32,19 @@ sys = reshape_supercell(sys, primitive_cell(cryst))
 
 R = [-1/√2 0 -1/√2; 1/√2 0 -1/√2; 0 -1 0];
 
-# Nearest-neighbor bonds along the ``c``-axis connect different zigzag chains.
-# These are the "z-bonds" of the compass-model. Label coupling strengths ``(J,
-# Γ, K)``. For example, the notation `:J => 0.0` assigns the symbol `:J` to the
-# Heisenberg coupling and initializes its value to zero. Labeled parameters can
-# be quickly modified using, e.g., [`set_params!`](@ref).
+# Nearest-neighbor bonds connecting different zigzag chains are the "z-bonds" of
+# the compass-model. Label coupling strengths ``(J, Γ, K)``. For example, the
+# notation `:J => 0.0` assigns the symbol `:J` to the Heisenberg coupling and
+# initializes its value to zero. Labeled parameters can be quickly modified
+# using, e.g., [`set_params!`](@ref).
 
 zbond = Bond(1, 3, [0, 0, 0])
 set_exchange!(sys, 1.0, zbond, :J => 0.0)
 set_exchange!(sys, R' * [0 1 0; 1 0 0; 0 0 0] * R, zbond, :Γ => 0.0)
 set_exchange!(sys, R' * [0 0 0; 0 0 0; 0 0 1] * R, zbond, :K => 0.0)
 
-# Nearest-neighbor bonds along the zigzag chains are the "x-bonds" and "y-bonds"
-# of the compass-model. Their equivalence is fixed by Fddd spacegroup
+# Nearest-neighbor bonds within each zigzag chain are the "x-bonds" and
+# "y-bonds" of the compass-model. Their equivalence is fixed by Fddd spacegroup
 # symmetries. Label coupling strengths ``(J', Γ', K')``.
 
 xbond = Bond(3, 5, [0, 0, 0])
@@ -53,16 +52,16 @@ set_exchange!(sys, 1.0, xbond, :J′ => 0.0)
 set_exchange!(sys, R' * [0 0 0; 0 0 1; 0 1 0] * R, xbond, :Γ′ => 0.0)
 set_exchange!(sys, R' * [1 0 0; 0 0 0; 0 0 0] * R, xbond, :K′ => 0.0)
 
-# The model ansatz sets ``K = K' = 0``, which leaves four parameters to be fit.
+# The model ansatz sets ``K = K' = 0``. Four parameters are left for fitting.
 
 labels = [:J, :Γ, :J′, :Γ′];
 
 # Okuma et al. deduced that the constraints ``J = J' > 0`` and ``Γ = -Γ' < 0``
-# produce a magnetic order that is qualitatively consistent with diffraction
-# data. Guess some parameters of this form. Energy minimization yields
-# antiferromagnetic (AFM) order along each zigzag chain, with some relative
-# canting between chains. The primitive cell is shown as a gray parallelpiped
-# within the larger orthorhombic cell.
+# produce a magnetic order consistent with diffraction data. Guess some
+# parameters of this form. Energy minimization yields antiferromagnetic (AFM)
+# order along each zigzag chain, with some relative canting between chains. The
+# primitive cell is shown as a gray parallelpiped within the larger orthorhombic
+# cell.
 
 set_params!(sys, labels, [0.9, -0.5, 0.9, +0.5])
 randomize_spins!(sys)
@@ -94,14 +93,14 @@ ref_data = [NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
 radii = range(0.2, 2.25; length=30)
 energies = range(0.0, 2.45; length=100);
 
-# Use [`make_loss_fn`](@ref) to define a loss function that compares calculated
-# intensities with the experimental target.
+# Use [`make_loss_fn`](@ref) to define a loss function that measures agreement
+# between the experimental data and the fitted model.
 #
-# It is important that we initialized the system into a canted AFM state prior
-# to calling `make_loss_fn`. Each time the loss function is executed,
-# [`minimize_energy!`](@ref) will receive a system with this same magnetic
-# state, and only needs to refine the canting angle for the updated model
-# parameters.
+# It is important that we initialized the system to the desired magnetic order
+# (here, AFM) prior to calling `make_loss_fn`. Doing so reduces the burden on
+# [`minimize_energy!`](@ref). Each time the loss function is executed,
+# `minimize_energy!` only needs to refine the canting angle for a cloned system
+# with updated model parameters.
 #
 # The function [`squared_error_with_rescaling`](@ref) automatically accounts for
 # an arbitrary overall scale in the experimental intensities.
@@ -154,9 +153,9 @@ options = Optim.Options(
 guess = [0.9, -0.5]
 fit = Optim.optimize(loss_reduced, guess, Optim.NelderMead(), options)
 
-# Report the optimized parameters with error bars. Because the model ansatz is
-# intentionally simplified, these error bars estimates are likely too small. See
-# the documentation of [`uncertainty_matrix`](@ref) for discussion.
+# Report the optimized parameters with uncertainties. Because the model ansatz
+# is intentionally simplified, these error bar estimates are likely too small.
+# See the documentation of [`uncertainty_matrix`](@ref) for discussion.
 
 @assert isapprox(fit.minimizer, [1.186, -0.302]; rtol=1e-2) #hide
 uncertainty = uncertainty_matrix(loss_reduced, fit.minimizer)
