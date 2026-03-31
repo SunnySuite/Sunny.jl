@@ -75,7 +75,8 @@ Es = [
     [28.311], [28.111], [27.395], [26.279], [24.876], [22.758], [20.296],
     [17.405], [13.884], [5.697, 10.391], [3.693, 8.674], [13.027], [20.683],
     [27.368], [31.798], [33.431]
-];
+]
+;#hide
 
 # Use [`make_loss_fn`](@ref) to define an optimization target `loss`. Because
 # the system is already initialized to the correct Néel magnetic order, we opt

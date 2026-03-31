@@ -70,7 +70,8 @@ set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 # fluctuations.
 
 damping = 0.05
-kT = 0;
+kT = 0
+;#hide
 
 # The first step is to estimate a reasonable integration timestep `dt`. In this
 # case, a random spin configuration gives a tighter bound than does an
@@ -83,7 +84,8 @@ suggest_timestep(sys, integrator; tol=0.05)
 
 # Apply the suggested timestep.
 
-integrator.dt = 0.01;
+integrator.dt = 0.01
+;#hide
 
 # Now run the dynamical quench starting from a randomized configuration. The
 # field `frames` stores the system spin configuration, as SU(3) coherent states,

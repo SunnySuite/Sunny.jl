@@ -54,7 +54,8 @@ set_exchange!(sys, 1.0, Bond(1, 3, [0, 0, 0]), :J3b => 0)
 
 formfactors = [1 => FormFactor("Cr3")]
 measure = ssf_perp(sys; formfactors)
-dq = 1/6;
+dq = 1/6
+;#hide
 
 # Three-dimensional ``\mathcal{S}(𝐪)`` data at 20 K was collected by Bai et al.
 # For simplicity, this tutorial fits to a low-resolution slice of
@@ -101,7 +102,7 @@ loss = make_loss_fn(sys, labels) do sys
     Sq_error = squared_error_with_rescaling(Sq_ref, Sq.data).error
 
     return 0.5 * χ_error + 0.5 * Sq_error
-end;
+end
 
 # The loss function can be evaluated at any parameter values. As an initial
 # guess, select a null model without any exchange coupling.

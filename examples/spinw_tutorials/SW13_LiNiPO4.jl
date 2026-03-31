@@ -58,7 +58,7 @@ qs = [[0, 1, 0], [2, 1, 0]]
 path = q_space_path(cryst, qs, 400)
 res = intensities_bands(swt, path)
 fig = Figure(size=(768, 300))
-plot_intensities!(fig[1, 1], res; units);
+plot_intensities!(fig[1, 1], res; units)
 
 # There are two physical bands with nonvanishing intensity. To extract these
 # intensity curves, we must filter out the additional bands with zero intensity.
