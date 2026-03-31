@@ -58,8 +58,8 @@ set_exchange!(sys, R' * [1 0 0; 0 0 0; 0 0 0] * R, xbond, :K′ => 0.0)
 labels = [:J, :Γ, :J′, :Γ′];
 
 # Okuma et al. deduced that the constraints ``J = J' > 0`` and ``Γ = -Γ' < 0``
-# produce a magnetic order that is qualitative consistent with diffraction data.
-# Guess some parameters of this form. Energy minimization yields
+# produce a magnetic order that is qualitatively consistent with diffraction
+# data. Guess some parameters of this form. Energy minimization yields
 # antiferromagnetic (AFM) order along each zigzag chain, with some relative
 # canting between chains. The primitive cell is shown as a gray parallelpiped
 # within the larger orthorhombic cell.
