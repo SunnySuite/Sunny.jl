@@ -8,8 +8,8 @@
 using Sunny, GLMakie, LinearAlgebra
 
 # The Pr ions occupy the single Wyckoff site 16g of spacegroup Fddd. They form
-# two families of ``c``-axis connected zigzag chains that run alternatingly
-# along the ``a+b`` and ``a-b`` diagonals.
+# two families of zigzag chains that run alternatingly along the ``a+b`` and
+# ``a-b`` diagonals, with bonding between families along the ``c`` axis.
 
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(6.74560, 9.74653, 20.4972, 90, 90, 90)
@@ -36,8 +36,8 @@ R = [-1/√2 0 -1/√2; 1/√2 0 -1/√2; 0 -1 0];
 # Nearest-neighbor bonds along the ``c``-axis connect different zigzag chains.
 # These are the "z-bonds" of the compass-model. Label coupling strengths ``(J,
 # Γ, K)``. For example, the notation `:J => 0.0` assigns the symbol `:J` to the
-# Heisenberg coupling strength and initializes its value to zero. Labeled
-# parameters can be quickly modified using, e.g., [`set_params!`](@ref).
+# Heisenberg coupling and initializes its value to zero. Labeled parameters can
+# be quickly modified using, e.g., [`set_params!`](@ref).
 
 zbond = Bond(1, 3, [0, 0, 0])
 set_exchange!(sys, 1.0, zbond, :J => 0.0)
@@ -60,9 +60,9 @@ labels = [:J, :Γ, :J′, :Γ′];
 # Okuma et al. deduced that the constraints ``J = J' > 0`` and ``Γ = -Γ' < 0``
 # produce a magnetic order that is qualitative consistent with diffraction data.
 # Guess some parameters of this form. Energy minimization yields
-# antiferromagnetic order along each zigzag chain, with some relative canting
-# between chains. The primitive cell is shown as a gray parallelpiped within the
-# larger orthorhombic cell.
+# antiferromagnetic (AFM) order along each zigzag chain, with some relative
+# canting between chains. The primitive cell is shown as a gray parallelpiped
+# within the larger orthorhombic cell.
 
 set_params!(sys, labels, [0.9, -0.5, 0.9, +0.5])
 randomize_spins!(sys)
@@ -98,7 +98,7 @@ energies = range(0.0, 2.45; length=100);
 # intensities with the experimental target.
 #
 # It is important that we initialized the system into a canted AFM state prior
-# to calling `make_loss_fn`. This way, each time the loss function is executed,
+# to calling `make_loss_fn`. Each time the loss function is executed,
 # [`minimize_energy!`](@ref) will receive a system with this same magnetic
 # state, and only needs to refine the canting angle for the updated model
 # parameters.
@@ -106,10 +106,10 @@ energies = range(0.0, 2.45; length=100);
 # The function [`squared_error_with_rescaling`](@ref) automatically accounts for
 # an arbitrary overall scale in the experimental intensities.
 #
-# Note that the squared error becomes misleading if some model intensity "leaks"
-# beyond the energy bounds of the experimental data. To combat this, the loss
-# function includes a regularization term that penalizes any intensity at the
-# grid points with maximum energy (2.45 meV).
+# The squared error can become misleading if some model intensity "leaks"
+# outside the energy bounds of the experimental data. To combat this, we include
+# a regularization term that penalizes any intensity (inverse energy units) at
+# the grid points with maximum energy (here, 2.45 meV).
 
 formfactors = [1 => FormFactor("Pr4")]
 measure = ssf_perp(sys; formfactors)
@@ -123,7 +123,7 @@ loss = make_loss_fn(sys, labels) do sys
         intensities(swt, qs; energies, kernel)
     end
 
-    leakage_penalty = 1e-2 * norm(res.data[end, :])^2 / length(radii)
+    leakage_penalty = 1e-2 * energies[end]^2 * norm(res.data[end, :])^2 / length(radii)
 
     return squared_error_with_rescaling(ref_data, res.data).error + leakage_penalty
 end
@@ -154,6 +154,16 @@ options = Optim.Options(
 guess = [0.9, -0.5]
 fit = Optim.optimize(loss_reduced, guess, Optim.NelderMead(), options)
 
+# Report the optimized parameters with error bars. Because the model ansatz is
+# intentionally simplified, these error bars estimates are likely too small. See
+# the documentation of [`uncertainty_matrix`](@ref) for discussion.
+
+@assert isapprox(fit.minimizer, [1.186, -0.302]; rtol=1e-2) #hide
+uncertainty = uncertainty_matrix(loss_reduced, fit.minimizer)
+error_bars = sqrt.(diag(uncertainty))
+println(round.(fit.minimizer; digits=2), " ± ", round.(error_bars; digits=2))
+
+
 # The optimized parameters are close to prior work:
 #
 # | Parameter | This study (meV) | Okuma et al. (meV) |
@@ -161,18 +171,10 @@ fit = Optim.optimize(loss_reduced, guess, Optim.NelderMead(), options)
 # | J         |  1.19            |  1.22              |
 # | Γ         | -0.30            | -0.27              |
 #
-# Because the model ansatz is intentionally simplified, the error bar estimates
-# are likely too small. The documentation of [`uncertainty_matrix`](@ref) has
-# some discussion.
-
-@assert isapprox(fit.minimizer, [1.186, -0.302]; rtol=1e-2) #hide
-errs = sqrt.(diag(uncertainty_matrix(loss_reduced, fit.minimizer)))
-println(round.(fit.minimizer; digits=2), " ± ", round.(errs; digits=2))
-
-# Compare experimental and simulated intensities as they are seen by the loss
-# function. Use the `scale` factor returned by
-# [`squared_error_with_rescaling`](@ref) to put both plots on the same [global
-# intensity scale](@ref "Structure Factor Conventions").
+# Finally, we visually compare experimental and simulated intensities as they
+# are seen by the loss function. The `scale` factor returned by
+# [`squared_error_with_rescaling`](@ref) allows to put both plots on the same
+# [global intensity scale](@ref "Structure Factor Conventions").
 
 set_params!(sys, labels, param_mapping(fit.minimizer))
 
