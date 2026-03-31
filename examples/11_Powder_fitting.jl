@@ -106,10 +106,10 @@ energies = range(0.0, 2.45; length=100);
 # The function [`squared_error_with_rescaling`](@ref) automatically accounts for
 # an arbitrary overall scale in the experimental intensities.
 #
-# The squared error can become misleading if some model intensity "leaks"
-# outside the energy bounds of the experimental data. To combat this, we include
-# a regularization term that penalizes any intensity (inverse energy units) at
-# the grid points with maximum energy (here, 2.45 meV).
+# The squared error can become misleading if some model intensity "leaks" beyond
+# the energy bounds of the experimental measurement. To combat this, we include
+# a regularization term that penalizes any intensity appearing at those energy
+# bounds.
 
 formfactors = [1 => FormFactor("Pr4")]
 measure = ssf_perp(sys; formfactors)
@@ -123,9 +123,9 @@ loss = make_loss_fn(sys, labels) do sys
         intensities(swt, qs; energies, kernel)
     end
 
-    leakage_penalty = 1e-2 * energies[end]^2 * norm(res.data[end, :])^2 / length(radii)
+    leak_penalty = 1e-2 * energies[end]^2 * norm(res.data[end, :])^2 / length(radii)
 
-    return squared_error_with_rescaling(ref_data, res.data).error + leakage_penalty
+    return squared_error_with_rescaling(ref_data, res.data).error + leak_penalty
 end
 
 loss([0.9, -0.5, 0.9, +0.5]) # Lower is better
@@ -167,8 +167,8 @@ println(round.(fit.minimizer; digits=2), " ± ", round.(error_bars; digits=2))
 #
 # | Parameter | This study (meV) | Okuma et al. (meV) |
 # |:----------|-----------------:|-------------------:|
-# | J         |  1.19            |  1.22              |
-# | Γ         | -0.30            | -0.27              |
+# | J         |  1.18            |  1.22              |
+# | Γ         | -0.31            | -0.27              |
 #
 # Finally, we compare experimental and simulated intensities as they are seen by
 # the loss function. The `scale` factor returned by
