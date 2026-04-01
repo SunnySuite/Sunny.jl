@@ -150,17 +150,17 @@ function set_params!(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
 end
 
 """
-    add_extrinsic_param!(sys::System, paramspec::ParamSpec)
+    add_auxiliary_param!(sys::System, paramspec::ParamSpec)
 
-Add a named parameter to `sys` that is not attached to any specific coupling
-term of the Hamltonian. See [`ParamSpec`](@ref) for the expected format.
+Add a labeled parameter to `sys` that is not linked to any specific coupling
+strength. The [`ParamSpec`](@ref) argument takes the form `label => val`.
 
-Extrinsic parameters can still be queried with [`get_param`](@ref), updated with
-[`set_params!`](@ref), and optimized with [`make_loss_fn`](@ref). They may be
-useful for modeling instrumental effects (e.g., background intensity or
-resolution kernels) or physical effects that are missing from the given level of
-theory (e.g., phenomenological renormalization factors).
+Auxiliary parameters behave like any other model parameter. They can be queried
+(e.g., with [`get_param`](@ref) or [`set_params!`](@ref)) and incorporated into
+optimization workflows (e.g., with [`make_loss_fn`](@ref)). They may be used to
+parametrize instrumental effects (e.g., background intensities or resolution
+kernels) or theoretical effects (e.g., effective renormalization factors).
 """
-function add_extrinsic_param!(sys::System, paramspec::ParamSpec)
+function add_auxiliary_param!(sys::System, paramspec::ParamSpec)
     replace_model_param!(sys, paramspec)
 end

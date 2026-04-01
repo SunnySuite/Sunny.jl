@@ -207,14 +207,14 @@ minimized ``L`` is symmetric in ``(x, y)`` and is of order one when ``x`` and
     mean: if `shift=true` then ``\\tilde u ≡ u - \\bar u`` , otherwise ``\\tilde u ≡
     u``.
 
-    If optimized, the shift is ``β = \\bar y - α \\bar x``. Otherwise, ``β = 0``.
-    Either way,
+    If optimized, the shift is ``β = \\bar y - α \\bar x``. Otherwise it is ``β =
+    0``. Either way,
 
     ```math
     L = \\frac{1}{c} \\|\\tilde y - α \\tilde x\\|^2.
     ```
 
-    There are now two possibilities for the final expression of ``L``.
+    There remain two possibilities for the final expression of ``L``.
 
     **Case 1, `scale=false`**: Here ``α = 1`` and we choose ``c`` so that,
 
@@ -305,6 +305,7 @@ function squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
     return (; error=L, scale=α, shift=β)
 end
 
+
 """
     squared_error(x, y; weights=nothing)
 
@@ -323,6 +324,7 @@ omitted from the sum.
 This function is a special case of [`squared_error_fitted`](@ref).
 """
 squared_error(x, y; weights=nothing) = squared_error_fitted(x, y; weights).error
+
 
 """
 wasserstein1_distance(p, q; γ=1.0)
