@@ -13,11 +13,10 @@
   ([#482](@ref)). 
 * Add Pr⁴⁺ form factor as Ce³⁺ form factor with length-scale contraction
   ([#483](@ref)).
-* Revise tutorials to call squared-error functions with target data first and
-  model calculations second. To facilitate this,
-  [`squared_error_with_rescaling`](@ref) returns a `scale` field that scales the
-  first argument. This replaces the `rescaling` field, which scaled the second
-  argument ([#484](@ref)).
+* Replace `squared_error_with_rescaling` with [`squared_error_fitted`](@ref).
+  The latter can infer both a `scale` and `shift` for the target data
+  ([#484](@ref)). Adopt the convention that all "squared error" functions are
+  called with target data first and model-predicted data second.
 
 ## v0.9.0
 (Mar 4, 2026)
@@ -38,7 +37,7 @@ This release brings significant support for model fitting ([#471](@ref)).
   be calculated from the loss curvature via [`uncertainty_matrix`](@ref).
 * New functions for comparing simulation and experimental data.
   [`squared_error`](@ref) yields a dimensionless measure, ignoring NaN values.
-  [`squared_error_with_rescaling`](@ref) is similar, but accepts experimental
+  `squared_error_with_rescaling` is similar, but accepts experimental
   intensities with unknown scale. [`squared_error_bands`](@ref) can be used to
   compare spin wave bands with experimental intensity peaks.
 * Enhancements to the [`SCGA`](@ref) calculator. External field is now

@@ -167,79 +167,162 @@ function squared_error_aux(x, y; weights)
     return (; x², y², xy)
 end
 
+
+"""
+    squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
+
+Returns the normalized sum of squared errors,
+
+```math
+L = \\frac{1}{c} ∑_i w_i | y_i - (α x_i + β)|^2.
+```
+
+By default, ``α = 1`` and ``β = 0``. If `scale=true`, then determine ``α`` by
+minimizing ``L``. If `shift=true`, then similarly optimize ``β``. Returns a
+named tuple with fields `(; error, scale, shift)` for ``(L, α, β)``,
+respectively.
+
+Weights ``w_i`` must be nonnegative and default to one. Any `NaN` elements
+``x_i`` or ``y_i`` will be interpreted as missing data and omitted from the sum.
+
+The normalization factor ``c`` depends on the fitting options. In all cases, the
+minimized ``L`` is symmetric in ``(x, y)`` and is of order one when ``x`` and
+``y`` maximally disagree.
+
+!!! tip "Closed-form expressions"
+
+    Begin with some notation. Define the weighted inner product,
+
+    ```math
+        ⟨u, v⟩ = ∑_i w_i u_i^* v_i,
+    ```
+
+    and its associated norm ``\\|u\\|^2 = ⟨u, u⟩``. Define the weighted mean,
+
+    ```math
+    \\bar u = \\frac{∑_i w_i u_i}{∑_i w_i}.
+    ```
+
+    Define variables ``\\tilde u`` that optionally shift an input by its weighted
+    mean: if `shift=true` then ``\\tilde u ≡ u - \\bar u`` , otherwise ``\\tilde u ≡
+    u``.
+
+    If optimized, the shift is ``β = \\bar y - α \\bar x``. Otherwise, ``β = 0``.
+    Either way,
+
+    ```math
+    L = \\frac{1}{c} \\|\\tilde y - α \\tilde x\\|^2.
+    ```
+
+    There are now two possibilities for the final expression of ``L``.
+
+    **Case 1, `scale=false`**: Here ``α = 1`` and we choose ``c`` so that,
+
+    ```math
+    L = \\frac{\\|\\tilde y - \\tilde x\\|^2}{\\|\\tilde x\\|^2 + \\|\\tilde y\\|^2}.
+    ```
+
+    **Case 2, `scale=true`**: Here the optimal scale factor is
+
+    ```math
+    α = \\frac{⟨\\tilde x, \\tilde y⟩}{\\|\\tilde x\\|^2}.
+    ```
+
+    We select ``c = ∑_i w_i \\|\\tilde y_i\\|^2`` so that substitution yields
+
+    ```math
+    L = 1 - \\frac{|⟨\\tilde x, \\tilde y⟩|^2}{\\|\\tilde x\\|^2\\,\\|\\tilde y\\|^2}.
+    ```
+
+    This may be understood as a cosine-squared loss. In case of complex inputs, note
+    that the optimal ``α`` absorbs an arbitrary scale _and_ complex phase.
+"""
+function squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
+    (x, y) = flatten_to_vec.((x, y))
+    ty = promote_type(eltype(x), eltype(y))
+    rty = real(ty)
+
+    w = if isnothing(weights)
+        fill(one(rty), length(x))
+    else
+        flatten_to_vec(weights)
+    end
+
+    length(x) == length(y) == length(w) || error("Mismatched input sizes")
+    all(@. isreal(w) && real(w) >= 0) || error("Weights must be non-negative")
+    inds = findall(i -> !isnan(x[i]) && !isnan(y[i]), eachindex(x))
+    isempty(inds) && error("No valid data after removing NaNs")
+
+    @views begin
+        wx = w[inds]
+        xx = x[inds]
+        yy = y[inds]
+    end
+
+    # Raw weighted moments
+    x2 = sum(@. wx * abs2(xx))
+    y2 = sum(@. wx * abs2(yy))
+    xy = sum(@. wx * conj(xx) * yy)
+
+    # Effective moments of x̃, ỹ
+    x2t, y2t, xyt, xbar, ybar = if shift
+        wsum = sum(wx)
+        iszero(wsum) && error("Sum of valid weights must be positive")
+
+        xbar = sum(@. wx * xx) / wsum
+        ybar = sum(@. wx * yy) / wsum
+
+        (
+            x2 - wsum * abs2(xbar),
+            y2 - wsum * abs2(ybar),
+            xy - wsum * conj(xbar) * ybar,
+            xbar,
+            ybar,
+        )
+    else
+        (x2, y2, xy, zero(ty), zero(ty))
+    end
+
+    α, L = if scale
+        if iszero(x2t) && iszero(y2t)
+            (one(ty), zero(rty)) # Both centered inputs vanish; define cos² loss as 0
+        elseif iszero(x2t) || iszero(y2t)
+            (zero(ty), one(rty)) # One centered input vanishes; define cos² loss as 1
+        else
+            α = xyt / x2t
+            L = real(1 - abs2(xyt) / (x2t * y2t))
+            (α, L)
+        end
+    else
+        α = one(ty)
+        denom = x2t + y2t
+        L = iszero(denom) ? zero(rty) : real((y2t + x2t - 2real(xyt)) / denom)
+        (α, L)
+    end
+
+    L = clamp(L, 0, 1)
+    β = shift ? ybar - α * xbar : zero(ty)
+    return (; error=L, scale=α, shift=β)
+end
+
 """
     squared_error(x, y; weights=nothing)
 
-Normalized sum of squared errors, ``L = (1/c) \\sum_i w_i |y_i - x_i|^2``.
+Normalized sum of squared errors, ``L = (1/c) \\sum_i w_i \\|y_i - x_i\\|^2``.
 Weights ``w_i`` must be nonnegative and default to one.
 
-The normalization factor is defined symmetrically, ``c = |x|^2 + |y|^2``,
-involving the weighted norm,
+The normalization factor is defined symmetrically, ``c = \\|x\\|^2 +
+\\|y\\|^2``, involving the weighted norm,
 ```math
-|u|^2 = \\sum_i w_i |u_i|^2.
+\\|u\\|^2 = \\sum_i w_i |u_i|^2.
 ```
 
 Any NaN elements (``x_i`` or ``y_i``) will be interpreted as missing data and
 omitted from the sum.
 
-See also [`squared_error_with_rescaling`](@ref).
+This function is a special case of [`squared_error_fitted`](@ref).
 """
-function squared_error(x, y; weights=nothing)
-    (; x², y², xy) = squared_error_aux(x, y; weights)
-
-    # |y - x|² / (|x|²+|y|²)
-    return 1 - 2real(xy) / (x² + y²)
-end
-
-"""
-    squared_error_with_rescaling(x, y; weights=nothing)
-
-Normalized sum of squared errors, ``L = (1/c) \\min_α \\sum_i w_i |y_i -
-α x_i|^2``, allowing for an arbitrary rescaling ``α`` of the ``x`` data. Weights
-``w_i`` must be nonnegative and default to one. Returns a named tuple with
-fields `(; error, scale)` that correspond to ``L`` and the optimal ``α``,
-respectively.
-
-The normalization factor,
-```math
-c = \\sum_i w_i |y_i|^2,
-```
-leads to a symmetry of ``L`` in its arguments ``(x, y)``.
-
-Any NaN elements ``x_i`` or ``y_i`` will be interpreted as missing data and
-omitted from the sum.
-
-!!! tip "Relation to the cosine-squared loss"
-
-    Introduce the weighted inner product,
-    ```math
-        ⟨u,v⟩ = \\sum_i w_i u_i^* v_i,
-    ```
-    and its associated norm, ``|u|^2 = ⟨u,u⟩``. In this notation, ``L = |y - α x|^2
-    / |y|^2``. The optimal ``α`` is obtained by setting the Wirtinger derivative to
-    zero, ``∂L/∂α^* = 0``, with solution
-    ```math
-        α = ⟨x, y⟩ / |x|².
-    ```
-    In case of complex inputs, this optimal ``α`` absorbs an arbitrary scale _and_
-    complex phase. 
-
-    Substitution yields the symmetric expression,
-    ```math  
-        L = 1 - |⟨x, y⟩|^2 / |x|^2 |y|^2.
-    ```
-    It may be interpreted as ``L = 1 - \\cos(θ)^2``, with ``θ`` the geometric angle
-    between ``x`` and ``y`` in data-space.
-"""
-function squared_error_with_rescaling(x, y; weights=nothing)
-    (; x², y², xy) = squared_error_aux(x, y; weights)
-
-    # |y - α x|² / |y|² where α = ⟨x, y⟩ / |x|²
-    error = 1 - abs2(xy) / (x² * y²)
-    scale = xy / x²
-    return (; error, scale)
-end
-
+squared_error(x, y; weights=nothing) = squared_error_fitted(x, y; weights).error
 
 """
 wasserstein1_distance(p, q; γ=1.0)

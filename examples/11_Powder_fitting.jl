@@ -104,8 +104,8 @@ energies = range(0.0, 2.45; length=100)
 # `minimize_energy!` only needs to refine the canting angle for a cloned system
 # with updated parameter values.
 #
-# The function [`squared_error_with_rescaling`](@ref) automatically accounts for
-# an arbitrary overall scale in the experimental intensities.
+# The function [`squared_error_fitted`](@ref) automatically fits the overall
+# scale of the experimental intensities.
 #
 # The squared error can become misleading if some model intensity "leaks" beyond
 # the energy bounds of the experimental measurement. To combat this, we include
@@ -124,9 +124,9 @@ loss = make_loss_fn(sys, labels) do sys
         intensities(swt, qs; energies, kernel)
     end
 
-    leak_penalty = 1e-2 * energies[end]^2 * norm(res.data[end, :])^2 / length(radii)
+    leakage_penalty = 1e-2 * energies[end]^2 * norm(res.data[end, :])^2 / length(radii)
 
-    return squared_error_with_rescaling(ref_data, res.data).error + leak_penalty
+    return squared_error_fitted(ref_data, res.data; scale=true).error + leakage_penalty
 end
 
 loss([0.9, -0.5, 0.9, +0.5]) # Lower is better
@@ -147,7 +147,7 @@ import Optim
 
 options = Optim.Options(
     iterations = 100,
-    g_tol      = 1e-4,
+    g_tol      = 1e-5,
     show_trace = true,
     show_every = 5,
 )
@@ -168,13 +168,13 @@ println(round.(fit.minimizer; digits=2), " ± ", round.(error_bars; digits=2))
 #
 # | Parameter | This study (meV) | Okuma et al. (meV) |
 # |:----------|-----------------:|-------------------:|
-# | J         |  1.18            |  1.22              |
-# | Γ         | -0.31            | -0.27              |
+# | J         |  1.19            |  1.22              |
+# | Γ         | -0.30            | -0.27              |
 #
 # Finally, plot experimental and simulated intensities as they are seen by the
-# loss function. The `scale` factor returned by
-# [`squared_error_with_rescaling`](@ref) allows to put both plots on the same
-# [global intensity scale](@ref "Structure Factor Conventions").
+# loss function. The `scale` factor returned by [`squared_error_fitted`](@ref)
+# allows to put both plots on the same [global intensity scale](@ref "Structure
+# Factor Conventions").
 
 set_params!(sys, labels, param_mapping(fit.minimizer))
 
@@ -185,7 +185,7 @@ res = powder_average(cryst, radii, 1000) do qs
     intensities(swt, qs; energies, kernel)
 end
 
-(; scale) = squared_error_with_rescaling(ref_data, res.data)
+(; scale) = squared_error_fitted(ref_data, res.data; scale=true)
 
 fig = Figure(; size=(600, 800))
 
