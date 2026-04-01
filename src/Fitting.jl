@@ -145,29 +145,6 @@ function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
 end
 
 
-# Returns weighted inner products ⟨x,x⟩, ⟨y,y⟩, ⟨x,y⟩
-function squared_error_aux(x, y; weights)
-    (x, y) = flatten_to_vec.((x, y))
-    ty = promote_type(eltype(x), eltype(y))
-    w = if isnothing(weights)
-        fill(one(real(ty)), length(x))
-    else
-        flatten_to_vec(weights)
-    end
-    length(x) == length(y) == length(w) || error("Mismatched input sizes")
-    all(@. real(w) >= 0 && iszero(imag(w))) || error("Weights must be non-negative")
-
-    # This functional implementation is AD-friendly
-    inds = findall(i -> !isnan(x[i]) && !isnan(y[i]), eachindex(x))
-    @views begin
-        x² = sum(@. w[inds] * abs2(x[inds]))           # |x|² ≡ ⟨x,x⟩
-        y² = sum(@. w[inds] * abs2(y[inds]))           # |y|² ≡ ⟨y,y⟩
-        xy = sum(@. w[inds] * conj(x[inds]) * y[inds]) # ⟨x,y⟩
-    end
-    return (; x², y², xy)
-end
-
-
 """
     squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
 
@@ -249,28 +226,31 @@ function squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
     end
 
     length(x) == length(y) == length(w) || error("Mismatched input sizes")
-    all(@. isreal(w) && real(w) >= 0) || error("Weights must be non-negative")
+
+    # Shadow the inputs by their non-NaN subarrays
     inds = findall(i -> !isnan(x[i]) && !isnan(y[i]), eachindex(x))
     isempty(inds) && error("No valid data after removing NaNs")
-
     @views begin
-        wx = w[inds]
-        xx = x[inds]
-        yy = y[inds]
+        w = w[inds]
+        x = x[inds]
+        y = y[inds]
     end
 
+    all(wi -> isreal(wi) && real(wi) >= 0, w) || error("Weights must be non-negative")
+
     # Raw weighted moments
-    x2 = sum(@. wx * abs2(xx))
-    y2 = sum(@. wx * abs2(yy))
-    xy = sum(@. wx * conj(xx) * yy)
+    W = Diagonal(w)
+    x2 = dot(x, W, x)
+    y2 = dot(y, W, y)
+    xy = dot(x, W, y)
 
     # Effective moments of x̃, ỹ
     x2t, y2t, xyt, xbar, ybar = if shift
-        wsum = sum(wx)
+        wsum = sum(w)
         iszero(wsum) && error("Sum of valid weights must be positive")
 
-        xbar = sum(@. wx * xx) / wsum
-        ybar = sum(@. wx * yy) / wsum
+        xbar = dot(w, x) / wsum
+        ybar = dot(w, y) / wsum
 
         (
             x2 - wsum * abs2(xbar),
