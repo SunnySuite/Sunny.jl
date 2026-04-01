@@ -215,6 +215,7 @@ minimized ``L`` is symmetric in ``(x, y)`` and is of order one when ``x`` and
     that the optimal ``α`` absorbs an arbitrary scale _and_ complex phase.
 """
 function squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
+    same_shape(x, y) || error("Mismatched input dimensions")
     (x, y) = flatten_to_vec.((x, y))
     ty = promote_type(eltype(x), eltype(y))
     rty = real(ty)
@@ -222,10 +223,9 @@ function squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
     w = if isnothing(weights)
         fill(one(rty), length(x))
     else
+        same_shape(x, weights) || error("Mismatched weight dimensions")
         flatten_to_vec(weights)
     end
-
-    length(x) == length(y) == length(w) || error("Mismatched input sizes")
 
     # Shadow the inputs by their non-NaN subarrays
     inds = findall(i -> !isnan(x[i]) && !isnan(y[i]), eachindex(x))
