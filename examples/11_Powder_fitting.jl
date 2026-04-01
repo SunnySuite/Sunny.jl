@@ -35,8 +35,8 @@ R = [-1/√2 0 -1/√2; 1/√2 0 -1/√2; 0 -1 0]
 # Nearest-neighbor bonds connecting different zigzag chains are the "z-bonds" of
 # the compass-model. Label coupling strengths ``(J, Γ, K)``. For example, the
 # notation `:J => 0.0` assigns the symbol `:J` to the Heisenberg coupling and
-# initializes its value to zero. Labeled parameters can be quickly modified
-# using, e.g., [`set_params!`](@ref).
+# initializes its strength to zero. Labeled parameters can be modified using,
+# e.g., [`set_params!`](@ref).
 
 zbond = Bond(1, 3, [0, 0, 0])
 set_exchange!(sys, 1.0, zbond, :J => 0.0)
@@ -129,7 +129,9 @@ loss = make_loss_fn(sys, labels) do sys
     return squared_error_fitted(ref_data, res.data; scale=true).error + leakage_penalty
 end
 
-loss([0.9, -0.5, 0.9, +0.5]) # Lower is better
+# The loss can be evaluated at arbitrary parameter values. Lower is better.
+
+loss([0.9, -0.5, 0.9, +0.5])
 
 # Define a mapping from the unconstrained optimization variables ``[J, Γ]`` to
 # the full set of model parameters, ``[J, Γ, J', Γ']``. Use this mapping to
