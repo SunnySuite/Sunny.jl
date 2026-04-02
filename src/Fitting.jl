@@ -588,13 +588,12 @@ uncertainty of the fitted parameter ``x_i``. More generally, ``δn = (𝐧^T U
 for which the loss function does not grow too large. See below for a precise
 version of this statement.
 
-With some modeling assumptions, it is possible to connect this ``U`` matrix with
-the true parameter covariance obtained from statistical regression.
-Specifically, if ``L`` is a weighted sum of squared errors, and if we assume the
-model is perfectly specified, then ``\\mathrm{Cov}(x) = (2/ν) U``. The quantity
-``ν`` measures the effective residual degrees of freedom (number of
-statistically independent data samples minus the number of model parameters).
-See below for a derivation.
+With some modeling assumptions, there is a direct link between ``U`` and the
+true parameter covariance matrix. Specifically, if ``L`` is a weighted sum of
+squared errors, and if we assume the model is perfectly specified, then
+``\\mathrm{Cov}(x) ≈ (2/ν) U``. The quantity ``ν`` measures the effective
+residual degrees of freedom (number of statistically independent data samples
+minus the number of model parameters). See below for a derivation.
 
 The uncertainty estimates can fail in various circumstances. It is common, for
 example, to have systematic error due to model misspecification. In such cases,
