@@ -574,22 +574,71 @@ end
 
 
 """
-    uncertainty_matrix(loss, x)
+    uncertainty_matrix(loss, x0)
 
-Returns an uncertainty matrix ``U`` that describes the slackness of the loss
-function ``L`` at its minimizer ``x``. Specifically, ``U = L(x) H(x)^{-1}``
-where ``H = ∂^2 L / ∂x ∂x`` is the Hessian matrix of second derivatives.
+Returns an uncertainty matrix ``U`` that characterizes slackness of the loss
+function ``L(𝐱)`` near a minimizer ``𝐱_0``. Specifically, ``U = L(𝐱_0)
+H(𝐱_0)^{-1}`` where ``H = ∂^2 L / ∂𝐱 ∂𝐱^T`` is the Hessian matrix. This
+function uses second order finite differences to approximate ``H``.
 
-The quantity ``(U_{ii})^{1/2}`` can often be interpreted as uncertainty of the
-fitted parameter ``x_i``. Similarly, ``(n^T U n)^{1/2}`` would be uncertainty in
-the normalized direction ``n`` of parameter space.
+The quantity ``δx_i = (U_{ii})^{1/2}`` can be interpreted as a geometric
+uncertainty of the fitted parameter ``x_i``. More generally, ``δn = (𝐧^T U
+𝐧)^{1/2}`` gives the geometric uncertainty along the normalized direction
+``𝐧`` in parameter space. These uncertainty estimates are not true statistical
+error bars. Rather, they use local geometry to infer a natural scale for the
+"reasonable" parameter range, in which the loss function does not grow too much.
 
-There are situations where the above uncertainty estimates deviate strongly from
-the true model error. For example, if the loss function is highly constraining
-about the wrong minimum (e.g., due to model misspecification), then the
-uncertainty estimate may be too low. Conversely, if the loss function does not
-vanish for a perfect model fit (e.g., it is not a sum of squared errors), then
-the uncertainty estimate may be too high.
+Uncertainty estimates can fail in some circumstances. If, for example, the loss
+function is highly constraining about the wrong minimum, then the uncertainty
+estimate may be too small. Conversely, if the loss function does not vanish for
+a perfect model fit, then the uncertainty estimate may be too large.
+
+!!! tip "Interpretation of geometric uncertainty"
+
+    Consider, for simplicity, a smooth loss function ``L`` in a single variable
+    ``x``. Near its minimum ``x_0`` the loss is approximately
+
+    ```math
+    L ≈ c \\left(\\frac{(x-x_0)^2}{2\\,δx^2} + 1\\right),
+    ```
+
+    where ``δx^2`` is the inverse curvature up to the scale factor ``c``. Then ``U =
+    δx^2`` and, consequently, ``δx`` is the geometric uncertainty of ``x``.
+
+    Observe that ``L(x_0 + δx) ≈ (3/2) L(x_0)``. In words, ``δx`` is the
+    perturbation needed to increase the loss by 50% relative to its minimized value
+    (within this quadratic loss model). In the multi-parameter case, the
+    analogous statement is
+
+    ```math
+    L(𝐱_0 + δn\\,𝐧) ≈ (3/2) L(𝐱_0)
+    ```
+
+    where ``𝐧`` is any eigen-direction of the Hessian ``H`` and ``δn`` is the
+    corresponding geometric uncertainty.
+
+!!! tip "Relation to true statistical uncertainty"
+
+    More precise error estimates are possible in the special case that the loss is a
+    weighted sum of squared errors,
+
+    ```math
+    L(𝐱) = ∑_i \\frac{(y_i - f_i(𝐱))^2}{2σ_i^2},
+    ```
+
+    where ``y_i`` are independent statistical samples with known observational
+    uncertainties ``σ_i``. In this setting, minimizing ``L`` is equivalent to
+    maximizing likelihood. The Hessian ``H`` is related to the Fisher information
+    and, under the usual local Gaussian approximation, the parameter covariance
+    is approximately ``H^{-1}``.
+
+    Observe that the uncertainty matrix ``U = L H^{-1}`` returned by this function
+    carries an additional prefactor ``L``. This prefactor offers some empirical
+    accounting for effects such as: (1) statistical correlation among samples
+    ``y_i``, (2) systematic error due to model misspecification, (3) arbitrariness
+    of the overall scale of ad hoc loss functions. Keep in mind, however, that there
+    is no general guarantee of correspondence between ``U`` and the true statistical
+    covariance matrix.
 """
 function uncertainty_matrix(loss, x; kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
