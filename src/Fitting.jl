@@ -584,31 +584,44 @@ function uses second order finite differences to approximate ``H``.
 The quantity ``δx_i = (U_{ii})^{1/2}`` can be interpreted as a geometric
 uncertainty of the fitted parameter ``x_i``. More generally, ``δn = (𝐧^T U
 𝐧)^{1/2}`` gives the geometric uncertainty along the normalized direction
-``𝐧`` in parameter space. These uncertainty estimates are not true statistical
-error bars. Rather, they use local geometry to infer a natural scale for the
-"reasonable" parameter range, in which the loss function does not grow too much.
+``𝐧`` in parameter space. These uncertainties define a range in parameter space
+for which the loss function does not grow too large. See below for a precise
+version of this statement.
 
-Uncertainty estimates can fail in some circumstances. If, for example, the loss
-function is highly constraining about the wrong minimum, then the uncertainty
-estimate may be too small. Conversely, if the loss function does not vanish for
-a perfect model fit, then the uncertainty estimate may be too large.
+With some modeling assumptions, it is possible to connect this ``U`` matrix with
+the true parameter covariance obtained from statistical regression.
+Specifically, if ``L`` is a weighted sum of squared errors, and if we assume the
+model is perfectly specified, then ``\\mathrm{Cov}(x) = (2/ν) U``. The quantity
+``ν`` measures the effective residual degrees of freedom (number of
+statistically independent data samples minus the number of model parameters).
+See below for a derivation.
 
-!!! tip "Interpretation of geometric uncertainty"
+The uncertainty estimates can fail in various circumstances. It is common, for
+example, to have systematic error due to model misspecification. In such cases,
+the loss function can be too constraining about the wrong minimum, which makes
+the uncertainty estimates too small. Conversely, if the effective loss function
+does not vanish for a perfect model fit, this may cause the uncertainty estimate
+to be too large. Note that ``U`` is invariant to an arbitrary loss rescaling,
+``L → α L``, but is _not_ invariant to a shift ``L → L + β``.
+
+!!! tip "Meaning of the geometric uncertainty"
 
     Consider, for simplicity, a smooth loss function ``L`` in a single variable
-    ``x``. Near its minimum ``x_0`` the loss is approximately
+    ``x``. Taylor expand about the minimum ``x_0``,
 
     ```math
-    L ≈ c \\left(\\frac{(x-x_0)^2}{2\\,δx^2} + 1\\right),
+    L(x) ≈ L(x_0) + H(x_0) \\frac{(x-x_0)^2}{2}.
     ```
 
-    where ``δx^2`` is the inverse curvature up to the scale factor ``c``. Then ``U =
-    δx^2`` and, consequently, ``δx`` is the geometric uncertainty of ``x``.
+    Since ``δx = \\sqrt{L / H}``, this can be written,
 
-    Observe that ``L(x_0 + δx) ≈ (3/2) L(x_0)``. In words, ``δx`` is the
-    perturbation needed to increase the loss by 50% relative to its minimized value
-    (within this quadratic loss model). In the multi-parameter case, the
-    analogous statement is
+    ```math
+    L(x) ≈ L(x_0) \\left(\\frac{(x-x_0)^2}{2\\,δx^2} + 1\\right).
+    ```
+
+    Observe that ``L(x_0 + δx) ≈ (3/2) L(x_0)``. That is, ``δx`` is the perturbation
+    needed to increase the loss by 50% relative to its minimized value (within this
+    quadratic loss model). In the multi-parameter case, the analogous statement is
 
     ```math
     L(𝐱_0 + δn\\,𝐧) ≈ (3/2) L(𝐱_0)
@@ -617,28 +630,48 @@ a perfect model fit, then the uncertainty estimate may be too large.
     where ``𝐧`` is any eigen-direction of the Hessian ``H`` and ``δn`` is the
     corresponding geometric uncertainty.
 
-!!! tip "Relation to true statistical uncertainty"
+!!! tip "Relation to statistical covariance in least-squares fitting"
 
-    More precise error estimates are possible in the special case that the loss is a
-    weighted sum of squared errors,
+    Consider the special case that the loss is a weighted sum of squared errors,
 
     ```math
     L(𝐱) = ∑_i \\frac{(y_i - f_i(𝐱))^2}{2σ_i^2},
     ```
 
     where ``y_i`` are independent statistical samples with known observational
-    uncertainties ``σ_i``. In this setting, minimizing ``L`` is equivalent to
-    maximizing likelihood. The Hessian ``H`` is related to the Fisher information
-    and, under the usual local Gaussian approximation, the parameter covariance
-    is approximately ``H^{-1}``.
+    uncertainties ``σ_i``. Assume, also, that ``f_i`` matches ``𝔼[y_i]`` at the
+    best fit (no systematic error). In this setting, the Hessian ``H`` is the
+    observed Fisher information, so
 
-    Observe that the uncertainty matrix ``U = L H^{-1}`` returned by this function
-    carries an additional prefactor ``L``. This prefactor offers some empirical
-    accounting for effects such as: (1) statistical correlation among samples
-    ``y_i``, (2) systematic error due to model misspecification, (3) arbitrariness
-    of the overall scale of ad hoc loss functions. Keep in mind, however, that there
-    is no general guarantee of correspondence between ``U`` and the true statistical
-    covariance matrix.
+    ```math
+    \\mathrm{Cov}(x) ≈ H^{-1}.
+    ```
+
+    Moreover, at the best fit, ``𝔼[L] = ν/2``. The quantity ``ν = N - p`` denotes
+    the effective residual degrees of freedom (independent samples ``N`` minus model
+    parameters ``p``). If there are many samples, then ``L ≈ 𝔼[L]`` is a good
+    approximation. Together with the definition ``U = L H^{-1}``, this implies
+
+    ```math
+    \\mathrm{Cov}(x) ≈ (2/ν)\\, U.
+    ```
+
+    For example, the traditional error bar of the ``i``th parameter would be,
+
+    ```math
+    \\mathrm{Std}(x_i) = \\sqrt{(2/ν)\\, U_{ii}}.
+    ```
+
+    In effect, the return value of `uncertainty_matrix` is valid as a statistical
+    covariance, provided it is manually rescaled by the factor ``2/ν``.
+
+    _**Our recommendation:**_ In model fitting contexts, we have often found it best
+    to use ``U`` directly, _without_ the ``2/ν`` rescaling factor. This is
+    especially true when the dominant sources of error are systematic, e.g., an
+    incomplete spin Hamiltonian, limits of the theoretical model, or various
+    possible experimental artifacts. In this regime, ``U`` retains its geometric
+    meaning, while ``(2/ν)\\, U`` can be a dramatic underestimate of the true
+    parameter covariance.
 """
 function uncertainty_matrix(loss, x; kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
