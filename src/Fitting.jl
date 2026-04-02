@@ -578,8 +578,8 @@ end
 
 Returns an uncertainty matrix ``U`` that characterizes slackness of the loss
 function ``L(𝐱)`` near a minimizer ``𝐱_0``. Specifically, ``U = L(𝐱_0)
-H(𝐱_0)^{-1}`` where ``H = ∂^2 L / ∂𝐱 ∂𝐱^T`` is the Hessian matrix. This
-function uses second order finite differences to approximate ``H``.
+H(𝐱_0)^{-1}`` where ``H = ∂^2 L / ∂𝐱 ∂𝐱^T`` is the Hessian matrix (estimated
+with finite differences).
 
 The quantity ``δx_i = (U_{ii})^{1/2}`` can be interpreted as a geometric
 uncertainty of the fitted parameter ``x_i``. More generally, ``δn = (𝐧^T U
