@@ -605,8 +605,8 @@ to be too large. Note that ``U`` is invariant to an arbitrary loss rescaling,
 
 !!! tip "Meaning of the geometric uncertainty"
 
-    Consider, for simplicity, a smooth loss function ``L`` in a single variable
-    ``x``. Taylor expand about the minimum ``x_0``,
+    Consider, for simplicity, the loss ``L`` in a single variable ``x``. Taylor
+    expand about the minimum,
 
     ```math
     L(x) ≈ L(x_0) + H(x_0) \\frac{(x-x_0)^2}{2}.
