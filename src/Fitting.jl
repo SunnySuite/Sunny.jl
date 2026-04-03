@@ -664,22 +664,21 @@ convention of ``L``.
 
     The above derivation depends crucially on the assumption of a correctly
     specified model (no systematic error). In that picture, one can select ``ν = N -
-    p`` where ``N`` is a simple count of the distinct data samples (e.g., binned
-    neutron intensities, which are statistically independent by construction) and
-    ``p`` is a simple count of model parameters. Often ``ν`` will be very large,
-    such that scaling ``U`` by ``2/ν`` will substantially reduce its associated
-    error bar estimates.
+    p``, where ``N`` is the effective number of independent data samples and ``p``
+    is the number of model parameters. If ``ν`` is very large, then scaling ``U`` by
+    ``2/ν`` will substantially reduce the error bar estimates.
 
-    In reality, some degree of model misspecification is almost always present. For
-    example, significant systematic errors may arise from incomplete specification
-    of the spin Hamiltonian or from limits of the theoretical formalism itself,
-    which can be very hard to quantify. Such systematic errors can be the major
-    source of misfit between model and data. When the model is misspecified, the
-    statistical uncertainties derived from ``(2/ν) U`` tend to substantially
-    underestimate the overall uncertainties. Here, the geometric interpretation of
-    ``U`` may be more pragmatic. When systematic errors are large, the geometric
-    tolerance ``δx_i = (U_{ii})^{1/2}`` is often a reasonable heuristic for
-    quantifying the overall uncertainty in a fitted parameter ``\\hat x_i``.
+    In practice, however, when the data is very constraining, model misspecification
+    effects can become difficult to ignore. For example, significant systematic
+    errors may arise from an incorrect Hamiltonian form, or from limits of the
+    theoretical framework itself. Such systematic errors are often very hard to
+    quantify, and can be the major source of misfit between model and data. When the
+    model is misspecified, the statistical uncertainties derived from ``(2/ν) U``
+    tend to substantially underestimate the overall uncertainties. The ``U`` matrix
+    alone (i.e., setting ``ν = 2``) may be a more pragmatic choice due to its
+    geometric interpretation. When systematic errors are large, the geometric
+    tolerance ``δx_i = (U_{ii})^{1/2}`` is often a good heuristic to quantify the
+    reasonable range of a fitted parameter ``\\hat x_i``.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
