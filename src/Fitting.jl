@@ -674,11 +674,11 @@ independent data samples minus model parameters. See below for a derivation.
     model is poorly specified, the statistical uncertainties derived from ``(2/ν)
     U`` tend to substantially underestimate the actual modeling error. In this
     regime, the ``U`` matrix alone (where ``ν = 2``) could be a more pragmatic
-    choice. The associated the geometric tolerance ``δx_i`` is a reasonable
-    uncertainty heuristic because it is based solely on the local loss function
-    geometry, not a statistical model. For example, ``δx_i`` remains finite even in
-    the limit where the sampled data has zero variance and the numerical scale of
-    ``χ^2`` diverges to infinity.
+    choice. Its geometric tolerance ``δx_i`` is an appealing heuristic for the
+    uncertainty because it is based solely on the local geometry of the loss
+    function, and not any particular statistical model. For example, ``δx_i``
+    remains finite even in the limit where the sampled data has zero variance and
+    the numerical scale of ``χ^2`` would diverge to infinity.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
