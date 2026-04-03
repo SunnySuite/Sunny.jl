@@ -670,16 +670,16 @@ convention of ``L``.
     such that scaling ``U`` by ``2/ν`` will substantially reduce its associated
     error bar estimates.
 
-    Commonly, however, the true parameter uncertainties will be dominated by
-    systematic errors rather than data noise. Large sources of systematic errors
-    could include incomplete specification of the spin Hamiltonian or limits of the
-    theoretical calculation method itself. When the model is misspecified, the
-    statistical uncertainties derived from ``(2/ν) U`` may be far smaller than the
-    true errors. Conversely, ``U`` retains its geometric interpretation as loss
-    slackness, and this viewpoint can be the more pragmatic one. When systematic
-    errors are large, the geometric tolerance ``δx_i = (U_{ii})^{1/2}`` may be a
-    reasonable heuristic for quantifying the overall uncertainty in a fitted
-    parameter ``\\hat x_i``.
+    In reality, some degree of model misspecification is almost always present. For
+    example, significant systematic errors may arise from incomplete specification
+    of the spin Hamiltonian or from limits of the theoretical formalism itself,
+    which can be very hard to quantify. Such systematic errors can be the major
+    source of misfit between model and data. When the model is misspecified, the
+    statistical uncertainties derived from ``(2/ν) U`` tend to substantially
+    underestimate the overall uncertainties. Here, the geometric interpretation of
+    ``U`` may be more pragmatic. Specifically, the geometric tolerance ``δx_i =
+    (U_{ii})^{1/2}`` is often a reasonable heuristic for quantifying the overall
+    uncertainty in a fitted parameter ``\\hat x_i``.
 """
 function uncertainty_matrix(loss, x; kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
