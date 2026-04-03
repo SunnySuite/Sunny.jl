@@ -669,14 +669,16 @@ independent data samples minus model parameters. See below for a derivation.
     In practice, however, when the data is very constraining, model misspecification
     effects can become difficult to ignore. Consider, for example, the systematic
     errors that arise from an incorrect Hamiltonian form, or from approximations in
-    the theoretical framework itself. Although such effects are hard to quantify,
-    they may often be the major source of misfit between model and data. When the
-    model is strongly misspecified, the statistical uncertainties derived from
-    ``(2/ν) U`` tend to substantially underestimate the actual modeling error. In
-    this limit, the ``U`` matrix alone (i.e., setting ``ν = 2``) could be a more
-    pragmatic choice. In particular, the geometric tolerance ``δx_i`` may be a good
-    uncertainty heuristic because it is based entirely on the local loss function
-    geometry.
+    the theoretical framework itself. Although these effects are hard to quantify,
+    they may often be a major source of misfit between model and data. When the
+    model is poorly specified, the statistical uncertainties derived from ``(2/ν)
+    U`` tend to substantially underestimate the actual modeling error. In this
+    regime, the ``U`` matrix alone (where ``ν = 2``) could be a more pragmatic
+    choice. The associated the geometric tolerance ``δx_i`` is a reasonable
+    uncertainty heuristic because it is based solely on the local loss function
+    geometry, not a statistical model. For example, ``δx_i`` remains finite even in
+    the limit where the sampled data has zero variance and the numerical scale of
+    ``χ^2`` diverges to infinity.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
