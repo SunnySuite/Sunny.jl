@@ -581,7 +581,7 @@ characterizes the local slackness of the loss function ``L`` near the fitted
 minimizer ``\\hat 𝐱``. The Hessian ``H`` of the loss is estimated numerically
 using finite differences. Note that ``U`` itself is a purely geometric quantity.
 However, with additional modeling assumptions, a rescaling of ``U`` can be used
-to estimate statistical covariance matrix of the fitted parameters.
+to estimate the statistical covariance of fitted parameters.
 
 The quantity ``δx_i = (U_{ii})^{1/2}`` can be interpreted as a geometric
 tolerance around the fitted component ``\\hat x_i``. More generally, ``δn =
