@@ -574,56 +574,51 @@ end
 
 
 """
-    uncertainty_matrix(loss, x0)
+    uncertainty_matrix(loss, x)
 
-Returns an uncertainty matrix ``U`` that characterizes slackness of the loss
-function ``L(𝐱)`` near a minimizer ``𝐱_0``. Specifically, ``U = L(𝐱_0)
-H(𝐱_0)^{-1}`` where ``H = ∂^2 L / ∂𝐱 ∂𝐱^T`` is the Hessian matrix (estimated
-with finite differences).
+Returns an uncertainty matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` that
+characterizes the local slackness of the loss function ``L`` near the fitted
+minimizer ``\\hat 𝐱``. The Hessian ``H`` of the loss is estimated numerically
+using finite differences. Note that ``U`` itself is a purely geometric quantity.
+However, with additional modeling assumptions, a rescaling of ``U`` can be used
+to estimate statistical covariance matrix of the fitted parameters.
 
 The quantity ``δx_i = (U_{ii})^{1/2}`` can be interpreted as a geometric
-uncertainty of the fitted parameter ``x_i``. More generally, ``δn = (𝐧^T U
-𝐧)^{1/2}`` is an uncertainty along the normalized direction ``𝐧`` in parameter
-space. These uncertainties suggest a range in parameter space for which the loss
-function does not grow too large. See below for a precise version of this
+tolerance around the fitted component ``\\hat x_i``. More generally, ``δn =
+(𝐧^T U 𝐧)^{1/2}`` is a tolerance along the normalized direction ``𝐧``. These
+tolerances define a range in parameter space for which the loss function does
+not grow too large (within about 50%, proportionally). See below for a precise
 statement.
 
-With some modeling assumptions, there is a direct link between ``U`` and the
-true statistical covariance matrix. Specifically, if ``L`` is the negative
-log-likelihood for independent Gaussian errors, and if the model is well
-specified, then ``\\mathrm{Cov}(𝐱) ≈ (2/ν) U``, where ``ν`` is an effective
-count of independent data samples minus model parameters. See below for a
-derivation.
-
-The uncertainty estimates can fail in various circumstances. It is common, for
-example, to have systematic error due to model misspecification. In such cases,
-the loss function can be too constraining about the wrong minimum, which makes
-the uncertainty estimates too small. Conversely, if the effective loss function
-does not vanish for a perfect model fit, this may cause the uncertainty estimate
-to be too large. Note that ``U`` is invariant to an arbitrary loss rescaling,
-``L → α L``, but is _not_ invariant to a shift ``L → L + β``.
+The link to the statistical covariance is as follows. If ``L`` is proportional
+to a Gaussian least-squares objective, and if the model is well specified, then
+``\\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν) U``, where ``ν`` is an effective count of
+independent data samples minus model parameters. See below for a derivation.
+Importantly, this covariance estimator is agnostic to a constant rescaling of
+``L``.
 
 !!! tip "Meaning of geometric uncertainty"
 
     Consider, for simplicity, the loss ``L`` in a single variable ``x``. Taylor
-    expand about the minimum,
+    expand about the fitted minimum ``\\hat x``,
 
     ```math
-    L(x) ≈ L(x_0) + H(x_0) \\frac{(x-x_0)^2}{2}.
+    L(x) ≈ L(\\hat x) + H(\\hat x) \\frac{(x-\\hat x)^2}{2}.
     ```
 
     Since ``δx = \\sqrt{L / H}``, this can be written,
 
     ```math
-    L(x) ≈ L(x_0) \\left(\\frac{(x-x_0)^2}{2\\,δx^2} + 1\\right).
+    L(x) ≈ L(\\hat x) \\left(\\frac{(x-\\hat x)^2}{2\\,δx^2} + 1\\right).
     ```
 
-    Observe that ``L(x_0 + δx) ≈ (3/2) L(x_0)``. That is, ``δx`` is the perturbation
-    needed to increase the loss by 50% relative to its minimized value (within this
-    quadratic loss model). In the multi-parameter case, the analogous statement is
+    Observe that ``L(\\hat x + δx) ≈ (3/2) L(\\hat x)``. That is, ``δx`` is the
+    perturbation needed to increase the loss by 50% relative to its minimized value
+    (within this quadratic loss model). In the multi-parameter case, the analogous
+    statement is
 
     ```math
-    L(𝐱_0 + δn\\,𝐧) ≈ (3/2) L(𝐱_0)
+    L(\\hat 𝐱 + δn\\,𝐧) ≈ (3/2) L(\\hat 𝐱)
     ```
 
     where ``𝐧`` is any eigen-direction of the Hessian ``H`` and ``δn`` is the
@@ -631,46 +626,62 @@ to be too large. Note that ``U`` is invariant to an arbitrary loss rescaling,
 
 !!! tip "Relation to statistical covariance in least-squares fitting"
 
-    Consider the special case that the loss is a weighted sum of squared errors,
+    If the loss is the Gaussian negative log-likelihood,
 
     ```math
-    L(𝐱) = ∑_i \\frac{(y_i - f_i(𝐱))^2}{2σ_i^2},
+    L(𝐱) = χ^2/2 = ∑_i \\frac{(y_i - f_i(𝐱))^2}{2σ_i^2},
     ```
 
-    where ``y_i`` are independent statistical samples with known observational
-    uncertainties ``σ_i``. Assume, also, that the model is correctly specified,
-    i.e., ``f_i = 𝔼[y_i]`` at the optimum. In this setting, the Hessian ``H``
-    approximates the Fisher information, so
+    if the error terms are independent, and if the model is well specified, then the
+    local Wald covariance is approximately ``\\mathrm{Cov}(\\hat 𝐱) ≈ H(\\hat
+    𝐱)^{-1}``.
+
+    The matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` can now be recognized as the
+    observed best-fit loss times the above local covariance estimate. Since
+    ``𝔼[L(\\hat 𝐱)] ≈ ν/2`` for a good fit, and ``L(\\hat 𝐱)`` concentrates
+    around this expectation in the large-sample limit, one may further approximate
 
     ```math
-    \\mathrm{Cov}(𝐱) ≈ H^{-1}.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν)\\, U.
     ```
 
-    Moreover, at the best fit, ``𝔼[L] = ν/2``. The quantity ``ν`` denotes the
-    effective residual degrees of freedom. In the simplest case, ``ν = N - p`` given
-    ``N`` independent samples and ``p`` model parameters. For large sample size, ``L
-    ≈ 𝔼[L]`. Together with the definition ``U = L H^{-1}``, this implies
+    This replacement uses the observed best-fit loss to estimate the dispersion
+    level for the assumed Gaussian noise model. Observe that ``(2/ν)\\, U`` is
+    invariant under a rescaling of the loss, ``L → c L``. This is important in Sunny
+    applications where the normalization of ``L`` can be arbitrary (the scale of
+    ``L`` need not be linked to the true variance scale).
 
-    ```math
-    \\mathrm{Cov}(𝐱) ≈ (2/ν)\\, U.
-    ```
-
-    For example, the traditional error bar of the ``i``th parameter would be,
+    Error bars follow directly from the covariance matrix. For example, uncertainty
+    of the ``i``th parameter is,
 
     ```math
     \\mathrm{Std}(x_i) = \\sqrt{(2/ν)\\, U_{ii}}.
     ```
 
-    In effect, the return value of `uncertainty_matrix` is valid as a statistical
-    covariance, provided it is manually rescaled by the factor ``2/ν``.
+    To summarize, the return value of `uncertainty_matrix` can be used as an
+    estimate of the statistical covariance, provided it is manually rescaled by the
+    factor ``2/ν``.
 
-    _**Our recommendation:**_ In model fitting contexts, we have often found it best
-    to use ``U`` directly, _without_ the ``2/ν`` rescaling factor. This is
-    especially true when the dominant sources of error are systematic, e.g., an
-    incomplete spin Hamiltonian, limits of the theoretical model, or various
-    possible experimental artifacts. In this regime, ``U`` retains its geometric
-    meaning, while ``(2/ν)\\, U`` can substantially underestimate the true parameter
-    covariance.
+    _**How to select ``ν`` in practice?**_
+
+    The above derivation depends crucially on the assumption of a correctly
+    specified model (no systematic error). In that picture, one can naïvely select
+    ``ν = N - p`` where ``N`` is a simple count of the distinct data samples (e.g.,
+    binned neutron counts, which are statistically independent by construction) and
+    ``p`` is a simple count of model parameters. Then ``ν`` can become a very large
+    quantity, such that scaling ``U`` by ``2/ν`` will substantially reduce its
+    associated error bar estimates.
+
+    Commonly, however, the true parameter uncertainties will be dominated by
+    systematic errors rather than data noise. Large sources of systematic errors
+    could include incomplete specification of the spin Hamiltonian or limits of the
+    theoretical calculation method itself. When the model is misspecified, the
+    statistical uncertainties derived from ``(2/ν) U`` may be far smaller than the
+    true errors. Conversely, ``U`` retains its geometric interpretation as loss
+    slackness, and this viewpoint can be the more pragmatic one. When systematic
+    errors are large, the naïve expression ``δx_i = (U_{ii})^{1/2}`` may be a
+    reasonable heuristic for quantifying the overall uncertainty in a fitted
+    parameter ``\\hat x_i``.
 """
 function uncertainty_matrix(loss, x; kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
