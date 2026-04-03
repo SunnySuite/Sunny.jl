@@ -647,7 +647,7 @@ independent data samples minus model parameters. See below for a derivation.
     The matrix ``U`` returned by `uncertainty_matrix` can therefore be used as an
     estimate of the statistical covariance, provided it is manually rescaled by the
     factor ``2/ν``. Error bars follow directly. For example, statistical uncertainty
-    of the ``i``th parameter is,
+    of the ``i``th parameter is
 
     ```math
     \\mathrm{Std}(\\hat x_i) = \\sqrt{(2/ν)\\, U_{ii}}.
@@ -675,10 +675,9 @@ independent data samples minus model parameters. See below for a derivation.
     U`` tend to substantially underestimate the actual modeling error. In this
     regime, the ``U`` matrix alone (where ``ν = 2``) could be a more pragmatic
     choice. Here, the geometric tolerance ``δx_i`` is an appealing uncertainty
-    metric because it is based solely on the local loss geometry, rather than a
-    statistical model. For example, ``δx_i`` remains finite even in the limit where
-    the sampled data has zero variance and the numerical scale of ``χ^2`` would
-    diverge to infinity.
+    metric because it is based solely on the local loss geometry. For example,
+    ``δx_i`` remains finite even in the limit where the sampled data has zero
+    variance and the numerical scale of ``χ^2`` diverges to infinity.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
