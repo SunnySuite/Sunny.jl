@@ -626,13 +626,15 @@ convention of ``L``.
 
 !!! tip "Relation to statistical covariance in least-squares fitting"
 
-    If the loss is a sum of independent Gaussian errors,
+    Suppose the loss is a Gaussian least-squares objective,
 
     ```math
     L(𝐱) = χ^2/2 = ∑_i \\frac{(y_i - f_i(𝐱))^2}{2σ_i^2},
     ```
 
-    and if the model is well specified, then the local Wald covariance is
+    where ``y_i`` are observed data, ``f_i(𝐱)`` are the corresponding model
+    predictions, and ``σ_i`` are the standard deviations of independent Gaussian
+    errors. Then, provided the model is well specified, the local Wald covariance is
     approximately ``\\mathrm{Cov}(\\hat 𝐱) ≈ H(\\hat 𝐱)^{-1}``.
 
     The matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` can now be recognized as the
@@ -644,22 +646,19 @@ convention of ``L``.
     \\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν)\\, U.
     ```
 
-    This replacement uses the observed best-fit loss to estimate the dispersion
-    level for the assumed Gaussian noise model. Observe that ``(2/ν)\\, U`` is
-    invariant under a rescaling of the loss, ``L → c L``. This is important in Sunny
-    applications where the normalization of ``L`` can be arbitrary (the scale of
-    ``L`` need not be linked to the true variance scale).
-
-    Error bars follow directly from the covariance matrix. For example, uncertainty
+    The matrix ``U`` returned by `uncertainty_matrix` can therefore be used as an
+    estimate of the statistical covariance, provided it is manually rescaled by the
+    factor ``2/ν``. Error bars follow directly. For example, statistical uncertainty
     of the ``i``th parameter is,
 
     ```math
     \\mathrm{Std}(x_i) = \\sqrt{(2/ν)\\, U_{ii}}.
     ```
 
-    To summarize, the return value of `uncertainty_matrix` can be used as an
-    estimate of the statistical covariance, provided it is manually rescaled by the
-    factor ``2/ν``.
+    Observe that ``U``, and the associated covariance estimate, is invariant to an
+    arbitrary rescaling ``L → c L``. This is important in Sunny applications where
+    ``L`` is often normalized to be of order 1. It is only required that ``L``
+    remains _proportional_ to the true ``χ^2``.
 
     _**How to select ``ν`` in practice?**_
 
