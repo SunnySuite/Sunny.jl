@@ -681,9 +681,9 @@ convention of ``L``.
     tolerance ``δx_i = (U_{ii})^{1/2}`` is often a reasonable heuristic for
     quantifying the overall uncertainty in a fitted parameter ``\\hat x_i``.
 """
-function uncertainty_matrix(loss, x; kwargs...)
+function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
-    return loss(x) * inv(H)
+    return loss(x) * inv(H + regularization*I)
 end
 
 
