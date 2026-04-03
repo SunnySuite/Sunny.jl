@@ -597,7 +597,7 @@ independent data samples minus model parameters. See below for a derivation.
 Importantly, this covariance estimator is agnostic to the normalization
 convention of ``L``.
 
-!!! tip "Meaning of geometric uncertainty"
+!!! tip "Meaning of geometric tolerance"
 
     Consider, for simplicity, the loss ``L`` in a single variable ``x``. Taylor
     expand about the fitted minimum ``\\hat x``,
@@ -622,7 +622,7 @@ convention of ``L``.
     ```
 
     where ``𝐧`` is any eigen-direction of the Hessian ``H`` and ``δn`` is the
-    corresponding geometric uncertainty.
+    corresponding geometric tolerance.
 
 !!! tip "Relation to statistical covariance in least-squares fitting"
 
@@ -679,7 +679,7 @@ convention of ``L``.
     statistical uncertainties derived from ``(2/ν) U`` may be far smaller than the
     true errors. Conversely, ``U`` retains its geometric interpretation as loss
     slackness, and this viewpoint can be the more pragmatic one. When systematic
-    errors are large, the naïve expression ``δx_i = (U_{ii})^{1/2}`` may be a
+    errors are large, the geometric tolerance ``δx_i = (U_{ii})^{1/2}`` may be a
     reasonable heuristic for quantifying the overall uncertainty in a fitted
     parameter ``\\hat x_i``.
 """
