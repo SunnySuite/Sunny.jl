@@ -677,9 +677,9 @@ convention of ``L``.
     source of misfit between model and data. When the model is misspecified, the
     statistical uncertainties derived from ``(2/ν) U`` tend to substantially
     underestimate the overall uncertainties. Here, the geometric interpretation of
-    ``U`` may be more pragmatic. Specifically, the geometric tolerance ``δx_i =
-    (U_{ii})^{1/2}`` is often a reasonable heuristic for quantifying the overall
-    uncertainty in a fitted parameter ``\\hat x_i``.
+    ``U`` may be more pragmatic. When systematic errors are large, the geometric
+    tolerance ``δx_i = (U_{ii})^{1/2}`` is often a reasonable heuristic for
+    quantifying the overall uncertainty in a fitted parameter ``\\hat x_i``.
 """
 function uncertainty_matrix(loss, x; kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
