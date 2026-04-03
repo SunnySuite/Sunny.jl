@@ -669,16 +669,16 @@ convention for ``L``.
     ``2/ν`` will substantially reduce the error bar estimates.
 
     In practice, however, when the data is very constraining, model misspecification
-    effects can become difficult to ignore. For example, significant systematic
-    errors may arise from an incorrect Hamiltonian form, or from limits of the
-    theoretical framework itself. Such systematic errors are often very hard to
-    quantify, and can be the major source of misfit between model and data. When the
-    model is misspecified, the statistical uncertainties derived from ``(2/ν) U``
-    tend to substantially underestimate the overall uncertainties. The ``U`` matrix
-    alone (i.e., setting ``ν = 2``) may be a more pragmatic choice due to its
-    geometric interpretation. When systematic errors are large, the geometric
-    tolerance ``δx_i = (U_{ii})^{1/2}`` is often a good heuristic to quantify the
-    reasonable range of a fitted parameter ``\\hat x_i``.
+    effects can become difficult to ignore. Consider, for example, the systematic
+    errors that arise from an incorrect Hamiltonian form, or from approximations in
+    the theoretical framework itself. Although such effects are hard to quantify,
+    they may often be the major source of misfit between model and data. When the
+    model is strongly misspecified, the statistical uncertainties derived from
+    ``(2/ν) U`` tend to substantially underestimate the actual modeling error. In
+    this limit, the ``U`` matrix alone (i.e., setting ``ν = 2``) could be a more
+    pragmatic choice. In particular, the geometric tolerance ``δx_i`` may be a good
+    uncertainty heuristic because it is based entirely on the local loss function
+    geometry.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
