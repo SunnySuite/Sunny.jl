@@ -583,17 +583,17 @@ with finite differences).
 
 The quantity ``δx_i = (U_{ii})^{1/2}`` can be interpreted as a geometric
 uncertainty of the fitted parameter ``x_i``. More generally, ``δn = (𝐧^T U
-𝐧)^{1/2}`` gives the geometric uncertainty along the normalized direction
-``𝐧`` in parameter space. These uncertainties define a range in parameter space
-for which the loss function does not grow too large. See below for a precise
-version of this statement.
+𝐧)^{1/2}`` is an uncertainty along the normalized direction ``𝐧`` in parameter
+space. These uncertainties suggest a range in parameter space for which the loss
+function does not grow too large. See below for a precise version of this
+statement.
 
 With some modeling assumptions, there is a direct link between ``U`` and the
-true parameter covariance matrix. Specifically, if ``L`` is a weighted sum of
-squared errors, and if we assume the model is perfectly specified, then
-``\\mathrm{Cov}(x) ≈ (2/ν) U``. The quantity ``ν`` measures the effective
-residual degrees of freedom (number of statistically independent data samples
-minus the number of model parameters). See below for a derivation.
+true statistical covariance matrix. Specifically, if ``L`` is the negative
+log-likelihood for independent Gaussian errors, and if the model is well
+specified, then ``\\mathrm{Cov}(𝐱) ≈ (2/ν) U``, where ``ν`` is an effective
+count of independent data samples minus model parameters. See below for a
+derivation.
 
 The uncertainty estimates can fail in various circumstances. It is common, for
 example, to have systematic error due to model misspecification. In such cases,
@@ -603,7 +603,7 @@ does not vanish for a perfect model fit, this may cause the uncertainty estimate
 to be too large. Note that ``U`` is invariant to an arbitrary loss rescaling,
 ``L → α L``, but is _not_ invariant to a shift ``L → L + β``.
 
-!!! tip "Meaning of the geometric uncertainty"
+!!! tip "Meaning of geometric uncertainty"
 
     Consider, for simplicity, the loss ``L`` in a single variable ``x``. Taylor
     expand about the minimum,
@@ -638,21 +638,21 @@ to be too large. Note that ``U`` is invariant to an arbitrary loss rescaling,
     ```
 
     where ``y_i`` are independent statistical samples with known observational
-    uncertainties ``σ_i``. Assume, also, that ``f_i`` matches ``𝔼[y_i]`` at the
-    best fit (no systematic error). In this setting, the Hessian ``H`` is the
-    observed Fisher information, so
+    uncertainties ``σ_i``. Assume, also, that the model is correctly specified,
+    i.e., ``f_i = 𝔼[y_i]`` at the optimum. In this setting, the Hessian ``H``
+    approximates the Fisher information, so
 
     ```math
-    \\mathrm{Cov}(x) ≈ H^{-1}.
+    \\mathrm{Cov}(𝐱) ≈ H^{-1}.
     ```
 
-    Moreover, at the best fit, ``𝔼[L] = ν/2``. The quantity ``ν = N - p`` denotes
-    the effective residual degrees of freedom (independent samples ``N`` minus model
-    parameters ``p``). If there are many samples, then ``L ≈ 𝔼[L]`` is a good
-    approximation. Together with the definition ``U = L H^{-1}``, this implies
+    Moreover, at the best fit, ``𝔼[L] = ν/2``. The quantity ``ν`` denotes the
+    effective residual degrees of freedom. In the simplest case, ``ν = N - p`` given
+    ``N`` independent samples and ``p`` model parameters. For large sample size, ``L
+    ≈ 𝔼[L]`. Together with the definition ``U = L H^{-1}``, this implies
 
     ```math
-    \\mathrm{Cov}(x) ≈ (2/ν)\\, U.
+    \\mathrm{Cov}(𝐱) ≈ (2/ν)\\, U.
     ```
 
     For example, the traditional error bar of the ``i``th parameter would be,
@@ -669,8 +669,8 @@ to be too large. Note that ``U`` is invariant to an arbitrary loss rescaling,
     especially true when the dominant sources of error are systematic, e.g., an
     incomplete spin Hamiltonian, limits of the theoretical model, or various
     possible experimental artifacts. In this regime, ``U`` retains its geometric
-    meaning, while ``(2/ν)\\, U`` can be a dramatic underestimate of the true
-    parameter covariance.
+    meaning, while ``(2/ν)\\, U`` can substantially underestimate the true parameter
+    covariance.
 """
 function uncertainty_matrix(loss, x; kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
