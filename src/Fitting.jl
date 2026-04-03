@@ -650,13 +650,13 @@ independent data samples minus model parameters. See below for a derivation.
     of the ``i``th parameter is,
 
     ```math
-    \\mathrm{Std}(x_i) = \\sqrt{(2/ν)\\, U_{ii}}.
+    \\mathrm{Std}(\\hat x_i) = \\sqrt{(2/ν)\\, U_{ii}}.
     ```
 
     Observe that ``U``, and the associated covariance estimate, is invariant to an
-    arbitrary rescaling ``L → c L``. This is important in Sunny applications where
-    ``L`` is often normalized to be of order 1. It is only required that ``L``
-    remains _proportional_ to the true ``χ^2``.
+    arbitrary rescaling ``L → c L``. This is important for Sunny applications where
+    ``L`` will typically be normalized in some way. Such normalization is fine,
+    provided that ``L`` remains proportional to ``χ^2``.
 
     _**How to select ``ν`` in practice?**_
 
@@ -674,11 +674,11 @@ independent data samples minus model parameters. See below for a derivation.
     model is poorly specified, the statistical uncertainties derived from ``(2/ν)
     U`` tend to substantially underestimate the actual modeling error. In this
     regime, the ``U`` matrix alone (where ``ν = 2``) could be a more pragmatic
-    choice. Its geometric tolerance ``δx_i`` is an appealing heuristic for the
-    uncertainty because it is based solely on the local geometry of the loss
-    function, rather than a statistical model. For example, ``δx_i`` remains finite
-    even in the limit where the sampled data has zero variance and the numerical
-    scale of ``χ^2`` would diverge to infinity.
+    choice. Here, the geometric tolerance ``δx_i`` is an appealing uncertainty
+    metric because it is based solely on the local loss geometry, rather than a
+    statistical model. For example, ``δx_i`` remains finite even in the limit where
+    the sampled data has zero variance and the numerical scale of ``χ^2`` would
+    diverge to infinity.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
