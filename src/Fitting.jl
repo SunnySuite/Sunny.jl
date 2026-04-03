@@ -626,20 +626,19 @@ convention of ``L``.
 
 !!! tip "Relation to statistical covariance in least-squares fitting"
 
-    If the loss is the Gaussian negative log-likelihood,
+    If the loss is a sum of independent Gaussian errors,
 
     ```math
     L(𝐱) = χ^2/2 = ∑_i \\frac{(y_i - f_i(𝐱))^2}{2σ_i^2},
     ```
 
-    if the error terms are independent, and if the model is well specified, then the
-    local Wald covariance is approximately ``\\mathrm{Cov}(\\hat 𝐱) ≈ H(\\hat
-    𝐱)^{-1}``.
+    and if the model is well specified, then the local Wald covariance is
+    approximately ``\\mathrm{Cov}(\\hat 𝐱) ≈ H(\\hat 𝐱)^{-1}``.
 
     The matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` can now be recognized as the
-    observed best-fit loss times the above local covariance estimate. Since
-    ``𝔼[L(\\hat 𝐱)] ≈ ν/2`` for a good fit, and ``L(\\hat 𝐱)`` concentrates
-    around this expectation in the large-sample limit, one may further approximate
+    observed best-fit loss times the above covariance estimate. Since ``𝔼[L(\\hat
+    𝐱)] ≈ ν/2`` for a good fit, and ``L(\\hat 𝐱)`` concentrates around this
+    expectation in the large-sample limit, one may further approximate
 
     ```math
     \\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν)\\, U.
