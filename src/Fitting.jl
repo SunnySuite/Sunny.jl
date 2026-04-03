@@ -665,12 +665,12 @@ convention of ``L``.
     _**How to select ``ν`` in practice?**_
 
     The above derivation depends crucially on the assumption of a correctly
-    specified model (no systematic error). In that picture, one can naïvely select
-    ``ν = N - p`` where ``N`` is a simple count of the distinct data samples (e.g.,
-    binned neutron counts, which are statistically independent by construction) and
-    ``p`` is a simple count of model parameters. Then ``ν`` can become a very large
-    quantity, such that scaling ``U`` by ``2/ν`` will substantially reduce its
-    associated error bar estimates.
+    specified model (no systematic error). In that picture, one can select ``ν = N -
+    p`` where ``N`` is a simple count of the distinct data samples (e.g., binned
+    neutron intensities, which are statistically independent by construction) and
+    ``p`` is a simple count of model parameters. Often ``ν`` will be very large,
+    such that scaling ``U`` by ``2/ν`` will substantially reduce its associated
+    error bar estimates.
 
     Commonly, however, the true parameter uncertainties will be dominated by
     systematic errors rather than data noise. Large sources of systematic errors
