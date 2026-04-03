@@ -585,9 +585,9 @@ to estimate the statistical covariance of fitted parameters.
 
 The quantity ``δx_i = (U_{ii})^{1/2}`` can be interpreted as a geometric
 tolerance around the fitted component ``\\hat x_i``. More generally, ``δn =
-(𝐧^T U 𝐧)^{1/2}`` is a tolerance along the normalized direction ``𝐧``. These
-tolerances define a range in parameter space for which the loss function does
-not grow too large (within about 50%, proportionally). See below for a precise
+(𝐧^T U 𝐧)^{1/2}`` is a tolerance along the normalized direction ``𝐧``. This
+tolerance estimates a range in parameter space for which the loss function does
+not become too large (allowing about 50% growth). See below for a precise
 statement.
 
 The link to the statistical covariance is as follows. If ``L`` is proportional
@@ -595,7 +595,7 @@ to a Gaussian least-squares objective, and if the model is well specified, then
 ``\\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν) U``, where ``ν`` is an effective count of
 independent data samples minus model parameters. See below for a derivation.
 Importantly, this covariance estimator is agnostic to the normalization
-convention of ``L``.
+convention for ``L``.
 
 !!! tip "Meaning of geometric tolerance"
 
