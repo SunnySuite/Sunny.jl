@@ -594,8 +594,6 @@ The link to the statistical covariance is as follows. If ``L`` is proportional
 to a Gaussian least-squares objective, and if the model is well specified, then
 ``\\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν) U``, where ``ν`` is an effective count of
 independent data samples minus model parameters. See below for a derivation.
-Importantly, this covariance estimator is agnostic to the normalization
-convention for ``L``.
 
 !!! tip "Meaning of geometric tolerance"
 
