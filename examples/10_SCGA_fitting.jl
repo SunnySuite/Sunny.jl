@@ -193,12 +193,12 @@ lines!(Ts_ref, χs_ref, label="Experiment")
 axislegend()
 current_figure()
 
-# Curvature of the loss function yields information about the goodness of fit.
-# Approximate error bars can be obtained from diagonal elements of the
-# [`uncertainty_matrix`](@ref).
+# Estimate error bars using [`uncertainty_matrix`](@ref). Because the measured
+# data has high precision relative to systematic modeling errors, we use the
+# square root of diagonal ``U`` elements as the uncertainty measure.
 
-uncertainty = uncertainty_matrix(loss, fit.minimizer)
-sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
+U = uncertainty_matrix(loss, fit.minimizer)
+sqrt.(diag(U)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 
 # The parameter fits are in reasonable agreement with previous work:
 #
@@ -215,9 +215,9 @@ sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 # decrease of ``J_2`` and ``J_{3a}`` to maintain consistency with the
 # high-temperature susceptibility data, which fixes the Curie-Weiss temperature.
 #
-# The error bars are likely underestimates, as they cannot account for model
-# misspecification. In particular, the SCGA calculations of ``\mathcal{S}(𝐪)``
-# at ``T = 20`` K are questionable. Note, for example, that the SCGA-predicted
-# susceptibility curve ``χ(T)`` deviates significantly from the data when ``T ≲
-# 50`` K. As a rule of thumb, SCGA works best deep in the paramagnetic phase, at
-# temperatures large compared to the exchange energy scale.
+# A limitation of this study is the accuracy of the SCGA method for calculating
+# ``\mathcal{S}(𝐪)`` at ``T = 20`` K. Note, for example, that the
+# SCGA-predicted susceptibility curve ``χ(T)`` already deviates significantly
+# from the data when ``T ≲ 50`` K. As a rule of thumb, SCGA works best deep in
+# the paramagnetic phase, at temperatures large compared to the exchange energy
+# scale.

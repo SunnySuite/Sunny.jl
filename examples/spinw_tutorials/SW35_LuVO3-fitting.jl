@@ -112,7 +112,9 @@ fit = Optim.optimize(loss, guess, method, options)
 @assert isapprox(fit.minimizer, [6.1057, 3.9897, -0.6266, -0.0899]; rtol=1e-5) #hide
 fit.minimizer # [Jab, Jc, Kxx, Kyy]
 
-# Approximate error bars can be obtained from [`uncertainty_matrix`](@ref).
+# Estimate error bars using [`uncertainty_matrix`](@ref). Because the measured
+# data has high precision relative to systematic modeling errors, we use the
+# square root of diagonal ``U`` elements as the uncertainty measure.
 
 U = uncertainty_matrix(loss, fit.minimizer)
 @assert isapprox(sqrt.(diag(U)), [0.2121, 0.1924, 0.081, 0.0423]; rtol=1e-3) #hide
