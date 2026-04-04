@@ -687,9 +687,10 @@ independent data samples minus model parameters. See below for a derivation.
     matrix, geometric tolerance uses ``U`` directly as a measure of local fit
     slackness. By construction, ``δx_i`` defines a characteristic scale over which
     ``x_i`` can vary while maintaining a similarly good fit, as quantified by the
-    relative growth of ``L``. Whereas the statistical uncertainty vanishes like
-    ``1/\\sqrt N`` as ``N → ∞``, the geometric tolerance ``δx_i`` is designed to
-    plateau to a finite value in this large-sample limit.
+    relative growth of ``L``. Whereas statistical uncertainty decays like ``1/\\sqrt
+    N`` with samples ``N``, the geometric tolerance ``δx_i`` typically plateaus to a
+    finite value in the large-data limit, vanishing only if the fit is
+    asymptotically perfect.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
