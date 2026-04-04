@@ -624,60 +624,72 @@ independent data samples minus model parameters. See below for a derivation.
 
 !!! tip "Relation to statistical covariance in least-squares fitting"
 
-    Suppose the loss is a Gaussian least-squares objective,
+    Suppose the loss is a sum of squared errors with arbitrary scale ``c``,
 
     ```math
-    L(𝐱) = χ^2/2 = ∑_i \\frac{(y_i - f_i(𝐱))^2}{2σ_i^2},
+    L(𝐱) = \\frac{c}{2} χ^2 = c ∑_i \\frac{(y_i - f_i(𝐱))^2}{2 σ_i^2}.
     ```
 
-    where ``y_i`` are observed data, ``f_i(𝐱)`` are the corresponding model
-    predictions, and ``σ_i`` are the standard deviations of independent Gaussian
-    errors. Then, provided the model is well specified, the local Wald covariance is
-    approximately ``\\mathrm{Cov}(\\hat 𝐱) ≈ H(\\hat 𝐱)^{-1}``.
-
-    The matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` can now be recognized as the
-    observed best-fit loss times the above covariance estimate. Since ``𝔼[L(\\hat
-    𝐱)] ≈ ν/2`` for a good fit, and ``L(\\hat 𝐱)`` concentrates around this
-    expectation in the large-sample limit, one may further approximate
+    Assume a statistical model where ``y_i`` are sampled data, ``f_i(𝐱)`` are the
+    corresponding model predictions, and ``σ_i`` are the standard deviations of
+    independent Gaussian errors. Then ``L`` is the negative log likelihood up to the
+    scale ``c`` and an irrelevant constant shift. Assuming a correctly specified
+    model (``𝔼[y_i] = f_i(𝐱_⋆)`` for the true parameters ``𝐱_⋆``), the asymptotic
+    covariance can be estimated from the Fisher information. In our normalization
+    convention, the observed information estimate is
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν)\\, U.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{1}{c} H(\\hat 𝐱)^{-1}.
     ```
 
-    The matrix ``U`` returned by `uncertainty_matrix` can therefore be used as an
-    estimate of the statistical covariance, provided it is manually rescaled by the
-    factor ``2/ν``. Error bars follow directly. For example, statistical uncertainty
-    of the ``i``th parameter is
+    The matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` is already proportional to this
+    covariance. To estimate the prefactor, note that the best-fit loss ``L(\\hat
+    𝐱)`` concentrates about its expectation value ``𝔼[L(\\hat 𝐱)]`` in the
+    large-sample limit. For a good fit, ``𝔼[L(\\hat 𝐱)] ≈ (c/2) ν``, where ``ν``
+    is the residual degrees of freedom. Combining approximations yields the main
+    result:
 
     ```math
-    \\mathrm{Std}(\\hat x_i) = \\sqrt{(2/ν)\\, U_{ii}}.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν)\\, U,
     ```
 
-    Observe that ``U``, and the associated covariance estimate, is invariant to an
-    arbitrary rescaling ``L → c L``. This is important for Sunny applications where
-    ``L`` will typically be normalized in some way. Such normalization is fine,
-    provided that ``L`` remains proportional to ``χ^2``.
+    where ``U`` is the matrix returned by `uncertainty_matrix`. Correspondingly, the
+    statistical uncertainty of the ``i``th parameter is
 
-    _**How to select ``ν`` in practice?**_
+    ```math
+    \\mathrm{Std}(\\hat x_i) ≈ \\sqrt{(2/ν)\\, U_{ii}}.
+    ```
 
-    The above derivation depends crucially on the assumption of a correctly
-    specified model (no systematic error). In that picture, one can select ``ν = N -
-    p``, where ``N`` is the effective number of independent data samples and ``p``
-    is the number of model parameters. If ``ν`` is very large, then scaling ``U`` by
-    ``2/ν`` will substantially reduce the error bar estimates.
+    The coefficient ``ν = N - p`` is the number of independent data samples ``N``
+    minus the number of model parameters ``p``. If the data (or parameters) are
+    redundant or correlated in some way, then one may replace ``N`` (or ``p``) by
+    its effective count.
 
-    In practice, however, when the data is very constraining, model misspecification
-    effects can become difficult to ignore. Consider, for example, the systematic
-    errors that arise from an incorrect Hamiltonian form, or from approximations in
-    the theoretical framework itself. Although these effects are hard to quantify,
-    they may often be a major source of misfit between model and data. When the
-    model is poorly specified, the statistical uncertainties derived from ``(2/ν)
-    U`` tend to substantially underestimate the actual modeling error. In this
-    regime, the ``U`` matrix alone (where ``ν = 2``) could be a more pragmatic
-    choice. Here, the geometric tolerance ``δx_i`` is an appealing uncertainty
-    metric because it is based solely on the local loss geometry. For example,
-    ``δx_i`` remains finite even in the limit where the sampled data has zero
-    variance and the numerical scale of ``χ^2`` diverges to infinity.
+!!! tip "Statistical uncertainty vs. geometric tolerance"
+
+    The ``\\mathrm{Std}(\\hat x_i)`` estimator quantifies uncertainty arising from
+    noise in the data ``y_i``. It does not, however, account for systematic errors
+    in the model. Some amount of modeling error is almost unavoidable. Consider, for
+    example, the practical utility of simplified Hamiltonian forms. Adding more
+    parameters is not always better due to overfitting dangers and the difficulty of
+    global optimization. Even if the perfect Hamiltonian were known, the theoretical
+    calculations would still be imperfect. For example, spin wave theory and
+    classical spin dynamics are only approximations to true quantum dynamics.
+
+    Sometimes the experimental data are so precise that ``\\mathrm{Std}(\\hat x_i)``
+    is negligible compared with uncertainty arising from model misspecification. One
+    might ask: Could the squared errors be decreased meaningfully if the data
+    ``y_i`` were remeasured at much higher precision? If "no", then a purely
+    statistical error bar becomes especially misleading.
+
+    In such cases, the geometric tolerance ``δx_i`` is a pragmatic alternative to
+    statistical uncertainty. Rather than interpreting ``(2/ν) U`` as a covariance
+    matrix, geometric tolerance uses ``U`` directly as a measure of local fit
+    slackness. By construction, ``δx_i`` defines a characteristic scale over which
+    ``x_i`` can vary while maintaining a similarly good fit, as quantified by the
+    relative growth of ``L``. Whereas the statistical uncertainty vanishes like
+    ``1/\\sqrt N`` as ``N → ∞``, the geometric tolerance ``δx_i`` is designed to
+    plateau to a finite value in this large-sample limit.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
