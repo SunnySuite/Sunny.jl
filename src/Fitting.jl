@@ -590,8 +590,8 @@ This misfit tolerance estimates a range in parameter space for which the loss
 function does not become too large (allowing about 50% growth). See below for a
 precise statement.
 
-The link to the statistical covariance is as follows. If ``L`` is proportional
-to a Gaussian least-squares objective, and if the model is well specified, then
+The link to statistical covariance is as follows. If ``L`` is proportional to a
+Gaussian least-squares objective, and if the model is well specified, then
 ``\\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν) U``, where ``ν`` is an effective count of
 independent data samples minus model parameters. See below for a derivation.
 
@@ -661,9 +661,9 @@ independent data samples minus model parameters. See below for a derivation.
     ```
 
     The residual degrees of freedom ``ν = N - p`` is the number of independent data
-    samples ``N`` minus the number of model parameters ``p``. If the data (or
-    parameters) are redundant or correlated in some way, one should replace ``N``
-    (or ``p``) by its effective count.
+    samples ``N`` minus the number of model parameters ``p``. If the data or
+    parameters are redundant or correlated in some way, then ``N`` and ``p`` should
+    be interpreted as _effective_ counts.
 
 !!! tip "Interpreting statistical uncertainty and misfit tolerance"
 
@@ -673,23 +673,24 @@ independent data samples minus model parameters. See below for a derivation.
     obvious structure after accounting for known noise correlations.
 
     Often, however, the inference problem lives in the opposite limit: the data are
-    so constraining that the statistical noise is no longer the dominant source of
+    so constraining that statistical noise is no longer the dominant source of
     uncertainty. Then various types of systematic modeling errors must be
-    considered, e.g., limits of a simplified Hamiltonian form, imperfect
-    optimization of more complicated Hamiltonian forms, or intrinsic inaccuracies of
-    the calculation method itself.
+    considered, e.g., incompleteness of the Hamiltonian ansatz, imperfect global
+    optimization of the Hamiltonian parameters, and intrinsic inaccuracies of the
+    calculation method itself.
 
-    In such cases, the statistical error bar ``\\mathrm{Std}(\\hat x_i)`` can
-    significantly underestimate the overall uncertainty in inferred parameters.
-    Here, the misfit tolerance ``δx_i`` may be a pragmatic complement. Rather than
-    interpreting ``(2/ν) U`` as a covariance matrix, the misfit tolerance uses ``U``
-    as a geometric measure of local slackness. Specifically, ``δx_i =
-    \\sqrt{U_{ii}}`` defines a characteristic scale over which ``x_i`` can vary
-    while maintaining a similarly good fit, as quantified by relative growth in
-    ``L``. Whereas statistical uncertainty decays like ``1/\\sqrt N`` with
-    independent samples ``N``, the misfit tolerance ``δx_i`` typically remains
-    finite in the large-data limit, vanishing only if the data are noiseless and the
-    fit is asymptotically perfect.
+    When systematic errors are large, the statistical error bar
+    ``\\mathrm{Std}(\\hat x_i)`` can significantly underestimate the overall
+    uncertainty in inferred parameters. Here, the misfit tolerance ``δx_i`` may be a
+    pragmatic complement. Rather than interpreting ``(2/ν) U`` as a covariance
+    matrix, the misfit tolerance uses ``U`` as a geometric measure of local
+    slackness. Specifically, ``δx_i = \\sqrt{U_{ii}}`` defines a characteristic
+    scale over which ``x_i`` can vary while maintaining a similarly good fit, as
+    quantified by relative growth in ``L``. Whereas statistical uncertainty decays
+    like ``1/\\sqrt N`` with the number of independent samples ``N``, the misfit
+    tolerance ``δx_i`` typically remains finite in the large-data limit. Indeed,
+    because noise can keep the minimized loss ``L(\\hat 𝐱)`` nonzero, ``δx_i`` may
+    not go to zero even for a perfectly correct model.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
