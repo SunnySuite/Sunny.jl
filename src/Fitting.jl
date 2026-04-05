@@ -627,34 +627,40 @@ independent data samples minus model parameters. See below for a derivation.
     Suppose the loss is a sum of squared errors with arbitrary scale ``c``,
 
     ```math
-    L(𝐱) = \\frac{c}{2} χ_ν^2 = c ∑_i \\frac{(y_i - f_i(𝐱))^2}{2 σ_i^2}.
+    L(𝐱) = \\frac{c}{2} χ^2 = c ∑_i \\frac{(y_i - f_i(𝐱))^2}{2 σ_i^2}.
     ```
 
     Assume a statistical model where ``y_i`` are sampled data, ``f_i(𝐱)`` are the
     corresponding model predictions, and ``σ_i`` are the standard deviations of
-    independent Gaussian errors. Then ``L`` is the negative log likelihood up to the
-    scale ``c`` and an irrelevant constant shift. Assuming a correctly specified
-    model (``𝔼[y_i] = f_i(𝐱_⋆)`` for the true parameters ``𝐱_⋆``), the asymptotic
-    covariance can be estimated from the Fisher information. With our normalization
-    convention for ``L``, and ``H = ∇_𝐱 ∇_𝐱 L``, the observed information estimate
-    is
+    independent Gaussian errors. Then ``χ^2/2`` is the negative log likelihood up to
+    an irrelevant shift. Assuming a correctly specified model (``𝔼[y_i] =
+    f_i(𝐱_⋆)`` for the true parameters ``𝐱_⋆``), the asymptotic covariance can be
+    estimated from the Fisher information. With our normalization convention for
+    ``L``, and ``H = ∇_𝐱 ∇_𝐱 L``, the observed information estimate is
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{1}{c} H(\\hat 𝐱)^{-1},
+    \\mathrm{Cov}(\\hat 𝐱) ≈ c H(\\hat 𝐱)^{-1},
     ```
 
-    The matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` is already proportional to this
-    covariance. To estimate the prefactor, note that the best-fit loss ``L(\\hat
-    𝐱)`` concentrates about its expectation value ``(c/2) 𝔼[χ_ν] ≈ (c/2) ν``
-    assuming a good fit in the large-sample limit. Combining approximations yields
-    the main result:
+    For a correct model, the fitted ``χ^2`` is expected close to ``ν``, the residual
+    degrees of freedom. If, however, the ``σ_i`` are misspecified by an overall
+    multiplicative factor, then a correction is possible: the overdispersion
+    ``χ^2/ν`` rescales the estimator to account for the unknown noise scale,
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν)\\, U,
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{χ^2 c}{ν} H(\\hat 𝐱)^{-1}.
     ```
 
-    where ``U`` is the matrix returned by `uncertainty_matrix`. Correspondingly, the
-    statistical uncertainty of the ``i``th parameter is
+    Recalling the definitions ``L = (c/2) χ^2`` and ``U = L(\\hat 𝐱) H(\\hat
+    𝐱)^{-1}``, this becomes
+
+    ```math
+    \\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν)\\, U.
+    ```
+
+    Thus, in the least-squares setting, ``(2/ν)\\, U`` is exactly the Hessian
+    covariance estimate with the standard ``χ^2/ν`` overdispersion correction.
+    Correspondingly, the statistical uncertainty of the ``i``th parameter is
 
     ```math
     \\mathrm{Std}(\\hat x_i) ≈ \\sqrt{(2/ν)\\, U_{ii}}.
