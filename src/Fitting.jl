@@ -665,12 +665,12 @@ independent data samples minus model parameters. See below for a derivation.
     parameters are redundant or correlated in some way, then ``N`` and ``p`` should
     be interpreted as _effective_ counts.
 
-!!! tip "Interpreting statistical uncertainty and misfit tolerance"
+!!! tip "Comparing statistical uncertainty and misfit tolerance"
 
     If the overall fit quality is primarily limited by noise in the sampled data,
-    then ``\\mathrm{Std}(\\hat x_i)`` is an appropriate error bar. A useful
-    signature of this regime is that the residuals ``y_i-f_i(\\hat 𝐱)`` show no
-    obvious structure after accounting for known noise correlations.
+    then ``\\mathrm{Std}(\\hat x_i)`` is an appropriate error bar. A signature of
+    this regime is that the residuals ``y_i-f_i(\\hat 𝐱)`` show no obvious
+    structure after accounting for known noise correlations.
 
     Often, however, the inference problem lives in the opposite limit: the data are
     so constraining that statistical noise is no longer the dominant source of
