@@ -583,19 +583,19 @@ using finite differences. Note that ``U`` itself is a purely geometric quantity.
 However, with additional modeling assumptions, a rescaling of ``U`` can be used
 to estimate the statistical covariance of fitted parameters.
 
-The quantity ``δx_i = (U_{ii})^{1/2}`` can be interpreted as a geometric
-tolerance around the fitted component ``\\hat x_i``. More generally, ``δn =
-(𝐧^T U 𝐧)^{1/2}`` is a tolerance along the normalized direction ``𝐧``. This
-tolerance estimates a range in parameter space for which the loss function does
-not become too large (allowing about 50% growth). See below for a precise
-statement.
+The quantity ``δx_i = \\sqrt{U_{ii}}`` can be interpreted as a geometric misfit
+tolerance for component-wise variation of ``\\hat 𝐱``. More generally, ``δn =
+(𝐧^T U 𝐧)^{1/2}`` is a misfit tolerance along the normalized direction ``𝐧``.
+This misfit tolerance estimates a range in parameter space for which the loss
+function does not become too large (allowing about 50% growth). See below for a
+precise statement.
 
 The link to the statistical covariance is as follows. If ``L`` is proportional
 to a Gaussian least-squares objective, and if the model is well specified, then
 ``\\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν) U``, where ``ν`` is an effective count of
 independent data samples minus model parameters. See below for a derivation.
 
-!!! tip "Meaning of geometric tolerance"
+!!! tip "Meaning of misfit tolerance"
 
     Consider, for simplicity, the loss ``L`` in a single variable ``x``. Taylor
     expand about the fitted minimum ``\\hat x``,
@@ -620,14 +620,14 @@ independent data samples minus model parameters. See below for a derivation.
     ```
 
     where ``𝐧`` is any eigen-direction of the Hessian ``H`` and ``δn`` is the
-    corresponding geometric tolerance.
+    corresponding misfit tolerance.
 
 !!! tip "Relation to statistical covariance in least-squares fitting"
 
     Suppose the loss is a sum of squared errors with arbitrary scale ``c``,
 
     ```math
-    L(𝐱) = \\frac{c}{2} χ^2 = c ∑_i \\frac{(y_i - f_i(𝐱))^2}{2 σ_i^2}.
+    L(𝐱) = \\frac{c}{2} χ_ν^2 = c ∑_i \\frac{(y_i - f_i(𝐱))^2}{2 σ_i^2}.
     ```
 
     Assume a statistical model where ``y_i`` are sampled data, ``f_i(𝐱)`` are the
@@ -635,19 +635,19 @@ independent data samples minus model parameters. See below for a derivation.
     independent Gaussian errors. Then ``L`` is the negative log likelihood up to the
     scale ``c`` and an irrelevant constant shift. Assuming a correctly specified
     model (``𝔼[y_i] = f_i(𝐱_⋆)`` for the true parameters ``𝐱_⋆``), the asymptotic
-    covariance can be estimated from the Fisher information. In our normalization
-    convention, the observed information estimate is
+    covariance can be estimated from the Fisher information. With our normalization
+    convention for ``L``, and ``H = ∇_𝐱 ∇_𝐱 L``, the observed information estimate
+    is
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{1}{c} H(\\hat 𝐱)^{-1}.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{1}{c} H(\\hat 𝐱)^{-1},
     ```
 
     The matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` is already proportional to this
     covariance. To estimate the prefactor, note that the best-fit loss ``L(\\hat
-    𝐱)`` concentrates about its expectation value ``𝔼[L(\\hat 𝐱)]`` in the
-    large-sample limit. For a good fit, ``𝔼[L(\\hat 𝐱)] ≈ (c/2) ν``, where ``ν``
-    is the residual degrees of freedom. Combining approximations yields the main
-    result:
+    𝐱)`` concentrates about its expectation value ``(c/2) 𝔼[χ_ν] ≈ (c/2) ν``
+    assuming a good fit in the large-sample limit. Combining approximations yields
+    the main result:
 
     ```math
     \\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν)\\, U,
@@ -660,37 +660,36 @@ independent data samples minus model parameters. See below for a derivation.
     \\mathrm{Std}(\\hat x_i) ≈ \\sqrt{(2/ν)\\, U_{ii}}.
     ```
 
-    The coefficient ``ν = N - p`` is the number of independent data samples ``N``
-    minus the number of model parameters ``p``. If the data (or parameters) are
-    redundant or correlated in some way, then one may replace ``N`` (or ``p``) by
-    its effective count.
+    The residual degrees of freedom ``ν = N - p`` is the number of independent data
+    samples ``N`` minus the number of model parameters ``p``. If the data (or
+    parameters) are redundant or correlated in some way, one should replace ``N``
+    (or ``p``) by its effective count.
 
-!!! tip "Statistical uncertainty vs. geometric tolerance"
+!!! tip "Interpreting statistical uncertainty and misfit tolerance"
 
-    The ``\\mathrm{Std}(\\hat x_i)`` estimator quantifies uncertainty arising from
-    noise in the data ``y_i``. It does not, however, account for systematic errors
-    in the model. Some amount of modeling error is almost unavoidable. Consider, for
-    example, the practical utility of simplified Hamiltonian forms. Adding more
-    parameters is not always better due to overfitting dangers and the difficulty of
-    global optimization. Even if the perfect Hamiltonian were known, the theoretical
-    calculations would still be imperfect. For example, spin wave theory and
-    classical spin dynamics are only approximations to true quantum dynamics.
+    If the overall fit quality is primarily limited by noise in the sampled data,
+    then ``\\mathrm{Std}(\\hat x_i)`` is an appropriate error bar. A useful
+    signature of this regime is that the residuals ``y_i-f_i(\\hat 𝐱)`` show no
+    obvious structure after accounting for known noise correlations.
 
-    Sometimes the experimental data are so precise that ``\\mathrm{Std}(\\hat x_i)``
-    is negligible compared with uncertainty arising from model misspecification. One
-    might ask: Could the squared errors be decreased meaningfully if the data
-    ``y_i`` were remeasured at much higher precision? If "no", then a purely
-    statistical error bar becomes especially misleading.
+    Often, however, the inference problem lives in the opposite limit: the data are
+    so constraining that the statistical noise is no longer the dominant source of
+    uncertainty. Then various types of systematic modeling errors must be
+    considered, e.g., limits of a simplified Hamiltonian form, imperfect
+    optimization of more complicated Hamiltonian forms, or intrinsic inaccuracies of
+    the calculation method itself.
 
-    In such cases, the geometric tolerance ``δx_i`` is a pragmatic alternative to
-    statistical uncertainty. Rather than interpreting ``(2/ν) U`` as a covariance
-    matrix, geometric tolerance uses ``U`` directly as a measure of local fit
-    slackness. By construction, ``δx_i`` defines a characteristic scale over which
-    ``x_i`` can vary while maintaining a similarly good fit, as quantified by the
-    relative growth of ``L``. Whereas statistical uncertainty decays like ``1/\\sqrt
-    N`` with samples ``N``, the geometric tolerance ``δx_i`` typically plateaus to a
-    finite value in the large-data limit, vanishing only if the fit is
-    asymptotically perfect.
+    In such cases, the statistical error bar ``\\mathrm{Std}(\\hat x_i)`` can
+    significantly underestimate the overall uncertainty in inferred parameters.
+    Here, the misfit tolerance ``δx_i`` may be a pragmatic complement. Rather than
+    interpreting ``(2/ν) U`` as a covariance matrix, the misfit tolerance uses ``U``
+    as a geometric measure of local slackness. Specifically, ``δx_i =
+    \\sqrt{U_{ii}}`` defines a characteristic scale over which ``x_i`` can vary
+    while maintaining a similarly good fit, as quantified by relative growth in
+    ``L``. Whereas statistical uncertainty decays like ``1/\\sqrt N`` with
+    independent samples ``N``, the misfit tolerance ``δx_i`` typically remains
+    finite in the large-data limit, vanishing only if the data are noiseless and the
+    fit is asymptotically perfect.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
