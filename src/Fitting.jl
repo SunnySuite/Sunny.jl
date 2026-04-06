@@ -593,10 +593,10 @@ parameters ``p``. Statistical error bars follow, e.g.,
 Aside from statistics, the matrix ``U`` also admits a purely geometric
 interpretation. Consider a quadratic expansion of ``L(𝐱)`` about its minimizer
 ``\\hat 𝐱``. Perturbations ``𝐱 - \\hat 𝐱`` that increase the loss by a factor
-of 2 satisfy ``\\Delta 𝐱^T U^{-1} \\Delta 𝐱 ≈ 1``. Thus ``U`` defines an
+of 2 satisfy ``\\Delta 𝐱^T U^{-1} \\Delta 𝐱 ≈ 1``. Thus ``U^{-1}`` defines an
 ellipsoid characterizing the shape and scale of the local loss basin.
 
-We define the _**misfit tolerance**_ ``δn = \\sqrt{𝐧^T U 𝐧 / 2}`` along any
+We define the _**misfit tolerance**_ ``\\sqrt{𝐧^T U 𝐧 / 2}`` along any
 normalized direction ``𝐧`` in parameter space. In particular, the misfit
 tolerance for ``\\hat x_i`` is
 
