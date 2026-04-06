@@ -660,8 +660,8 @@ inferred parameters.
     \\mathrm{Cov}(\\hat 𝐱) ≈ 2c H(\\hat 𝐱)^{-1},
     ```
 
-    To handle an unknown scale ``c``, it is standard to rescale by the Pearson
-    ``χ^2/ν`` statistic,
+    To handle the unknown scale ``c``, it is standard to rescale by the Pearson
+    ``χ^2/ν`` statistic (overdispersion correction),
 
     ```math
     \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2c χ^2}{ν} H(\\hat 𝐱)^{-1}.
