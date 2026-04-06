@@ -601,18 +601,18 @@ normalized direction ``𝐧`` in parameter space. In particular, the misfit
 tolerance for ``\\hat x_i`` is
 
 ```math
-δx_i = \\sqrt{U_{ii} / 2}.
+δ\\hat x_i = \\sqrt{U_{ii} / 2}.
 ```
 
-Geometrically, ``δx_i`` measures the scale over which the ``i``th coordinate can
-vary before the loss grows by about 50%, while allowing correlated adjustments
-of the remaining parameters. Although not itself a statistical quantity, the
-misfit tolerance ``δx_i`` nonetheless suggests a scale for the admissable
-variation of inferred parameters.
+Geometrically, ``δ\\hat x_i`` measures the scale over which the ``i``th
+coordinate can vary before the loss grows by about 50%, while allowing
+correlated adjustments of the remaining parameters. Although not itself a
+statistical quantity, the misfit tolerance ``δ\\hat x_i`` nonetheless suggests a
+scale for the admissable variation of inferred parameters.
 
 !!! tip "Comparing statistical uncertainty and misfit tolerance"
 
-    Observe that the misfit tolerance ``δx_i`` has the same form as
+    Observe that the misfit tolerance ``δ\\hat x_i`` has the same form as
     ``\\mathrm{Std}(\\hat x_i)``, but is significantly larger due to the missing
     ``ν^{-1/2}`` scaling factor.
 
@@ -627,12 +627,13 @@ variation of inferred parameters.
     the Hamiltonian parameters, or intrinsic inaccuracies of the calculation method
     itself.
 
-    When systematic errors are large, the misfit tolerance ``δx_i`` may provide
-    useful information. Rather than interpreting ``U / ν`` as a covariance matrix,
-    the misfit tolerance uses ``U / 2`` to estimate a parameter range that limits
-    loss function growth to about 50%. Whereas statistical error bars decay like
-    ``ν^{-1/2} \\sim N^{-1/2}``, the misfit tolerance ``δx_i`` will typically _not_
-    vanish in the large-data limit – even for a correctly specified model!
+    When systematic errors are large, the misfit tolerance ``δ\\hat x_i`` may
+    provide useful information. Rather than interpreting ``U / ν`` as a covariance
+    matrix, the misfit tolerance uses ``U / 2`` to estimate a parameter range that
+    limits loss function growth to about 50%. Whereas statistical error bars decay
+    like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit tolerance ``δ\\hat x_i`` will
+    typically _not_ vanish in the large-data limit – even for a correctly specified
+    model!
 
 !!! tip "Derivation of the covariance estimator"
 
@@ -650,14 +651,14 @@ variation of inferred parameters.
     our definition of ``H`` as the Hessian of ``L``, this is
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ 2c H(\\hat 𝐱)^{-1}.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ 2c H^{-1}.
     ```
 
     To absorb an unknown scale ``c``, it is standard to rescale by the Pearson
     ``χ^2/ν`` statistic (overdispersion correction),
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2c χ^2(\\hat 𝐱)}{ν} H(\\hat 𝐱)^{-1}.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2c χ^2}{ν} H^{-1}.
     ```
 
     Recalling the definition ``U = 2 L H^{-1}``, this establishes
