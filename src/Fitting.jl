@@ -622,20 +622,17 @@ variation of inferred parameters.
     of this regime is that the residuals ``y_i-f_i(\\hat 𝐱)`` show no obvious
     structure after accounting for known noise correlations.
 
-    Often, however, one is working in the opposite regime. If the data are highly
-    constraining, then statistical noise may not be the main source of uncertainty.
-    Instead, systematic modeling errors of various forms become central. These may
-    include incompleteness of the Hamiltonian ansatz, imperfect global optimization
-    of the Hamiltonian parameters, or intrinsic inaccuracies of the calculation
-    method itself.
+    Often, however, statistical noise is effectively small relative to systematic
+    modeling errors of various forms. For example, the fit could actually be limited
+    by incompleteness of the Hamiltonian ansatz, imperfect global optimization of
+    the Hamiltonian parameters, or intrinsic inaccuracies of the calculation method
+    itself.
 
-    When systematic errors are large, the naïve statistical error bar
-    ``\\mathrm{Std}(\\hat x_i)`` can significantly underestimate the overall
-    uncertainty. Here, the misfit tolerance ``δx_i`` may be a pragmatic complement.
-    Rather than interpreting ``U / ν`` as a covariance matrix, the misfit tolerance
-    uses ``U / 2`` to define a local scale for feasible parameter variations within
-    the quadratic loss approximation. Whereas statistical error bars decay like
-    ``ν^{-1/2} \\sim N^{-1/2}`` with the number of observations ``N``, the misfit
+    When systematic errors are large, the misfit tolerance ``δx_i`` may provide
+    useful information. Rather than interpreting ``U / ν`` as a covariance matrix,
+    the misfit tolerance uses ``U / 2`` to define a local scale for feasible
+    parameter variations within the quadratic loss approximation. Whereas
+    statistical error bars decay like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit
     tolerance ``δx_i`` will typically _not_ vanish in the large-data limit – even
     for a correctly specified model!
 
