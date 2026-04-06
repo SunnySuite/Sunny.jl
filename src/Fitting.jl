@@ -655,8 +655,8 @@ scale for the admissable variation of inferred parameters.
     ```
 
     This expression could be used directly if ``c`` is known. Alternatively, to
-    absorb an unknown noise scale ``c``, it is standard to rescale by the Pearson
-    ``χ^2/ν`` statistic (overdispersion correction),
+    absorb an unknown ``c``, it is standard to rescale by the Pearson ``χ^2/ν``
+    statistic (overdispersion correction),
 
     ```math
     \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2 χ^2}{c ν} H^{-1} = \\frac{1}{ν} 2 L H^{-1}.
