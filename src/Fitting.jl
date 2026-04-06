@@ -647,13 +647,13 @@ variation of inferred parameters.
     independent Gaussian errors. Then, assuming a correctly specified model,
     ``χ^2/2`` is the negative log likelihood up to an irrelevant shift. The inverse
     Hessian of ``χ^2/2`` estimates covariance. With our definition of ``H`` as the
-    Hessian of ``L``, this is,
+    Hessian of ``L``, this is
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ 2c H(\\hat 𝐱)^{-1},
+    \\mathrm{Cov}(\\hat 𝐱) ≈ 2c H(\\hat 𝐱)^{-1}.
     ```
 
-    To handle the unknown scale ``c``, it is standard to rescale by the Pearson
+    To absorb an unknown scale ``c``, it is standard to rescale by the Pearson
     ``χ^2/ν`` statistic (overdispersion correction),
 
     ```math
