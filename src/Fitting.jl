@@ -577,8 +577,8 @@ end
     uncertainty_matrix(loss, x)
 
 Returns the uncertainty matrix ``U = 2L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` at the loss
-minimizer ``\\hat 𝐱``. Uses finite differences to estimate the Hessian ``H =
-∂_𝐱 ∂_𝐱 L``.
+minimizer ``\\hat 𝐱``. Uses finite differences to estimate the Hessian ``H = ∇
+∇ L``.
 
 If ``L`` is a least-squares objective with a Gaussian noise model
 interpretation, then ``U/ν`` estimates the covariance of fitted parameters
@@ -598,7 +598,7 @@ ellipsoid characterizing the shape and scale of the local loss basin.
 
 We define the _**misfit tolerance**_ ``δn = \\sqrt{𝐧^T U 𝐧 / 2}`` along any
 normalized direction ``𝐧`` in parameter space. In particular, the misfit
-tolerance in ``\\hat x_i`` is
+tolerance for ``\\hat x_i`` is
 
 ```math
 δx_i = \\sqrt{U_{ii} / 2}.
