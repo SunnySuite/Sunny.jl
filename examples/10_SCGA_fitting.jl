@@ -193,12 +193,12 @@ lines!(Ts_ref, χs_ref, label="Experiment")
 axislegend()
 current_figure()
 
-# Estimate error bars using [`uncertainty_matrix`](@ref). Because the measured
-# data has high precision relative to systematic modeling errors, we use the
-# square root of diagonal ``U`` elements as the uncertainty measure.
+# Report misfit tolerances derived from [`uncertainty_matrix`](@ref). This is a
+# pragmatic choice if the measured data has high precision relative to
+# systematic modeling errors.
 
 U = uncertainty_matrix(loss, fit.minimizer)
-sqrt.(diag(U)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
+sqrt.(diag(U) / 2) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 
 # The parameter fits are in reasonable agreement with previous work:
 #

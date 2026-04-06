@@ -158,13 +158,13 @@ guess = [0.9, -0.5]
 fit = Optim.optimize(loss_reduced, guess, Optim.NelderMead(), options)
 
 
-# Estimate error bars using [`uncertainty_matrix`](@ref). Because the measured
-# data has high precision relative to systematic modeling errors, we use the
-# square root of diagonal ``U`` elements as the uncertainty measure.
+# Report misfit tolerances derived from [`uncertainty_matrix`](@ref). This is a
+# pragmatic choice if the measured data has high precision relative to
+# systematic modeling errors.
 
 @assert isapprox(fit.minimizer, [1.186, -0.302]; rtol=1e-2) #hide
 U = uncertainty_matrix(loss_reduced, fit.minimizer)
-error_bars = sqrt.(diag(U))
+error_bars = sqrt.(diag(U) / 2)
 println(round.(fit.minimizer; digits=2), " ± ", round.(error_bars; digits=2))
 
 # The optimized parameters are in good agreement with previous work:
