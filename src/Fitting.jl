@@ -616,7 +616,7 @@ variation of inferred parameters.
     ``\\mathrm{Std}(\\hat x_i)``, but is significantly larger due to the missing
     ``ν^{-1/2}`` scaling factor.
 
-    If the overall fit quality is primarily limited by noise in the data, then
+    If noise in the data is the main limitation to overall fit quality, then
     ``\\mathrm{Std}(\\hat x_i)`` is the appropriate uncertainty measure. A signature
     of this regime is that the residuals ``y_i-f_i(\\hat 𝐱)`` show no obvious
     structure after accounting for known noise correlations.
@@ -629,11 +629,11 @@ variation of inferred parameters.
 
     When systematic errors are large, the misfit tolerance ``δx_i`` may provide
     useful information. Rather than interpreting ``U / ν`` as a covariance matrix,
-    the misfit tolerance uses ``U / 2`` to define a local scale for admissible
-    parameter variations within the quadratic loss approximation. Whereas
-    statistical error bars decay like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit
-    tolerance ``δx_i`` will typically _not_ vanish in the large-data limit – even
-    for a correctly specified model!
+    the misfit tolerance uses ``U / 2`` to estimate parameter variations that would
+    tolerate about 50% growth in the loss function. Whereas statistical error bars
+    decay like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit tolerance ``δx_i`` will
+    typically _not_ vanish in the large-data limit – even for a correctly specified
+    model!
 
 !!! tip "Derivation of the covariance estimator"
 
