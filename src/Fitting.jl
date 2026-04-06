@@ -629,11 +629,10 @@ variation of inferred parameters.
 
     When systematic errors are large, the misfit tolerance ``δx_i`` may provide
     useful information. Rather than interpreting ``U / ν`` as a covariance matrix,
-    the misfit tolerance uses ``U / 2`` to estimate parameter variations that would
-    tolerate about 50% growth in the loss function. Whereas statistical error bars
-    decay like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit tolerance ``δx_i`` will
-    typically _not_ vanish in the large-data limit – even for a correctly specified
-    model!
+    the misfit tolerance uses ``U / 2`` to estimate a parameter range that limits
+    loss function growth to about 50%. Whereas statistical error bars decay like
+    ``ν^{-1/2} \\sim N^{-1/2}``, the misfit tolerance ``δx_i`` will typically _not_
+    vanish in the large-data limit – even for a correctly specified model!
 
 !!! tip "Derivation of the covariance estimator"
 
