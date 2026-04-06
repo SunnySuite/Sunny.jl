@@ -639,15 +639,15 @@ variation of inferred parameters.
     Suppose the loss is a sum of squared errors with arbitrary scale ``c``,
 
     ```math
-    L(𝐱) = c χ^2 = c ∑_i \\frac{(y_i - f_i(𝐱))^2}{σ_i^2}.
+    L(𝐱) = c χ^2(𝐱) = c ∑_i \\frac{(y_i - f_i(𝐱))^2}{σ_i^2}.
     ```
 
     Assume a statistical model where ``y_i`` are sampled data, ``f_i(𝐱)`` are the
     corresponding model predictions, and ``σ_i`` are the standard deviations of
     independent Gaussian errors. Then, assuming a correctly specified model,
     ``χ^2/2`` is the negative log likelihood up to an irrelevant shift. The inverse
-    Hessian of ``χ^2/2`` estimates covariance. With our definition of ``H`` as the
-    Hessian of ``L``, this is
+    Hessian of ``χ^2/2`` at the minimizer ``\\hat 𝐱`` estimates covariance. With
+    our definition of ``H`` as the Hessian of ``L``, this is
 
     ```math
     \\mathrm{Cov}(\\hat 𝐱) ≈ 2c H(\\hat 𝐱)^{-1}.
@@ -657,7 +657,7 @@ variation of inferred parameters.
     ``χ^2/ν`` statistic (overdispersion correction),
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2c χ^2}{ν} H(\\hat 𝐱)^{-1}.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2c χ^2(\\hat 𝐱)}{ν} H(\\hat 𝐱)^{-1}.
     ```
 
     Recalling the definition ``U = 2 L H^{-1}``, this establishes
