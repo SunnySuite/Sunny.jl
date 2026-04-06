@@ -634,10 +634,10 @@ variation of inferred parameters.
     uncertainty. Here, the misfit tolerance ``δx_i`` may be a pragmatic complement.
     Rather than interpreting ``U / ν`` as a covariance matrix, the misfit tolerance
     uses ``U / 2`` to define a local scale for feasible parameter variations within
-    the quadratic loss approximation. Statistical error bars decay like ``ν^{-1/2}
-    \\sim N^{-1/2}`` with the number of observations ``N``. Conversely, in standard
-    least-squares settings, ``δx_i`` will typically _not_ vanish in the large-data
-    limit – even for a correctly specified model!
+    the quadratic loss approximation. Whereas statistical error bars decay like
+    ``ν^{-1/2} \\sim N^{-1/2}`` with the number of observations ``N``, the misfit
+    tolerance ``δx_i`` will typically _not_ vanish in the large-data limit – even
+    for a correctly specified model!
 
 !!! tip "Derivation of the covariance estimator"
 
