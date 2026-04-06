@@ -576,127 +576,102 @@ end
 """
     uncertainty_matrix(loss, x)
 
-Returns an uncertainty matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` that
-characterizes the local slackness of the loss function ``L`` near the fitted
-minimizer ``\\hat 𝐱``. The Hessian ``H`` of the loss is estimated numerically
-using finite differences. Note that ``U`` itself is a purely geometric quantity.
-However, with additional modeling assumptions, a rescaling of ``U`` can be used
-to estimate the statistical covariance of fitted parameters.
+Returns the uncertainty matrix ``U = L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` where
+``\\hat 𝐱`` is the fitted minimizer. The Hessian matrix ``H = ∂_𝐱 ∂_𝐱 L`` is
+estimated numerically using finite differences.
 
-The quantity ``δx_i = \\sqrt{U_{ii}}`` can be interpreted as a geometric misfit
-tolerance for component-wise variation of ``\\hat 𝐱``. More generally, ``δn =
-(𝐧^T U 𝐧)^{1/2}`` is a misfit tolerance along the normalized direction ``𝐧``.
-This misfit tolerance estimates a range in parameter space for which the loss
-function does not become too large (allowing about 50% growth). See below for a
-precise statement.
+If ``L`` is a least-squares objective with a Gaussian noise model
+interpretation, then ``U`` can be viewed as a statistical object. Namely,
+``(2/ν) U`` estimates the covariance of fitted parameters ``\\hat 𝐱``. Here ``ν
+= N - p`` denotes the residual degrees of freedom: the effective number of
+independent data points ``N`` minus the number of fitted parameters ``p``. Error
+bars follow. For example, the statistical uncertainty in ``\\hat x_i`` is
 
-The link to statistical covariance is as follows. If ``L`` is proportional to a
-Gaussian least-squares objective, and if the model is well specified, then
-``\\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν) U``, where ``ν`` is an effective count of
-independent data samples minus model parameters. See below for a derivation.
+```math
+\\mathrm{Std}(\\hat x_i) ≈ \\sqrt{2/ν} \\, U_{ii}^{1/2}.
+```
 
-!!! tip "Meaning of misfit tolerance"
+Apart from statistics, the matrix ``U`` also admits a purely geometric
+interpretation. Consider a quadratic expansion of ``L(𝐱)`` about its minimum
+``\\hat 𝐱``. Perturbations ``\\Delta 𝐱`` that increase the loss by
+approximately ``L(\\hat 𝐱) / 2`` satisfy ``\\Delta 𝐱^T U^{-1} \\Delta 𝐱 ≈
+1``. Thus ``U`` defines an ellipsoid characterizing the shape and scale of the
+local loss basin.
 
-    Consider, for simplicity, the loss ``L`` in a single variable ``x``. Taylor
-    expand about the fitted minimum ``\\hat x``,
+We define the _**misfit tolerance**_ ``δn = \\sqrt{𝐧^T U 𝐧}`` along any
+normalized direction ``𝐧`` in parameter space. In particular, the misfit
+tolerance in ``\\hat x_i`` is
 
-    ```math
-    L(x) ≈ L(\\hat x) + H(\\hat x) \\frac{(x-\\hat x)^2}{2}.
-    ```
+```math
+δx_i = U_{ii}^{1/2}.
+```
 
-    Since ``δx = \\sqrt{L / H}``, this can be written,
+Geometrically, ``δx_i`` measures the scale over which the ``i``th coordinate can
+vary before the loss grows appreciably, while allowing correlated adjustments of
+the remaining parameters. Although not itself a statistical quantity, the misfit
+tolerance ``δx_i`` nonetheless provides a scale for the admissable variation of
+inferred parameters.
 
-    ```math
-    L(x) ≈ L(\\hat x) \\left(\\frac{(x-\\hat x)^2}{2\\,δx^2} + 1\\right).
-    ```
+!!! tip "Comparing statistical uncertainty and misfit tolerance"
 
-    Observe that ``L(\\hat x + δx) ≈ (3/2) L(\\hat x)``. That is, ``δx`` is the
-    perturbation needed to increase the loss by 50% relative to its minimized value
-    (within this quadratic loss model). In the multi-parameter case, the analogous
-    statement is
+    Observe that the misfit tolerance ``δx_i`` has the same form as
+    ``\\mathrm{Std}(\\hat x_i)``, but is significantly larger due to the missing
+    ``\\sqrt{2/ν}`` prefactor.
 
-    ```math
-    L(\\hat 𝐱 + δn\\,𝐧) ≈ (3/2) L(\\hat 𝐱)
-    ```
+    If the overall fit quality is primarily limited by noise in the data, then
+    ``\\mathrm{Std}(\\hat x_i)`` is the appropriate uncertainty measure. A signature
+    of this regime is that the residuals ``y_i-f_i(\\hat 𝐱)`` show no obvious
+    structure after accounting for known noise correlations.
 
-    where ``𝐧`` is any eigen-direction of the Hessian ``H`` and ``δn`` is the
-    corresponding misfit tolerance.
+    Often, however, one must work in the opposite regime. If the data are highly
+    constraining, then statistical noise may not be the main source of uncertainty.
+    Instead, systematic modeling errors of various forms become central. These may
+    include incompleteness of the Hamiltonian ansatz, imperfect global optimization
+    of the Hamiltonian parameters, or intrinsic inaccuracies of the calculation
+    method itself.
 
-!!! tip "Relation to statistical covariance in least-squares fitting"
+    When systematic errors are large, the naïve statistical error bar
+    ``\\mathrm{Std}(\\hat x_i)`` can significantly underestimate the overall
+    uncertainty. Here, the misfit tolerance ``δx_i`` may be a pragmatic complement.
+    Rather than interpreting ``(2/ν) U`` as a covariance matrix, the misfit
+    tolerance uses ``U`` to define a local scale for feasible parameter variations
+    within the quadratic loss approximation. Whereas statistical error bars decay
+    like ``ν^{-1/2} \\sim N^{-1/2}`` with the number of observations ``N``, the
+    misfit tolerance ``δx_i`` omits this prefactor. Consequently, in standard
+    least-squares settings, ``δx_i`` will typically _not_ vanish in the large-data
+    limit – even for a correctly specified model!
+
+!!! tip "Derivation of the covariance estimator"
 
     Suppose the loss is a sum of squared errors with arbitrary scale ``c``,
 
     ```math
-    L(𝐱) = \\frac{c}{2} χ^2 = c ∑_i \\frac{(y_i - f_i(𝐱))^2}{2 σ_i^2}.
+    L(𝐱) = c χ^2 = c ∑_i \\frac{(y_i - f_i(𝐱))^2}{σ_i^2}.
     ```
 
     Assume a statistical model where ``y_i`` are sampled data, ``f_i(𝐱)`` are the
     corresponding model predictions, and ``σ_i`` are the standard deviations of
-    independent Gaussian errors. Then ``χ^2/2`` is the negative log likelihood up to
-    an irrelevant shift. Assuming a correctly specified model (``𝔼[y_i] =
-    f_i(𝐱_⋆)`` for the true parameters ``𝐱_⋆``), the asymptotic covariance can be
-    estimated from the Fisher information. With our normalization convention for
-    ``L``, and ``H = ∇_𝐱 ∇_𝐱 L``, the observed information estimate is
+    independent Gaussian errors. Then, assuming a correctly specified model,
+    ``χ^2/2`` is the negative log likelihood up to an irrelevant shift. The inverse
+    Hessian of ``χ^2/2`` estimates covariance. With our definition of ``H`` as the
+    Hessian of ``L``, this is,
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ c H(\\hat 𝐱)^{-1},
+    \\mathrm{Cov}(\\hat 𝐱) ≈ 2c H(\\hat 𝐱)^{-1},
     ```
 
-    For a correct model, the fitted ``χ^2`` is expected close to ``ν``, the residual
-    degrees of freedom. If, however, the ``σ_i`` are misspecified by an overall
-    multiplicative factor, then a correction is possible: the overdispersion
-    ``χ^2/ν`` rescales the estimator to account for the unknown noise scale,
+    To handle an unknown scale ``c``, it is standard to rescale by the Pearson
+    ``χ^2/ν`` statistic,
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{χ^2 c}{ν} H(\\hat 𝐱)^{-1}.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2c χ^2}{ν} H(\\hat 𝐱)^{-1}.
     ```
 
-    Recalling the definitions ``L = (c/2) χ^2`` and ``U = L(\\hat 𝐱) H(\\hat
-    𝐱)^{-1}``, this becomes
+    Recalling the definition ``U = L H^{-1}``, this establishes
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ (2/ν)\\, U.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2}{ν} \\, U.
     ```
-
-    Thus, in the least-squares setting, ``(2/ν)\\, U`` is exactly the Hessian
-    covariance estimate with the standard ``χ^2/ν`` overdispersion correction.
-    Correspondingly, the statistical uncertainty of the ``i``th parameter is
-
-    ```math
-    \\mathrm{Std}(\\hat x_i) ≈ \\sqrt{(2/ν)\\, U_{ii}}.
-    ```
-
-    The residual degrees of freedom ``ν = N - p`` is the number of independent data
-    samples ``N`` minus the number of model parameters ``p``. If the data or
-    parameters are redundant or correlated in some way, then ``N`` and ``p`` should
-    be interpreted as _effective_ counts.
-
-!!! tip "Comparing statistical uncertainty and misfit tolerance"
-
-    If the overall fit quality is primarily limited by noise in the sampled data,
-    then ``\\mathrm{Std}(\\hat x_i)`` is an appropriate error bar. A signature of
-    this regime is that the residuals ``y_i-f_i(\\hat 𝐱)`` show no obvious
-    structure after accounting for known noise correlations.
-
-    Often, however, the inference problem lives in the opposite limit: the data are
-    so constraining that statistical noise is no longer the dominant source of
-    uncertainty. Then various types of systematic modeling errors must be
-    considered, e.g., incompleteness of the Hamiltonian ansatz, imperfect global
-    optimization of the Hamiltonian parameters, and intrinsic inaccuracies of the
-    calculation method itself.
-
-    When systematic errors are large, the statistical error bar
-    ``\\mathrm{Std}(\\hat x_i)`` can significantly underestimate the overall
-    uncertainty in inferred parameters. Here, the misfit tolerance ``δx_i`` may be a
-    pragmatic complement. Rather than interpreting ``(2/ν) U`` as a covariance
-    matrix, the misfit tolerance uses ``U`` as a geometric measure of local
-    slackness. Specifically, ``δx_i = \\sqrt{U_{ii}}`` defines a characteristic
-    scale over which ``x_i`` can vary while maintaining a similarly good fit, as
-    quantified by relative growth in ``L``. Whereas statistical uncertainty decays
-    like ``1/\\sqrt N`` with the number of independent samples ``N``, the misfit
-    tolerance ``δx_i`` typically remains finite in the large-data limit. Indeed,
-    because noise can keep the minimized loss ``L(\\hat 𝐱)`` nonzero, ``δx_i`` may
-    not go to zero even for a perfectly correct model.
 """
 function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
