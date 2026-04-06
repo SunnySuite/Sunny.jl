@@ -577,24 +577,23 @@ end
     uncertainty_matrix(loss, x)
 
 Returns the uncertainty matrix ``U = 2L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` at the loss
-minimizer ``\\hat 𝐱``. The Hessian matrix ``H = ∂_𝐱 ∂_𝐱 L`` is estimated
-numerically using finite differences.
+minimizer ``\\hat 𝐱``. Uses finite differences to estimate the Hessian ``H =
+∂_𝐱 ∂_𝐱 L``.
 
 If ``L`` is a least-squares objective with a Gaussian noise model
-interpretation, then ``U`` can be viewed as a statistical object. Namely,
-``U/ν`` estimates the covariance of fitted parameters ``\\hat 𝐱``. Here
-``ν=N-p`` denotes the residual degrees of freedom: the effective number of
-independent data points ``N`` minus the number of fitted parameters ``p``. Error
-bars follow. For example, the statistical uncertainty in ``\\hat x_i`` is
+interpretation, then ``U/ν`` estimates the covariance of fitted parameters
+``\\hat 𝐱``. Here ``ν = N - p`` denotes the residual degrees of freedom: the
+effective number of independent data points ``N`` minus the number of fitted
+parameters ``p``. Statistical error bars follow, e.g.,
 
 ```math
 \\mathrm{Std}(\\hat x_i) ≈ \\sqrt{U_{ii} / ν}.
 ```
 
-Apart from statistics, the matrix ``U`` also admits a purely geometric
+Aside from statistics, the matrix ``U`` also admits a purely geometric
 interpretation. Consider a quadratic expansion of ``L(𝐱)`` about its minimizer
-``\\hat 𝐱``. Perturbations ``\\Delta 𝐱`` that increase the loss by a factor of
-2 satisfy ``\\Delta 𝐱^T U^{-1} \\Delta 𝐱 ≈ 1``. Thus ``U`` defines an
+``\\hat 𝐱``. Perturbations ``𝐱 - \\hat 𝐱`` that increase the loss by a factor
+of 2 satisfy ``\\Delta 𝐱^T U^{-1} \\Delta 𝐱 ≈ 1``. Thus ``U`` defines an
 ellipsoid characterizing the shape and scale of the local loss basin.
 
 We define the _**misfit tolerance**_ ``δn = \\sqrt{𝐧^T U 𝐧 / 2}`` along any
@@ -630,7 +629,7 @@ variation of inferred parameters.
 
     When systematic errors are large, the misfit tolerance ``δx_i`` may provide
     useful information. Rather than interpreting ``U / ν`` as a covariance matrix,
-    the misfit tolerance uses ``U / 2`` to define a local scale for feasible
+    the misfit tolerance uses ``U / 2`` to define a local scale for admissible
     parameter variations within the quadratic loss approximation. Whereas
     statistical error bars decay like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit
     tolerance ``δx_i`` will typically _not_ vanish in the large-data limit – even
