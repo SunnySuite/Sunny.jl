@@ -576,14 +576,14 @@ end
 """
     uncertainty_matrix(loss, x)
 
-Returns the uncertainty matrix ``U = 2L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` where
-``\\hat 𝐱`` is the fitted minimizer. The Hessian matrix ``H = ∂_𝐱 ∂_𝐱 L`` is
-estimated numerically using finite differences.
+Returns the uncertainty matrix ``U = 2L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` at the loss
+minimizer ``\\hat 𝐱``. The Hessian matrix ``H = ∂_𝐱 ∂_𝐱 L`` is estimated
+numerically using finite differences.
 
 If ``L`` is a least-squares objective with a Gaussian noise model
 interpretation, then ``U`` can be viewed as a statistical object. Namely,
-``U/ν`` estimates the covariance of fitted parameters ``\\hat 𝐱``. Here ``ν = N
-- p`` denotes the residual degrees of freedom: the effective number of
+``U/ν`` estimates the covariance of fitted parameters ``\\hat 𝐱``. Here
+``ν=N-p`` denotes the residual degrees of freedom: the effective number of
 independent data points ``N`` minus the number of fitted parameters ``p``. Error
 bars follow. For example, the statistical uncertainty in ``\\hat x_i`` is
 
