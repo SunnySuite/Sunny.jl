@@ -460,7 +460,7 @@ end
 # Use balanced optimal transport to smoothly assign labeled peaks E[k] to
 # theoretical modes E0[m]. The assignment matrix γ is used to calculate a smooth
 # squared error between all peaks and their closest modes.
-function bands_transport_loss(E, E0, X0s; σ, ϵ, maxiter)
+function bands_transport_loss(E, E0, X0; σ, ϵ, maxiter)
     M, K = length(E0), length(E)
     M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
 
@@ -545,9 +545,9 @@ end
 Squared error between experimentally labeled intensity peaks (`Es`) and the
 discrete energies of an [`intensities_bands`](@ref) calculation (`res`) for the
 same ``𝐪``-points. Each element `Es[i]` is a list of labeled intensity peaks
-for the `i`th ``𝐪``-point. Every labeled peak in `Es` will be assigned to some
-spin wave band in `res`, but the converse is not true; any "extra" spin wave
-bands do not contribute to the squared error.
+for the `i`th ``𝐪``-point. Every labeled peak will be assigned to some spin
+wave band in `res`, but the converse is not true; any "extra" spin wave bands do
+not contribute to the squared error.
 
 The return value is normalized by the squared magnitude of `Es`. For example, if
 the predicted modes are uniformly zero, then the return value is exactly 1.
