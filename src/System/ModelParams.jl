@@ -50,6 +50,12 @@ function lookup_param(sys::System, label::Symbol)
     return sys.params[only(inds)]
 end
 
+function print_all_params(sys::System)
+    for p in sys.params
+        println(repr(p.label), " => ", number_to_math_string(p.val; digits=4))
+    end
+end
+
 """
     (label => val) :: ParamSpec
 
@@ -141,4 +147,20 @@ function set_params!(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
     end
     repopulate_couplings_from_params!(sys)
     return
+end
+
+"""
+    add_auxiliary_param!(sys::System, paramspec::ParamSpec)
+
+Add a labeled parameter to `sys` that is not linked to any specific coupling
+strength. The [`ParamSpec`](@ref) argument takes the form `label => val`.
+
+Auxiliary parameters behave like any other model parameter. They can be queried
+(e.g., with [`get_param`](@ref) or [`set_params!`](@ref)) and incorporated into
+optimization workflows (e.g., with [`make_loss_fn`](@ref)). They may be used to
+parametrize instrumental effects (e.g., background intensities or resolution
+kernels) or theoretical effects (e.g., effective renormalization factors).
+"""
+function add_auxiliary_param!(sys::System, paramspec::ParamSpec)
+    replace_model_param!(sys, paramspec)
 end

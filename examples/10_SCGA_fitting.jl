@@ -13,7 +13,7 @@
 # This tutorial uses SCGA to fit diffuse scattering and magnetic susceptibility
 # data for the frustrated pyrochlore antiferromagnet MgCr₂O₄. The fitted
 # exchange interactions, up to third nearest neighbor, are in reasonable
-# agreement with [Bai et al., Phys. Rev. Lett. 122, 097201
+# agreement with [Bai et al., Phys. Rev. Lett. **122**, 097201
 # (2019)](https://doi.org/10.1103/PhysRevLett.122.097201).
 #
 # Sunny's SCGA fitting workflow is inspired by the Spinteract code: [J.
@@ -54,7 +54,8 @@ set_exchange!(sys, 1.0, Bond(1, 3, [0, 0, 0]), :J3b => 0)
 
 formfactors = [1 => FormFactor("Cr3")]
 measure = ssf_perp(sys; formfactors)
-dq = 1/6;
+dq = 1/6
+;#hide
 
 # Three-dimensional ``\mathcal{S}(𝐪)`` data at 20 K was collected by Bai et al.
 # For simplicity, this tutorial fits to a low-resolution slice of
@@ -82,9 +83,9 @@ kTs = [100, 200, 300] * units.K
 # mismatch. Use the [`SCGA`](@ref) calculator to simulate
 # [`magnetic_susceptibility_per_site`](@ref) and [`intensities_static`](@ref).
 # Measure deviation from experimental data using [`squared_error`](@ref) and
-# [`squared_error_with_rescaling`](@ref). The latter accounts for the unknown
-# intensity scale of ``\mathcal{S}(𝐪)``. Both error terms are of order one, so
-# adding them with equal weights is a reasonable default (tune as needed).
+# [`squared_error_fitted`](@ref). The latter accounts for the unknown intensity
+# scale of ``\mathcal{S}(𝐪)``. Both error terms are of order one, so adding
+# them with equal weights is a reasonable default (tune as needed).
 
 labels = [:J1, :J2, :J3a, :J3b]
 
@@ -94,14 +95,14 @@ loss = make_loss_fn(sys, labels) do sys
         χ̃ = magnetic_susceptibility_per_site(scga) # dμ/dB / μ_B²
         χ̃[1, 1] / units.cgs_molar_susceptibility   # dμ/dH (emu/Oe/mol-Cr)
     end
-    χ_error = squared_error(χ, χ_ref)
+    χ_error = squared_error(χ_ref, χ)
 
     scga = SCGA(sys; measure, kT=20*units.K, dq)
     Sq = intensities_static(scga, grid_ref)
-    Sq_error = squared_error_with_rescaling(Sq.data, Sq_ref).error
+    Sq_error = squared_error_fitted(Sq_ref, Sq.data; scale=true).error
 
     return 0.5 * χ_error + 0.5 * Sq_error
-end;
+end
 
 # The loss function can be evaluated at any parameter values. As an initial
 # guess, select a null model without any exchange coupling.
@@ -192,12 +193,12 @@ lines!(Ts_ref, χs_ref, label="Experiment")
 axislegend()
 current_figure()
 
-# Curvature of the loss function yields information about the goodness of fit.
-# Approximate error bars can be obtained from diagonal elements of the
-# [`uncertainty_matrix`](@ref).
+# Report misfit tolerances derived from [`uncertainty_matrix`](@ref). This is a
+# pragmatic choice if the measured data has high precision relative to
+# systematic modeling errors.
 
-uncertainty = uncertainty_matrix(loss, fit.minimizer)
-sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
+U = uncertainty_matrix(loss, fit.minimizer)
+sqrt.(diag(U) / 2) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 
 # The parameter fits are in reasonable agreement with previous work:
 #
@@ -214,9 +215,9 @@ sqrt.(diag(uncertainty)) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 # decrease of ``J_2`` and ``J_{3a}`` to maintain consistency with the
 # high-temperature susceptibility data, which fixes the Curie-Weiss temperature.
 #
-# The error bars are likely underestimates, as they cannot account for model
-# misspecification. In particular, the SCGA calculations of ``\mathcal{S}(𝐪)``
-# at ``T = 20`` K are questionable. Note, for example, that the SCGA-predicted
-# susceptibility curve ``χ(T)`` deviates significantly from the data when ``T ≲
-# 50`` K. As a rule of thumb, SCGA works best deep in the paramagnetic phase, at
-# temperatures large compared to the exchange energy scale.
+# A limitation of this study is the accuracy of the SCGA method for calculating
+# ``\mathcal{S}(𝐪)`` at ``T = 20`` K. Note, for example, that the
+# SCGA-predicted susceptibility curve ``χ(T)`` already deviates significantly
+# from the data when ``T ≲ 50`` K. As a rule of thumb, SCGA works best deep in
+# the paramagnetic phase, at temperatures large compared to the exchange energy
+# scale.

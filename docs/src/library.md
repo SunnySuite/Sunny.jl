@@ -109,7 +109,7 @@ spiral_energy
 spiral_energy_per_site
 squared_error
 squared_error_bands
-squared_error_with_rescaling
+squared_error_fitted
 ssf_custom
 ssf_custom_bm
 ssf_perp

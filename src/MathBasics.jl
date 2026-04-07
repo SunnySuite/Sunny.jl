@@ -93,8 +93,15 @@ end
 
 # flatten_to_vec([1, ([2, 3], 4, [5, 6])]) == [1, 2, 3, 4, 5, 6]
 flatten_to_vec(x::Number) = [x]
-flatten_to_vec(x::Array{<: Number}) = vec(x)
+flatten_to_vec(x::AbstractArray{<: Number}) = vec(x)
 flatten_to_vec(xs) = reduce(vcat, (flatten_to_vec(x) for x in xs))
+
+same_shape(x::Number, y::Number) = true
+same_shape(x::AbstractArray{<:Number}, y::AbstractArray{<:Number}) = size(x) == size(y)
+function same_shape(xs, ys)
+    size(xs) == size(ys) || return false
+    all(same_shape(x, y) for (x, y) in zip(xs, ys))
+end
 
 
 # Rescale v such that sum(v) = 1

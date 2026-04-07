@@ -81,7 +81,8 @@ langevin = Langevin(; damping=0.2, kT=2.3*units.K)
 randomize_spins!(sys)
 minimize_energy!(sys; maxiters=10)
 suggest_timestep(sys, langevin; tol=1e-2)
-langevin.dt = 0.03;
+langevin.dt = 0.03
+;#hide
 
 # Run a Langevin trajectory for 10,000 time-steps and plot the spins. The
 # magnetic order is present, but may be difficult to see.
@@ -117,7 +118,8 @@ end
 # make the simulations a bit faster.
 
 suggest_timestep(sys, langevin; tol=1e-2)
-langevin.dt = 0.040;
+langevin.dt = 0.040
+;#hide
 
 # Collect dynamical spin structure factor data using
 # [`SampledCorrelations`](@ref). This procedure involves sampling spin

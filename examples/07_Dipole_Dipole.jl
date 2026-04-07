@@ -52,7 +52,8 @@ plot_spins(sys_lr; ghost_radius=8, color=[:red, :blue, :yellow, :purple])
 # has a _continuum_ of degenerate ground states.
 
 sys.dipoles .= sys_lr.dipoles
-sys_lr_cut.dipoles .= sys_lr.dipoles;
+sys_lr_cut.dipoles .= sys_lr.dipoles
+;#hide
 
 # Calculate dispersions for the three systems. The high-symmetry ``𝐪``-points
 # are specified in reciprocal lattice units with respect to the conventional
@@ -70,7 +71,8 @@ swt = SpinWaveTheory(sys_lr; measure)
 res2 = intensities_bands(swt, path)
 
 swt = SpinWaveTheory(sys_lr_cut; measure)
-res3 = intensities_bands(swt, path);
+res3 = intensities_bands(swt, path)
+;#hide
 
 # Create a panel corresponding to Fig. 2 of [Del Maestro and
 # Gingras](https://arxiv.org/abs/cond-mat/0403494). Dashed lines show the effect
