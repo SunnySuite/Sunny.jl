@@ -606,9 +606,9 @@ tolerance for ``\\hat x_i`` is
 
 Geometrically, ``δ\\hat x_i`` measures the scale over which ``x_i`` can vary
 before the loss grows by about 50%, while allowing correlated adjustments of the
-remaining parameters. Although not itself a statistical quantity, the misfit
-tolerance ``δ\\hat x_i`` nonetheless suggests a scale for the admissable
-variation of inferred parameters.
+remaining parameters. The misfit tolerance is not a statistical quantity, but
+rather suggests a scale for admissible parameter variation that may become
+relevant when systematic modeling errors are large.
 
 !!! tip "Comparing statistical uncertainty and misfit tolerance"
 
