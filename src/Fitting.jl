@@ -577,24 +577,24 @@ end
     uncertainty_matrix(loss, x)
 
 Returns the uncertainty matrix ``U = 2L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` at the loss
-minimizer ``\\hat 𝐱``. Uses finite differences to estimate the Hessian ``H = ∇
-∇ L``.
+minimizer ``\\hat 𝐱``. Uses finite differences to approximate the Hessian ``H =
+∇ ∇ L``.
 
 If ``L`` is a least-squares objective with a Gaussian noise model
 interpretation, then ``U/ν`` estimates the covariance of fitted parameters
 ``\\hat 𝐱``. Here ``ν = N - p`` denotes the residual degrees of freedom: the
 effective number of independent data points ``N`` minus the number of fitted
-parameters ``p``. Statistical error bars follow, e.g.,
+parameters ``p``. Statistical error bars follow,
 
 ```math
 \\mathrm{Std}(\\hat x_i) ≈ \\sqrt{U_{ii} / ν}.
 ```
 
 Aside from statistics, the matrix ``U`` also admits a purely geometric
-interpretation. Consider a quadratic expansion of ``L(𝐱)`` about its minimizer
-``\\hat 𝐱``. Perturbations ``𝐱 - \\hat 𝐱`` that increase the loss by a factor
-of 2 satisfy ``\\Delta 𝐱^T U^{-1} \\Delta 𝐱 ≈ 1``. Thus ``U^{-1}`` defines an
-ellipsoid characterizing the shape and scale of the local loss basin.
+interpretation. Consider a quadratic expansion of ``L(𝐱)`` about ``\\hat 𝐱``.
+Perturbations ``𝐱 - \\hat 𝐱`` that increase the loss by a factor of 2 satisfy
+``\\Delta 𝐱^T U^{-1} \\Delta 𝐱 ≈ 1``. Thus ``U^{-1}`` defines an ellipsoid
+characterizing the shape and scale of the local loss basin.
 
 We define the _**misfit tolerance**_ ``\\sqrt{𝐧^T U 𝐧 / 2}`` along any
 normalized direction ``𝐧`` in parameter space. In particular, the misfit
@@ -604,11 +604,11 @@ tolerance for ``\\hat x_i`` is
 δ\\hat x_i = \\sqrt{U_{ii} / 2}.
 ```
 
-Geometrically, ``δ\\hat x_i`` measures the scale over which the ``i``th
-coordinate can vary before the loss grows by about 50%, while allowing
-correlated adjustments of the remaining parameters. Although not itself a
-statistical quantity, the misfit tolerance ``δ\\hat x_i`` nonetheless suggests a
-scale for the admissable variation of inferred parameters.
+Geometrically, ``δ\\hat x_i`` measures the scale over which ``x_i`` can vary
+before the loss grows by about 50%, while allowing correlated adjustments of the
+remaining parameters. Although not itself a statistical quantity, the misfit
+tolerance ``δ\\hat x_i`` nonetheless suggests a scale for the admissable
+variation of inferred parameters.
 
 !!! tip "Comparing statistical uncertainty and misfit tolerance"
 
@@ -627,13 +627,12 @@ scale for the admissable variation of inferred parameters.
     the Hamiltonian parameters, or intrinsic inaccuracies of the calculation method
     itself.
 
-    When systematic errors are large, the misfit tolerance ``δ\\hat x_i`` may
-    provide useful information. Rather than interpreting ``U / ν`` as a covariance
-    matrix, the misfit tolerance uses ``U / 2`` to estimate a parameter range that
-    limits loss function growth to about 50%. Whereas statistical error bars decay
-    like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit tolerance ``δ\\hat x_i`` will
-    typically _not_ vanish in the large-data limit – even for a correctly specified
-    model!
+    When the observed loss is dominated by systematic errors, the misfit tolerance
+    ``δ\\hat x_i`` may provide useful information; it defines a parameter range that
+    allows for about 50% additional growth of the loss. Whereas statistical error
+    bars decay like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit tolerance ``δ\\hat x_i``
+    will typically _not_ vanish in the large-data limit – even for a correctly
+    specified model!
 
 !!! tip "Derivation of the covariance estimator"
 
