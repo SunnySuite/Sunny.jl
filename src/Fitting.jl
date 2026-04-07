@@ -658,10 +658,10 @@ variation of inferred parameters.
     statistic (overdispersion correction),
 
     ```math
-    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2 χ^2}{c ν} H^{-1} = \\frac{1}{ν} 2 L H^{-1}.
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2 χ^2}{c ν} H^{-1} = \\frac{1}{ν} 2 L H^{-1},
     ```
 
-    Recalling the definition ``U``, this establishes
+    which establishes
 
     ```math
     \\mathrm{Cov}(\\hat 𝐱) ≈ U / ν.
