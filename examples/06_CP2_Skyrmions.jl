@@ -2,7 +2,7 @@
 #
 # This example demonstrates a non-equilibrium study of SU(3) spin dynamics
 # leading to the formation of a CP² skyrmion liquid. As proposed in [Zhang et
-# al., Nature Communications **14**, 3626
+# al., Nat. Commun. **14**, 3626
 # (2023)](https://www.nature.com/articles/s41467-023-39232-8), CP² skyrmions are
 # topological defects that involve both the dipolar and quadrupolar parts of
 # quantum spin-1, and can be studied using the formalism SU(3) coherent states.
@@ -70,7 +70,8 @@ set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 # fluctuations.
 
 damping = 0.05
-kT = 0;
+kT = 0
+;#hide
 
 # The first step is to estimate a reasonable integration timestep `dt`. In this
 # case, a random spin configuration gives a tighter bound than does an
@@ -83,7 +84,8 @@ suggest_timestep(sys, integrator; tol=0.05)
 
 # Apply the suggested timestep.
 
-integrator.dt = 0.01;
+integrator.dt = 0.01
+;#hide
 
 # Now run the dynamical quench starting from a randomized configuration. The
 # field `frames` stores the system spin configuration, as SU(3) coherent states,

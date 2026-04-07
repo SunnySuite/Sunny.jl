@@ -51,7 +51,8 @@ langevin = Langevin(; damping=0.2, kT=16*units.K)
 # reasonable to start from an energy-minimized configuration.
 
 suggest_timestep(sys, langevin; tol=1e-2)
-langevin.dt = 0.025;
+langevin.dt = 0.025
+;#hide
 
 # Now run a Langevin trajectory to sample spin configurations. Keep track of the
 # energy per site at each time step.
@@ -67,7 +68,8 @@ end
 # faster.
 
 suggest_timestep(sys, langevin; tol=1e-2)
-langevin.dt = 0.042;
+langevin.dt = 0.042
+;#hide
 
 # Plot energy versus time using the Makie
 # [`lines`](https://docs.makie.org/stable/reference/plots/lines) function. The

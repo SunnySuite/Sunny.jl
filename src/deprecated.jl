@@ -101,6 +101,15 @@ end
 Base.@deprecate magnetic_moment(sys, site) magnetic_moments(sys)[to_cartesian(site)]
 Base.@deprecate global_position(sys, site) global_positions(sys)[to_cartesian(site)]
 
+Base.@deprecate squared_error_bands(res::Sunny.BandIntensities, Es::Vector{Vector{Float64}}) let
+    return squared_error_bands(Es, res)
+end
+
+Base.@deprecate squared_error_with_rescaling(x, y; weights=nothing) let
+    (; error, scale) = squared_error_fitted(x, y; weights, scale=true)
+    return (; error, rescaling=1/scale)
+end
+
 
 # REMEMBER TO ALSO DELETE:
 #

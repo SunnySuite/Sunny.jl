@@ -56,10 +56,17 @@ function build_examples(example_sources, destdir)
     # Create Jupyter notebooks and Julia script for each Literate example. These
     # will be stored in the `assets/` directory of the hosted docs.
     for source in example_sources
-        function pp_vcheck(str)
+        function pp_code(str)
+            # Add check that Sunny version is recent
             check = "@assert pkgversion(Sunny) >= " * repr(pkgversion(Sunny))
-            return replace(str, r"^(using.*Sunny.*)$"m => SubstitutionString("\\1\n"*check))
+            str = replace(str, r"^(using.*Sunny.*)$"m => SubstitutionString("\\1\n"*check))
+            # Remove lines containing only the Documenter pragma ;#hide
+            str = replace(str, r"^;#hide\r?\n?"m => "")
+            # Remove any remaining #hide pragmas
+            str = replace(str, r" ?#hide$"m => "")
+            return str
         end
+
         function pp_wglmakie(str)
             # Ideally, notebooks would use WGLMakie instead of GLMakie, but
             # there are currently too many bugs to enable by default:
@@ -71,10 +78,10 @@ function build_examples(example_sources, destdir)
         end
 
         # Build notebooks
-        Literate.notebook(source, notebooks_path; preprocess=pp_wglmakie∘pp_vcheck, execute=false, credit=false)
+        Literate.notebook(source, notebooks_path; preprocess=pp_wglmakie∘pp_code, execute=false, credit=false)
 
         # Build julia scripts
-        Literate.script(source, scripts_path; preprocess=pp_vcheck, credit=false)
+        Literate.script(source, scripts_path; preprocess=pp_code, credit=false)
     end
 
     # Return paths `$destpath/$name.md` for each new Markdown file (relative to

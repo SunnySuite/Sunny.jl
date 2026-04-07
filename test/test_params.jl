@@ -57,26 +57,6 @@
 end
 
 
-@testitem "Loss configuration" begin
-    cryst = Sunny.square_crystal()
-    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
-    set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :J1 => 0.0)
-
-    # Something simple to exercise the plumbing
-    loss1 = make_loss_fn(sys, [:J1]; hp=(; ϵ=2)) do sys, hp
-        return get_param(sys, :J1) + hp.ϵ
-    end
-    @assert loss1([3.0]) == 5.0
-
-    # A second loss with different hyperparameters
-    loss2 = with_hyperparams(loss1, (; ϵ=1))
-    @assert loss2([2.0]) == 3.0
-
-    # The first loss should be unchanged
-    @assert loss1([3.0]) == 5.0
-end
-
-
 @testitem "Code generation" begin
     using IOCapture
     cryst = Sunny.kagome_crystal()

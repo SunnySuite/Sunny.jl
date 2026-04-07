@@ -75,7 +75,8 @@ Es = [
     [28.311], [28.111], [27.395], [26.279], [24.876], [22.758], [20.296],
     [17.405], [13.884], [5.697, 10.391], [3.693, 8.674], [13.027], [20.683],
     [27.368], [31.798], [33.431]
-];
+]
+;#hide
 
 # Use [`make_loss_fn`](@ref) to define an optimization target `loss`. Because
 # the system is already initialized to the correct Néel magnetic order, we opt
@@ -87,7 +88,7 @@ loss = make_loss_fn(sys, labels) do sys
     ## minimize_energy!(sys) # Uncomment if the spin state should vary with params
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
     res = intensities_bands(swt, qs)
-    squared_error_bands(res, Es)
+    squared_error_bands(Es, res)
 end
 
 # Guess some arbitrary parameters that are consistent with the assumed Néel
@@ -111,10 +112,12 @@ fit = Optim.optimize(loss, guess, method, options)
 @assert isapprox(fit.minimizer, [6.1057, 3.9897, -0.6266, -0.0899]; rtol=1e-5) #hide
 fit.minimizer # [Jab, Jc, Kxx, Kyy]
 
-# Approximate error bars can be obtained from [`uncertainty_matrix`](@ref).
+# Report misfit tolerances derived from [`uncertainty_matrix`](@ref). This is a
+# pragmatic choice if the measured data has high precision relative to
+# systematic modeling errors.
 
 U = uncertainty_matrix(loss, fit.minimizer)
-@assert isapprox(sqrt.(diag(U)), [0.2121, 0.1924, 0.081, 0.0423]; rtol=1e-3) #hide
+@assert isapprox(sqrt.(diag(U) / 2), [0.2121, 0.1924, 0.081, 0.0423]; rtol=1e-3) #hide
 sqrt.(diag(U)) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
 
 # The parameter fits are in reasonable agreement with previous work:

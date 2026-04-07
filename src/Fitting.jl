@@ -34,7 +34,7 @@ loss = make_loss_fn(sys, labels) do sys
     minimize_energy!(sys)
     swt = SpinWaveTheory(sys; measure)
     res = intensities_bands(swt, path)
-    return squared_error_bands(res, reference_energies)
+    return squared_error_bands(reference_energies, res)
 end
 
 # Measure goodness of fit for given parameter values
@@ -145,99 +145,262 @@ function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
 end
 
 
-# Returns weighted inner products ⟨x,x⟩, ⟨y,y⟩, ⟨x,y⟩
-function squared_error_aux(x, y; weights)
+"""
+    squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
+
+Returns the normalized sum of squared errors,
+
+```math
+L = \\frac{1}{c} ∑_i w_i | y_i - (α x_i + β)|^2.
+```
+
+By default, ``α = 1`` and ``β = 0``. If `scale=true`, then determine ``α`` by
+minimizing ``L``. If `shift=true`, then similarly optimize ``β``. Returns a
+named tuple with fields `(; error, scale, shift)` for ``(L, α, β)``,
+respectively.
+
+Weights ``w_i`` must be nonnegative and default to one. Any `NaN` elements
+``x_i`` or ``y_i`` will be interpreted as missing data and omitted from the sum.
+
+The normalization factor ``c`` depends on the fitting options. In all cases, the
+minimized ``L`` is symmetric in ``(x, y)`` and is of order one when ``x`` and
+``y`` maximally disagree.
+
+!!! tip "Closed-form expressions"
+
+    Begin with some notation. Define the weighted inner product,
+
+    ```math
+        ⟨u, v⟩ = ∑_i w_i u_i^* v_i,
+    ```
+
+    and its associated norm ``\\|u\\|^2 = ⟨u, u⟩``. Define the weighted mean,
+
+    ```math
+    \\bar u = \\frac{∑_i w_i u_i}{∑_i w_i}.
+    ```
+
+    Define variables ``\\tilde u`` that optionally shift an input by its weighted
+    mean: if `shift=true` then ``\\tilde u ≡ u - \\bar u`` , otherwise ``\\tilde u ≡
+    u``.
+
+    If optimized, the shift is ``β = \\bar y - α \\bar x``. Otherwise it is ``β =
+    0``. Either way,
+
+    ```math
+    L = \\frac{1}{c} \\|\\tilde y - α \\tilde x\\|^2.
+    ```
+
+    There remain two possibilities for the final expression of ``L``.
+
+    **Case 1, `scale=false`**: Here ``α = 1`` and we choose ``c`` so that,
+
+    ```math
+    L = \\frac{\\|\\tilde y - \\tilde x\\|^2}{\\|\\tilde x\\|^2 + \\|\\tilde y\\|^2}.
+    ```
+
+    **Case 2, `scale=true`**: Here the optimal scale factor is
+
+    ```math
+    α = \\frac{⟨\\tilde x, \\tilde y⟩}{\\|\\tilde x\\|^2}.
+    ```
+
+    We select ``c = ∑_i w_i \\|\\tilde y_i\\|^2`` so that substitution yields
+
+    ```math
+    L = 1 - \\frac{|⟨\\tilde x, \\tilde y⟩|^2}{\\|\\tilde x\\|^2\\,\\|\\tilde y\\|^2}.
+    ```
+
+    This may be understood as a cosine-squared loss. In case of complex inputs, note
+    that the optimal ``α`` absorbs an arbitrary scale _and_ complex phase.
+"""
+function squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
+    same_shape(x, y) || error("Mismatched input dimensions")
     (x, y) = flatten_to_vec.((x, y))
     ty = promote_type(eltype(x), eltype(y))
+    rty = real(ty)
+
     w = if isnothing(weights)
-        fill(one(real(ty)), length(x))
+        fill(one(rty), length(x))
     else
+        same_shape(x, weights) || error("Mismatched weight dimensions")
         flatten_to_vec(weights)
     end
-    length(x) == length(y) == length(w) || error("Mismatched input sizes")
-    all(@. real(w) >= 0 && iszero(imag(w))) || error("Weights must be non-negative")
 
-    # This functional implementation is AD-friendly
+    # Shadow the inputs by their non-NaN subarrays
     inds = findall(i -> !isnan(x[i]) && !isnan(y[i]), eachindex(x))
+    isempty(inds) && error("No valid data after removing NaNs")
     @views begin
-        x² = sum(@. w[inds] * abs2(x[inds]))           # |x|² ≡ ⟨x,x⟩
-        y² = sum(@. w[inds] * abs2(y[inds]))           # |y|² ≡ ⟨y,y⟩
-        xy = sum(@. w[inds] * conj(x[inds]) * y[inds]) # ⟨x,y⟩
+        w = w[inds]
+        x = x[inds]
+        y = y[inds]
     end
-    return (; x², y², xy)
+
+    all(wi -> isreal(wi) && real(wi) >= 0, w) || error("Weights must be non-negative")
+
+    # Raw weighted moments
+    W = Diagonal(w)
+    x2 = dot(x, W, x)
+    y2 = dot(y, W, y)
+    xy = dot(x, W, y)
+
+    # Effective moments of x̃, ỹ
+    x2t, y2t, xyt, xbar, ybar = if shift
+        wsum = sum(w)
+        iszero(wsum) && error("Sum of valid weights must be positive")
+
+        xbar = dot(w, x) / wsum
+        ybar = dot(w, y) / wsum
+
+        (
+            x2 - wsum * abs2(xbar),
+            y2 - wsum * abs2(ybar),
+            xy - wsum * conj(xbar) * ybar,
+            xbar,
+            ybar,
+        )
+    else
+        (x2, y2, xy, zero(ty), zero(ty))
+    end
+
+    α, L = if scale
+        if iszero(x2t) && iszero(y2t)
+            (one(ty), zero(rty)) # Both centered inputs vanish; define cos² loss as 0
+        elseif iszero(x2t) || iszero(y2t)
+            (zero(ty), one(rty)) # One centered input vanishes; define cos² loss as 1
+        else
+            α = xyt / x2t
+            L = real(1 - abs2(xyt) / (x2t * y2t))
+            (α, L)
+        end
+    else
+        α = one(ty)
+        denom = x2t + y2t
+        L = iszero(denom) ? zero(rty) : real((y2t + x2t - 2real(xyt)) / denom)
+        (α, L)
+    end
+
+    L = clamp(L, 0, 1)
+    β = shift ? ybar - α * xbar : zero(ty)
+    return (; error=L, scale=α, shift=β)
 end
+
 
 """
     squared_error(x, y; weights=nothing)
 
-Normalized sum of squared errors, ``L = (1/c) \\sum_i w_i |y_i - x_i|^2``.
+Normalized sum of squared errors, ``L = (1/c) \\sum_i w_i \\|y_i - x_i\\|^2``.
 Weights ``w_i`` must be nonnegative and default to one.
 
-The normalization factor is defined symmetrically, ``c = |x|^2 + |y|^2``,
-involving the weighted norm,
+The normalization factor is defined symmetrically, ``c = \\|x\\|^2 +
+\\|y\\|^2``, involving the weighted norm,
 ```math
-|u|^2 = \\sum_i w_i |u_i|^2.
+\\|u\\|^2 = \\sum_i w_i |u_i|^2.
 ```
 
 Any NaN elements (``x_i`` or ``y_i``) will be interpreted as missing data and
 omitted from the sum.
 
-See also [`squared_error_with_rescaling`](@ref).
+This function is a special case of [`squared_error_fitted`](@ref).
 """
-function squared_error(x, y; weights=nothing)
-    (; x², y², xy) = squared_error_aux(x, y; weights)
+squared_error(x, y; weights=nothing) = squared_error_fitted(x, y; weights).error
 
-    # |y - x|² / (|x|²+|y|²)
-    return 1 - 2real(xy) / (x² + y²)
-end
 
 """
-    squared_error_with_rescaling(x, y; weights=nothing)
+wasserstein1_distance(p, q; γ=1.0)
 
-Normalized sum of squared errors, ``L = (1/c) \\min_α \\sum_i w_i |α y_i -
-x_i|^2``, allowing for an arbitrary rescaling ``α`` of the ``y`` data. Weights
-``w_i`` must be nonnegative and default to one. Returns a named tuple with
-fields `(; error, rescaling)` that correspond to ``L`` and the optimal ``α``,
-respectively.
+Compute a Wasserstein-like distance between real-valued signals `p` and `q`,
+uniformly sampled in one-dimension. This distance may be useful for comparing
+energy-dependent spectral functions. For example, if ``p(E)`` and ``q(E)`` each
+comprise a single spectral peak, then the returned Wasserstein distance is the
+energy difference ``ΔE`` between peak centers divided by the full energy range.
+By comparison, the naive [`squared_error`](@ref) between ``p(E)`` and ``q(E)``
+would vanish uniformly for all nonzero ``ΔE``. The Wasserstein distance can
+therefore be a powerful tool when fitting models to spectral data.
 
-The normalization factor,
+This function allows for _signed_ inputs. This can be important when processing
+experimental data that, after background subtraction, may contain regions that
+fluctuate about zero intensity. The returned distance measure properly accounts
+for cancellations within these fluctuations.
+
+For each input ``p`` (likewise ``q``) construct a cumulative signal ``P`` (or
+``Q``) in two steps:
+
+Step 1: Use the exponent ``γ ∈ (0, 1]`` to perform dynamic range compression
+while preserving sign,
+
 ```math
-c = \\sum_i w_i |x_i|^2,
+\\tilde p_i = \\mathrm{sgn}(p_i) |p_i / c|^γ.
 ```
-leads to a symmetry of ``L`` in its arguments ``(x, y)``.
 
-Any NaN elements ``x_i`` or ``y_i`` will be interpreted as missing data and
-omitted from the sum.
+The default value ``γ = 1`` leaves the input signals unchanged. The coefficient
+``c`` is arbitrary and cancels in the next step.
 
-!!! tip "Relation to the cosine-squared loss"
+Step 2: Build the cumulative signal with normalization by total intensity
+(assumed positive),
 
-    Introduce the weighted inner product,
-    ```math
-        ⟨u,v⟩ = \\sum_i w_i u_i^* v_i,
-    ```
-    and its associated norm, ``|u|^2 = ⟨u,u⟩``. In this notation, ``L = |α y - x|^2
-    / |x|^2``. The optimal ``α`` is obtained by setting the Wirtinger derivative to
-    zero, ``∂L/∂α^* = 0``, with solution
-    ```math
-        α = ⟨y, x⟩ / |y|².
-    ```
-    In case of complex inputs, this optimal ``α`` absorbs an arbitrary scale _and_
-    complex phase. 
+```math
+P_i = \\frac{∑_{j=1}^i \\tilde p_j}{∑_{j=1}^n \\tilde p_j}.
+```
 
-    Substitution yields the symmetric expression,
-    ```math  
-        L = 1 - |⟨x, y⟩|^2 / |x|^2 |y|^2.
-    ```
-    It may be interpreted as ``L = 1 - \\cos(θ)^2``, with ``θ`` the geometric angle
-    between ``x`` and ``y`` in data-space.
+Given cumulative signals ``P_i`` and ``Q_i``, this function returns their
+``L_1`` distance,
+
+```math
+W_1 = \\frac{1}{n-1} ∑_{i=1}^{n-1} |P_i - Q_i|.
+```
+
+For nonnegative inputs, this is the usual Wasserstein distance scaled to the
+range ``[0, 1]``. More generally, it is a transport-like measure.
+
+If either `p[i]` or `q[i]` is `NaN`, then the elements at `i` are treated as
+missing data and removed from both signals. Doing so effectively compresses any
+gaps in the original grid.
 """
-function squared_error_with_rescaling(x, y; weights=nothing)
-    (; x², y², xy) = squared_error_aux(x, y; weights)
+function wasserstein1_distance(
+    p::AbstractVector{<: Real},
+    q::AbstractVector{<: Real};
+    γ::Real = 1.0,
+)
+    @assert length(p) == length(q)
+    @assert 0 < γ ≤ 1
 
-    # |α y - x|² / |x|² where α = ⟨y, x⟩ / |y|²
-    error = 1 - abs2(xy) / (x² * y²)
-    rescaling = conj(xy) / y²
-    return (; error, rescaling)
+    ϕ(x) = isone(γ) ? x : copysign(abs(x)^γ, x)
+
+    Mp = 0.0
+    Mq = 0.0
+    nvalid = 0
+
+    foreach(p, q) do p_i, q_i
+        if !isnan(p_i) && !isnan(q_i)
+            nvalid += 1
+            Mp += ϕ(p_i)
+            Mq += ϕ(q_i)
+        end
+    end
+
+    nvalid >= 2 || error("Input signals must have at least two valid points")
+    (Mp > 0 && Mq > 0) || return Inf # Punish vanishing model prediction
+
+    inv_Mp = 1 / Mp
+    inv_Mq = 1 / Mq
+
+    Δ = 0.0
+    W₁ = 0.0
+    started = false
+
+    foreach(p, q) do p_i, q_i
+        if !isnan(p_i) && !isnan(q_i)
+            if started
+                W₁ += abs(Δ)
+            else
+                started = true
+            end
+            Δ += ϕ(p_i) * inv_Mp - ϕ(q_i) * inv_Mq
+        end
+    end
+
+    return W₁ / (nvalid - 1)
 end
 
 
@@ -297,7 +460,7 @@ end
 # Use balanced optimal transport to smoothly assign labeled peaks E[k] to
 # theoretical modes E0[m]. The assignment matrix γ is used to calculate a smooth
 # squared error between all peaks and their closest modes.
-function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
+function bands_transport_loss(E, E0, X0; σ, ϵ, maxiter)
     M, K = length(E0), length(E)
     M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
 
@@ -350,10 +513,10 @@ function bands_transport_loss(E0, X0s, E; σ, ϵ, maxiter)
 end
 
 """
-    squared_error_bands_smooth(res, Es; σ)
+    squared_error_bands_smooth(Es, res; σ)
 
 Like `squared_error_bands` but uses entropy-regularized optimal transport to
-smoothly assign spin wave modes (`res`) to labeled peak energies (`Es`). Entropy
+smoothly assign labeled peak energies (`Es`) to spin wave modes (`res`). Entropy
 regularization may be useful as part of an annealing procedure to search for a
 globally optimal fit.
 
@@ -361,8 +524,8 @@ The energy parameter `σ` can be interpreted as an uncertainty in the `Es` data
 and controls the amount of smoothing. This function coincides with
 [`squared_error_bands`](@ref) in the limit of vanishing `σ`.
 """
-function squared_error_bands_smooth(res :: Sunny.BandIntensities,
-                                    Es :: Vector{Vector{Float64}};
+function squared_error_bands_smooth(Es :: Vector{Vector{Float64}},
+                                    res :: Sunny.BandIntensities;
                                     σ, ϵ=1.0, maxiter=1_000)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
@@ -372,36 +535,34 @@ function squared_error_bands_smooth(res :: Sunny.BandIntensities,
     ϵ > 0 || error("Entropic regularization ϵ must be positive")
     maxiter > 0 || error("Max iteration count must be positive")
 
-    err = sum(bands_transport_loss.(E0s, X0s, Es; σ, ϵ, maxiter))
+    err = sum(bands_transport_loss.(Es, E0s, X0s; σ, ϵ, maxiter))
     return err / norm2(Es / σ)
 end
 
 """
-    squared_error_bands(res, Es)
+    squared_error_bands(Es, res)
 
-Squared error between the discrete band energies of an
-[`intensities_bands`](@ref) calculation (`res`) and experimentally labeled
-intensity peak energies (`Es`) for the same set of ``𝐪``-points. Each element
-`Es[i]` is itself a list of labeled intensity peaks for the `i`th ``𝐪``-point.
-Every labeled peak must match some spin wave band, but the converse may not be
-true: Spin wave band without a labeled peak counterpart do not contribute to the
-squared error.
+Squared error between experimentally labeled intensity peaks (`Es`) and the
+discrete energies of an [`intensities_bands`](@ref) calculation (`res`) for the
+same ``𝐪``-points. Each element `Es[i]` is a list of labeled intensity peaks
+for the `i`th ``𝐪``-point. Every labeled peak will be assigned to some spin
+wave band in `res`, but the converse is not true; any "extra" spin wave bands do
+not contribute to the squared error.
 
-The return value is normalized by the squared magnitude of `Es`. Specifically,
-if the predicted mode are uniformly zero, then the return value is exactly 1.
+The return value is normalized by the squared magnitude of `Es`. For example, if
+the predicted modes are uniformly zero, then the return value is exactly 1.
 
 Internally, this function uses the [Hungarian
 algorithm](https://github.com/Gnimuc/Hungarian.jl) for optimal assignment of
 modes to peaks.
 """
-function squared_error_bands(res :: Sunny.BandIntensities,
-                             Es :: Vector{Vector{Float64}})
+function squared_error_bands(Es :: Vector{Vector{Float64}}, res :: Sunny.BandIntensities)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
     X0s = eachcol(reshape(res.data, nbands, :))
     length(Es) == length(E0s) || error("Mismatch in bands vs data q-length ($(length(E0s))) ≠ $(length(Es))")
 
-    err = sum(map(E0s, X0s, Es) do E0, X0, E
+    err = sum(map(Es, E0s, X0s) do E, E0, X0
         M, K = length(E0), length(E)
         M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
         C = [(E0[m] - E[k])^2 for m in 1:M, k in 1:K]
@@ -415,24 +576,100 @@ end
 """
     uncertainty_matrix(loss, x)
 
-Returns an uncertainty matrix ``U`` that describes the slackness of the loss
-function ``L`` at its minimizer ``x``. Specifically, ``U = L(x) H(x)^{-1}``
-where ``H = ∂^2 L / ∂x ∂x`` is the Hessian matrix of second derivatives.
+Returns the uncertainty matrix ``U = 2L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` at the loss
+minimizer ``\\hat 𝐱``. Uses finite differences to approximate the Hessian ``H =
+∇ ∇ L``.
 
-The quantity ``(U_{ii})^{1/2}`` can often be interpreted as uncertainty of the
-fitted parameter ``x_i``. Similarly, ``(n^T U n)^{1/2}`` would be uncertainty in
-the normalized direction ``n`` of parameter space.
+If ``L`` is a least-squares objective with a Gaussian noise model
+interpretation, then ``U/ν`` estimates the covariance of fitted parameters
+``\\hat 𝐱``. Here ``ν = N - p`` denotes the residual degrees of freedom: the
+effective number of independent data points ``N`` minus the number of fitted
+parameters ``p``. Statistical error bars follow,
 
-There are situations where the above uncertainty estimates deviate strongly from
-the true model error. For example, if the loss function is highly constraining
-about the wrong minimum (e.g., due to model mispecification), then the
-uncertainty estimate may be too low. Conversely, if the loss function does not
-vanish for a perfect model fit (e.g., it is not a sum of squared errors), then
-the uncertainty estimate may be too high.
+```math
+\\mathrm{Std}(\\hat x_i) ≈ \\sqrt{U_{ii} / ν}.
+```
+
+Aside from statistics, the matrix ``U`` also admits a purely geometric
+interpretation. Consider a quadratic expansion of ``L(𝐱)`` about ``\\hat 𝐱``.
+Perturbations ``𝐱 - \\hat 𝐱`` that increase the loss by a factor of 2 satisfy
+``\\Delta 𝐱^T U^{-1} \\Delta 𝐱 ≈ 1``. Thus ``U^{-1}`` defines an ellipsoid
+characterizing the shape and scale of the local loss basin.
+
+We define the _**misfit tolerance**_ ``\\sqrt{𝐧^T U 𝐧 / 2}`` along any
+normalized direction ``𝐧`` in parameter space. In particular, the misfit
+tolerance for ``\\hat x_i`` is
+
+```math
+δ\\hat x_i = \\sqrt{U_{ii} / 2}.
+```
+
+Geometrically, ``δ\\hat x_i`` measures the scale over which ``x_i`` can vary
+before the loss grows by about 50%, while allowing correlated adjustments of the
+remaining parameters. The misfit tolerance is not a statistical quantity, but
+rather suggests a scale for admissible parameter variation that may become
+relevant when systematic modeling errors are large.
+
+!!! tip "Comparing statistical uncertainty and misfit tolerance"
+
+    Observe that the misfit tolerance ``δ\\hat x_i`` has the same form as
+    ``\\mathrm{Std}(\\hat x_i)``, but is significantly larger due to the missing
+    ``ν^{-1/2}`` scaling factor.
+
+    If noise in the data is the main limitation to overall fit quality, then
+    ``\\mathrm{Std}(\\hat x_i)`` is the appropriate uncertainty measure. A signature
+    of this regime is that the residuals ``y_i-f_i(\\hat 𝐱)`` show no obvious
+    structure after accounting for known noise correlations.
+
+    Often, however, statistical noise is effectively small relative to systematic
+    modeling errors of various forms. For example, the fit could actually be limited
+    by incompleteness of the Hamiltonian ansatz, imperfect global optimization of
+    the Hamiltonian parameters, or intrinsic inaccuracies of the calculation method
+    itself.
+
+    When the observed loss is dominated by systematic errors, the misfit tolerance
+    ``δ\\hat x_i`` may provide useful information; it defines a parameter range that
+    allows for about 50% additional growth of the loss. Whereas statistical error
+    bars decay like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit tolerance ``δ\\hat x_i``
+    will typically _not_ vanish in the large-data limit – even for a correctly
+    specified model!
+
+!!! tip "Derivation of the covariance estimator"
+
+    Suppose the loss is a sum of squared errors with arbitrary scale ``c``,
+
+    ```math
+    L(𝐱) = \\frac{1}{c} χ^2(𝐱) = \\frac{1}{c} ∑_i \\frac{(y_i - f_i(𝐱))^2}{σ_i^2}.
+    ```
+
+    Assume a statistical model where ``y_i`` are sampled data, ``f_i(𝐱)`` are the
+    corresponding model predictions, and ``σ_i`` are the standard deviations of
+    independent Gaussian errors. Then, assuming a correctly specified model,
+    ``χ^2/2`` is the negative log likelihood up to an irrelevant shift. The inverse
+    Hessian of ``χ^2/2`` at the minimizer ``\\hat 𝐱`` estimates covariance. With
+    our definition of ``H`` as the Hessian of ``L``, this is
+
+    ```math
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2}{c} H^{-1}.
+    ```
+
+    This expression could be used directly if ``c`` is known. Alternatively, to
+    absorb an unknown ``c``, it is standard to rescale by the Pearson ``χ^2/ν``
+    statistic (overdispersion correction),
+
+    ```math
+    \\mathrm{Cov}(\\hat 𝐱) ≈ \\frac{2 χ^2}{c ν} H^{-1} = \\frac{1}{ν} 2 L H^{-1},
+    ```
+
+    which establishes
+
+    ```math
+    \\mathrm{Cov}(\\hat 𝐱) ≈ U / ν.
+    ```
 """
-function uncertainty_matrix(loss, x; kwargs...)
+function uncertainty_matrix(loss, x; regularization=0.0, kwargs...)
     H = FiniteDiff.finite_difference_hessian(loss, x; kwargs...)
-    return loss(x) * inv(H)
+    return 2 * loss(x) * inv(H + regularization*I)
 end
 
 

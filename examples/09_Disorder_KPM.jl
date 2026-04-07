@@ -2,7 +2,7 @@
 #
 # This example uses [`SpinWaveTheoryKPM`](@ref) to efficiently calculate the
 # neutron scattering spectrum of a disordered triangular antiferromagnet. The
-# model is inspired by YbMgGaO4, as studied in [Paddison et al, Nature Phys.,
+# model is inspired by YbMgGaO4, as studied in [Paddison et al, Nat. Phys.,
 # **13**, 117–122 (2017)](https://doi.org/10.1038/nphys3971) and [Zhu et al,
 # Phys. Rev. Lett. **119**, 157201
 # (2017)](https://doi.org/10.1103/PhysRevLett.119.157201). Disordered occupancy
