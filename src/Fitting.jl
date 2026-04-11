@@ -146,24 +146,25 @@ end
 
 
 """
-    squared_error_fitted(u, v; weights=nothing, scale=false, shift=false)
+    squared_error_fitted(u, v; scale=false, shift=false, weights=nothing, normalize=true)
 
-Returns the normalized sum of squared errors,
+Returns the sum of squared errors,
 
 ```math
 L = \\frac{1}{c} ∑_i w_i |(α v_i + β) - u_i|^2.
 ```
 
 By default, ``α = 1`` and ``β = 0``. If `scale=true`, then determine ``α`` by
-minimizing ``L``. If `shift=true`, then optimize ``β`` as well. Returns a named
-tuple with fields `(; error, scale, shift)` for ``(L, α, β)``, respectively.
+minimizing ``L``. If `shift=true`, then optimize ``β`` as well. The return value
+is a named tuple with fields `(; error, scale, shift)` for ``(L, α, β)``,
+respectively.
 
-Weights ``w_i`` must be nonnegative and default to one. Any `NaN` elements
-``u_i`` or ``v_i`` will be interpreted as missing data and omitted from the sum.
+Any `NaN` elements ``u_i`` or ``v_i`` will be interpreted as missing data and
+omitted from the sum. Weights ``w_i`` must be nonnegative and default to one.
 
-The normalization factor ``c`` depends on the fitting options. In all cases, the
-minimized ``L`` is symmetric in ``(u, v)`` and is of order one when the inputs
-disagree strongly.
+If `normalize=false`, then set ``c = 1`` and return the raw squared error.
+Otherwise, ``c`` will be selected such that the minimized ``L`` is symmetric in
+``(u, v)`` and is of order one when the inputs disagree strongly.
 
 !!! tip "Closed-form expressions"
 
@@ -193,7 +194,7 @@ disagree strongly.
 
     The final expression for ``L`` depends on whether the scale is optimized.
 
-    **Case 1, `scale=false`**: Here ``α = 1`` and we choose ``c`` so that
+    **Case 1, `scale=false`**: Here ``α = 1``. If `normalize=true`, choose ``c`` so that
 
     ```math
     L = \\frac{\\|\\tilde v - \\tilde u\\|^2}{\\|\\tilde u\\|^2 + \\|\\tilde v\\|^2}.
@@ -202,10 +203,10 @@ disagree strongly.
     **Case 2, `scale=true`**: Here the optimal scale factor is
 
     ```math
-    α = \\frac{⟨\\tilde v, \\tilde u⟩}{\\|\\tilde v\\|^2}.
+    α = \\frac{⟨\\tilde v, \\tilde u⟩}{\\|\\tilde v\\|^2},
     ```
 
-    Choosing ``c = ∑_i w_i \\|\\tilde u_i\\|^2`` gives
+    If `normalize=true`, select ``c = \\|\\tilde u\\|^2`` so that
 
     ```math
     L = 1 - \\frac{|⟨\\tilde u, \\tilde v⟩|^2}{\\|\\tilde u\\|^2\\,\\|\\tilde v\\|^2}.
@@ -214,8 +215,11 @@ disagree strongly.
     This is a cosine-squared loss. For complex inputs, note that the optimal
     ``α`` absorbs an arbitrary scale _and_ complex phase.
 """
-function squared_error_fitted(u, v; weights=nothing, scale=false, shift=false)
+function squared_error_fitted(u, v; scale=false, shift=false, weights=nothing, normalize=true)
     same_shape(u, v) || error("Mismatched input dimensions")
+    if !isnothing(weights)
+        same_shape(u, weights) || error("Mismatched weight dimensions")
+    end
     (u, v) = flatten_to_vec.((u, v))
     ty = promote_type(eltype(u), eltype(v))
     rty = real(ty)
@@ -223,7 +227,6 @@ function squared_error_fitted(u, v; weights=nothing, scale=false, shift=false)
     w = if isnothing(weights)
         fill(one(rty), length(u))
     else
-        same_shape(u, weights) || error("Mismatched weight dimensions")
         flatten_to_vec(weights)
     end
 
@@ -244,67 +247,76 @@ function squared_error_fitted(u, v; weights=nothing, scale=false, shift=false)
     v2 = dot(v, W, v)
     vu = dot(v, W, u)
 
-    # Effective moments of ũ, ṽ
-    u2t, v2t, vut, ubar, vbar = if shift
+    # If `shift`, replace moments by their centered variances
+    ubar = vbar = zero(ty)
+    if shift
         wsum = sum(w)
         iszero(wsum) && error("Sum of valid weights must be positive")
 
         ubar = dot(w, u) / wsum
         vbar = dot(w, v) / wsum
 
-        (
-            u2 - wsum * abs2(ubar),
-            v2 - wsum * abs2(vbar),
-            vu - wsum * conj(vbar) * ubar,
-            ubar,
-            vbar,
-        )
-    else
-        (u2, v2, vu, zero(ty), zero(ty))
+        u2 -= wsum * abs2(ubar)
+        v2 -= wsum * abs2(vbar)
+        vu -= wsum * conj(vbar) * ubar
     end
 
-    α, L = if scale
-        if iszero(u2t) && iszero(v2t)
-            (one(ty), zero(rty)) # Both centered inputs vanish; define cos² loss as 0
-        elseif iszero(u2t) || iszero(v2t)
-            (zero(ty), one(rty)) # One centered input vanishes; define cos² loss as 1
+    # If `scale`, determine non-trivial α
+    α = if scale
+        if iszero(u2) && iszero(v2)
+            one(ty)
+        elseif iszero(u2) || iszero(v2)
+            zero(ty)
         else
-            α = vut / v2t
-            L = real(1 - abs2(vut) / (u2t * v2t))
-            (α, L)
+            vu / v2
         end
     else
-        α = one(ty)
-        denom = u2t + v2t
-        L = iszero(denom) ? zero(rty) : real((v2t + u2t - 2real(vut)) / denom)
-        (α, L)
+        one(ty)
     end
 
-    L = clamp(L, 0, 1)
-    β = shift ? ubar - α * vbar : zero(ty)
+    # For reporting purposes
+    β = ubar - α * vbar
+
+    # Renormalization factor if requested
+    c = normalize ? real(scale ? u2 : u2 + v2) : one(rty)
+
+    # Special care for cosine-squared loss conventions in case of degenerate
+    # inputs
+    L = if iszero(u2) && iszero(v2)
+        # Both centered signals vanish; treat this as an exact match
+        zero(rty)
+    elseif iszero(c)
+        @assert scale && iszero(u2)
+        # Centered u input vanishes while centered v input does not; use maximal
+        # cosine-squared loss
+        one(rty)
+    else
+        residual_squared = real(abs2(α) * v2 + u2 - 2 * conj(α) * vu)
+        max(residual_squared / c, zero(rty))
+    end
+
     return (; error=L, scale=α, shift=β)
 end
 
 
 """
-    squared_error(u, v; weights=nothing)
+    squared_error(u, v; weights=nothing, normalize=true)
 
-Normalized sum of squared errors, ``L = (1/c) \\sum_i w_i \\|v_i - u_i\\|^2``.
-Weights ``w_i`` must be nonnegative and default to one.
+Sum of squared errors, ``L = (1/c) \\sum_i w_i \\|v_i - u_i\\|^2``. Any `NaN`
+elements ``u_i`` or ``v_i`` will be interpreted as missing data and omitted from
+the sum. Weights ``w_i`` must be nonnegative and default to one.
 
-The normalization factor is defined symmetrically, ``c = \\|u\\|^2 +
-\\|v\\|^2``, involving the weighted norm,
+If `normalize=false`, then set ``c = 1`` and return the raw squared error.
+Otherwise, set ``c = \\|u\\|^2 + \\|v\\|^2``, involving the weighted norm,
 
 ```math
 \\|a\\|^2 ≡ \\sum_i w_i |a_i|^2.
 ```
 
-Any NaN elements (``u_i`` or ``v_i``) will be interpreted as missing data and
-omitted from the sum.
-
-This function is a special case of [`squared_error_fitted`](@ref).
+See [`squared_error_fitted`](@ref) for a generalization that can infer an
+unknown scale and shift between the inputs.
 """
-squared_error(u, v; weights=nothing) = squared_error_fitted(u, v; weights).error
+squared_error(u, v; weights=nothing, normalize=true) = squared_error_fitted(u, v; weights, normalize).error
 
 
 """
