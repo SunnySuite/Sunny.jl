@@ -83,9 +83,9 @@ kTs = [100, 200, 300] * units.K
 # mismatch. Use the [`SCGA`](@ref) calculator to simulate
 # [`magnetic_susceptibility_per_site`](@ref) and [`intensities_static`](@ref).
 # Measure deviation from experimental data using [`squared_error`](@ref) and
-# [`squared_error_fitted`](@ref). The latter accounts for the unknown intensity
-# scale of ``\mathcal{S}(𝐪)``. Both error terms are of order one, so adding
-# them with equal weights is a reasonable default (tune as needed).
+# [`squared_error_fitted`](@ref). The latter fits the unknown relative intensity
+# scale of ``\mathcal{S}(𝐪)``. Both error terms are normalized by default, so
+# adding them with equal weights is a reasonable default (tune as needed).
 
 labels = [:J1, :J2, :J3a, :J3b]
 

@@ -14,8 +14,7 @@
 * Add Pr⁴⁺ form factor as Ce³⁺ form factor with length-scale contraction
   ([#483](@ref)).
 * Replace `squared_error_with_rescaling` with [`squared_error_fitted`](@ref).
-  The latter can infer both a `scale` and `shift` for the target data
-  ([#484](@ref)).
+  The latter optionally infers a `shift` as well as a `scale` ([#484](@ref)).
 * Modify [`squared error_bands`](@ref) to expect target data first and
   model-predicted data second ([#484](@ref)).
 * Matrix ``U`` returned by [`uncertainty_matrix`](@ref) increases by a factor of

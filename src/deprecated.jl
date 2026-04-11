@@ -107,7 +107,7 @@ end
 
 Base.@deprecate squared_error_with_rescaling(u, v; weights=nothing) let
     (; error, scale) = squared_error_fitted(u, v; weights, scale=true)
-    return (; error, rescaling=1/scale)
+    return (; error, rescaling=scale)
 end
 
 

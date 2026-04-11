@@ -104,8 +104,8 @@ energies = range(0.0, 2.45; length=100)
 # `minimize_energy!` only needs to refine the canting angle for a cloned system
 # with updated parameter values.
 #
-# The function [`squared_error_fitted`](@ref) automatically fits the overall
-# scale of the experimental intensities.
+# The function [`squared_error_fitted`](@ref) with `scale=true` automatically
+# fits the unknown relative intensity scale.
 #
 # The squared error can become misleading if some model intensity "leaks" beyond
 # the energy bounds of the experimental measurement. To combat this, we include
@@ -196,7 +196,7 @@ res.data[findall(isnan, ref_data)] .= NaN
 plot_intensities!(fig[2, 1], res; colormap=:jet1, colorrange=(0, 10.0),
                   title="Optimized model fit", units)
 
-res.data .= ref_data * scale
+res.data .= ref_data / scale
 plot_intensities!(fig[1, 1], res; colormap=:jet1, colorrange=(0, 10.0),
                   title="Experimental data (coarsened)", units)
 fig

@@ -1,25 +1,25 @@
 @testitem "Squared error with rescaling" begin
     u = ComplexF64[1 + 2im, -3 + im, 2 - 4im]
     α = 2 - 3im
-    v = α .* u
+    v = u ./ α
     (; error, scale) = squared_error_fitted(u, v; scale=true)
     @test error ≈ 0 atol=1e-12
     @test scale ≈ α atol=1e-12
 
-    (; error, scale, shift) = squared_error_fitted([1, 2, 3], [1, 1, 1]; scale=true, shift=true)
+    (; error, scale, shift) = squared_error_fitted([1, 2, 3], [1, 1, 1]; scale=false, shift=true)
     @test error ≈ 1 atol=1e-12
-    @test scale ≈ 0 atol=1e-12
-    @test shift ≈ 1 atol=1e-12
-
-    (; error, scale, shift) = squared_error_fitted([2, 2, 2], [1, 1, 1]; scale=true, shift=true)
-    @test error ≈ 0 atol=1e-12
     @test scale ≈ 1 atol=1e-12
-    @test shift ≈ -1.0 atol=1e-12
+    @test shift ≈ 1 atol=1e-12
 
     (; error, scale, shift) = squared_error_fitted([2, 2, 2], [1, 1, 1]; scale=true, shift=false)
     @test error ≈ 0 atol=1e-12
-    @test scale ≈ 1/2 atol=1e-12
+    @test scale ≈ 2 atol=1e-12
     @test shift ≈ 0 atol=1e-12
+
+    (; error, scale, shift) = squared_error_fitted([3, 3, 5], [1, 1, 2]; scale=true, shift=true)
+    @test error ≈ 0 atol=1e-12
+    @test scale ≈ 2 atol=1e-12
+    @test shift ≈ 1 atol=1e-12
 end
 
 @testitem "Squared error bands" begin

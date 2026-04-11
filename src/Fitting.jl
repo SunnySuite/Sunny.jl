@@ -151,7 +151,7 @@ end
 Returns the normalized sum of squared errors,
 
 ```math
-L = \\frac{1}{c} ∑_i w_i | v_i - (α u_i + β)|^2.
+L = \\frac{1}{c} ∑_i w_i |(α v_i + β) - u_i|^2.
 ```
 
 By default, ``α = 1`` and ``β = 0``. If `scale=true`, then determine ``α`` by
@@ -184,11 +184,11 @@ disagree strongly.
     and ``\\tilde v ≡ v - \\bar v``. Otherwise, define ``\\tilde u ≡ u`` and
     ``\\tilde v ≡ v``.
 
-    When optimized, the shift is ``β = \\bar v - α \\bar u``. Otherwise,
+    When optimized, the shift is ``β = \\bar u - α \\bar v``. Otherwise,
     ``β = 0``. In either case,
 
     ```math
-    L = \\frac{1}{c} \\|\\tilde v - α \\tilde u\\|^2.
+    L = \\frac{1}{c} \\|α \\tilde v - \\tilde u\\|^2.
     ```
 
     The final expression for ``L`` depends on whether the scale is optimized.
@@ -202,10 +202,10 @@ disagree strongly.
     **Case 2, `scale=true`**: Here the optimal scale factor is
 
     ```math
-    α = \\frac{⟨\\tilde u, \\tilde v⟩}{\\|\\tilde u\\|^2}.
+    α = \\frac{⟨\\tilde v, \\tilde u⟩}{\\|\\tilde v\\|^2}.
     ```
 
-    Choosing ``c = ∑_i w_i \\|\\tilde v_i\\|^2`` gives
+    Choosing ``c = ∑_i w_i \\|\\tilde u_i\\|^2`` gives
 
     ```math
     L = 1 - \\frac{|⟨\\tilde u, \\tilde v⟩|^2}{\\|\\tilde u\\|^2\\,\\|\\tilde v\\|^2}.
@@ -242,10 +242,10 @@ function squared_error_fitted(u, v; weights=nothing, scale=false, shift=false)
     W = Diagonal(w)
     u2 = dot(u, W, u)
     v2 = dot(v, W, v)
-    uv = dot(u, W, v)
+    vu = dot(v, W, u)
 
     # Effective moments of ũ, ṽ
-    u2t, v2t, uvt, ubar, vbar = if shift
+    u2t, v2t, vut, ubar, vbar = if shift
         wsum = sum(w)
         iszero(wsum) && error("Sum of valid weights must be positive")
 
@@ -255,12 +255,12 @@ function squared_error_fitted(u, v; weights=nothing, scale=false, shift=false)
         (
             u2 - wsum * abs2(ubar),
             v2 - wsum * abs2(vbar),
-            uv - wsum * conj(ubar) * vbar,
+            vu - wsum * conj(vbar) * ubar,
             ubar,
             vbar,
         )
     else
-        (u2, v2, uv, zero(ty), zero(ty))
+        (u2, v2, vu, zero(ty), zero(ty))
     end
 
     α, L = if scale
@@ -269,19 +269,19 @@ function squared_error_fitted(u, v; weights=nothing, scale=false, shift=false)
         elseif iszero(u2t) || iszero(v2t)
             (zero(ty), one(rty)) # One centered input vanishes; define cos² loss as 1
         else
-            α = uvt / u2t
-            L = real(1 - abs2(uvt) / (u2t * v2t))
+            α = vut / v2t
+            L = real(1 - abs2(vut) / (u2t * v2t))
             (α, L)
         end
     else
         α = one(ty)
         denom = u2t + v2t
-        L = iszero(denom) ? zero(rty) : real((v2t + u2t - 2real(uvt)) / denom)
+        L = iszero(denom) ? zero(rty) : real((v2t + u2t - 2real(vut)) / denom)
         (α, L)
     end
 
     L = clamp(L, 0, 1)
-    β = shift ? vbar - α * ubar : zero(ty)
+    β = shift ? ubar - α * vbar : zero(ty)
     return (; error=L, scale=α, shift=β)
 end
 
