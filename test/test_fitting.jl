@@ -1,6 +1,7 @@
 @testitem "Squared error fitted" begin
     @test squared_error([1, 3], [1, 1]; normalize=false) ≈ 4 atol=1e-12
-    @test squared_error([1, 3], [1, 1]) ≈ 1/3 atol=1e-12
+    @test squared_error([1, 3], [1, 1]) ≈ 2/3 atol=1e-12
+    @test squared_error([1, -1], [-1, 1]) ≈ 4 atol=1e-12
 
     r = squared_error_fitted([4, 4], [2, -1]; scale=true, weights=[0.5, 0.5])
     @test r.error ≈ 0.9 atol=1e-12
@@ -11,7 +12,7 @@
     @test r.scale ≈ 0.8 atol=1e-12
 
     (; error, scale, shift) = squared_error_fitted([1, 2, 3], [1, 1, 1]; shift=true)
-    @test error ≈ 1 atol=1e-12
+    @test error ≈ 2 atol=1e-12
     @test scale ≈ 1 atol=1e-12
     @test shift ≈ 1 atol=1e-12
 

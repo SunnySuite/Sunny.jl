@@ -194,26 +194,32 @@ Otherwise, ``c`` will be selected such that the minimized ``L`` is symmetric in
 
     The final expression for ``L`` depends on whether the scale is optimized.
 
-    **Case 1, `scale=false`**: Here ``α = 1``. If `normalize=true`, choose ``c`` so that
+    **Case 1, `scale=false`**: Here ``α = 1``. If `normalize=true`, choose
 
     ```math
-    L = \\frac{\\|\\tilde v - \\tilde u\\|^2}{\\|\\tilde u\\|^2 + \\|\\tilde v\\|^2}.
+    c = (\\|\\tilde u\\|^2 + \\|\\tilde v\\|^2) / 2.
     ```
 
     **Case 2, `scale=true`**: Here the optimal scale factor is
 
     ```math
-    α = \\frac{⟨\\tilde v, \\tilde u⟩}{\\|\\tilde v\\|^2},
+    α = \\frac{⟨\\tilde v, \\tilde u⟩}{\\|\\tilde v\\|^2}.
     ```
 
-    If `normalize=true`, select ``c = \\|\\tilde u\\|^2`` so that
+    If `normalize=true`, choose
+
+    ```math
+    c = \\|\\tilde u\\|^2,
+    ```
+
+    which yields the cosine-squared loss,
 
     ```math
     L = 1 - \\frac{|⟨\\tilde u, \\tilde v⟩|^2}{\\|\\tilde u\\|^2\\,\\|\\tilde v\\|^2}.
     ```
 
-    This is a cosine-squared loss. For complex inputs, note that the optimal
-    ``α`` absorbs an arbitrary scale _and_ complex phase.
+    For complex inputs, note that the optimal ``α`` absorbs an arbitrary scale _and_
+    complex phase.
 """
 function squared_error_fitted(u, v; scale=false, shift=false, weights=nothing, normalize=true)
     same_shape(u, v) || error("Mismatched input dimensions")
@@ -278,7 +284,7 @@ function squared_error_fitted(u, v; scale=false, shift=false, weights=nothing, n
     β = ubar - α * vbar
 
     # Renormalization factor if requested
-    c = normalize ? real(scale ? u2 : u2 + v2) : one(rty)
+    c = normalize ? real(scale ? u2 : (u2 + v2) / 2) : one(rty)
 
     # Special care for cosine-squared loss conventions in case of degenerate
     # inputs
@@ -307,7 +313,7 @@ elements ``u_i`` or ``v_i`` will be interpreted as missing data and omitted from
 the sum. Weights ``w_i`` must be nonnegative and default to one.
 
 If `normalize=false`, then set ``c = 1`` and return the raw squared error.
-Otherwise, set ``c = \\|u\\|^2 + \\|v\\|^2``, involving the weighted norm,
+Otherwise, set ``c = (\\|u\\|^2 + \\|v\\|^2) / 2``, involving the weighted norm,
 
 ```math
 \\|a\\|^2 ≡ \\sum_i w_i |a_i|^2.
