@@ -146,164 +146,165 @@ end
 
 
 """
-    squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
+    squared_error_fitted(u, v; weights=nothing, scale=false, shift=false)
 
 Returns the normalized sum of squared errors,
 
 ```math
-L = \\frac{1}{c} ∑_i w_i | y_i - (α x_i + β)|^2.
+L = \\frac{1}{c} ∑_i w_i | v_i - (α u_i + β)|^2.
 ```
 
 By default, ``α = 1`` and ``β = 0``. If `scale=true`, then determine ``α`` by
-minimizing ``L``. If `shift=true`, then similarly optimize ``β``. Returns a
-named tuple with fields `(; error, scale, shift)` for ``(L, α, β)``,
-respectively.
+minimizing ``L``. If `shift=true`, then optimize ``β`` as well. Returns a named
+tuple with fields `(; error, scale, shift)` for ``(L, α, β)``, respectively.
 
 Weights ``w_i`` must be nonnegative and default to one. Any `NaN` elements
-``x_i`` or ``y_i`` will be interpreted as missing data and omitted from the sum.
+``u_i`` or ``v_i`` will be interpreted as missing data and omitted from the sum.
 
 The normalization factor ``c`` depends on the fitting options. In all cases, the
-minimized ``L`` is symmetric in ``(x, y)`` and is of order one when ``x`` and
-``y`` maximally disagree.
+minimized ``L`` is symmetric in ``(u, v)`` and is of order one when the inputs
+disagree strongly.
 
 !!! tip "Closed-form expressions"
 
-    Begin with some notation. Define the weighted inner product,
+    For arbitrary vectors ``a`` and ``b``, define the weighted inner product,
 
     ```math
-        ⟨u, v⟩ = ∑_i w_i u_i^* v_i,
+        ⟨a, b⟩ = ∑_i w_i a_i^* b_i,
     ```
 
-    and its associated norm ``\\|u\\|^2 = ⟨u, u⟩``. Define the weighted mean,
+    and associated norm ``\\|a\\|^2 = ⟨a, a⟩``. Also define the weighted mean,
 
     ```math
-    \\bar u = \\frac{∑_i w_i u_i}{∑_i w_i}.
+    \\bar a = \\frac{∑_i w_i a_i}{∑_i w_i}.
     ```
 
-    Define variables ``\\tilde u`` that optionally shift an input by its weighted
-    mean: if `shift=true` then ``\\tilde u ≡ u - \\bar u`` , otherwise ``\\tilde u ≡
-    u``.
+    Introduce a notation to optionally subtract the weighted mean from each input
+    vector. If `shift=true`, define centered variables ``\\tilde u ≡ u - \\bar u``
+    and ``\\tilde v ≡ v - \\bar v``. Otherwise, define ``\\tilde u ≡ u`` and
+    ``\\tilde v ≡ v``.
 
-    If optimized, the shift is ``β = \\bar y - α \\bar x``. Otherwise it is ``β =
-    0``. Either way,
+    When optimized, the shift is ``β = \\bar v - α \\bar u``. Otherwise,
+    ``β = 0``. In either case,
 
     ```math
-    L = \\frac{1}{c} \\|\\tilde y - α \\tilde x\\|^2.
+    L = \\frac{1}{c} \\|\\tilde v - α \\tilde u\\|^2.
     ```
 
-    There remain two possibilities for the final expression of ``L``.
+    The final expression for ``L`` depends on whether the scale is optimized.
 
-    **Case 1, `scale=false`**: Here ``α = 1`` and we choose ``c`` so that,
+    **Case 1, `scale=false`**: Here ``α = 1`` and we choose ``c`` so that
 
     ```math
-    L = \\frac{\\|\\tilde y - \\tilde x\\|^2}{\\|\\tilde x\\|^2 + \\|\\tilde y\\|^2}.
+    L = \\frac{\\|\\tilde v - \\tilde u\\|^2}{\\|\\tilde u\\|^2 + \\|\\tilde v\\|^2}.
     ```
 
     **Case 2, `scale=true`**: Here the optimal scale factor is
 
     ```math
-    α = \\frac{⟨\\tilde x, \\tilde y⟩}{\\|\\tilde x\\|^2}.
+    α = \\frac{⟨\\tilde u, \\tilde v⟩}{\\|\\tilde u\\|^2}.
     ```
 
-    We select ``c = ∑_i w_i \\|\\tilde y_i\\|^2`` so that substitution yields
+    Choosing ``c = ∑_i w_i \\|\\tilde v_i\\|^2`` gives
 
     ```math
-    L = 1 - \\frac{|⟨\\tilde x, \\tilde y⟩|^2}{\\|\\tilde x\\|^2\\,\\|\\tilde y\\|^2}.
+    L = 1 - \\frac{|⟨\\tilde u, \\tilde v⟩|^2}{\\|\\tilde u\\|^2\\,\\|\\tilde v\\|^2}.
     ```
 
-    This may be understood as a cosine-squared loss. In case of complex inputs, note
-    that the optimal ``α`` absorbs an arbitrary scale _and_ complex phase.
+    This is a cosine-squared loss. For complex inputs, note that the optimal
+    ``α`` absorbs an arbitrary scale _and_ complex phase.
 """
-function squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
-    same_shape(x, y) || error("Mismatched input dimensions")
-    (x, y) = flatten_to_vec.((x, y))
-    ty = promote_type(eltype(x), eltype(y))
+function squared_error_fitted(u, v; weights=nothing, scale=false, shift=false)
+    same_shape(u, v) || error("Mismatched input dimensions")
+    (u, v) = flatten_to_vec.((u, v))
+    ty = promote_type(eltype(u), eltype(v))
     rty = real(ty)
 
     w = if isnothing(weights)
-        fill(one(rty), length(x))
+        fill(one(rty), length(u))
     else
-        same_shape(x, weights) || error("Mismatched weight dimensions")
+        same_shape(u, weights) || error("Mismatched weight dimensions")
         flatten_to_vec(weights)
     end
 
     # Shadow the inputs by their non-NaN subarrays
-    inds = findall(i -> !isnan(x[i]) && !isnan(y[i]), eachindex(x))
+    inds = findall(i -> !isnan(u[i]) && !isnan(v[i]), eachindex(u))
     isempty(inds) && error("No valid data after removing NaNs")
     @views begin
         w = w[inds]
-        x = x[inds]
-        y = y[inds]
+        u = u[inds]
+        v = v[inds]
     end
 
     all(wi -> isreal(wi) && real(wi) >= 0, w) || error("Weights must be non-negative")
 
     # Raw weighted moments
     W = Diagonal(w)
-    x2 = dot(x, W, x)
-    y2 = dot(y, W, y)
-    xy = dot(x, W, y)
+    u2 = dot(u, W, u)
+    v2 = dot(v, W, v)
+    uv = dot(u, W, v)
 
-    # Effective moments of x̃, ỹ
-    x2t, y2t, xyt, xbar, ybar = if shift
+    # Effective moments of ũ, ṽ
+    u2t, v2t, uvt, ubar, vbar = if shift
         wsum = sum(w)
         iszero(wsum) && error("Sum of valid weights must be positive")
 
-        xbar = dot(w, x) / wsum
-        ybar = dot(w, y) / wsum
+        ubar = dot(w, u) / wsum
+        vbar = dot(w, v) / wsum
 
         (
-            x2 - wsum * abs2(xbar),
-            y2 - wsum * abs2(ybar),
-            xy - wsum * conj(xbar) * ybar,
-            xbar,
-            ybar,
+            u2 - wsum * abs2(ubar),
+            v2 - wsum * abs2(vbar),
+            uv - wsum * conj(ubar) * vbar,
+            ubar,
+            vbar,
         )
     else
-        (x2, y2, xy, zero(ty), zero(ty))
+        (u2, v2, uv, zero(ty), zero(ty))
     end
 
     α, L = if scale
-        if iszero(x2t) && iszero(y2t)
+        if iszero(u2t) && iszero(v2t)
             (one(ty), zero(rty)) # Both centered inputs vanish; define cos² loss as 0
-        elseif iszero(x2t) || iszero(y2t)
+        elseif iszero(u2t) || iszero(v2t)
             (zero(ty), one(rty)) # One centered input vanishes; define cos² loss as 1
         else
-            α = xyt / x2t
-            L = real(1 - abs2(xyt) / (x2t * y2t))
+            α = uvt / u2t
+            L = real(1 - abs2(uvt) / (u2t * v2t))
             (α, L)
         end
     else
         α = one(ty)
-        denom = x2t + y2t
-        L = iszero(denom) ? zero(rty) : real((y2t + x2t - 2real(xyt)) / denom)
+        denom = u2t + v2t
+        L = iszero(denom) ? zero(rty) : real((v2t + u2t - 2real(uvt)) / denom)
         (α, L)
     end
 
     L = clamp(L, 0, 1)
-    β = shift ? ybar - α * xbar : zero(ty)
+    β = shift ? vbar - α * ubar : zero(ty)
     return (; error=L, scale=α, shift=β)
 end
 
 
 """
-    squared_error(x, y; weights=nothing)
+    squared_error(u, v; weights=nothing)
 
-Normalized sum of squared errors, ``L = (1/c) \\sum_i w_i \\|y_i - x_i\\|^2``.
+Normalized sum of squared errors, ``L = (1/c) \\sum_i w_i \\|v_i - u_i\\|^2``.
 Weights ``w_i`` must be nonnegative and default to one.
 
-The normalization factor is defined symmetrically, ``c = \\|x\\|^2 +
-\\|y\\|^2``, involving the weighted norm,
+The normalization factor is defined symmetrically, ``c = \\|u\\|^2 +
+\\|v\\|^2``, involving the weighted norm,
+
 ```math
-\\|u\\|^2 = \\sum_i w_i |u_i|^2.
+\\|a\\|^2 ≡ \\sum_i w_i |a_i|^2.
 ```
 
-Any NaN elements (``x_i`` or ``y_i``) will be interpreted as missing data and
+Any NaN elements (``u_i`` or ``v_i``) will be interpreted as missing data and
 omitted from the sum.
 
 This function is a special case of [`squared_error_fitted`](@ref).
 """
-squared_error(x, y; weights=nothing) = squared_error_fitted(x, y; weights).error
+squared_error(u, v; weights=nothing) = squared_error_fitted(u, v; weights).error
 
 
 """

@@ -1,8 +1,8 @@
 @testitem "Squared error with rescaling" begin
-    x = ComplexF64[1 + 2im, -3 + im, 2 - 4im]
+    u = ComplexF64[1 + 2im, -3 + im, 2 - 4im]
     α = 2 - 3im
-    y = α .* x
-    (; error, scale) = squared_error_fitted(x, y; scale=true)
+    v = α .* u
+    (; error, scale) = squared_error_fitted(u, v; scale=true)
     @test error ≈ 0 atol=1e-12
     @test scale ≈ α atol=1e-12
 
