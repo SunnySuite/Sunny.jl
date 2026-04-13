@@ -85,7 +85,7 @@ kTs = [100, 200, 300] * units.K
 # Measure deviation from experimental data using [`squared_error`](@ref) and
 # [`squared_error_fitted`](@ref). The latter fits the unknown relative intensity
 # scale of ``\mathcal{S}(𝐪)``. Both error terms are normalized by default, so
-# adding them with equal weights is a reasonable default (tune as needed).
+# they can be added with a dimensionless weighting factor (tune as needed).
 
 labels = [:J1, :J2, :J3a, :J3b]
 
@@ -101,7 +101,7 @@ loss = make_loss_fn(sys, labels) do sys
     Sq = intensities_static(scga, grid_ref)
     Sq_error = squared_error_fitted(Sq_ref, Sq.data; scale=true).error
 
-    return 0.5 * χ_error + 0.5 * Sq_error
+    return χ_error + 4 * Sq_error # More emphasis on S(q)
 end
 
 # The loss function can be evaluated at any parameter values. As an initial
@@ -127,7 +127,7 @@ options = Optim.Options(
     show_every = 5,
 )
 fit = Optim.optimize(loss, guess, Optim.LBFGS(), options)
-@assert isapprox(fit.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
+@assert isapprox(fit.minimizer ./ units.K, [32.2856, 5.4953, 6.4005, 0.3961]; rtol=1e-5) #hide
 fit.minimizer ./ units.K # [J1, J2, J3a, J3b]
 
 # Optim defaults to finite differences for its gradient estimation. An
@@ -144,7 +144,7 @@ import Zygote
 import DifferentiationInterface as DI
 
 fit = Optim.optimize(loss, guess, Optim.LBFGS(), options; autodiff=DI.AutoZygote())
-@assert isapprox(fit.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
+@assert isapprox(fit.minimizer ./ units.K, [32.2856, 5.4953, 6.4005, 0.3961]; rtol=1e-5) #hide
 fit.minimizer ./ units.K
 
 # Compare ``\mathcal{S}(𝐪)`` in the low-resolution ``[H, K, 0]`` slice that was
@@ -204,9 +204,9 @@ sqrt.(diag(U) / 2) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 #
 # | Parameter | This study (K) | Bai et al. (K) |
 # |:----------|---------------:|---------------:|
-# | J1        | 32.7 ± 7.6     | 38.1           |
-# | J2        | 5.6  ± 2.0     | 3.1            |
-# | J3a       | 6.5  ± 2.6     | 4.0            |
+# | J1        | 32.3 ± 9.6     | 38.1           |
+# | J2        | 5.5  ± 2.3     | 3.1            |
+# | J3a       | 6.4  ± 2.7     | 4.0            |
 # | J3b       | 0.40 ± 1.1     | 0.32           |
 #
 # The fits by Bai et al. are more accurate because they incorporate first moment
