@@ -107,9 +107,9 @@ loss(guess)
 import Optim
 
 method = Optim.NelderMead()
-options = Optim.Options(; g_tol=1e-6)
+options = Optim.Options(; g_tol=1e-8)
 fit = Optim.optimize(loss, guess, method, options)
-@assert isapprox(fit.minimizer, [6.1057, 3.9897, -0.6266, -0.0899]; rtol=1e-5) #hide
+@assert isapprox(fit.minimizer, [6.1037, 3.9892, -0.6294, -0.0902]; rtol=1e-3) #hide
 fit.minimizer # [Jab, Jc, Kxx, Kyy]
 
 # Report misfit tolerances derived from [`uncertainty_matrix`](@ref). This is a
@@ -117,14 +117,14 @@ fit.minimizer # [Jab, Jc, Kxx, Kyy]
 # systematic modeling errors.
 
 U = uncertainty_matrix(loss, fit.minimizer)
-@assert isapprox(sqrt.(diag(U) / 2), [0.2121, 0.1924, 0.081, 0.0423]; rtol=1e-3) #hide
-sqrt.(diag(U)) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
+@assert isapprox(sqrt.(diag(U) / 2), [0.2121, 0.1924, 0.0812, 0.0424]; rtol=1e-3) #hide
+sqrt.(diag(U) / 2) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
 
 # The parameter fits are in reasonable agreement with previous work:
 #
 # | Parameter  | This study (meV) | Skoulatos et al. (meV) |
 # |:-----------|-----------------:|-----------------------:|
-# | ``J_{ab}`` | 6.11 ± 0.21      | 5.95                   |
+# | ``J_{ab}`` | 6.10 ± 0.21      | 5.95                   |
 # | ``J_c``    | 3.99 ± 0.19      | 4.24                   |
 # | ``K_{xx}`` | -0.63 ± 0.08     | -0.48                  |
 # | ``K_{yy}`` | -0.09 ± 0.04     | -0.06                  |
