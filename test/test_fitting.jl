@@ -1,6 +1,6 @@
 @testitem "Squared error fitted" begin
     @test squared_error([1, 3], [1, 1]; normalize=false) ≈ 4 atol=1e-12
-    @test squared_error([1, 3], [1, 1]) ≈ 2/3 atol=1e-12
+    @test squared_error([1, 3], [1, 1]) ≈ 2/5 atol=1e-12
     @test squared_error([1, -1], [-1, 1]) ≈ 4 atol=1e-12
 
     r = squared_error_fitted([4, 4], [2, -1]; scale=true, weights=[0.5, 0.5])
@@ -12,7 +12,7 @@
     @test r.scale ≈ 0.8 atol=1e-12
 
     (; error, scale, shift) = squared_error_fitted([1, 2, 3], [1, 1, 1]; shift=true)
-    @test error ≈ 2 atol=1e-12
+    @test error ≈ 1 atol=1e-12
     @test scale ≈ 1 atol=1e-12
     @test shift ≈ 1 atol=1e-12
 
@@ -36,14 +36,24 @@ end
 
 @testitem "Squared error bands" begin
     cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
-    qpts = Sunny.QPoints([Sunny.Vec3([0.0, 0.0, 0.0]), Sunny.Vec3([0.0, 0.0, 0.5])])
+    qpts = convert(Sunny.AbstractQPoints, [[0.0, 0.0, 0.0], [0.0, 0.0, 0.5]])
     disp = [1.0 3.0; 2.0 4.0]
     data = ones(size(disp))
     res = Sunny.BandIntensities(cryst, qpts, disp, data)
     Es = [[2.1], [3.2]]
 
+    # Smooth variant
     @test squared_error_bands(Es, res) ≈ (0.1^2 + 0.2^2) / (2.1^2 + 3.2^2)
     @test Sunny.squared_error_bands_smooth(Es, res; σ=0.1) ≈ 0.0037726373192329475
+
+    # Ignore bands below intensity cutoff
+    qpts = convert(Sunny.AbstractQPoints, [[0.0, 0.0, 0.0]])
+    disp = [1.0, 2.0]
+    data = [1.0im, 1e-6im]
+    res = Sunny.BandIntensities(cryst, qpts, disp, data)
+    Es = [[2.1]]
+    weights = [[1.5]]
+    @test squared_error_bands(Es, res; weights, intensity_cutoff=0.1, normalize=false) ≈ 1.5 * 1.1^2
 end
 
 @testitem "Wasserstein1 distance" begin
