@@ -130,7 +130,7 @@ function formatted_matrix(elemstrs::AbstractMatrix{String}; prefix)
     ncols = size(elemstrs, 2)
     max_col_len = [maximum(length.(col)) for col in eachcol(elemstrs)]
     max_col_len = repeat(max_col_len', ncols)
-    padded_elems = repeat.(' ', max_col_len .- length.(elemstrs)) .* elemstrs
+    padded_elems = lpad.(elemstrs, max_col_len)
 
     spacing = "\n"*repeat(' ', length(prefix) + 1)
     return "$prefix["*join(join.(eachrow(padded_elems), " "), spacing)*"]"
@@ -382,18 +382,16 @@ function print_reference_exchanges(cryst::Crystal, max_dist; tol=1e-12)
         row_strs = map(eachrow(J)) do J_i
             join(number_to_math_string.(J_i; tol), " ")
         end
-        "[" * join(row_strs, "; ") * "]"
+        "[" * join(row_strs, "; ") * "],"
     end
 
-    b_strs = string.(bonds)
+    b_strs = [string(b)*"," for b in bonds]
 
-    maxlen1 = maximum(length, J_strs)
-    maxlen2 = maximum(length, b_strs)
+    J_maxlen = maximum(length, J_strs)
+    b_maxlen = maximum(length, b_strs)
 
     lines = map(J_strs, b_strs, labels) do J_str, b_str, label
-        pad1 = repeat(' ', maxlen1 - length(J_str))
-        pad2 = repeat(' ', maxlen2 - length(b_str))
-        "set_exchange!(sys, $J_str,$pad1 $b_str,$pad2 :$label => 0)"
+        "set_exchange!(sys, $(rpad(J_str, J_maxlen)) $(rpad(b_str, b_maxlen)) :$label => 0)"
     end
 
     println(join(lines, "\n"))
