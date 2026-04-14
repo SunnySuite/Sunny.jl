@@ -101,22 +101,23 @@ loss = make_loss_fn(sys, labels) do sys
     Sq = intensities_static(scga, grid_ref)
     Sq_error = squared_error_fitted(Sq_ref, Sq.data; scale=true).error
 
-    return χ_error + 4 * Sq_error # More emphasis on S(q)
+    return χ_error + 2*Sq_error
 end
 
 # The loss function can be evaluated at any parameter values. As an initial
-# guess, select a null model without any exchange coupling.
+# guess, select a model with only nearest-neighbor exchange. The Curie-Weiss
+# constant is measured to be about 400 K, which sets a scale for ``J_1`` of
+# about 50 K.
 
-guess = [0.0, 0.0, 0.0, 0.0]
+guess = [50.0, 0.0, 0.0, 0.0]
 loss(guess)
 
 # Fit ``[J_1, J_2, J_{3a}, J_{3b}]`` to minimize the loss using the
 # [Optim](https://github.com/JuliaNLSolvers/Optim.jl) package. Good methods to
-# try are `Optim.LBFGS()` (requires gradients, possibly faster) and
-# `Optim.NelderMead()` (gradient free, possibly more robust). A good stopping
-# criterion is that all components of the loss gradient are below some
-# threshold. The choice `g_tol = 1e-6 / K` yields about 6 digits of precision in
-# kelvin.
+# try are `Optim.LBFGS()` (requires gradient estimation) and
+# `Optim.NelderMead()` (gradient free). A good stopping criterion is that all
+# components of the loss gradient are below some threshold. The choice `g_tol =
+# 1e-6 / K` yields about 6 digits of precision in kelvin.
 
 import Optim
 
@@ -128,7 +129,7 @@ options = Optim.Options(
 )
 fit = Optim.optimize(loss, guess, Optim.LBFGS(), options)
 @show fit.minimizer ./ units.K
-@assert isapprox(fit.minimizer ./ units.K, [32.2856, 5.4953, 6.4005, 0.3961]; rtol=1e-5) #hide
+@assert isapprox(fit.minimizer ./ units.K, [32.7000, 5.5775, 6.4796, 0.3990]; rtol=1e-5) #hide
 fit.minimizer ./ units.K # [J1, J2, J3a, J3b]
 
 # Optim defaults to finite differences for its gradient estimation. An
@@ -145,7 +146,7 @@ import Zygote
 import DifferentiationInterface as DI
 
 fit = Optim.optimize(loss, guess, Optim.LBFGS(), options; autodiff=DI.AutoZygote())
-@assert isapprox(fit.minimizer ./ units.K, [32.2856, 5.4953, 6.4005, 0.3961]; rtol=1e-5) #hide
+@assert isapprox(fit.minimizer ./ units.K, [32.7000, 5.5775, 6.4796, 0.3990]; rtol=1e-5) #hide
 fit.minimizer ./ units.K
 
 # Compare ``\mathcal{S}(𝐪)`` in the low-resolution ``[H, K, 0]`` slice that was
@@ -205,9 +206,9 @@ sqrt.(diag(U) / 2) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 #
 # | Parameter | This study (K) | Bai et al. (K) |
 # |:----------|---------------:|---------------:|
-# | J1        | 32.3 ± 9.6     | 38.1           |
-# | J2        | 5.5  ± 2.3     | 3.1            |
-# | J3a       | 6.4  ± 2.7     | 4.0            |
+# | J1        | 32.7 ± 7.5     | 38.1           |
+# | J2        | 5.6  ± 2.0     | 3.1            |
+# | J3a       | 6.5  ± 2.5     | 4.0            |
 # | J3b       | 0.40 ± 1.1     | 0.32           |
 #
 # The fits by Bai et al. are more accurate because they incorporate first moment
