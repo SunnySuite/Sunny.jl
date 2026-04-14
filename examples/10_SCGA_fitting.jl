@@ -127,6 +127,7 @@ options = Optim.Options(
     show_every = 5,
 )
 fit = Optim.optimize(loss, guess, Optim.LBFGS(), options)
+@show fit.minimizer ./ units.K
 @assert isapprox(fit.minimizer ./ units.K, [32.2856, 5.4953, 6.4005, 0.3961]; rtol=1e-5) #hide
 fit.minimizer ./ units.K # [J1, J2, J3a, J3b]
 
