@@ -534,15 +534,14 @@ function squared_error_bands_smooth(Es :: Vector{Vector{Float64}},
 end
 
 """
-    squared_error_bands(Es, res; intensity_cutoff=1e-8, weights=nothing, normalize=true)
+    squared_error_bands(Es, res; weights=nothing, normalize=true)
 
 Squared error between experimentally labeled intensity peaks (`Es`) and the
 discrete energies of an [`intensities_bands`](@ref) calculation (`res`) for the
 same ``𝐪``-points. Each element `Es[i]` is a list of labeled intensity peaks
 for the `i`th ``𝐪``-point. Every labeled peak will be assigned to a unique spin
 wave band in `res`, but the converse is not true; any extra spin wave bands may
-be unmatched, and do not contribute to the total error. Any bands with intensity
-below the `intensity_cutoff` threshold are effectively ignored.
+be unmatched, and do not contribute to the total error.
 
 If `weights` are provided, these must be in one-to-one correspondence with the
 `Es` data, and will be used to scale the squared error terms. Default weights
@@ -556,7 +555,7 @@ Internally, this function uses the [Hungarian
 algorithm](https://github.com/Gnimuc/Hungarian.jl) for optimal assignment of
 modes to peaks.
 """
-function squared_error_bands(Es :: Vector{Vector{Float64}}, res :: Sunny.BandIntensities; intensity_cutoff=1e-8, weights=nothing, normalize=true)
+function squared_error_bands(Es :: Vector{Vector{Float64}}, res :: Sunny.BandIntensities; intensity_cutoff=0.0, weights=nothing, normalize=true)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
     X0s = eachcol(reshape(res.data, nbands, :))
