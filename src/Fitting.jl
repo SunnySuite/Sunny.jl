@@ -540,16 +540,15 @@ Squared error between experimentally labeled intensity peaks (`Es`) and the
 discrete energies of an [`intensities_bands`](@ref) calculation (`res`) for the
 same ``𝐪``-points. Each element `Es[i]` is a list of labeled intensity peaks
 for the `i`th ``𝐪``-point. Every labeled peak will be assigned to a unique spin
-wave band in `res`, but the converse is not true; any extra spin wave bands may
-be unmatched, and do not contribute to the total error.
+wave band in `res`, but the converse is not true; some spin wave bands may be
+unassigned and do not contribute to the total error.
 
 If `weights` are provided, these must be in one-to-one correspondence with the
 `Es` data, and will be used to scale the squared error terms. Default weights
 are one.
 
-If `normalize`, the return value is normalized by the weighted squared magnitude
-of `Es`. For example, if the predicted modes are uniformly zero, then the return
-value is exactly 1.
+By default, the return value is normalized by the weighted squared magnitude of
+`Es`. Set `normalize=false` to disable this normalization.
 
 Internally, this function uses the [Hungarian
 algorithm](https://github.com/Gnimuc/Hungarian.jl) for optimal assignment of

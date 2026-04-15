@@ -106,8 +106,8 @@ end
 
 # The loss function can be evaluated at any parameter values. As an initial
 # guess, select a model with only nearest-neighbor exchange. The Curie-Weiss
-# constant is measured to be about 400 K, which sets a scale for ``J_1`` of
-# about 50 K.
+# constant is measured to be about 400 K, which sets a ``J_1`` scale of about 50
+# K.
 
 guess = [50.0, 0.0, 0.0, 0.0]
 loss(guess)
@@ -117,7 +117,7 @@ loss(guess)
 # try are `Optim.LBFGS()` (requires gradient estimation) and
 # `Optim.NelderMead()` (gradient free). A good stopping criterion is that all
 # components of the loss gradient are below some threshold. The choice `g_tol =
-# 1e-6 / K` yields about 6 digits of precision in kelvin.
+# 1e-6 / K` aims for about 6 digits of precision in kelvin.
 
 import Optim
 
