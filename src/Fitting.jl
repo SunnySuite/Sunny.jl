@@ -155,14 +155,14 @@ L = \\frac{1}{c} ∑_i w_i |d_i - (α m_i + β)|^2.
 ```
 
 By default, ``α = 1`` and ``β = 0``. If `scale=true`, then determine ``α`` by
-minimizing ``L``. If `shift=true`, then optimize ``β`` as well. The return value
-is a named tuple with fields `(; error, scale, shift)` for ``(L, α, β)``,
+minimizing ``L``. If `shift=true`, then optimize ``β`` analogously. The return
+value is a named tuple with fields `(; error, scale, shift)` for ``(L, α, β)``,
 respectively.
 
 Any `NaN` elements ``d_i`` or ``m_i`` will be interpreted as missing data and
 omitted from the sum. Weights ``w_i`` must be nonnegative and default to one.
 
-The default normalization is ``c = \\sum_i w_i \\|d_i\\|^2``. If `shift=true`,
+The default normalization is ``c = \\sum_i w_i |d_i|^2``. If `shift=true`,
 ``c`` has the same form but with the data vector reduced by its weighted mean.
 Set `normalize=false` for ``c = 1``.
 
@@ -285,14 +285,14 @@ end
 Sum of squared errors between target data ``d`` and model predictions ``m``,
 
 ```math
-L = \\frac{1}{c} \\sum_i w_i \\|d_i - m_i\\|^2.
+L = \\frac{1}{c} \\sum_i w_i |d_i - m_i|^2.
 ```
 
 Any `NaN` elements ``d_i`` or ``m_i`` will be interpreted as missing data and
 omitted from the sum. Weights ``w_i`` must be nonnegative and default to one.
 
-The default normalization is ``c = \\sum_i w_i \\|d_i\\|^2``. Set
-`normalize=false` for ``c = 1``.
+The default normalization is ``c = \\sum_i w_i |d_i|^2``. Set `normalize=false`
+for ``c = 1``.
 
 See [`squared_error_fitted`](@ref) for a generalization that can infer an
 unknown scale and shift between the inputs.
