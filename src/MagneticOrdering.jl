@@ -73,11 +73,11 @@ end
 """
     suggest_magnetic_supercell(ks; tol=1e-12, maxsize=100)
 
-Suggests a magnetic supercell, in units of the crystal lattice vectors, that is
-consistent with periodicity of the wavevectors `ks` in RLU. If the wavevectors
-are incommensurate (with respect to the maximum supercell size `maxsize`), one
-can select a larger error tolerance `tol` to find a supercell that is almost
-commensurate.
+Suggests a magnetic supercell, in integer multiples of the crystal lattice
+vectors, that is consistent with periodicity of the wavevectors `ks` in RLU. If
+the wavevectors are incommensurate (with respect to the maximum supercell size
+`maxsize`), one can select a larger error tolerance `tol` to find a supercell
+that is almost commensurate.
 
 Prints a ``3×3`` matrix of integers that is suitable for use in
 [`reshape_supercell`](@ref).
@@ -85,7 +85,7 @@ Prints a ``3×3`` matrix of integers that is suitable for use in
 # Examples
 
 ```julia
-# A magnetic supercell for a single-Q structure. Will print
+# A magnetic supercell for a single-Q structure
 k1 = [0, -1/4, 1/4]
 suggest_magnetic_supercell([k1])       # [1 0 0; 0 2 1; 0 -2 1]
 
