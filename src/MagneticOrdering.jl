@@ -98,7 +98,7 @@ suggest_magnetic_supercell([k1, k2])   # [1 2 2; -1 2 -2; -1 2 2]
 suggest_magnetic_supercell([[0, 0, 1/√5], [0, 0, 1/√7]]; tol=1e-2)
 
 # This prints [1 0 0; 0 1 0; 0 0 16], which becomes commensurate under the
-# approximations `1/√5 ≈ 7/16` and `1/√7 ≈ 3/8`.
+# approximations 1/√5 ≈ 7/16 and 1/√7 ≈ 3/8.
 ```
 """
 function suggest_magnetic_supercell(ks; tol=1e-12, maxsize=100)
