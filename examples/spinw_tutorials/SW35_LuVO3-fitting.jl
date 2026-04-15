@@ -107,7 +107,7 @@ loss(guess)
 import Optim
 
 method = Optim.NelderMead()
-options = Optim.Options(; g_tol=1e-8)
+options = Optim.Options(; g_tol=1e-6)
 fit = Optim.optimize(loss, guess, method, options)
 @assert isapprox(fit.minimizer, [6.1037, 3.9892, -0.6294, -0.0902]; rtol=1e-3) #hide
 fit.minimizer # [Jab, Jc, Kxx, Kyy]
