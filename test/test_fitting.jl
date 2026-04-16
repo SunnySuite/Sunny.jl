@@ -46,14 +46,14 @@ end
     @test squared_error_bands(Es, res) ≈ (0.1^2 + 0.2^2) / (2.1^2 + 3.2^2)
     @test Sunny.squared_error_bands_smooth(Es, res; σ=0.1) ≈ 0.0037726373192329475
 
-    # Ignore bands below intensity cutoff
+    # Dark bands are used only when there are too few bright modes
     qpts = convert(Sunny.AbstractQPoints, [[0.0, 0.0, 0.0]])
-    disp = [1.0, 2.0]
-    data = [1.0im, 1e-6im]
+    disp = [2.0, 2.05, 4.0]
+    data = [1.0im, 1e-6im, 1e-6im]
     res = Sunny.BandIntensities(cryst, qpts, disp, data)
-    Es = [[2.1]]
-    weights = [[1.5]]
-    @test squared_error_bands(Es, res; weights, intensity_cutoff=0.1, normalize=false) ≈ 1.5 * 1.1^2
+    Es = [[2.1, 4.2]]
+    weights = [[1.5, 2.0]]
+    @test squared_error_bands(Es, res; weights, intensity_cutoff=0.1, normalize=false) ≈ 1.5 * 0.1^2 + 2.0 * 0.2^2
 end
 
 @testitem "Wasserstein1 distance" begin

@@ -102,14 +102,17 @@ loss(guess)
 # The [Optim](https://github.com/JuliaNLSolvers/Optim.jl) package provides a
 # variety of powerful optimization methods. For example, it supports particle
 # swarm as was used by the original SpinW tutorial. For our purposes, however,
-# the simpler Nelder-Mead method is sufficient to find the optimal model.
+# the simpler Nelder-Mead method is sufficient. Here, one should avoid
+# gradient-based optimization methods, such as LBFGS, due to the possibility of
+# discontinuous jumps in the peak-to-mode assignments of
+# [`squared_error_bands`](@ref).
 
 import Optim
 
 method = Optim.NelderMead()
-options = Optim.Options(; g_tol=1e-6)
+options = Optim.Options(; g_tol=1e-8)
 fit = Optim.optimize(loss, guess, method, options)
-@assert isapprox(fit.minimizer, [6.1037, 3.9892, -0.6294, -0.0902]; rtol=1e-3) #hide
+@assert isapprox(fit.minimizer, [6.1035, 3.9893, -0.6294, -0.0899]; rtol=1e-3) #hide
 fit.minimizer # [Jab, Jc, Kxx, Kyy]
 
 # Report misfit tolerances derived from [`uncertainty_matrix`](@ref). This is a
@@ -117,7 +120,7 @@ fit.minimizer # [Jab, Jc, Kxx, Kyy]
 # systematic modeling errors.
 
 U = uncertainty_matrix(loss, fit.minimizer)
-@assert isapprox(sqrt.(diag(U) / 2), [0.2121, 0.1924, 0.0812, 0.0424]; rtol=1e-3) #hide
+@assert isapprox(sqrt.(diag(U) / 2), [0.2120, 0.1924, 0.0812, 0.0425]; rtol=1e-3) #hide
 sqrt.(diag(U) / 2) # [ΔJab, ΔJc, ΔKxx, ΔKyy]
 
 # The parameter fits are in reasonable agreement with previous work:

@@ -561,6 +561,9 @@ function squared_error_bands(Es :: Vector{Vector{Float64}}, res :: Sunny.BandInt
     length(Es) == length(E0s) || error("Mismatch in bands vs data q-length ($(length(E0s))) ≠ $(length(Es))")
     intensity_cutoff >= 0 || error("Intensity cutoff must be non-negative")
 
+    maxpeaks = maximum(length(E) for E in Es)
+    nbands >= maxpeaks || error("$nbands SWT modes are insufficient to match $maxpeaks labeled peaks")
+
     Ws = if isnothing(weights)
         [one.(E) for E in Es]
     else
@@ -570,13 +573,33 @@ function squared_error_bands(Es :: Vector{Vector{Float64}}, res :: Sunny.BandInt
     all(isreal(wk) && real(wk) >= 0 for W in Ws for wk in W) || error("Weights must be non-negative")
 
     err = sum(map(Es, Ws, E0s, X0s) do E, W, E0, X0
-        strengths = norm.(X0)
-        E0 = E0[strengths .>= intensity_cutoff]
+        npeaks = length(E)
+        @assert nbands >= npeaks
 
-        M, K = length(E0), length(E)
-        M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
-        C = [W[k] * (E0[m] - E[k])^2 for m in 1:M, k in 1:K]
-        hungarian(C)[2]
+        # Bare M×K cost matrix
+        C_bare = [W[k] * (E0[m] - E[k])^2 for m in 1:nbands, k in 1:npeaks]
+
+        # Immediately return squared error for optimal assignments if there is
+        # no intensity threshold.
+        iszero(intensity_cutoff) && return hungarian(C_bare)[2]
+
+        # Any "dark" modes below the intensity threshold should be assigned to a
+        # peak only if not enough "bright" modes are available. Achieve this by
+        # adding a strong penalty ΔC for dark mode assignment.
+        ΔC = sum(maximum(C_bare[:, k]) - minimum(C_bare[:, k]) for k in 1:npeaks)
+
+        C = copy(C_bare)
+        for m in 1:nbands
+            intensity = norm(X0[m])
+            if intensity < intensity_cutoff
+                C[m, :] .+= ΔC
+            end
+        end
+
+        # Report squared errors for assignments without the penalty term
+        assignment, cost = hungarian(C)
+        @assert sum(C[i, j] for (i, j) in enumerate(assignment) if !iszero(j)) ≈ cost
+        return sum(C_bare[i, j] for (i, j) in enumerate(assignment) if !iszero(j))
     end)
 
     if normalize
