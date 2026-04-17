@@ -83,9 +83,9 @@ kTs = [100, 200, 300] * units.K
 # mismatch. Use the [`SCGA`](@ref) calculator to simulate
 # [`magnetic_susceptibility_per_site`](@ref) and [`intensities_static`](@ref).
 # Measure deviation from experimental data using [`squared_error`](@ref) and
-# [`squared_error_fitted`](@ref). The latter accounts for the unknown intensity
-# scale of ``\mathcal{S}(𝐪)``. Both error terms are of order one, so adding
-# them with equal weights is a reasonable default (tune as needed).
+# [`squared_error_fitted`](@ref). The latter fits the unknown relative intensity
+# scale of ``\mathcal{S}(𝐪)``. Both error terms are normalized by default, so
+# they can be added with a dimensionless weighting factor (tune as needed).
 
 labels = [:J1, :J2, :J3a, :J3b]
 
@@ -99,24 +99,25 @@ loss = make_loss_fn(sys, labels) do sys
 
     scga = SCGA(sys; measure, kT=20*units.K, dq)
     Sq = intensities_static(scga, grid_ref)
-    Sq_error = squared_error_fitted(Sq_ref, Sq.data; scale=true).error
+    Sq_error = squared_error_fitted(Sq_ref, Sq.data; scale=true).err
 
-    return 0.5 * χ_error + 0.5 * Sq_error
+    return χ_error + 2*Sq_error
 end
 
 # The loss function can be evaluated at any parameter values. As an initial
-# guess, select a null model without any exchange coupling.
+# guess, select a model with only nearest-neighbor exchange. The Curie-Weiss
+# constant is measured to be about 400 K, which sets a ``J_1`` scale of about 50
+# K.
 
-guess = [0.0, 0.0, 0.0, 0.0]
+guess = [50.0, 0.0, 0.0, 0.0]
 loss(guess)
 
 # Fit ``[J_1, J_2, J_{3a}, J_{3b}]`` to minimize the loss using the
 # [Optim](https://github.com/JuliaNLSolvers/Optim.jl) package. Good methods to
-# try are `Optim.LBFGS()` (requires gradients, possibly faster) and
-# `Optim.NelderMead()` (gradient free, possibly more robust). A good stopping
-# criterion is that all components of the loss gradient are below some
-# threshold. The choice `g_tol = 1e-6 / K` yields about 6 digits of precision in
-# kelvin.
+# try are `Optim.LBFGS()` (requires gradient estimation) and
+# `Optim.NelderMead()` (gradient free). A good stopping criterion is that all
+# components of the loss gradient are below some threshold. The choice `g_tol =
+# 1e-6 / K` aims for about 6 digits of precision in kelvin.
 
 import Optim
 
@@ -127,7 +128,7 @@ options = Optim.Options(
     show_every = 5,
 )
 fit = Optim.optimize(loss, guess, Optim.LBFGS(), options)
-@assert isapprox(fit.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
+@assert isapprox(fit.minimizer ./ units.K, [32.7000, 5.5775, 6.4796, 0.3990]; rtol=1e-5) #hide
 fit.minimizer ./ units.K # [J1, J2, J3a, J3b]
 
 # Optim defaults to finite differences for its gradient estimation. An
@@ -144,7 +145,7 @@ import Zygote
 import DifferentiationInterface as DI
 
 fit = Optim.optimize(loss, guess, Optim.LBFGS(), options; autodiff=DI.AutoZygote())
-@assert isapprox(fit.minimizer ./ units.K, [32.6922, 5.576, 6.4781, 0.3989]; rtol=1e-5) #hide
+@assert isapprox(fit.minimizer ./ units.K, [32.7000, 5.5775, 6.4796, 0.3990]; rtol=1e-5) #hide
 fit.minimizer ./ units.K
 
 # Compare ``\mathcal{S}(𝐪)`` in the low-resolution ``[H, K, 0]`` slice that was
@@ -204,9 +205,9 @@ sqrt.(diag(U) / 2) / units.K # [ΔJ1, ΔJ2, ΔJ3a, ΔJ3b]
 #
 # | Parameter | This study (K) | Bai et al. (K) |
 # |:----------|---------------:|---------------:|
-# | J1        | 32.7 ± 7.6     | 38.1           |
+# | J1        | 32.7 ± 7.5     | 38.1           |
 # | J2        | 5.6  ± 2.0     | 3.1            |
-# | J3a       | 6.5  ± 2.6     | 4.0            |
+# | J3a       | 6.5  ± 2.5     | 4.0            |
 # | J3b       | 0.40 ± 1.1     | 0.32           |
 #
 # The fits by Bai et al. are more accurate because they incorporate first moment

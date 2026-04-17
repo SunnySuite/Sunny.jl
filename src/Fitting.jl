@@ -146,164 +146,145 @@ end
 
 
 """
-    squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
+    squared_error_fitted(d, m; scale=false, shift=false, weights=nothing, normalize=true)
 
-Returns the normalized sum of squared errors,
+Sum of squared errors between target data ``d`` and model predictions ``m``,
 
 ```math
-L = \\frac{1}{c} ∑_i w_i | y_i - (α x_i + β)|^2.
+L = \\frac{1}{c} ∑_i w_i |d_i - (α m_i + β)|^2.
 ```
 
 By default, ``α = 1`` and ``β = 0``. If `scale=true`, then determine ``α`` by
-minimizing ``L``. If `shift=true`, then similarly optimize ``β``. Returns a
-named tuple with fields `(; error, scale, shift)` for ``(L, α, β)``,
+minimizing ``L``. If `shift=true`, then optimize ``β`` analogously. The return
+value is a named tuple with fields `(; err, scale, shift)` for ``(L, α, β)``,
 respectively.
 
-Weights ``w_i`` must be nonnegative and default to one. Any `NaN` elements
-``x_i`` or ``y_i`` will be interpreted as missing data and omitted from the sum.
+Any `NaN` elements ``d_i`` or ``m_i`` will be interpreted as missing data and
+omitted from the sum. Weights ``w_i`` must be nonnegative and default to one.
 
-The normalization factor ``c`` depends on the fitting options. In all cases, the
-minimized ``L`` is symmetric in ``(x, y)`` and is of order one when ``x`` and
-``y`` maximally disagree.
+The default normalization is ``c = \\sum_i w_i |d_i|^2``. Set `normalize=false`
+for ``c = 1``.
 
 !!! tip "Closed-form expressions"
 
-    Begin with some notation. Define the weighted inner product,
+    For generic ``u`` and ``v``, define the weighted inner product,
 
     ```math
         ⟨u, v⟩ = ∑_i w_i u_i^* v_i,
     ```
 
-    and its associated norm ``\\|u\\|^2 = ⟨u, u⟩``. Define the weighted mean,
+    and associated norm ``\\|u\\|^2 = ⟨u, u⟩``. Also define the weighted mean,
 
     ```math
     \\bar u = \\frac{∑_i w_i u_i}{∑_i w_i}.
     ```
 
-    Define variables ``\\tilde u`` that optionally shift an input by its weighted
-    mean: if `shift=true` then ``\\tilde u ≡ u - \\bar u`` , otherwise ``\\tilde u ≡
-    u``.
+    Introduce a notation to optionally subtract the weighted mean from each input.
+    If `shift=true`, define ``\\tilde d = d - \\bar d`` and ``\\tilde m = m - \\bar
+    m``. Otherwise, keep ``\\tilde d = d`` and ``\\tilde m = m``.
 
-    If optimized, the shift is ``β = \\bar y - α \\bar x``. Otherwise it is ``β =
-    0``. Either way,
-
-    ```math
-    L = \\frac{1}{c} \\|\\tilde y - α \\tilde x\\|^2.
-    ```
-
-    There remain two possibilities for the final expression of ``L``.
-
-    **Case 1, `scale=false`**: Here ``α = 1`` and we choose ``c`` so that,
+    When optimized, the shift is ``β = \\bar d - α \\bar m``. Otherwise,
+    ``β = 0``. In either case,
 
     ```math
-    L = \\frac{\\|\\tilde y - \\tilde x\\|^2}{\\|\\tilde x\\|^2 + \\|\\tilde y\\|^2}.
+    L = \\frac{1}{c} \\|\\tilde d - α \\tilde m\\|^2.
     ```
 
-    **Case 2, `scale=true`**: Here the optimal scale factor is
+    If `scale=false`, then ``α = 1``. Otherwise, the optimal scale factor is
 
     ```math
-    α = \\frac{⟨\\tilde x, \\tilde y⟩}{\\|\\tilde x\\|^2}.
+    α = \\frac{⟨\\tilde m, \\tilde d⟩}{\\|\\tilde m\\|^2}.
     ```
 
-    We select ``c = ∑_i w_i \\|\\tilde y_i\\|^2`` so that substitution yields
+    If `scale=true`, `shift=false`, and `normalize=true` then the minimized loss
+    becomes the usual cosine-squared loss,
 
     ```math
-    L = 1 - \\frac{|⟨\\tilde x, \\tilde y⟩|^2}{\\|\\tilde x\\|^2\\,\\|\\tilde y\\|^2}.
+    L = 1 - \\frac{|⟨d, m⟩|^2}{\\|d\\|^2 \\, \\|m\\|^2}.
     ```
 
-    This may be understood as a cosine-squared loss. In case of complex inputs, note
-    that the optimal ``α`` absorbs an arbitrary scale _and_ complex phase.
+    For complex inputs, note that the optimal ``α`` absorbs an arbitrary scale _and_
+    complex phase.
 """
-function squared_error_fitted(x, y; weights=nothing, scale=false, shift=false)
-    same_shape(x, y) || error("Mismatched input dimensions")
-    (x, y) = flatten_to_vec.((x, y))
-    ty = promote_type(eltype(x), eltype(y))
-    rty = real(ty)
+function squared_error_fitted(d, m; scale=false, shift=false, weights=nothing, normalize=true)
+    same_shape(d, m) || error("Mismatched input dimensions")
+    if !isnothing(weights)
+        same_shape(d, weights) || error("Mismatched weight dimensions")
+    end
+    (d, m) = flatten_to_vec.((d, m))
+    ty = promote_type(eltype(d), eltype(m))
+    rty = float(real(ty))
 
     w = if isnothing(weights)
-        fill(one(rty), length(x))
+        fill(one(rty), length(d))
     else
-        same_shape(x, weights) || error("Mismatched weight dimensions")
         flatten_to_vec(weights)
     end
 
     # Shadow the inputs by their non-NaN subarrays
-    inds = findall(i -> !isnan(x[i]) && !isnan(y[i]), eachindex(x))
+    inds = findall(i -> !isnan(d[i]) && !isnan(m[i]), eachindex(d))
     isempty(inds) && error("No valid data after removing NaNs")
     @views begin
         w = w[inds]
-        x = x[inds]
-        y = y[inds]
+        d = d[inds]
+        m = m[inds]
     end
 
     all(wi -> isreal(wi) && real(wi) >= 0, w) || error("Weights must be non-negative")
 
     # Raw weighted moments
     W = Diagonal(w)
-    x2 = dot(x, W, x)
-    y2 = dot(y, W, y)
-    xy = dot(x, W, y)
+    raw_d2 = real(dot(d, W, d))
+    d2 = raw_d2
+    m2 = real(dot(m, W, m))
+    md = dot(m, W, d)
 
-    # Effective moments of x̃, ỹ
-    x2t, y2t, xyt, xbar, ybar = if shift
+    # If `shift`, replace moments by their centered variances
+    dbar = mbar = zero(ty)
+    if shift
         wsum = sum(w)
         iszero(wsum) && error("Sum of valid weights must be positive")
 
-        xbar = dot(w, x) / wsum
-        ybar = dot(w, y) / wsum
+        dbar = dot(w, d) / wsum
+        mbar = dot(w, m) / wsum
 
-        (
-            x2 - wsum * abs2(xbar),
-            y2 - wsum * abs2(ybar),
-            xy - wsum * conj(xbar) * ybar,
-            xbar,
-            ybar,
-        )
-    else
-        (x2, y2, xy, zero(ty), zero(ty))
+        d2 -= wsum * abs2(dbar)
+        m2 -= wsum * abs2(mbar)
+        md -= wsum * conj(mbar) * dbar
     end
 
-    α, L = if scale
-        if iszero(x2t) && iszero(y2t)
-            (one(ty), zero(rty)) # Both centered inputs vanish; define cos² loss as 0
-        elseif iszero(x2t) || iszero(y2t)
-            (zero(ty), one(rty)) # One centered input vanishes; define cos² loss as 1
-        else
-            α = xyt / x2t
-            L = real(1 - abs2(xyt) / (x2t * y2t))
-            (α, L)
-        end
-    else
-        α = one(ty)
-        denom = x2t + y2t
-        L = iszero(denom) ? zero(rty) : real((y2t + x2t - 2real(xyt)) / denom)
-        (α, L)
+    α = (scale && !iszero(m2)) ? md / m2 : one(ty)
+    β = dbar - α * mbar
+
+    err = rty(max(real(abs2(α) * m2 + d2 - 2 * conj(α) * md), 0.0))
+    if normalize
+        iszero(raw_d2) && error("Cannot normalize when weighted norm of d is zero")
+        err /= raw_d2
     end
 
-    L = clamp(L, 0, 1)
-    β = shift ? ybar - α * xbar : zero(ty)
-    return (; error=L, scale=α, shift=β)
+    return (; err, scale=α, shift=β)
 end
 
 
 """
-    squared_error(x, y; weights=nothing)
+    squared_error(d, m; weights=nothing, normalize=true)
 
-Normalized sum of squared errors, ``L = (1/c) \\sum_i w_i \\|y_i - x_i\\|^2``.
-Weights ``w_i`` must be nonnegative and default to one.
+Sum of squared errors between target data ``d`` and model predictions ``m``,
 
-The normalization factor is defined symmetrically, ``c = \\|x\\|^2 +
-\\|y\\|^2``, involving the weighted norm,
 ```math
-\\|u\\|^2 = \\sum_i w_i |u_i|^2.
+L = \\frac{1}{c} \\sum_i w_i |d_i - m_i|^2.
 ```
 
-Any NaN elements (``x_i`` or ``y_i``) will be interpreted as missing data and
-omitted from the sum.
+Any `NaN` elements ``d_i`` or ``m_i`` will be interpreted as missing data and
+omitted from the sum. Weights ``w_i`` must be nonnegative and default to one.
 
-This function is a special case of [`squared_error_fitted`](@ref).
+The default normalization is ``c = \\sum_i w_i |d_i|^2``. Set `normalize=false`
+for ``c = 1``.
+
+See [`squared_error_fitted`](@ref) for a generalization that can infer an
+unknown scale and shift between the inputs.
 """
-squared_error(x, y; weights=nothing) = squared_error_fitted(x, y; weights).error
+squared_error(d, m; weights=nothing, normalize=true) = squared_error_fitted(d, m; weights, normalize).err
 
 
 """
@@ -540,36 +521,80 @@ function squared_error_bands_smooth(Es :: Vector{Vector{Float64}},
 end
 
 """
-    squared_error_bands(Es, res)
+    squared_error_bands(Es, res; weights=nothing, normalize=true)
 
 Squared error between experimentally labeled intensity peaks (`Es`) and the
 discrete energies of an [`intensities_bands`](@ref) calculation (`res`) for the
 same ``𝐪``-points. Each element `Es[i]` is a list of labeled intensity peaks
-for the `i`th ``𝐪``-point. Every labeled peak will be assigned to some spin
-wave band in `res`, but the converse is not true; any "extra" spin wave bands do
-not contribute to the squared error.
+for the `i`th ``𝐪``-point. Every labeled peak will be assigned to a unique spin
+wave band in `res`, but the converse is not true; some spin wave bands may be
+unassigned and do not contribute to the total error.
 
-The return value is normalized by the squared magnitude of `Es`. For example, if
-the predicted modes are uniformly zero, then the return value is exactly 1.
+If `weights` are provided, these must be in one-to-one correspondence with the
+`Es` data, and will be used to scale the squared error terms. Default weights
+are one.
+
+By default, the return value is normalized by the weighted squared magnitude of
+`Es`. Set `normalize=false` to disable this normalization.
 
 Internally, this function uses the [Hungarian
 algorithm](https://github.com/Gnimuc/Hungarian.jl) for optimal assignment of
 modes to peaks.
 """
-function squared_error_bands(Es :: Vector{Vector{Float64}}, res :: Sunny.BandIntensities)
+function squared_error_bands(Es :: Vector{Vector{Float64}}, res :: Sunny.BandIntensities; intensity_cutoff=0.0, weights=nothing, normalize=true)
     nbands = size(res.disp, 1)
     E0s = eachcol(reshape(res.disp, nbands, :))
     X0s = eachcol(reshape(res.data, nbands, :))
     length(Es) == length(E0s) || error("Mismatch in bands vs data q-length ($(length(E0s))) ≠ $(length(Es))")
+    intensity_cutoff >= 0 || error("Intensity cutoff must be non-negative")
 
-    err = sum(map(Es, E0s, X0s) do E, E0, X0
-        M, K = length(E0), length(E)
-        M >= K || error("$M SWT modes are insufficient to match $K labeled peaks")
-        C = [(E0[m] - E[k])^2 for m in 1:M, k in 1:K]
-        hungarian(C)[2]
+    maxpeaks = maximum(length(E) for E in Es)
+    nbands >= maxpeaks || error("$nbands SWT modes are insufficient to match $maxpeaks labeled peaks")
+
+    Ws = if isnothing(weights)
+        [one.(E) for E in Es]
+    else
+        weights
+    end
+    same_shape(Es, Ws) || error("Weights must match the shape of labeled energies")
+    all(isreal(wk) && real(wk) >= 0 for W in Ws for wk in W) || error("Weights must be non-negative")
+
+    err = sum(map(Es, Ws, E0s, X0s) do E, W, E0, X0
+        npeaks = length(E)
+        @assert nbands >= npeaks
+
+        # Bare M×K cost matrix
+        C_bare = [W[k] * (E0[m] - E[k])^2 for m in 1:nbands, k in 1:npeaks]
+
+        # Immediately return squared error for optimal assignments if there is
+        # no intensity threshold.
+        iszero(intensity_cutoff) && return hungarian(C_bare)[2]
+
+        # Any "dark" modes below the intensity threshold should be assigned to a
+        # peak only if not enough "bright" modes are available. Achieve this by
+        # adding a strong penalty ΔC for dark mode assignment.
+        ΔC = sum(maximum(C_bare[:, k]) - minimum(C_bare[:, k]) for k in 1:npeaks)
+
+        C = copy(C_bare)
+        for m in 1:nbands
+            intensity = norm(X0[m])
+            if intensity < intensity_cutoff
+                C[m, :] .+= ΔC
+            end
+        end
+
+        # Report squared errors for assignments without the penalty term
+        assignment, cost = hungarian(C)
+        @assert sum(C[i, j] for (i, j) in enumerate(assignment) if !iszero(j)) ≈ cost
+        return sum(C_bare[i, j] for (i, j) in enumerate(assignment) if !iszero(j))
     end)
 
-    return err / norm2(Es)
+    if normalize
+        c = sum(dot(E, Diagonal(W), E) for (W, E) in zip(Ws, Es))
+        return err / c
+    else
+        return err
+    end
 end
 
 

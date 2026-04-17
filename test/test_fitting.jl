@@ -1,37 +1,59 @@
-@testitem "Squared error with rescaling" begin
-    x = ComplexF64[1 + 2im, -3 + im, 2 - 4im]
-    α = 2 - 3im
-    y = α .* x
-    (; error, scale) = squared_error_fitted(x, y; scale=true)
-    @test error ≈ 0 atol=1e-12
-    @test scale ≈ α atol=1e-12
+@testitem "Squared error fitted" begin
+    @test squared_error([1, 3], [1, 1]; normalize=false) ≈ 4 atol=1e-12
+    @test squared_error([1, 3], [1, 1]) ≈ 2/5 atol=1e-12
+    @test squared_error([1, -1], [-1, 1]) ≈ 4 atol=1e-12
 
-    (; error, scale, shift) = squared_error_fitted([1, 2, 3], [1, 1, 1]; scale=true, shift=true)
-    @test error ≈ 1 atol=1e-12
-    @test scale ≈ 0 atol=1e-12
+    r = squared_error_fitted([4, 4], [2, -1]; scale=true, weights=[0.5, 0.5])
+    @test r.err ≈ 0.9 atol=1e-12
+    @test r.scale ≈ 0.8 atol=1e-12
+
+    r = squared_error_fitted([4, 4], [2, -1]; scale=true, weights=[0.5, 0.5], normalize=false)
+    @test r.err ≈ 14.4 atol=1e-12
+    @test r.scale ≈ 0.8 atol=1e-12
+
+    (; err, scale, shift) = squared_error_fitted([1, 2, 3], [1, 1, 1]; shift=true)
+    @test err ≈ 1/7 atol=1e-12
+    @test scale ≈ 1 atol=1e-12
     @test shift ≈ 1 atol=1e-12
 
-    (; error, scale, shift) = squared_error_fitted([2, 2, 2], [1, 1, 1]; scale=true, shift=true)
-    @test error ≈ 0 atol=1e-12
+    (; err, scale, shift) = squared_error_fitted([1, 2, 3], [1, 1, 1]; shift=true, normalize=false)
+    @test err ≈ 2 atol=1e-12
     @test scale ≈ 1 atol=1e-12
-    @test shift ≈ -1.0 atol=1e-12
+    @test shift ≈ 1 atol=1e-12
 
-    (; error, scale, shift) = squared_error_fitted([2, 2, 2], [1, 1, 1]; scale=true, shift=false)
-    @test error ≈ 0 atol=1e-12
-    @test scale ≈ 1/2 atol=1e-12
-    @test shift ≈ 0 atol=1e-12
+    (; err, scale, shift) = squared_error_fitted([3, 4, 5], [1, 1, 2]; scale=true, shift=true)
+    @test err ≈ 1/100 atol=1e-12
+    @test scale ≈ 3/2 atol=1e-12
+    @test shift ≈ 2 atol=1e-12
+
+    # Complex scaling factor absorbs phase
+    u = ComplexF64[1 + 2im, -3 + im, 2 - 4im]
+    α = 2 - 3im
+    (; err, scale) = squared_error_fitted(u, u/α; scale=true)
+    @test err ≈ 0 atol=1e-12
+    @test scale ≈ α atol=1e-12
 end
 
 @testitem "Squared error bands" begin
     cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
-    qpts = Sunny.QPoints([Sunny.Vec3([0.0, 0.0, 0.0]), Sunny.Vec3([0.0, 0.0, 0.5])])
+    qpts = convert(Sunny.AbstractQPoints, [[0.0, 0.0, 0.0], [0.0, 0.0, 0.5]])
     disp = [1.0 3.0; 2.0 4.0]
     data = ones(size(disp))
     res = Sunny.BandIntensities(cryst, qpts, disp, data)
     Es = [[2.1], [3.2]]
 
+    # Smooth variant
     @test squared_error_bands(Es, res) ≈ (0.1^2 + 0.2^2) / (2.1^2 + 3.2^2)
     @test Sunny.squared_error_bands_smooth(Es, res; σ=0.1) ≈ 0.0037726373192329475
+
+    # Dark bands are used only when there are too few bright modes
+    qpts = convert(Sunny.AbstractQPoints, [[0.0, 0.0, 0.0]])
+    disp = [2.0, 2.05, 4.0]
+    data = [1.0im, 1e-6im, 1e-6im]
+    res = Sunny.BandIntensities(cryst, qpts, disp, data)
+    Es = [[2.1, 4.2]]
+    weights = [[1.5, 2.0]]
+    @test squared_error_bands(Es, res; weights, intensity_cutoff=0.1, normalize=false) ≈ 1.5 * 0.1^2 + 2.0 * 0.2^2
 end
 
 @testitem "Wasserstein1 distance" begin
