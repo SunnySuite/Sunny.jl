@@ -13,13 +13,14 @@
   ([#482](@ref)). 
 * Add Pr⁴⁺ form factor as Ce³⁺ form factor with length-scale contraction
   ([#483](@ref)).
-* Replace `squared_error_with_rescaling` with [`squared_error_fitted`](@ref).
-  The latter can infer both a `scale` and `shift` for the target data. Adopt the
-  convention that all "squared error" functions are called with target data
-  first and model-predicted data second ([#484](@ref)).
+* Modify squared-error functions to expect target data first and model
+  predictions second. Normalization factor depends only on target data, and can
+  be disabled with `normalize=false`. Replace `squared_error_with_rescaling`
+  with [`squared_error_fitted`](@ref). The latter returns a named tuple with the
+  `err` value and an optionally inferred `scale` and `shift` ([#484](@ref)).
 * Matrix ``U`` returned by [`uncertainty_matrix`](@ref) increases by a factor of
   2. Then ``U / ν`` can be interpreted as statistical covariance, with ``ν`` the
-  reduced degrees of freedom. ([#484](@ref)).
+  reduced degrees of freedom ([#484](@ref)).
 
 ## v0.9.0
 (Mar 4, 2026)
