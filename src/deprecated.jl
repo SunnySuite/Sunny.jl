@@ -106,8 +106,8 @@ Base.@deprecate squared_error_bands(res::Sunny.BandIntensities, Es::Vector{Vecto
 end
 
 Base.@deprecate squared_error_with_rescaling(d, m; weights=nothing) let
-    (; error, scale) = squared_error_fitted(d, m; weights, scale=true)
-    return (; error, rescaling=scale)
+    (; err, scale) = squared_error_fitted(d, m; weights, scale=true)
+    return (; error=err, rescaling=scale)
 end
 
 

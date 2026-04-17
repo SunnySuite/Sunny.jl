@@ -156,15 +156,14 @@ L = \\frac{1}{c} ∑_i w_i |d_i - (α m_i + β)|^2.
 
 By default, ``α = 1`` and ``β = 0``. If `scale=true`, then determine ``α`` by
 minimizing ``L``. If `shift=true`, then optimize ``β`` analogously. The return
-value is a named tuple with fields `(; error, scale, shift)` for ``(L, α, β)``,
+value is a named tuple with fields `(; err, scale, shift)` for ``(L, α, β)``,
 respectively.
 
 Any `NaN` elements ``d_i`` or ``m_i`` will be interpreted as missing data and
 omitted from the sum. Weights ``w_i`` must be nonnegative and default to one.
 
-The default normalization is ``c = \\sum_i w_i |d_i|^2``. If `shift=true`,
-``c`` has the same form but with the data vector reduced by its weighted mean.
-Set `normalize=false` for ``c = 1``.
+The default normalization is ``c = \\sum_i w_i |d_i|^2``. Set `normalize=false`
+for ``c = 1``.
 
 !!! tip "Closed-form expressions"
 
@@ -197,10 +196,11 @@ Set `normalize=false` for ``c = 1``.
     α = \\frac{⟨\\tilde m, \\tilde d⟩}{\\|\\tilde m\\|^2}.
     ```
 
-    When `scale=true` and `normalize=true`, this yields the cosine-squared loss,
+    If `scale=true`, `shift=false`, and `normalize=true` then the minimized loss
+    becomes the usual cosine-squared loss,
 
     ```math
-    L = 1 - \\frac{|⟨\\tilde d, \\tilde m⟩|^2}{\\|\\tilde d\\|^2\\,\\|\\tilde m\\|^2}.
+    L = 1 - \\frac{|⟨d, m⟩|^2}{\\|d\\|^2 \\, \\|m\\|^2}.
     ```
 
     For complex inputs, note that the optimal ``α`` absorbs an arbitrary scale _and_
@@ -234,7 +234,8 @@ function squared_error_fitted(d, m; scale=false, shift=false, weights=nothing, n
 
     # Raw weighted moments
     W = Diagonal(w)
-    d2 = real(dot(d, W, d))
+    raw_d2 = real(dot(d, W, d))
+    d2 = raw_d2
     m2 = real(dot(m, W, m))
     md = dot(m, W, d)
 
@@ -252,30 +253,16 @@ function squared_error_fitted(d, m; scale=false, shift=false, weights=nothing, n
         md -= wsum * conj(mbar) * dbar
     end
 
-    # If both centered inputs vanish, then return zero loss
-    if iszero(d2) && iszero(m2)
-        return (; error=zero(rty), scale=one(rty), shift=(dbar-mbar))
-    end
-
-    # If `normalize` and first centered input vanishes (but second doesn't),
-    # then return maximal loss
-    if normalize && iszero(d2)
-        if scale
-            return (; error=one(rty), scale=zero(rty), shift=dbar)
-        else
-            return (; error=rty(Inf), scale=one(rty), shift=(dbar-mbar))
-        end
-    end
-
     α = (scale && !iszero(m2)) ? md / m2 : one(ty)
     β = dbar - α * mbar
 
-    error = real(abs2(α) * m2 + d2 - 2 * conj(α) * md)
+    err = rty(max(real(abs2(α) * m2 + d2 - 2 * conj(α) * md), 0.0))
     if normalize
-        error /= d2
+        iszero(raw_d2) && error("Cannot normalize when weighted norm of d is zero")
+        err /= raw_d2
     end
 
-    return (; error, scale=α, shift=β)
+    return (; err, scale=α, shift=β)
 end
 
 
@@ -297,7 +284,7 @@ for ``c = 1``.
 See [`squared_error_fitted`](@ref) for a generalization that can infer an
 unknown scale and shift between the inputs.
 """
-squared_error(d, m; weights=nothing, normalize=true) = squared_error_fitted(d, m; weights, normalize).error
+squared_error(d, m; weights=nothing, normalize=true) = squared_error_fitted(d, m; weights, normalize).err
 
 
 """

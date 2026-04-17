@@ -126,7 +126,7 @@ loss = make_loss_fn(sys, labels) do sys
 
     leakage_penalty = 1e-2 * energies[end]^2 * norm(res.data[end, :])^2 / length(radii)
 
-    return squared_error_fitted(ref_data, res.data; scale=true).error + leakage_penalty
+    return squared_error_fitted(ref_data, res.data; scale=true).err + leakage_penalty
 end
 
 # The loss can be evaluated at arbitrary parameter values. Lower is better.

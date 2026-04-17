@@ -99,7 +99,7 @@ loss = make_loss_fn(sys, labels) do sys
 
     scga = SCGA(sys; measure, kT=20*units.K, dq)
     Sq = intensities_static(scga, grid_ref)
-    Sq_error = squared_error_fitted(Sq_ref, Sq.data; scale=true).error
+    Sq_error = squared_error_fitted(Sq_ref, Sq.data; scale=true).err
 
     return χ_error + 2*Sq_error
 end

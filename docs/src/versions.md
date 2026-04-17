@@ -16,8 +16,8 @@
 * Modify squared-error functions to expect target data first and model
   predictions second. Normalization factor depends only on target data, and can
   be disabled with `normalize=false`. Replace `squared_error_with_rescaling`
-  with [`squared_error_fitted`](@ref). The latter optionally infers a `shift` as
-  well as a `scale` ([#484](@ref)).
+  with [`squared_error_fitted`](@ref). The latter returns a named tuple with the
+  `err` value and an optionally inferred `shift` and `scale` ([#484](@ref)).
 * Matrix ``U`` returned by [`uncertainty_matrix`](@ref) increases by a factor of
   2. Then ``U / ν`` can be interpreted as statistical covariance, with ``ν`` the
   reduced degrees of freedom ([#484](@ref)).
