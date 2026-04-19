@@ -1,11 +1,14 @@
-
-# Note that the Stevens operators 𝒪_q appear in descending order q = k,..-k.
-# This choice is necessary for consistency with the order of spherical tensors
-# T_q. By the Wigner-Eckhardt theorem, there are two equivalent ways of rotating
-# spherical tensors, U' T_q U = D*_qq′ T_q′, where D = exp(-i n⋅J), and J is a
-# spin operator in the spin-k representation. Observe that the standard
+# Stevens operators 𝒪_kq as explicit polynomials of J. These expressions are
+# consistent with the conventions introduced in Rudowicz, J. Phys. C 18, 1415
+# (1985).
+#
+# The Stevens operators 𝒪_q appear here in descending order q = k,..-k. This is
+# consistent with the conventional ordering of spherical tensors T_q. By the
+# Wigner-Eckhardt theorem, there are two equivalent ways of rotating spherical
+# tensors, U' T_q U = D*_qq′ T_q′, where D = exp(-i n⋅J), and J is a spin
+# operator in the spin-k representation. Observe that the standard
 # basis-convention for spin operators (eigenbasis of Jz, in descending order)
-# then determines the ordering of T_q and then 𝒪_q
+# then determines the ordering of T_q and then 𝒪_q.
 function stevens_abstract_polynomials(; J, k::Int)
     k < 0  && error("Require k >= 0, received k=$k")
     k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")

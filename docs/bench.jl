@@ -7,7 +7,7 @@ examples = filter(endswith(".jl"), readdir(pkgdir(Sunny, "examples"), join=true)
 for desc in ("Cold start", "Warm start")
     println(desc)
     for ex in examples
-        print(basename(ex), ": ")
+        print(rpad(basename(ex), 20), ": ")
         @time IOCapture.capture() do
             include(ex)
         end

@@ -44,15 +44,12 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
             break
         end
 
-        wstr = @sprintf "%6.2f" weight[m]
-        nspaces = 20
-        spacing = " " ^ max(0, nspaces - length(kstr))
-        print("    $kstr $spacing $wstr%")
+        wstr = @sprintf("%.2f", weight[m])
+        print("    ", rpad(kstr, 21), lpad(wstr, 7), "%")
         println(i == 1 ? " weight" : "")
 
         if i > nmax
-            spacing = " " ^ (nspaces-1)
-            println("    ... $spacing ...")
+            println("    ", rpad("...", 21), lpad("...", 7))
             break
         end
     end

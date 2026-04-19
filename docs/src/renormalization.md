@@ -158,11 +158,12 @@ operators can be used, e.g., in [`set_onsite_coupling!`](@ref).
 
 ## Definition of Stevens operators
 
-The Stevens operators $\hat{\mathcal{O}}_{k,q}$ are defined as polynomials of
-angular momentum operators $\hat{S}_{\{x,y,z\}}$ in some spin-$s$
-representation.
+The Stevens operators $\hat{\mathcal{O}}_{k,q}$ can be written as polynomials of
+angular momentum operators $\hat{S}_{\{x,y,z\}}$. The general form is given in
+Eq. (23) of [I. D. Ryabov, J. Magnetic Resonance **140**, 141
+(1999)](https://doi.org/10.1006/jmre.1999.1783).
 
-Using
+Using the definitions,
 
 ```math
 \begin{align*}
@@ -172,7 +173,7 @@ X &= \mathbf{\hat{S}} \cdot \mathbf{\hat{S}} = s (s+1) \\
 \end{align*}
 ```
 
-the relevant Stevens operators are defined as,
+the Stevens operators most relevant to magnetism are,
 
 ```math
 \begin{align*}
@@ -213,10 +214,9 @@ the relevant Stevens operators are defined as,
 \end{align*}
 ```
 
-Computer-generated tables of Stevens operators with $k > 6$ are available from
-[C. Rudowicz and C. Y. Chung, J. Phys.: Condens. Matter 16, 5825
-(2004)](https://doi.org/10.1088/0953-8984/16/32/018), but these typically do not
-appear in magnetic simulations.
+Computer-generated tables for $k > 6$ appear in [C. Rudowicz and C. Y. Chung, J.
+Phys.: Condens. Matter **16**, 5825
+(2004)](https://doi.org/10.1088/0953-8984/16/32/018).
 
 The case $k=1$ gives the dipole operators,
 ```math
@@ -229,8 +229,8 @@ The case $k=2$ gives the quadrupole operators,
 ```
 
 For each $k$ value, the set of operators $\hat{\mathcal{O}}_{k,q'}$ for $q' =
--k, \dots, k$ form an irreducible representation of the group of rotations O(3).
-That is, rotation will transform $\hat{\mathcal{O}}_{k,q}$ into a linear
+-k, \dots, k$ form an irreducible representation of the group of rotations
+SO(3). That is, rotation will transform $\hat{\mathcal{O}}_{k,q}$ into a linear
 combination of $\hat{\mathcal{O}}_{k,q'}$ where $q'$ varies but $k$ remains
 fixed. 
 
