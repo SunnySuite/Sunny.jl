@@ -619,8 +619,7 @@ function resize_and_flatten_crystal(cryst::Crystal, dims::NTuple{3,Int})
     all(>=(1), dims) || error("Require at least one count in each direction.")
     dims == (1, 1, 1) && return cryst
 
-    new_shape = diagm(Vec3(dims))
-    new_latvecs = cryst.latvecs * new_shape
+    new_latvecs = cryst.latvecs * diagm(Vec3(dims))
     new_recipvecs = 2π*inv(new_latvecs)'
 
     # Build arrays of size (dims × natoms)
@@ -633,6 +632,7 @@ function resize_and_flatten_crystal(cryst::Crystal, dims::NTuple{3,Int})
     new_classes = repeat(reshape(cryst.classes, 1, 1, 1, :), counts...)
 
     root = @something cryst.root cryst
+    new_shape = Mat3(root.latvecs \ new_latvecs)
     sg_setting = SymOp(root.sg.setting.R * new_shape, root.sg.setting.T)
     new_sg = Spacegroup(SymOp[], root.sg.label, root.sg.number, sg_setting)
 

@@ -119,6 +119,12 @@ end
     gp_sys = vec(global_positions(sys))
     gp_swt = vec(global_positions(swt.sys))
     @test gp_sys ≈ gp_swt
+
+    sys = reshape_supercell(sys, [2 2 0; 0 2 0; 0 0 1])
+    swt = SpinWaveTheory(sys; measure=nothing)
+    gp_sys = vec(global_positions(sys))
+    gp_swt = vec(global_positions(swt.sys))
+    @test gp_sys ≈ gp_swt
 end
 
 
