@@ -612,8 +612,9 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     return ret
 end
 
-# Like `reshape_crystal(cryst, diagm(Vec3(dims)))`, but keeps atom order
-# consistent with the linear site order of `System(cryst, ...; dims)`.
+# Like `reshape_crystal(cryst, diagm(Vec3(dims)))`, but chooses an atom order
+# consistent with the linear site order of `System(cryst, ...; dims)`. Required
+# for the system "flattening" performed in the SpinWaveTheory constructor.
 function resize_and_flatten_crystal(cryst::Crystal, dims::NTuple{3,Int})
     all(>=(1), dims) || error("Require at least one count in each direction.")
     dims == (1, 1, 1) && return cryst
