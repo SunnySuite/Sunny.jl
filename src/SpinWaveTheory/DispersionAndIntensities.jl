@@ -167,7 +167,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     # Temporary storage for pair correlations
     Nobs = num_observables(measure)
     Ncorr = num_correlations(measure)
-    corrbuf = zeros(ComplexF64, Ncorr)
+    corr = zeros(ComplexF64, Ncorr)
 
     # Preallocation
     T = zeros(ComplexF64, 2L, 2L)
@@ -191,11 +191,11 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
                 # Left matrix amplitude ⟨0|Â_μ(q)†|n⟩
                 Avec[μ] = dot(view(u, :, μ), view(T, :, band))
             end
-            map!(corrbuf, measure.corr_pairs) do (μ, ν)
+            map!(corr, measure.corr_pairs) do (μ, ν)
                 # Pair correlations ⟨0|Â_μ(q)†|n⟩⟨n|Â_ν(q)|0⟩
                 Avec[μ] * conj(Avec[ν]) / Ncells
             end
-            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbuf)
+            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corr)
         end
     end
 

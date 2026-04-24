@@ -167,7 +167,7 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
 
     # Temporary storage for pair correlations
     Ncorr = length(measure.corr_pairs)
-    corrbuf = zeros(ComplexF64, Ncorr)
+    corr = zeros(ComplexF64, Ncorr)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
@@ -200,10 +200,10 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
                 Avec[μ] = dot(view(u, :, μ), view(T, :, band))
             end
 
-            map!(corrbuf, measure.corr_pairs) do (μ, ν)
+            map!(corr, measure.corr_pairs) do (μ, ν)
                 Avec[μ] * conj(Avec[ν]) / Ncells
             end
-            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbuf)
+            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corr)
         end
     end
 

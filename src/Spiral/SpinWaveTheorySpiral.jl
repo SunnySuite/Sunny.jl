@@ -332,10 +332,10 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
         end
 
         for branch in 1:3, band in 1:L
-            corrbuf = map(measure.corr_pairs) do (α, β)
+            corr = map(measure.corr_pairs) do (α, β)
                 S[band, branch][α, β]
             end
-            intensity[band, branch, iq] = thermal_prefactor(disp[band, branch, iq]; kT) * measure.combiner(q_global, corrbuf)
+            intensity[band, branch, iq] = thermal_prefactor(disp[band, branch, iq]; kT) * measure.combiner(q_global, corr)
         end
 
         # Dispersion in descending order
