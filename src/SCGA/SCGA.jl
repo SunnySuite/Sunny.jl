@@ -303,7 +303,7 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
         q_global = cryst.recipvecs * q
 
         for i in 1:Na, μ in 1:Nobs
-            pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+            pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
             for α in 1:3
                 ur[α, i, μ] = pref * O[μ, i][α]
             end
@@ -492,7 +492,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             q_global = cryst.recipvecs * q
 
             for i in 1:Na, μ in 1:Nobs
-                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+                pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
                 for α in 1:3
                     ur[α, i, μ] = pref * O[μ, i][α]
                 end

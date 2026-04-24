@@ -144,30 +144,7 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        # Represent each local observable A(q) = Σᵢ exp(+i q⋅rᵢ) Aᵢ as a
-        # complex vector u(q) that denotes a linear combination of HP bosons.
-
-        if sys.mode == :SUN
-            (; observables_localized) = swt.data::SWTDataSUN
-            N = sys.Ns[1]
-            for μ in 1:Nobs, i in 1:Na
-                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-                O = observables_localized[μ, i]
-                for f in 1:Nf
-                    u[f + (i-1)*Nf, μ]     = pref * O[f, N]
-                    u[f + (i-1)*Nf + L, μ] = pref * O[N, f]
-                end
-            end
-        else
-            @assert sys.mode in (:dipole, :dipole_uncorrected)
-            (; sqrtS, observables_localized) = swt.data::SWTDataDipole
-            for μ in 1:Nobs, i in 1:Na
-                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-                O = observables_localized[μ, i]
-                u[i, μ]   = pref * (sqrtS[i] / √2) * (O[1] + im*O[2])
-                u[i+L, μ] = pref * (sqrtS[i] / √2) * (O[1] - im*O[2])
-            end
-        end
+        set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
 
         # Find extreme eigenvalues and rescaling factor
         lo, hi = eigbounds(swt, q_reshaped, niters_bounds)
@@ -260,30 +237,7 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        # Represent each local observable A(q) = Σᵢ exp(+i q⋅rᵢ) Aᵢ as a
-        # complex vector u(q) that denotes a linear combination of HP bosons.
-
-        if sys.mode == :SUN
-            (; observables_localized) = swt.data::SWTDataSUN
-            N = sys.Ns[1]
-            for μ in 1:Nobs, i in 1:Na
-                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-                O = observables_localized[μ, i]
-                for f in 1:Nf
-                    u[f + (i-1)*Nf, μ]     = pref * O[f, N]
-                    u[f + (i-1)*Nf + L, μ] = pref * O[N, f]
-                end
-            end
-        else
-            @assert sys.mode in (:dipole, :dipole_uncorrected)
-            (; sqrtS, observables_localized) = swt.data::SWTDataDipole
-            for μ in 1:Nobs, i in 1:Na
-                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-                O = observables_localized[μ, i]
-                u[i, μ]   = pref * (sqrtS[i] / √2) * (O[1] + im*O[2])
-                u[i+L, μ] = pref * (sqrtS[i] / √2) * (O[1] - im*O[2])
-            end
-        end
+        set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
 
         # Perform Lanczos calculation
  
