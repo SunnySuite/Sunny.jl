@@ -261,7 +261,6 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
-    rs_global = global_positions(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
@@ -287,12 +286,12 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
     disp_flat = reshape(disp, 3L, Nq)
     intensity_flat = reshape(intensity, 3L, Nq)
     S = zeros(CMat3, L, 3)
-    Avec_pref = zeros(ComplexF64, Na)
 
     # If g-tensors are included in observables, they must be scalar. Precompute.
     gs = gs_as_scalar(sys, measure)
 
     for (iq, q) in enumerate(qpts.qs)
+        q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
         for branch in 1:3   # (q-k, q, q+k) modes for propagation wavevector k
@@ -301,19 +300,14 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
             view(T, :, :, branch) .= T0
         end
 
-        for i in 1:Na
-            ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = cis(- dot(q_global, rs_global[i]))
-            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
-        end
-
         for branch in 1:3, band in 1:L
             Avec = zero(CVec{3})
             v = reshape(view(T, :, band, branch), Na, 2)
             for i in 1:Na
+                pref = swt_prefactor(measure, 1, i, q_reshaped, q_global, sys)
                 R = local_rotations[i]
                 displacement = R * SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
-                Avec += Avec_pref[i] * (sqrtS[i]/sqrt(2)) * gs[i] * displacement
+                Avec += conj(pref) * (sqrtS[i] / √2) * gs[i] * displacement
             end
             S[band, branch] = Avec * Avec' / Ncells
         end
