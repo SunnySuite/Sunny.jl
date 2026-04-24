@@ -21,6 +21,9 @@
 * Matrix ``U`` returned by [`uncertainty_matrix`](@ref) increases by a factor of
   2. Then ``U / ν`` can be interpreted as statistical covariance, with ``ν`` the
   reduced degrees of freedom ([#484](@ref)).
+* Fix site indexing in [`SpinWaveTheory`](@ref) calculations; this bug could
+  lead to incorrect form factors for certain systems with multiple ion types
+  ([#489](@ref)).
 
 ## v0.9.0
 (Mar 4, 2026)

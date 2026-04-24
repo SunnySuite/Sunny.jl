@@ -612,6 +612,37 @@ function reshape_crystal(cryst::Crystal, new_shape::Mat3)
     return ret
 end
 
+# Like `reshape_crystal(cryst, diagm(Vec3(dims)))`, but chooses an atom order
+# consistent with the linear site order of `System(cryst, ...; dims)`. Required
+# for the system "flattening" performed in the SpinWaveTheory constructor.
+function resize_and_flatten_crystal(cryst::Crystal, dims::NTuple{3,Int})
+    all(>=(1), dims) || error("Require at least one count in each direction.")
+    dims == (1, 1, 1) && return cryst
+
+    new_latvecs = cryst.latvecs * diagm(Vec3(dims))
+    new_recipvecs = 2π*inv(new_latvecs)'
+
+    # Build arrays of size (dims × natoms)
+    counts = (dims..., 1)
+    new_positions = repeat(reshape(cryst.positions, 1, 1, 1, :), counts...)
+    for idx in CartesianIndices(new_positions)
+        new_positions[idx] = (new_positions[idx] + Vec3(idx[1]-1, idx[2]-1, idx[3]-1)) ./ Vec3(dims)
+    end
+    new_types = repeat(reshape(cryst.types, 1, 1, 1, :), counts...)
+    new_classes = repeat(reshape(cryst.classes, 1, 1, 1, :), counts...)
+
+    root = @something cryst.root cryst
+    new_shape = Mat3(root.latvecs \ new_latvecs)
+    sg_setting = SymOp(root.sg.setting.R * new_shape, root.sg.setting.T)
+    new_sg = Spacegroup(SymOp[], root.sg.label, root.sg.number, sg_setting)
+
+    ret = Crystal(root, new_latvecs, new_recipvecs, vec(new_positions), vec(new_types), vec(new_classes), new_sg)
+    # Omit sort_sites!(ret)
+    validate_crystal(ret)
+
+    return ret
+end
+
 
 """
     subcrystal(cryst, types) :: Crystal
