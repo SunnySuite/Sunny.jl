@@ -318,8 +318,7 @@ end
 
 # i is a site index for the flattened swt.sys. However, `measure` was originally
 # constructed for a system with nontrivial lattice dims. Use fld1(i, prod(dims))
-# to get a true atom index for the unflattened sys. This is needed to index
-# measure.formfactors.
+# to get an atom index for one cell of the unflattened sys.
 function get_swt_formfactor(measure, μ, i)
     sys_dims = size(measure.observables)[2:4]
     measure.formfactors[μ, fld1(i, prod(sys_dims))]

@@ -151,7 +151,7 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
         for i in 1:Na
             r = sys.crystal.positions[i]
             ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = exp(2π*im * dot(q_reshaped, r))
+            Avec_pref[i] = cis(2π * dot(q_reshaped, r))
             Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 
@@ -275,7 +275,7 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
         for i in 1:Na
             r = sys.crystal.positions[i]
             ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = exp(2π*im * dot(q_reshaped, r))
+            Avec_pref[i] = cis(2π * dot(q_reshaped, r))
             Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 
