@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>MgCr2O4 at Finite Temperature · Sunny documentation</title><meta name="title" content="MgCr2O4 at Finite Temperature · Sunny documentation"/><meta property="og:title" content="MgCr2O4 at Finite Temperature · Sunny documentation"/><meta property="twitter:title" content="MgCr2O4 at Finite Temperature · Sunny documentation"/><meta name="description" content="Documentation for Sunny documentation."/><meta property="og:description" content="Documentation for Sunny documentation."/><meta property="twitter:description" content="Documentation for Sunny documentation."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../index.html"><img class="docs-light-only" src="../../assets/logo.svg" alt="Sunny documentation logo"/><img class="docs-dark-only" src="../../assets/logo-dark.svg" alt="Sunny documentation logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../index.html">Sunny documentation</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../index.html">Overview</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../01_LSWT_SU3_FeI2.html">1. Multi-flavor spin wave simulations of FeI₂ (Showcase)</a></li><li><a class="tocitem" href="../02_LSWT_CoRh2O4.html">2. Spin wave simulations of CoRh₂O₄</a></li><li><a class="tocitem" href="../03_LLD_CoRh2O4.html">3. Landau-Lifshitz dynamics of CoRh₂O₄ at finite <em>T</em></a></li><li><a class="tocitem" href="../04_GSD_FeI2.html">4. Generalized spin dynamics of FeI₂ at finite <em>T</em></a></li><li><a class="tocitem" href="../05_MC_Ising.html">5. Monte Carlo sampling of the Ising model</a></li><li><a class="tocitem" href="../06_CP2_Skyrmions.html">6. Dynamical quench into CP² skyrmion liquid</a></li><li><a class="tocitem" href="../07_Dipole_Dipole.html">7. Long-range dipole interactions</a></li><li><input class="collapse-toggle" id="menuitem-2-8" type="checkbox"/><label class="tocitem" for="menuitem-2-8"><span class="docs-label">SpinW tutorials</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../spinw/SW08_Kagome_AFM.html">SW8 - Kagome Antiferromagnet</a></li><li><a class="tocitem" href="../spinw/SW15_Ba3NbFe3Si2O14.html">SW15 - Ba₃NbFe₃Si₂O₁₄</a></li><li><a class="tocitem" href="../spinw/SW18_Distorted_kagome.html">SW18 - Distorted kagome</a></li><li><a class="tocitem" href="../spinw/SW19_Different_Ions.html">SW19 - Different magnetic ions</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-2-9" type="checkbox" checked/><label class="tocitem" for="menuitem-2-9"><span class="docs-label">Contributed</span><i class="docs-chevron"></i></label><ul class="collapsed"><li class="is-active"><a class="tocitem" href="MgCr2O4-tutorial.html">MgCr2O4 at Finite Temperature</a><ul class="internal"><li><a class="tocitem" href="#Setting-up-Julia"><span>Setting up Julia</span></a></li><li><a class="tocitem" href="#Setting-up-the-crystal-structure"><span>Setting up the crystal structure</span></a></li><li><a class="tocitem" href="#Making-a-System-and-assigning-interactions"><span>Making a <code>System</code> and assigning interactions</span></a></li><li><a class="tocitem" href="#Cooling-our-System-amd-calculating-the-instantaneous-and-dynamic-structure-factors-at-the-final-temperature"><span>Cooling our <code>System</code> amd calculating the instantaneous and dynamic structure factors at the final temperature</span></a></li><li><a class="tocitem" href="#Instantaneous-Structure-Factor"><span>Instantaneous Structure Factor</span></a></li><li><a class="tocitem" href="#Dynamical-Structure-Factor"><span>Dynamical Structure Factor</span></a></li></ul></li><li><a class="tocitem" href="kappa_tutorial.html">Enforcing the quantum sum rule with moment renormalization</a></li></ul></li><li><input class="collapse-toggle" id="menuitem-2-10" type="checkbox"/><label class="tocitem" for="menuitem-2-10"><span class="docs-label">Advanced</span><i class="docs-chevron"></i></label><ul class="collapsed"><li><a class="tocitem" href="../../parallelism.html">Parallelizing Calculations</a></li><li><a class="tocitem" href="../../writevtk.html">ParaView Rendering</a></li></ul></li></ul></li><li><span class="tocitem">Modeling Guides</span><ul><li><a class="tocitem" href="../../structure-factor.html">Structure Factor Calculations</a></li><li><a class="tocitem" href="../../renormalization.html">Interaction Strength Renormalization</a></li></ul></li><li><a class="tocitem" href="../../library.html">Library API</a></li><li><a class="tocitem" href="../../versions.html">Version History</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li><a class="is-disabled">Contributed</a></li><li class="is-active"><a href="MgCr2O4-tutorial.html">MgCr2O4 at Finite Temperature</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href="MgCr2O4-tutorial.html">MgCr2O4 at Finite Temperature</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/SunnySuite/Sunny.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/SunnySuite/Sunny.jl/blob/main/docs/src/examples/contributed/MgCr2O4-tutorial.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="MgCr2O4-at-Finite-Temperature"><a class="docs-heading-anchor" href="#MgCr2O4-at-Finite-Temperature">MgCr2O4 at Finite Temperature</a><a id="MgCr2O4-at-Finite-Temperature-1"></a><a class="docs-heading-anchor-permalink" href="#MgCr2O4-at-Finite-Temperature" title="Permalink"></a></h1><p><strong>Author</strong>: Martin Mourigal</p><p><strong>Date</strong>: September 9, 2022 (Updated by November 1, 2023 using Sunny 0.5.5)</p><p>In this tutorial, we will walk through an example in Sunny and calculate the spin dynamical properties of the Heisenberg pyrochlore antiferromagnet and apply this knowledge to MgCr2O4 and ZnCr2O4, which are known to approximate this model. Relevant publications include:</p><p>[1] <a href="https://doi.org/10.1103/PhysRevLett.102.237206">P. H. Conlon and J. T. Chalker, Phys. Rev. Lett. 102, 237206 (2009)</a></p><p>[2] <a href="https://doi.org/10.1103/PhysRevB.81.224413">P. H. Conlon and J. T. Chalker, Phys. Rev. B 81, 224413 (2010)</a></p><p>[3] <a href="https://doi.org/10.1103/PhysRevLett.122.097201">X. Bai, J. A. M. Paddison, <em>et al.</em> Phys. Rev. Lett. 122, 097201 (2019)</a></p><h2 id="Setting-up-Julia"><a class="docs-heading-anchor" href="#Setting-up-Julia">Setting up Julia</a><a id="Setting-up-Julia-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-Julia" title="Permalink"></a></h2><p>To run the examples in the tutorial, you will need a working installation of the Julia programming language and the Sunny package. Some useful references for getting started are:</p><ul><li><a href="https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia">Getting started with Julia for Sunny</a></li><li><a href="https://docs.juliahub.com/General/Sunny/stable/">Sunny Docs</a></li></ul><p>We will begin by loading the relevant packages.</p><pre><code class="language-julia hljs">using Sunny # The main package
+using GLMakie # Plotting package</code></pre><h2 id="Setting-up-the-crystal-structure"><a class="docs-heading-anchor" href="#Setting-up-the-crystal-structure">Setting up the crystal structure</a><a id="Setting-up-the-crystal-structure-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-up-the-crystal-structure" title="Permalink"></a></h2><p>Before specifying the interactions of our system, we first must set up the crystal. We will begin by specifying the pyrochlore lattice (illustrated below) in the manner that is typical of theorists.</p><p><img src="https://www.oist.jp/sites/default/files/photos/20200110-diagram-of-pyrochlore-lattice.jpg" alt/></p><p><em>Picture Credits: Theory of Quantum Matter Unit, OIST</em></p><h3 id="&quot;Theorist&quot;-Method"><a class="docs-heading-anchor" href="#&quot;Theorist&quot;-Method">&quot;Theorist&quot; Method</a><a id="&quot;Theorist&quot;-Method-1"></a><a class="docs-heading-anchor-permalink" href="#&quot;Theorist&quot;-Method" title="Permalink"></a></h3><p>In this approach, we directly define the lattice vectors and specify the position of each atom in fractional coordinates.</p><pre><code class="language-julia hljs">latvecs = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
+positions = [[0.875, 0.625, 0.375],
+             [0.625, 0.125, 0.625],
+             [0.875, 0.875, 0.125],
+             [0.625, 0.875, 0.375],
+             [0.875, 0.125, 0.875],
+             [0.625, 0.625, 0.125],
+             [0.875, 0.375, 0.625],
+             [0.625, 0.375, 0.875],
+             [0.375, 0.625, 0.875],
+             [0.125, 0.125, 0.125],
+             [0.375, 0.875, 0.625],
+             [0.125, 0.875, 0.875],
+             [0.375, 0.125, 0.375],
+             [0.125, 0.625, 0.625],
+             [0.375, 0.375, 0.125],
+             [0.125, 0.375, 0.375]];
+types = [&quot;B&quot; for _ in positions]
+xtal_pyro   = Crystal(latvecs, positions; types) # We will call this crystal the Theoretical Pyrochlore</code></pre><pre><code class="nohighlight hljs">Crystal
+Spacegroup &#39;F d -3 m&#39; (227)
+Lattice params a=8.334, b=8.334, c=8.334, α=90°, β=90°, γ=90°
+Cell volume 578.9
+Type &#39;B&#39;, Wyckoff 16c (point group &#39;.-3m&#39;):
+   1. [7/8, 5/8, 3/8]
+   2. [5/8, 1/8, 5/8]
+   3. [7/8, 7/8, 1/8]
+   4. [5/8, 7/8, 3/8]
+   5. [7/8, 1/8, 7/8]
+   6. [5/8, 5/8, 1/8]
+   7. [7/8, 3/8, 5/8]
+   8. [5/8, 3/8, 7/8]
+   9. [3/8, 5/8, 7/8]
+   10. [1/8, 1/8, 1/8]
+   11. [3/8, 7/8, 5/8]
+   12. [1/8, 7/8, 7/8]
+   13. [3/8, 1/8, 3/8]
+   14. [1/8, 5/8, 5/8]
+   15. [3/8, 3/8, 1/8]
+   16. [1/8, 3/8, 3/8]
+</code></pre><p>To examine the result interactively, we can call <code>view_crystal</code>.</p><pre><code class="language-julia hljs">view_crystal(xtal_pyro, 3.2)</code></pre><p><img src="MgCr2O4-tutorial-10.png" alt/></p><h3 id="&quot;Experimentalist&quot;-Method-#1-(Incorrect)"><a class="docs-heading-anchor" href="#&quot;Experimentalist&quot;-Method-#1-(Incorrect)">&quot;Experimentalist&quot; Method #1 (Incorrect)</a><a id="&quot;Experimentalist&quot;-Method-#1-(Incorrect)-1"></a><a class="docs-heading-anchor-permalink" href="#&quot;Experimentalist&quot;-Method-#1-(Incorrect)" title="Permalink"></a></h3><p>A real crystal is more complicated than this, however, and we will now construct the system using the actual CIF file of MgCr2O4 from ICSD. This can be done by copying over the data from a CIF file by hand, but this can be dangerous, as shown below.</p><pre><code class="language-julia hljs">latvecs   = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
+positions = [[0.1250, 0.1250, 0.1250],
+             [0.5000, 0.5000, 0.5000],
+             [0.2607, 0.2607, 0.2607]]
+types = [&quot;Mg&quot;,&quot;Cr&quot;,&quot;O&quot;]
+xtal_mgcro_1 = Crystal(latvecs, positions; types)</code></pre><pre><code class="nohighlight hljs">Crystal
+Spacegroup &#39;R 3 m&#39; (160)
+Lattice params a=8.334, b=8.334, c=8.334, α=90°, β=90°, γ=90°
+Cell volume 578.9
+Type &#39;Mg&#39;, Wyckoff 3a (point group &#39;3m&#39;):
+   1. [1/8, 1/8, 1/8]
+Type &#39;Cr&#39;, Wyckoff 3a (point group &#39;3m&#39;):
+   2. [1/2, 1/2, 1/2]
+Type &#39;O&#39;, Wyckoff 3a (point group &#39;3m&#39;):
+   3. [0.2607, 0.2607, 0.2607]
+</code></pre><p>Sunny returned a valid crystal, but it did get right space group for MgCr2O4. This can be fixed by modifying the input to include the space group and the setting.</p><h3 id="&quot;Experimentalist&quot;-Method-#2-(Correct)"><a class="docs-heading-anchor" href="#&quot;Experimentalist&quot;-Method-#2-(Correct)">&quot;Experimentalist&quot; Method #2 (Correct)</a><a id="&quot;Experimentalist&quot;-Method-#2-(Correct)-1"></a><a class="docs-heading-anchor-permalink" href="#&quot;Experimentalist&quot;-Method-#2-(Correct)" title="Permalink"></a></h3><p>As above, we will define the crystal structure of MgCr2O4 by copying the info from a CIF file, but we will also specify the space group and setting explicitly.</p><pre><code class="language-julia hljs">latvecs    = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
+positions  = [[0.1250, 0.1250, 0.1250],
+              [0.5000, 0.5000, 0.5000],
+              [0.2607, 0.2607, 0.2607]]
+types      = [&quot;Mg&quot;,&quot;Cr&quot;,&quot;O&quot;]
+spacegroup = 227 # Space Group Number
+setting    = &quot;2&quot; # Space Group setting
+xtal_mgcro_2 = Crystal(latvecs, positions, spacegroup; types, setting)</code></pre><pre><code class="nohighlight hljs">Crystal
+Spacegroup &#39;F d -3 m&#39; (227)
+Lattice params a=8.334, b=8.334, c=8.334, α=90°, β=90°, γ=90°
+Cell volume 578.9
+Type &#39;Mg&#39;, Wyckoff 8b (point group &#39;-43m&#39;):
+   1. [1/8, 1/8, 1/8]
+   2. [5/8, 5/8, 1/8]
+   3. [7/8, 3/8, 3/8]
+   4. [3/8, 7/8, 3/8]
+   5. [5/8, 1/8, 5/8]
+   6. [1/8, 5/8, 5/8]
+   7. [3/8, 3/8, 7/8]
+   8. [7/8, 7/8, 7/8]
+Type &#39;Cr&#39;, Wyckoff 16c (point group &#39;.-3m&#39;):
+   9. [1/2, 0, 0]
+   10. [3/4, 1/4, 0]
+   11. [0, 1/2, 0]
+   12. [1/4, 3/4, 0]
+   13. [3/4, 0, 1/4]
+   14. [1/2, 1/4, 1/4]
+   15. [1/4, 1/2, 1/4]
+   16. [0, 3/4, 1/4]
+   17. [0, 0, 1/2]
+   18. [1/4, 1/4, 1/2]
+   19. [1/2, 1/2, 1/2]
+   20. [3/4, 3/4, 1/2]
+   21. [1/4, 0, 3/4]
+   22. [0, 1/4, 3/4]
+   23. [3/4, 1/2, 3/4]
+   24. [1/2, 3/4, 3/4]
+Type &#39;O&#39;, Wyckoff 32e (point group &#39;.3m&#39;):
+   25. [0.7393, 0.0107, 0.0107]
+   26. [0.5107, 0.2393, 0.0107]
+   27. [0.2393, 0.5107, 0.0107]
+   28. [0.0107, 0.7393, 0.0107]
+   29. [0.5107, 0.0107, 0.2393]
+   30. [0.7393, 0.2393, 0.2393]
+   31. [0.0107, 0.5107, 0.2393]
+   32. [0.2393, 0.7393, 0.2393]
+   33. [0.2607, 0.2607, 0.2607]
+   34. [0.4893, 0.4893, 0.2607]
+   35. [0.7607, 0.7607, 0.2607]
+   36. [0.9893, 0.9893, 0.2607]
+   37. [0.4893, 0.2607, 0.4893]
+   38. [0.2607, 0.4893, 0.4893]
+   39. [0.9893, 0.7607, 0.4893]
+   40. [0.7607, 0.9893, 0.4893]
+   41. [0.2393, 0.0107, 0.5107]
+   42. [0.0107, 0.2393, 0.5107]
+   43. [0.7393, 0.5107, 0.5107]
+   44. [0.5107, 0.7393, 0.5107]
+   45. [0.0107, 0.0107, 0.7393]
+   46. [0.2393, 0.2393, 0.7393]
+   47. [0.5107, 0.5107, 0.7393]
+   48. [0.7393, 0.7393, 0.7393]
+   49. [0.7607, 0.2607, 0.7607]
+   50. [0.9893, 0.4893, 0.7607]
+   51. [0.2607, 0.7607, 0.7607]
+   52. [0.4893, 0.9893, 0.7607]
+   53. [0.9893, 0.2607, 0.9893]
+   54. [0.7607, 0.4893, 0.9893]
+   55. [0.4893, 0.7607, 0.9893]
+   56. [0.2607, 0.9893, 0.9893]
+</code></pre><p>This result is correct, but at this point we might as well import the CIF file directly, which we now proceed to do.</p><h3 id="&quot;Experimentalist&quot;-Method-#3-(Correct-–-if-your-CIF-file-is)"><a class="docs-heading-anchor" href="#&quot;Experimentalist&quot;-Method-#3-(Correct-–-if-your-CIF-file-is)">&quot;Experimentalist&quot; Method #3 (Correct – if your CIF file is)</a><a id="&quot;Experimentalist&quot;-Method-#3-(Correct-–-if-your-CIF-file-is)-1"></a><a class="docs-heading-anchor-permalink" href="#&quot;Experimentalist&quot;-Method-#3-(Correct-–-if-your-CIF-file-is)" title="Permalink"></a></h3><p>To import a CIF file, simply give the path to <code>Crystal</code>. One may optionally specify a precision parameter to apply to the symmetry analysis.</p><pre><code class="language-julia hljs">cif = joinpath(@__DIR__, &quot;..&quot;, &quot;src&quot;, &quot;MgCr2O4_160953_2009.cif&quot;)
+xtal_mgcro_3 = Crystal(cif; symprec=0.001)</code></pre><pre><code class="nohighlight hljs">Crystal
+Spacegroup &#39;F d -3 m&#39; (227)
+Lattice params a=8.333, b=8.333, c=8.333, α=90°, β=90°, γ=90°
+Cell volume 578.6
+Type &#39;Mg1&#39;, Wyckoff 8b (point group &#39;-43m&#39;):
+   1. [1/8, 1/8, 1/8]
+   2. [5/8, 5/8, 1/8]
+   3. [7/8, 3/8, 3/8]
+   4. [3/8, 7/8, 3/8]
+   5. [5/8, 1/8, 5/8]
+   6. [1/8, 5/8, 5/8]
+   7. [3/8, 3/8, 7/8]
+   8. [7/8, 7/8, 7/8]
+Type &#39;Cr1&#39;, Wyckoff 16c (point group &#39;.-3m&#39;):
+   9. [1/2, 0, 0]
+   10. [3/4, 1/4, 0]
+   11. [0, 1/2, 0]
+   12. [1/4, 3/4, 0]
+   13. [3/4, 0, 1/4]
+   14. [1/2, 1/4, 1/4]
+   15. [1/4, 1/2, 1/4]
+   16. [0, 3/4, 1/4]
+   17. [0, 0, 1/2]
+   18. [1/4, 1/4, 1/2]
+   19. [1/2, 1/2, 1/2]
+   20. [3/4, 3/4, 1/2]
+   21. [1/4, 0, 3/4]
+   22. [0, 1/4, 3/4]
+   23. [3/4, 1/2, 3/4]
+   24. [1/2, 3/4, 3/4]
+Type &#39;O1&#39;, Wyckoff 32e (point group &#39;.3m&#39;):
+   25. [0.7388, 0.0112, 0.0112]
+   26. [0.5112, 0.2388, 0.0112]
+   27. [0.2388, 0.5112, 0.0112]
+   28. [0.0112, 0.7388, 0.0112]
+   29. [0.5112, 0.0112, 0.2388]
+   30. [0.7388, 0.2388, 0.2388]
+   31. [0.0112, 0.5112, 0.2388]
+   32. [0.2388, 0.7388, 0.2388]
+   33. [0.2612, 0.2612, 0.2612]
+   34. [0.4888, 0.4888, 0.2612]
+   35. [0.7612, 0.7612, 0.2612]
+   36. [0.9888, 0.9888, 0.2612]
+   37. [0.4888, 0.2612, 0.4888]
+   38. [0.2612, 0.4888, 0.4888]
+   39. [0.9888, 0.7612, 0.4888]
+   40. [0.7612, 0.9888, 0.4888]
+   41. [0.2388, 0.0112, 0.5112]
+   42. [0.0112, 0.2388, 0.5112]
+   43. [0.7388, 0.5112, 0.5112]
+   44. [0.5112, 0.7388, 0.5112]
+   45. [0.0112, 0.0112, 0.7388]
+   46. [0.2388, 0.2388, 0.7388]
+   47. [0.5112, 0.5112, 0.7388]
+   48. [0.7388, 0.7388, 0.7388]
+   49. [0.7612, 0.2612, 0.7612]
+   50. [0.9888, 0.4888, 0.7612]
+   51. [0.2612, 0.7612, 0.7612]
+   52. [0.4888, 0.9888, 0.7612]
+   53. [0.9888, 0.2612, 0.9888]
+   54. [0.7612, 0.4888, 0.9888]
+   55. [0.4888, 0.7612, 0.9888]
+   56. [0.2612, 0.9888, 0.9888]
+</code></pre><p>Finally, we wish to restrict attention to the magnetic atoms in the unit cell while maintaining symmetry information for the full crystal, which is required to determine the correct exchange and g-factor anisotropies. This can be achieved with the <code>subcrystal</code> function.</p><pre><code class="language-julia hljs">xtal_mgcro = subcrystal(xtal_mgcro_2,&quot;Cr&quot;)</code></pre><pre><code class="nohighlight hljs">Crystal
+Spacegroup &#39;F d -3 m&#39; (227)
+Lattice params a=8.334, b=8.334, c=8.334, α=90°, β=90°, γ=90°
+Cell volume 578.9
+Type &#39;Cr&#39;, Wyckoff 16c (point group &#39;.-3m&#39;):
+   1. [1/2, 0, 0]
+   2. [3/4, 1/4, 0]
+   3. [0, 1/2, 0]
+   4. [1/4, 3/4, 0]
+   5. [3/4, 0, 1/4]
+   6. [1/2, 1/4, 1/4]
+   7. [1/4, 1/2, 1/4]
+   8. [0, 3/4, 1/4]
+   9. [0, 0, 1/2]
+   10. [1/4, 1/4, 1/2]
+   11. [1/2, 1/2, 1/2]
+   12. [3/4, 3/4, 1/2]
+   13. [1/4, 0, 3/4]
+   14. [0, 1/4, 3/4]
+   15. [3/4, 1/2, 3/4]
+   16. [1/2, 3/4, 3/4]
+</code></pre><h2 id="Making-a-System-and-assigning-interactions"><a class="docs-heading-anchor" href="#Making-a-System-and-assigning-interactions">Making a <code>System</code> and assigning interactions</a><a id="Making-a-System-and-assigning-interactions-1"></a><a class="docs-heading-anchor-permalink" href="#Making-a-System-and-assigning-interactions" title="Permalink"></a></h2><h3 id="Making-a-System"><a class="docs-heading-anchor" href="#Making-a-System">Making a <code>System</code></a><a id="Making-a-System-1"></a><a class="docs-heading-anchor-permalink" href="#Making-a-System" title="Permalink"></a></h3><p>Before assigning any interactions, we first have to set up a <code>System</code> using our <code>Crystal</code>.</p><pre><code class="language-julia hljs">dims = (6, 6, 6)  # Supercell dimensions
+spininfos = [SpinInfo(1, S=3/2, g=2)]  # Specify spin information, note that all sites are symmetry equivalent
+sys_pyro = System(xtal_pyro, dims, spininfos, :dipole)    # Make a system in dipole (Landau-Lifshitz) mode on pyrochlore lattice
+sys_mgcro = System(xtal_mgcro, dims, spininfos, :dipole); # Same on MgCr2O4 crystal</code></pre><p>To understand what interactions we may assign to this system, we have to understand the the symmetry properties of the crystal, which we turn to next.</p><h3 id="Symmetry-analysis-for-exchange-and-single-ion-anisotropies"><a class="docs-heading-anchor" href="#Symmetry-analysis-for-exchange-and-single-ion-anisotropies">Symmetry analysis for exchange and single-ion anisotropies</a><a id="Symmetry-analysis-for-exchange-and-single-ion-anisotropies-1"></a><a class="docs-heading-anchor-permalink" href="#Symmetry-analysis-for-exchange-and-single-ion-anisotropies" title="Permalink"></a></h3><p><code>print_symmetry_table</code> reports all the exchange interactions, single-site anisotropies, and g-factors allowed on our crystal. It takes a <code>Cyrstal</code> and a distance. We&#39;ll look at both the &quot;theorist&#39;s&quot; pyrochlore lattice,</p><pre><code class="language-julia hljs">print_symmetry_table(xtal_pyro, 5.9)</code></pre><pre><code class="nohighlight hljs">Atom 1
+Type &#39;B&#39;, position [7/8, 5/8, 3/8], multiplicity 16
+Allowed g-tensor: [ A B -B
+                    B A  B
+                   -B B  A]
+Allowed anisotropy in Stevens operators:
+    c₁*(𝒪[2,-2]+2𝒪[2,-1]-2𝒪[2,1]) +
+    c₂*(7𝒪[4,-3]+2𝒪[4,-2]-𝒪[4,-1]+𝒪[4,1]+7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
+    c₄*(-11𝒪[6,-6]-8𝒪[6,-3]+𝒪[6,-2]-8𝒪[6,-1]+8𝒪[6,1]-8𝒪[6,3]) + c₅*(𝒪[6,0]-21𝒪[6,4]) + c₆*((9/5)𝒪[6,-6]+(24/5)𝒪[6,-5]+𝒪[6,-2]+(8/5)𝒪[6,-1]-(8/5)𝒪[6,1]-(24/5)𝒪[6,5])
+
+Bond(1, 3, [0, 0, 0])
+Distance 2.9465846678825, coordination 6
+Connects &#39;B&#39; at [7/8, 5/8, 3/8] to &#39;B&#39; at [7/8, 7/8, 1/8]
+Allowed exchange matrix: [ A -D D
+                           D  B C
+                          -D  C B]
+Allowed DM vector: [0 -D -D]
+
+Bond(1, 2, [0, 0, 0])
+Distance 5.1036343535759, coordination 12
+Connects &#39;B&#39; at [7/8, 5/8, 3/8] to &#39;B&#39; at [5/8, 1/8, 5/8]
+Allowed exchange matrix: [  A  C-E  D-F
+                          C+E    B -C+E
+                          D+F -C-E    A]
+Allowed DM vector: [E F -E]
+
+Bond(2, 6, [0, 0, 0])
+Distance 5.8931693357649, coordination 6
+Connects &#39;B&#39; at [5/8, 1/8, 5/8] to &#39;B&#39; at [5/8, 5/8, 1/8]
+Allowed exchange matrix: [A D D
+                          D B C
+                          D C B]
+
+Bond(1, 5, [0, 0, 0])
+Distance 5.8931693357649, coordination 6
+Connects &#39;B&#39; at [7/8, 5/8, 3/8] to &#39;B&#39; at [7/8, 1/8, 7/8]
+Allowed exchange matrix: [ A D -D
+                           D B  C
+                          -D C  B]
+
+</code></pre><p>and for the the MgCrO4 crystal,</p><pre><code class="language-julia hljs">print_symmetry_table(xtal_mgcro, 6.0)</code></pre><pre><code class="nohighlight hljs">Atom 1
+Type &#39;Cr&#39;, position [1/2, 0, 0], multiplicity 16
+Allowed g-tensor: [A B B
+                   B A B
+                   B B A]
+Allowed anisotropy in Stevens operators:
+    c₁*(𝒪[2,-2]+2𝒪[2,-1]+2𝒪[2,1]) +
+    c₂*(-7𝒪[4,-3]-2𝒪[4,-2]+𝒪[4,-1]+𝒪[4,1]+7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
+    c₄*(-11𝒪[6,-6]-8𝒪[6,-3]+𝒪[6,-2]-8𝒪[6,-1]-8𝒪[6,1]+8𝒪[6,3]) + c₅*(𝒪[6,0]-21𝒪[6,4]) + c₆*((9/5)𝒪[6,-6]+(24/5)𝒪[6,-5]+𝒪[6,-2]+(8/5)𝒪[6,-1]+(8/5)𝒪[6,1]+(24/5)𝒪[6,5])
+
+Bond(1, 2, [0, 0, 0])
+Distance 2.9465846678825, coordination 6
+Connects &#39;Cr&#39; at [1/2, 0, 0] to &#39;Cr&#39; at [3/4, 1/4, 0]
+Allowed exchange matrix: [A C -D
+                          C A -D
+                          D D  B]
+Allowed DM vector: [-D D 0]
+
+Bond(1, 7, [0, 0, 0])
+Distance 5.1036343535759, coordination 12
+Connects &#39;Cr&#39; at [1/2, 0, 0] to &#39;Cr&#39; at [1/4, 1/2, 1/4]
+Allowed exchange matrix: [  A  C-E  D-F
+                          C+E    B -C+E
+                          D+F -C-E    A]
+Allowed DM vector: [E F -E]
+
+Bond(1, 3, [0, 0, 0])
+Distance 5.8931693357649, coordination 6
+Connects &#39;Cr&#39; at [1/2, 0, 0] to &#39;Cr&#39; at [0, 1/2, 0]
+Allowed exchange matrix: [A D C
+                          D A C
+                          C C B]
+
+Bond(1, 3, [1, 0, 0])
+Distance 5.8931693357649, coordination 6
+Connects &#39;Cr&#39; at [1/2, 0, 0] to &#39;Cr&#39; at [1, 1/2, 0]
+Allowed exchange matrix: [A D C
+                          D A C
+                          C C B]
+
+</code></pre><p>Note that the exchange anisotropies allowed on the the pyrochlore lattice are slightly different from those on the MgCr2O4 cyrstal due to the role of Mg and O in the bonds. Also note that Sunny has correctly identified the two inequivalent bonds 3a and 3b having the same length. A question may arises to know which bond is J3a and which is J3b, let&#39;s plot the structure.</p><pre><code class="language-julia hljs">view_crystal(xtal_mgcro, 5.9)</code></pre><p><img src="MgCr2O4-tutorial-29.png" alt/></p><p>The crystal viewer shows that the second interaction – cyan color with distance of 5.89Å – is in fact the one hopping through a chromium site, meaning it is J3a! We will need to be careful with that later.</p><h3 id="Building-the-exchange-interactions-for-our-system"><a class="docs-heading-anchor" href="#Building-the-exchange-interactions-for-our-system">Building the exchange interactions for our system</a><a id="Building-the-exchange-interactions-for-our-system-1"></a><a class="docs-heading-anchor-permalink" href="#Building-the-exchange-interactions-for-our-system" title="Permalink"></a></h3><p>We begin by setting the scale of our exchange interactions on each bond.</p><pre><code class="language-julia hljs">J1      = 3.27  # value of J1 in meV from Bai&#39;s PRL paper
+J_pyro  = [1.00,0.000,0.000,0.000]*J1    # pure nearest neighbor pyrochlore
+J_mgcro = [1.00,0.0815,0.1050,0.085]*J1; # further neighbor pyrochlore relevant for MgCr2O4
+# val_J_mgcro = [1.00,0.000,0.025,0.025]*val_J1; # this is a funny setting from Conlon-Chalker</code></pre><p>These values are then assigned to their corresponding bonds with <code>set_exchange!</code>.</p><pre><code class="language-julia hljs"># === Assign exchange interactions to pyrochlore system ===
+set_exchange!(sys_pyro, J_pyro[1], Bond(1, 3, [0,0,0])) # J1
+set_exchange!(sys_pyro, J_pyro[2], Bond(1, 2, [0,0,0])) # J2
+set_exchange!(sys_pyro, J_pyro[3], Bond(2, 6, [0,0,0])) # J3a
+set_exchange!(sys_pyro, J_pyro[4], Bond(1, 5, [0,0,0])) # J3b
+
+# === Assign exchange interactions to MgCr2O4 system ===
+set_exchange!(sys_mgcro, J_mgcro[1], Bond(1, 2, [0,0,0]))  # J1
+set_exchange!(sys_mgcro, J_mgcro[2], Bond(1, 7, [0,0,0]))  # J2
+set_exchange!(sys_mgcro, J_mgcro[3], Bond(1, 3, [0,0,0]))  # J3a -- Careful here!
+set_exchange!(sys_mgcro, J_mgcro[4], Bond(1, 3, [1,0,0])); # J3b -- And here!</code></pre><p>We will not be assigning any single-ion anisotropies, so we have finished specifying our models. For good measure, we will set both systems to a random (infinite temperature) initial condition.</p><pre><code class="language-julia hljs">randomize_spins!(sys_pyro)
+randomize_spins!(sys_mgcro);</code></pre><h2 id="Cooling-our-System-amd-calculating-the-instantaneous-and-dynamic-structure-factors-at-the-final-temperature"><a class="docs-heading-anchor" href="#Cooling-our-System-amd-calculating-the-instantaneous-and-dynamic-structure-factors-at-the-final-temperature">Cooling our <code>System</code> amd calculating the instantaneous and dynamic structure factors at the final temperature</a><a id="Cooling-our-System-amd-calculating-the-instantaneous-and-dynamic-structure-factors-at-the-final-temperature-1"></a><a class="docs-heading-anchor-permalink" href="#Cooling-our-System-amd-calculating-the-instantaneous-and-dynamic-structure-factors-at-the-final-temperature" title="Permalink"></a></h2><p>We begin by thermalizing our system at a particular temperature. We will accomplish this by running Langevin dynamics. To do this, we must set up a Langevin integrator.</p><pre><code class="language-julia hljs">Δt = 0.05  # Integration time step in meV^-1
+λ  = 0.1   # Phenomenological damping parameter
+kT = 1.8   # Desired temperature in meV
+langevin = Langevin(Δt; λ, kT); # Construct integrator</code></pre><p>We can now thermalize our systems by running the integrator.</p><pre><code class="language-julia hljs">for _ in 1:2000
+    step!(sys_pyro, langevin)
+    step!(sys_mgcro, langevin)
+end</code></pre><p>As a sanity check, we&#39;ll plot the real-space spin configurations of both systems after themalization. First the pyrochlore,</p><pre><code class="language-julia hljs">plot_spins(sys_pyro)</code></pre><p><img src="MgCr2O4-tutorial-41.png" alt/></p><p>and then the MgCr2O4,</p><pre><code class="language-julia hljs">plot_spins(sys_mgcro)</code></pre><p><img src="MgCr2O4-tutorial-43.png" alt/></p><h2 id="Instantaneous-Structure-Factor"><a class="docs-heading-anchor" href="#Instantaneous-Structure-Factor">Instantaneous Structure Factor</a><a id="Instantaneous-Structure-Factor-1"></a><a class="docs-heading-anchor-permalink" href="#Instantaneous-Structure-Factor" title="Permalink"></a></h2><p>Next we can examine the instantaneous structure factor.</p><pre><code class="language-julia hljs">isf_pyro  = instant_correlations(sys_pyro)
+isf_mgcro = instant_correlations(sys_mgcro);</code></pre><p>These are currently empty. Let&#39;s add correlation data from 10 trajectories.</p><pre><code class="language-julia hljs">for _ in 1:10
+    # Run dynamics to decorrelate
+    for _ in 1:500
+        step!(sys_pyro, langevin)
+        step!(sys_mgcro, langevin)
+    end
+    # Add samples
+    add_sample!(isf_pyro, sys_pyro)
+    add_sample!(isf_mgcro, sys_mgcro)
+end</code></pre><p>To retrieve the intensities, we set up a formula and call <code>intensities_interpolated</code> on an array of wave vectors.</p><pre><code class="language-julia hljs">qvals = -4.0:0.025:4.0
+qs = [(qa, qb, 0) for qa in qvals, qb in qvals]      # Wave vectors to query
+
+formula_pyro = intensity_formula(isf_pyro, :perp)
+formula_mgcro = intensity_formula(isf_mgcro, :perp)
+Sq_pyro  = instant_intensities_interpolated(isf_pyro, qs, formula_pyro)
+Sq_mgcro = instant_intensities_interpolated(isf_mgcro, qs, formula_mgcro);</code></pre><p>Finally, we can plot the results.</p><pre><code class="language-julia hljs">fig = Figure(; resolution=(1200,500))
+axparams = (aspect = true, xticks=-4:4, yticks=-4:4, titlesize=20,
+    xlabel = &quot;𝐪a (2π a⁻¹)&quot;, ylabel = &quot;𝐪b (2π b⁻¹)&quot;, xlabelsize = 18, ylabelsize=18,)
+ax_pyro  = Axis(fig[1,1]; title=&quot;Pyrochlore&quot;, axparams...)
+ax_mgcro = Axis(fig[1,3]; title=&quot;MgCr2O4&quot;,  axparams...)
+hm = heatmap!(ax_pyro, qvals, qvals, Sq_pyro)
+Colorbar(fig[1,2], hm)
+hm = heatmap!(ax_mgcro, qvals, qvals, Sq_mgcro)
+Colorbar(fig[1,4], hm)
+fig</code></pre><p><img src="MgCr2O4-tutorial-51.png" alt/></p><h2 id="Dynamical-Structure-Factor"><a class="docs-heading-anchor" href="#Dynamical-Structure-Factor">Dynamical Structure Factor</a><a id="Dynamical-Structure-Factor-1"></a><a class="docs-heading-anchor-permalink" href="#Dynamical-Structure-Factor" title="Permalink"></a></h2><p>We can also estimate the dynamical structure factor.</p><pre><code class="language-julia hljs">sc_pyro  = dynamical_correlations(sys_pyro; Δt, ωmax = 10.0, nω = 100)
+sc_mgcro = dynamical_correlations(sys_mgcro; Δt, ωmax = 10.0, nω = 100);</code></pre><p>Next we add some sample trajectories.</p><pre><code class="language-julia hljs">for _ in 1:3
+    # Run dynamics to decorrelate
+    for _ in 1:500
+        step!(sys_pyro, langevin)
+        step!(sys_mgcro, langevin)
+    end
+    # Add samples
+    add_sample!(sc_pyro, sys_pyro)
+    add_sample!(sc_mgcro, sys_mgcro)
+end</code></pre><p>We can now examine the structure factor intensities along a path in momentum space.</p><pre><code class="language-julia hljs">fig = Figure(; resolution=(1200,900))
+axsqw = (xticks=-4:4, yticks=0:2:10, ylabel=&quot;E (meV)&quot;, ylabelsize=18, xlabelsize=18, )
+
+qbs = 0.0:0.5:1.5 # Determine q_b for each slice
+for (i, qb) in enumerate(qbs)
+    path, _ = reciprocal_space_path(xtal_pyro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
+                                                                                      # vectors through the BZ
+    formula = intensity_formula(sc_pyro, :perp; kT) # Temperature keyword enables intensity rescaling
+    Sqω_pyro  = intensities_interpolated(sc_pyro, path, formula)
+
+    ax = Axis(fig[fldmod1(i,2)...]; xlabel = &quot;q = (x, $qb, 0)&quot;, axsqw...)
+    ωs = available_energies(sc_pyro)
+    heatmap!(ax, [p[1] for p in path], ωs, Sqω_pyro; colorrange=(0.0, 4.0))
+end
+fig</code></pre><p><img src="MgCr2O4-tutorial-57.png" alt/></p><p>And let&#39;s take a look at the same slices for MgCr2O4.</p><pre><code class="language-julia hljs">fig = Figure(; resolution=(1200,900))
+
+qbs = 0.0:0.5:1.5
+for (i, qb) in enumerate(qbs)
+    path, _ = reciprocal_space_path(xtal_mgcro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
+                                                                                 # vectors through the BZ
+    formula = intensity_formula(sc_mgcro, :perp; kT) # Temperature keyword enables intensity rescaling
+    Sqω_mgcro  = intensities_interpolated(sc_mgcro, path, formula)
+
+    ax = Axis(fig[fldmod1(i,2)...]; xlabel = &quot;q = (x, $qb, 0)&quot;, axsqw...)
+    ωs = available_energies(sc_mgcro)
+    heatmap!(ax, [p[1] for p in path], ωs, Sqω_mgcro; colorrange=(0.0, 4.0))
+end
+fig</code></pre><p><img src="MgCr2O4-tutorial-59.png" alt/></p><h3 id="Instantaneous-structure-factor-from-a-dynamical-structure-factor"><a class="docs-heading-anchor" href="#Instantaneous-structure-factor-from-a-dynamical-structure-factor">Instantaneous structure factor from a dynamical structure factor</a><a id="Instantaneous-structure-factor-from-a-dynamical-structure-factor-1"></a><a class="docs-heading-anchor-permalink" href="#Instantaneous-structure-factor-from-a-dynamical-structure-factor" title="Permalink"></a></h3><p>Finally, we note that the instant structure factor can be calculated from the dynamical structure factor. We simply call <code>instant_intensities</code> rather than <code>intensities</code>. This will calculate the instantaneous structure factor from from <span>$𝒮(𝐪,ω)$</span> by integrating out <span>$ω$</span> . An advantage of doing this (as opposed to using <code>instant_correlations</code>) is that Sunny is able to apply a temperature- and energy-dependent intensity rescaling before integrating out the dynamical information. The results of this approach are more suitable for comparison with experimental data.</p><pre><code class="language-julia hljs">qvals = -4.0:0.05:4.0
+qs = [(qa, qb, 0) for qa in qvals, qb in qvals]      # Wave vectors to query
+
+formula_pyro = intensity_formula(sc_pyro, :perp; kT)   # Temperature keyword enables intensity rescaling
+formula_mgcro = intensity_formula(sc_mgcro, :perp; kT) # Temperature keyword enables intensity rescaling
+
+Sq_pyro  = instant_intensities_interpolated(sc_pyro, qs, formula_pyro)
+Sq_mgcro = instant_intensities_interpolated(sc_mgcro, qs, formula_mgcro);</code></pre><p>We can plot the results below. It is useful to compare these to the plot above generated with an <code>instant_correlations</code>.</p><pre><code class="language-julia hljs">fig = Figure(; resolution=(1200,500))
+ax_pyro  = Axis(fig[1,1]; title=&quot;Pyrochlore&quot;, axparams...)
+ax_mgcro = Axis(fig[1,3]; title=&quot;MgCr2O4&quot;, axparams...)
+hm = heatmap!(ax_pyro, qvals, qvals, Sq_pyro)
+Colorbar(fig[1,2], hm)
+hm = heatmap!(ax_mgcro, qvals, qvals, Sq_mgcro)
+Colorbar(fig[1,4], hm)
+fig</code></pre><p><img src="MgCr2O4-tutorial-64.png" alt/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../spinw/SW19_Different_Ions.html">« SW19 - Different magnetic ions</a><a class="docs-footer-nextpage" href="kappa_tutorial.html">Enforcing the quantum sum rule with moment renormalization »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.4.1 on <span class="colophon-date" title="Monday 3 June 2024 04:03">Monday 3 June 2024</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
