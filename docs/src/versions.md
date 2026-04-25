@@ -1,7 +1,7 @@
 # Release Notes
 
 ## v0.9.1
-(In development)
+(Apr 25, 2026)
 
 * [`FormFactor`](@ref) accepts a `j2_weight` that scales the ``⟨j_2⟩``
   contribution. The special value `j2_weight=:free_ion` selects ``(2-g_J)/g_J``
@@ -19,8 +19,8 @@
   with [`squared_error_fitted`](@ref). The latter returns a named tuple with the
   `err` value and an optionally inferred `scale` and `shift` ([#484](@ref)).
 * Matrix ``U`` returned by [`uncertainty_matrix`](@ref) increases by a factor of
-  2. Then ``U / ν`` can be interpreted as statistical covariance, with ``ν`` the
-  reduced degrees of freedom ([#484](@ref)).
+  two. Then ``U / ν`` can be interpreted as statistical covariance, with ``ν``
+  the reduced degrees of freedom ([#484](@ref)).
 * Fix site indexing in [`SpinWaveTheory`](@ref) calculations; this bug could
   lead to incorrect form factors for certain systems with multiple ion types
   ([#489](@ref)).
