@@ -1,6 +1,6 @@
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}             # Rotations from global to quantization frame
-    observables_localized :: Array{Vec3, 2}           # Observables rotated to local frame (nsites, nobs)
+    observables_localized :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
     stevens_coefs         :: Vector{StevensExpansion} # Rotated onsite coupling as Steven expansion
     sqrtS                 :: Vector{Float64}          # Square root of spin magnitudes
 end
@@ -318,9 +318,48 @@ end
 
 # i is a site index for the flattened swt.sys. However, `measure` was originally
 # constructed for a system with nontrivial lattice dims. Use fld1(i, prod(dims))
-# to get a true atom index for the unflattened sys. This is needed to index
-# measure.formfactors.
-function get_swt_formfactor(measure, μ, i)
+# to get an atom index for one cell of the unflattened sys.
+function formfactor_for_flattened_sys(measure, μ, i)
     sys_dims = size(measure.observables)[2:4]
     measure.formfactors[μ, fld1(i, prod(sys_dims))]
+end
+
+function observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+    r_reshaped = sys.crystal.positions[i]
+    ff = formfactor_for_flattened_sys(measure, μ, i)
+    cis(2π * dot(q_reshaped, r_reshaped)) * compute_form_factor(ff, norm2(q_global))
+end
+
+# Linearize each Fourier observable Â(q) = Σᵢ exp(+i q⋅rᵢ) Âᵢ as a coefficient
+# vector u in the Nambu basis of Holstein-Primakoff bosons [a_q, a_-q†].
+function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_global)
+    (; sys, measure, data) = swt
+    Na = nsites(sys)
+    Nobs = size(measure.observables, 1)
+    Nf = nflavors(swt)
+    L = Nf * Na
+
+    if sys.mode == :SUN
+        (; observables_localized) = data::SWTDataSUN
+        N = sys.Ns[1]
+        for μ in 1:Nobs, i in 1:Na
+            pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+            O = observables_localized[μ, i]
+            for f in 1:Nf
+                u[f + (i-1)*Nf, μ]     = pref * O[f, N]
+                u[f + (i-1)*Nf + L, μ] = pref * O[N, f]
+            end
+        end
+    else
+        @assert sys.mode in (:dipole, :dipole_uncorrected)
+        (; sqrtS, observables_localized) = data::SWTDataDipole
+        for μ in 1:Nobs, i in 1:Na
+            pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+            O = observables_localized[μ, i]
+            u[i, μ]   = pref * (sqrtS[i] / √2) * (O[1] + im*O[2])
+            u[i+L, μ] = pref * (sqrtS[i] / √2) * (O[1] - im*O[2])
+        end
+    end
+
+    return u
 end

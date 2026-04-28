@@ -94,21 +94,21 @@ end
 
 
 function mul_Ĩ!(y, x)
-    L = size(y, 2) ÷ 2
-    view(y, :, 1:L)    .= .+view(x, :, 1:L)
-    view(y, :, L+1:2L) .= .-view(x, :, L+1:2L)
+    L = size(y, 1) ÷ 2
+    view(y, 1:L, :)    .= .+view(x, 1:L, :)
+    view(y, L+1:2L, :) .= .-view(x, L+1:2L, :)
 end
 
 function mul_A!(swt, y, x, qs_reshaped, γ)
-    L = size(y, 2) ÷ 2
-    mul_dynamical_matrix!(swt, y, x, qs_reshaped)
-    view(y, :, 1:L)    .*= +1/γ
-    view(y, :, L+1:2L) .*= -1/γ
+    L = size(y, 1) ÷ 2
+    mul_dynamical_matrix!(swt, transpose(y), transpose(x), qs_reshaped)
+    view(y, 1:L, :)    .*= +1/γ
+    view(y, L+1:2L, :) .*= -1/γ
 end
 
 function set_moments!(moments, measure, u, α)
     map!(moments, measure.corr_pairs) do (μ, ν)
-        dot(view(u, μ, :), view(α, ν, :))
+        dot(view(u, :, μ), view(α, :, ν))
     end
 end
 
@@ -128,54 +128,23 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
     Ncells = Na / natoms(cryst)
     Nf = nflavors(swt)
     L = Nf*Na
-    Avec_pref = zeros(ComplexF64, Na) # initialize array of some prefactors
 
     Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
-    corrbuf = zeros(ComplexF64, Ncorr)
+    corr = zeros(ComplexF64, Ncorr)
     moments = ElasticArray{ComplexF64}(undef, Ncorr, 0)
 
-    u = zeros(ComplexF64, Nobs, 2L)
-    α0 = zeros(ComplexF64, Nobs, 2L)
-    α1 = zeros(ComplexF64, Nobs, 2L)
-    α2 = zeros(ComplexF64, Nobs, 2L)
+    u = zeros(ComplexF64, 2L, Nobs)
+    α0 = zeros(ComplexF64, 2L, Nobs)
+    α1 = zeros(ComplexF64, 2L, Nobs)
+    α2 = zeros(ComplexF64, 2L, Nobs)
 
     for iq in CartesianIndices(qpts.qs)
         q = qpts.qs[iq]
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        # Represent each local observable A(q) as a complex vector u(q) that
-        # denotes a linear combination of HP bosons.
-
-        for i in 1:Na
-            r = sys.crystal.positions[i]
-            ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = exp(2π*im * dot(q_reshaped, r))
-            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
-        end
-
-        if sys.mode == :SUN
-            (; observables_localized) = swt.data::SWTDataSUN
-            N = sys.Ns[1]
-            for i in 1:Na, μ in 1:Nobs
-                O = observables_localized[μ, i]
-                for f in 1:Nf
-                    u[μ, f + (i-1)*Nf]     = Avec_pref[i] * O[f, N]
-                    u[μ, f + (i-1)*Nf + L] = Avec_pref[i] * O[N, f]
-                end
-            end
-        else
-            @assert sys.mode in (:dipole, :dipole_uncorrected)
-            (; sqrtS, observables_localized) = swt.data::SWTDataDipole
-            for i in 1:Na
-                for μ in 1:Nobs
-                    O = observables_localized[μ, i]
-                    u[μ, i]   = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] + im*O[2])
-                    u[μ, i+L] = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] - im*O[2])
-                end
-            end
-        end
+        set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
 
         # Find extreme eigenvalues and rescaling factor
         lo, hi = eigbounds(swt, q_reshaped, niters_bounds)
@@ -230,9 +199,9 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
             coefs = cheb_coefs!(M, f, (-γ, γ); buf, plan)
             # apply_jackson_kernel!(coefs)
             for i in 1:Ncorr
-                corrbuf[i] = dot(coefs, view(moments, i, :)) / Ncells
+                corr[i] = dot(coefs, view(moments, i, :)) / Ncells
             end
-            data[iω, iq] = measure.combiner(q_global, corrbuf)
+            data[iω, iq] = measure.combiner(q_global, corr)
         end
     end
 
@@ -254,11 +223,10 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
     Ncells = Na / natoms(cryst)
     Nf = nflavors(swt)
     L = Nf*Na
-    Avec_pref = zeros(ComplexF64, Na)
 
     Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
-    corrbuf = zeros(ComplexF64, Ncorr)
+    corr = zeros(ComplexF64, Ncorr)
 
     u = zeros(ComplexF64, 2L, Nobs)
     v = zeros(ComplexF64, 2L)
@@ -269,35 +237,7 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        # Represent each local observable A(q) as a complex vector u(q) that
-        # denotes a linear combination of HP bosons.
-
-        for i in 1:Na
-            r = sys.crystal.positions[i]
-            ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = exp(2π*im * dot(q_reshaped, r))
-            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
-        end
-
-        if sys.mode == :SUN
-            (; observables_localized) = swt.data::SWTDataSUN
-            N = sys.Ns[1]
-            for μ in 1:Nobs, i in 1:Na
-                O = observables_localized[μ, i]
-                for f in 1:Nf
-                    u[f + (i-1)*Nf, μ]     = Avec_pref[i] * O[f, N]
-                    u[f + (i-1)*Nf + L, μ] = Avec_pref[i] * O[N, f]
-                end
-            end
-        else
-            @assert sys.mode in (:dipole, :dipole_uncorrected)
-            (; sqrtS, observables_localized) = swt.data::SWTDataDipole
-            for μ in 1:Nobs, i in 1:Na
-                O = observables_localized[μ, i]
-                u[i, μ]   = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] + im*O[2])
-                u[i+L, μ] = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] - im*O[2])
-            end
-        end
+        set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
 
         # Perform Lanczos calculation
  
@@ -364,17 +304,17 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
                 # accumulate C̃[ν, ξ]* into C[μ, ν] if ξ = μ. A factor of 1/2
                 # avoids double counting. In the special case that μ = ν, this
                 # assigns real(C̃[μ, μ]) to C[μ, μ] only once.
-                corrbuf .= 0
+                corr .= 0
                 for (i, (μ, ν)) in enumerate(measure.corr_pairs)
-                    ξ == ν && (corrbuf[i] += (1/2) *     (corr_ξ[μ] / Ncells))
-                    ξ == μ && (corrbuf[i] += (1/2) * conj(corr_ξ[ν] / Ncells))
+                    ξ == ν && (corr[i] += (1/2) *     (corr_ξ[μ] / Ncells))
+                    ξ == μ && (corr[i] += (1/2) * conj(corr_ξ[ν] / Ncells))
                 end
 
                 # This step assumes that combiner is linear, so that it is valid
                 # to move the ξ loop outside the data accumulation. One could
                 # relax this assumption by preallocating an array of size (Nω,
-                # Ncorr) to accumulate into corrbuf prior to calling combiner.
-                data[iω, iq] += measure.combiner(q_global, corrbuf)
+                # Ncorr) to accumulate into corr prior to calling combiner.
+                data[iω, iq] += measure.combiner(q_global, corr)
             end
         end
     end

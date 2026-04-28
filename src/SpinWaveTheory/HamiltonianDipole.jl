@@ -40,7 +40,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             @assert i == bond.i
             j = bond.j
 
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            phase = cis(2π * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             si = sqrtS[i]^2
             sj = sqrtS[j]^2
