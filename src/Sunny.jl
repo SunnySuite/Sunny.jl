@@ -27,6 +27,10 @@ import MatInt
 import RowEchelon: rref!
 import Spglib
 
+# To be eliminated
+import LsqFit: curve_fit
+import NonlinearSolve: NonlinearProblem, solve, NewtonRaphson
+
 include("MathBasics.jl")
 
 include("Operators/Spin.jl")
@@ -79,8 +83,9 @@ export reshape_supercell, resize_supercell, repeat_periodically, repeat_periodic
 include("Entanglement.jl")
 export entangle_system
 
-include("Integrators.jl")
-export Langevin, ImplicitMidpoint, step!, suggest_timestep
+include("TrajectoryIntegration/Integrators.jl")
+include("TrajectoryIntegration/PlanckNoise.jl")
+export Langevin, LangevinPlanck, ImplicitMidpoint, step!, suggest_timestep
 
 include("Optimization.jl")
 export minimize_energy!
