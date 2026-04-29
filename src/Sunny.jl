@@ -27,6 +27,10 @@ import MatInt
 import RowEchelon: rref!
 import Spglib
 
+# To be eliminated
+import LsqFit: curve_fit
+import NonlinearSolve: NonlinearProblem, solve, NewtonRaphson
+
 include("MathBasics.jl")
 
 include("Operators/Spin.jl")
@@ -82,8 +86,9 @@ export print_wrapped_intensities, suggest_magnetic_supercell
 include("Reshaping.jl")
 export reshape_supercell, resize_supercell, repeat_periodically, repeat_periodically_as_spiral
 
-include("Integrators.jl")
-export Langevin, ImplicitMidpoint, step!, suggest_timestep
+include("TrajectoryIntegration/Integrators.jl")
+include("TrajectoryIntegration/PlanckNoise.jl")
+export Langevin, LangevinPlanck, ImplicitMidpoint, step!, suggest_timestep
 
 include("Optimization.jl")
 export minimize_energy!
