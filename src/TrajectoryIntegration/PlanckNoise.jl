@@ -277,7 +277,7 @@ function Base.show(io::IO, integrator::LangevinPlanck)
     println(io, "LangevinPlanck($dt; damping=$damping, kT=$kT)")
 end
 
-@inline function rhs_dipole!(ΔS, S, ξ, ∇E, integrator)
+@inline function rhs_dipole_pn!(ΔS, S, ξ, ∇E, integrator)
     (; dt, damping) = integrator
     λ = damping
 
@@ -301,12 +301,12 @@ function step!(sys::System{0}, integrator::LangevinPlanck)
 
     # Euler prediction step
     set_energy_grad_dipoles!(∇E, S, sys)
-    rhs_dipole!(ΔS₁, S, ζ, ∇E, integrator)
+    rhs_dipole_pn!(ΔS₁, S, ζ, ∇E, integrator)
     @. S′ = normalize_dipole(S + ΔS₁, sys.κs)
 
     # Correction step
     set_energy_grad_dipoles!(∇E, S′, sys)
-    rhs_dipole!(ΔS₂, S′, ζ, ∇E, integrator)
+    rhs_dipole_pn!(ΔS₂, S′, ζ, ∇E, integrator)
     @. S = normalize_dipole(S + (ΔS₁+ΔS₂)/2, sys.κs)
 
     return
