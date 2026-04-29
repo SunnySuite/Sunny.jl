@@ -1,6 +1,73 @@
 import NonlinearSolve: NonlinearProblem, solve, NewtonRaphson
 
 ################################################################################
+# Spectrum fitting
+################################################################################
+function fd_jacobian(model, x, params; relstep=1e-6)
+    y0 = model(x, params)
+    nparams = length(params)
+    J = zeros(eltype(params), length(x), nparams)
+
+    for n in 1:nparams
+        dp = relstep * max(abs(params[n]), 1.0)
+        params′ = copy(params)
+        params′[n] += dp
+        J[:,n] .= (model(x, params′) .- y0) ./ dp
+    end
+
+    return J
+end
+
+function lsq_fit(model, x, y, p0; maxiter=200, tol=1e-10, λ=1e-6)
+    params = copy(p0)
+    last_loss = Inf
+
+    for _ in 1:maxiter
+        residuals = model(x, params) .- y
+        loss = sum(abs2, residuals)
+
+        abs(last_loss - loss) < tol * max(1, loss) && break
+        last_loss = loss
+
+        J = fd_jacobian(model, x, params)
+
+        # Levenberg-Marquardt-like damped normal equations
+        A = J' * J + λ * I
+        b = -J' * residuals
+
+        Δp = A \ b
+        trial_params = params + Δp
+
+        # Accept only if improvement; otherwise increase damping
+        trial_residuals = model(x, trial_params) .- y
+        trial_loss = sum(abs2, trial_residuals)
+
+        if trial_loss < loss
+            params = trial_params
+            λ /= 2
+        else
+            λ *= 10
+        end
+
+        norm(Δp) < tol * max(1, norm(params)) && break
+    end
+
+    return params
+end
+
+@inline n(ω, kT) = 1/(exp(ω/kT) - 1)
+planck_spectrum(ω, kT) = iszero(ω) ? kT : ω*n(ω, kT) 
+planck_spectrum_sym(ω, kT) = ω*coth(ω/(2kT)) 
+
+# Analytical expression for the power spectrum of a second-order linear filter
+# with parameters p.
+function filter_spectrum(ω, p)
+    c1, c2, Ω1, Ω2, Γ1, Γ2 = p
+    @. ((2c1^2 * Γ1) / ((Ω1^2 - ω^2)^2 + ω^2 * Γ1^2)) + ((2c2^2 * Γ2) / ((Ω2^2 - ω^2)^2 + ω^2 * Γ2^2))
+end
+
+
+################################################################################
 # Colored noise
 ################################################################################
 mutable struct PlanckNoiseGenerator
@@ -38,15 +105,6 @@ function find_ω_cutoff(kT, α=0.01)
     return max(sol.u, 5.0)
 end
 
-@inline n(ω, kT) = 1/(exp(ω/kT) - 1)
-planck_spectrum(ω, kT) = iszero(ω) ? kT : ω*n(ω, kT) 
-planck_spectrum_sym(ω, kT) = ω*coth(ω/(2kT)) 
-
-function filter_spectrum(ω, p)
-    c1, c2, Ω1, Ω2, Γ1, Γ2 = p
-    @. ((2c1^2 * Γ1) / ((Ω1^2 - ω^2)^2 + ω^2 * Γ1^2)) + ((2c2^2 * Γ2) / ((Ω2^2 - ω^2)^2 + ω^2 * Γ2^2))
-end
-
 @. quad_model(x, p) = p[1] + p[2]*x + p[3]*x*x
 
 function colored_noise_params(kT; α=0.01, N=1000)
@@ -62,9 +120,10 @@ function colored_noise_params(kT; α=0.01, N=1000)
     gamma10 = quad_model(kT, [0.0, 3.276618, 0.0])
     gamma20 = quad_model(kT, [0.0, 5.247509, 0.0])
 
-    fit = curve_fit(filter_spectrum, ωs, ys, [c10, c20, omega10, omega20, gamma10, gamma20])
-    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = if all(>(0.0), fit.param)
-        fit.param
+    # fit = curve_fit(filter_spectrum, ωs, ys, [c10, c20, omega10, omega20, gamma10, gamma20])
+    params = lsq_fit(filter_spectrum, ωs, ys, [c10, c20, omega10, omega20, gamma10, gamma20])
+    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = if all(>(0.0), params)
+        params
     else
         error("Didn't find good parameters")
     end
