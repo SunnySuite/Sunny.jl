@@ -28,7 +28,6 @@ import RowEchelon: rref!
 import Spglib
 
 # To be eliminated
-import LsqFit: curve_fit
 import NonlinearSolve: NonlinearProblem, solve, NewtonRaphson
 
 include("MathBasics.jl")
