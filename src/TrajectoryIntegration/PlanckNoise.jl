@@ -95,14 +95,36 @@ mutable struct PlanckNoiseGenerator
 
 end
 
-# Solves for when the Planck function reaches 1 percent of its maximum value. Can
-# reimplement as simple Newton-Raphson algorithm.
-function find_ω_cutoff(kT, α=0.01)
-    target = kT*α
-    f(ω, p) = ω/(exp(ω/kT)-1) .- p
-    prob = NonlinearProblem(f, 5, target)
-    sol = solve(prob, NewtonRaphson())
-    return max(sol.u, 5.0)
+# Solves for when the Planck function reaches 1 percent of its maximum value.
+# Used to determine range of ω values for fitting the filter responses.
+function find_ω_cutoff(kT, α=0.01; maxiters=100, atol=1e-16)
+
+    # Function that becomes zero when Planck function reaches 1% of max value
+    f(ω) = ω/(exp(ω/kT) - 1) - α*kT
+
+    # Find initial boundaries for bisection
+    lo, hi = 0.0, max(5.0, 10kT)
+    while f(hi) > 0
+        hi *= 2
+    end
+
+    # Perform bisection
+    mid = 5.0 # Initial guess
+    niters = 0
+    while abs(f(mid)) > atol && niters < maxiters
+        mid = 0.5*(lo + hi)
+        if f(mid) > 0
+            lo = mid
+        else
+            hi = mid
+        end
+        niters += 1
+    end
+    ω = 0.5*(lo + hi)
+
+    println("Final value after $niters iterations: ", f(ω))
+
+    return max(ω, 5.0)
 end
 
 @. quad_model(x, p) = p[1] + p[2]*x + p[3]*x*x
