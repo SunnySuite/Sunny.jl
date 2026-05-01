@@ -96,11 +96,11 @@ mutable struct PlanckNoiseGenerator
 end
 
 # Solves for when the Planck function reaches 1 percent of its maximum value.
-# Used to determine range of ω values for fitting the filter responses.
-# Note that this can be solved analytically for an arbitrary percentage,
-# but this would rely on an implementation of the Lambert W function, which is
-# not included in SpecialFunctions. The constant used here is specifically for
-# acheiving a value that is 1% of kT.
+# Used to determine range of ω values for fitting the filter responses. Note
+# that this can be solved analytically for an arbitrary percentage, but the
+# solution requires the Lambert W function, which is not included in
+# SpecialFunctions. The constant used here is specifically for acheiving a value
+# that is 1% of kT.
 function ω_cutoff(kT) 
     return max(6.4746008706*kT, 5.0)
 end
