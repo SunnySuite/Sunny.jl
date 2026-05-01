@@ -27,9 +27,6 @@ import MatInt
 import RowEchelon: rref!
 import Spglib
 
-# To be eliminated
-import NonlinearSolve: NonlinearProblem, solve, NewtonRaphson
-
 include("MathBasics.jl")
 
 include("Operators/Spin.jl")
