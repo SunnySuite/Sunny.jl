@@ -97,41 +97,19 @@ end
 
 # Solves for when the Planck function reaches 1 percent of its maximum value.
 # Used to determine range of ω values for fitting the filter responses.
-function find_ω_cutoff(kT, α=0.01; maxiters=100, atol=1e-16)
-
-    # Function that becomes zero when Planck function reaches 1% of max value
-    f(ω) = ω/(exp(ω/kT) - 1) - α*kT
-
-    # Find initial boundaries for bisection
-    lo, hi = 0.0, max(5.0, 10kT)
-    while f(hi) > 0
-        hi *= 2
-    end
-
-    # Perform bisection
-    mid = 5.0 # Initial guess
-    niters = 0
-    while abs(f(mid)) > atol && niters < maxiters
-        mid = 0.5*(lo + hi)
-        if f(mid) > 0
-            lo = mid
-        else
-            hi = mid
-        end
-        niters += 1
-    end
-    ω = 0.5*(lo + hi)
-
-    println("Final value after $niters iterations: ", f(ω))
-
-    return max(ω, 5.0)
+# Note that this can be solved analytically for an arbitrary percentage,
+# but this would rely on an implementation of the Lambert W function, which is
+# not included in SpecialFunctions. The constant used here is specifically for
+# acheiving a value that is 1% of kT.
+function ω_cutoff(kT) 
+    return max(6.4746008706*kT, 5.0)
 end
 
 @. quad_model(x, p) = p[1] + p[2]*x + p[3]*x*x
 
-function colored_noise_params(kT; α=0.01, N=1000)
-    lim = find_ω_cutoff(kT, α)
-    ωs = range(0.0, lim, N)
+function colored_noise_params(kT)
+    lim = ω_cutoff(kT)
+    ωs = range(0.0, lim, 1000)
     ys = planck_spectrum.(ωs, kT)
 
     # Seed optimization correctly -- parameters fit as a function of temperature
@@ -153,13 +131,13 @@ function colored_noise_params(kT; α=0.01, N=1000)
     return (; c₁,  c₂, Ω₁, Ω₂, Γ₁, Γ₂)
 end
 
-function PlanckNoiseGenerator(dt; kT, damping, dims, α=0.01, N=1000)
+function PlanckNoiseGenerator(dt; kT, damping, dims)
     ## Savin/Barker parameters
     # c₁, c₂ = 1.8315, 0.3429
     # Ω₁, Γ₁ = 2.7189, 5.0142
     # Ω₂, Γ₂ = 1.2223, 3.2974
 
-    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = colored_noise_params(kT; α, N) 
+    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = colored_noise_params(kT) 
     ζ = zeros(3, dims...)
     ζbuf = zeros(3, dims...)
     W1 = zeros(3, dims...)
@@ -174,7 +152,7 @@ function PlanckNoiseGenerator(dt; kT, damping, dims, α=0.01, N=1000)
     )
 end
 
-function set_temperature!(cng::PlanckNoiseGenerator, kT; α=0.01, N=1000)
+function set_temperature!(cng::PlanckNoiseGenerator, kT)
     cng.kT = kT
 
     # Determine new coefficients for noise process
@@ -183,7 +161,7 @@ function set_temperature!(cng::PlanckNoiseGenerator, kT; α=0.01, N=1000)
     # Ω₁, Γ₁ = 2.7189, 5.0142
     # Ω₂, Γ₂ = 1.2223, 3.2974
 
-    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = colored_noise_params(kT; α, N) 
+    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = colored_noise_params(kT) 
     cng.c₁ = c₁
     cng.c₂ = c₂
     cng.Ω₁ = Ω₁
@@ -258,7 +236,7 @@ mutable struct LangevinPlanck <: AbstractIntegrator
     kT              :: Float64
     noisesource     :: PlanckNoiseGenerator
 
-    function LangevinPlanck(dt; λ=nothing, damping=nothing, kT, sysdims, α=0.01, N=1000)
+    function LangevinPlanck(dt; λ=nothing, damping=nothing, kT, sysdims)
         if !isnothing(λ)
             @warn "`λ` argument is deprecated! Use `damping` instead."
             damping = @something damping λ
@@ -271,7 +249,7 @@ mutable struct LangevinPlanck <: AbstractIntegrator
         damping <= 0    && error("Select positive damping")
 
 
-        cng = PlanckNoiseGenerator(dt; kT, damping, dims=sysdims, α, N)
+        cng = PlanckNoiseGenerator(dt; kT, damping, dims=sysdims)
         return new(dt, damping, kT, cng)
     end
 end
