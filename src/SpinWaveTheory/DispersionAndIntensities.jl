@@ -303,7 +303,7 @@ classical Boltzmann distribution will be reported.
 function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0)
     res = intensities_bands(swt, qpts; kT)  # TODO: with_negative=true
     data_reduced = zeros(eltype(res.data), size(res.data)[2:end])
-    for ib in axes(res.data, 1), iq in CartesianIndices(data_reduced)
+    for iq in CartesianIndices(data_reduced), ib in axes(res.data, 1)
         ϵ = res.disp[ib, iq]
         if isnothing(kernel) || bounds == (-Inf, Inf)
             if bounds[1] <= ϵ < bounds[2]
