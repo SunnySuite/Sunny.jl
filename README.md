@@ -18,7 +18,7 @@
 
 ## Overview
 
-Sunny is a Julia package for simulating magnetism. It emphasizes _symmetry-aware_ spin Hamiltonians, efficient solvers to capture _quantum effects_, and _comparison with experimental data_, e.g., neutron or X-ray scattering. Sunny is extensively documented, supports interactive visualization, and facilitates model fitting.
+Sunny is a Julia package for simulating magnetism. It emphasizes symmetry-aware spin Hamiltonians, efficient methods for capturing quantum effects, and comparison with experimental data, e.g., neutron or X-ray scattering. Sunny is extensively documented, supports interactive visualization, and facilitates model fitting.
 
 ## Try it out
 
@@ -30,8 +30,8 @@ See also the [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getti
 
 Sunny implements many standard tools for modeling spin systems and introduces some unique ones.
 
-- **Symmetry-guided modeling**. Load CIF or mCIF files; enumerate the [symmetry-allowed couplings](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html#Symmetry-analysis); propagate interactions by symmetry equivalence.
-- **General spin couplings**. Arbitrary [single-ion anisotropy](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_onsite_coupling!) in Stevens operators or general spin polynomials; arbitrary [multipolar coupling](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!) between site pairs.
+- **Symmetry-guided modeling**. Load CIF or mCIF files, enumerate the [symmetry-allowed couplings](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html#Symmetry-analysis), and propagate interactions by symmetry equivalence.
+- **General spin couplings**. Arbitrary [single-ion anisotropy](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_onsite_coupling!) can be specified in Stevens operators or spin polynomials. Arbitrary [multipolar couplings](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!) between site pairs also supported. 
 - **Spin-wave theory** for quantum spin excitations, including the usual dipole formalism ([CoRh₂O₄ bands](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4.html)) and its generalization to spin multipoles via multi-flavor bosons ([FeI₂ bands](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html)). Special calculators are available for incommensurate spiral order ([Ba₃NbFe₃Si₂O₁₄ spiral](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html)) and for linear-scaling calculations on very large magnetic cells ([Krylov solver](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SpinWaveTheoryKPM)).
 - **Finite-temperature dynamics and sampling**. Landau-Lifshitz spin dynamics with Langevin coupling to a thermal bath ([CoRh₂O₄ dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/02_LLD_CoRh2O4.html)) and its generalization to spin multipoles via SU(_N_) coherent states ([FeI₂ dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/04_GSD_FeI2.html)). Monte Carlo methods such as parallel tempering accelerate sampling of frustrated magnets ([Advanced MC]((https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra/Advanced_MC))).
 - **Self-consistent Gaussian approximation** [(SCGA)](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SCGA) for static paramagnetic-phase observables, e.g. susceptibility and diffuse scattering.
@@ -39,7 +39,7 @@ Sunny implements many standard tools for modeling spin systems and introduces so
 - **Disordered systems** with quenched defects in large cells ([Disordered intensities](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html)).
 - **Entangled units** for capturing local entanglement within predefined "units" of sites ([Ba₃Mn₂O₈ intensities](https://sunnysuite.github.io/Sunny.jl/stable/examples/contributed/entangled_units.html)). 
 - **Model fitting** to experimental data including magnon bands ([LuVO₃ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW35_LuVO3-fitting.html)), inelastic powder ([β-Na₂PrO₃ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/11_Powder_fitting.html)), and diffuse scattering ([MgCr₂O₄ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/10_SCGA_fitting.html)).
-- **Platform for methods development** that bridges theory and experiment ([team publications](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods)).
+- **Platform for methods development**, bridging theory and experiment ([team publications](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods)).
 
 Related packages include [SpinW](https://github.com/SpinW/spinw) (symmetry-guided spin wave theory), [McPhase](https://github.com/mducle/mcphase) (multi-flavor bosons for accurate treatment of spin multipoles), [Spinteract](https://doi.org/10.48550/arXiv.2210.09016) (SCGA solvers and fitting), and [Vampire](https://vampire.york.ac.uk/) (large-scale spin dynamics).
 
