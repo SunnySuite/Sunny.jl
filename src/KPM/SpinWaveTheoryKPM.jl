@@ -34,10 +34,10 @@ scales like ``𝒪(N M + M^2)``. Use `niters` instead of `tol` to directly speci
     at the cost of: limited ``𝐪``-space resolution and stochastic error due to
     statistical sampling.
 
-Two choices of `method` are possible. Lanczos is the default because it achieves
-appears near-optimal accuracy at fixed iterations ``M`` [1, 2] and can detect
-energetic instabilities. The alternative, `method=:kpm`, implements the Kernel
-Polynomial Method as described in Ref. [3], which may be of historical interest.
+Two Krylov-space methods are currently available. The new default,
+`method=:lanczos`, achieves near-optimal accuracy at fixed iteration count ``M``
+[1, 2]. The deprecated alternative, `method=:kpm`, implements the Kernel
+Polynomial Method as originally derived in Ref. [3].
 
 ## References
 
