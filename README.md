@@ -18,33 +18,38 @@
 
 ## Overview
 
-Sunny is a Julia package for modeling magnetic materials. It emphasizes _symmetry-aware_ spin Hamiltonians, careful treatment of _quantum effects_, and _comparison with experimental data_, e.g., neutron or X-ray scattering. Sunny is extensively documented, supports interactive visualization, and offers model-fitting tools.
+Sunny is a Julia package for simulating magnetism. It emphasizes _symmetry-aware_ spin Hamiltonians, efficient solvers to capture _quantum effects_, and _comparison with experimental data_, e.g., neutron or X-ray scattering. Sunny is extensively documented, supports interactive visualization, and facilitates model fitting.
 
 ## Try it out
 
 Start with the [Tutorials](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4). For traditional spin wave theory, jump to the [SpinW ports](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW04_Frustrated_square.html).
 
-See [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia) for installation instructions. See [Release Notes](https://sunnysuite.github.io/Sunny.jl/stable/versions) for new features.
+See also the [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia) guide and [Release Notes](https://sunnysuite.github.io/Sunny.jl/stable/versions).
 
 ## Key features
 
 Sunny implements many standard tools for modeling spin systems and introduces some unique ones.
 
-- **Symmetry-guided modeling**, including enumeration of [symmetry-allowed couplings](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html#Symmetry-analysis) and propagation of interactions by symmetry equivalence.
-- **General spin couplings**. [Arbitrary single-ion anisotropy](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_onsite_coupling!) may be specified via Stevens operator expansion or as a general spin polynomial. [Arbitrary multipolar coupling](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!) between site pairs is also supported.
-- **Spin-wave theory** for calculating quantum spin excitations. This includes the usual dipole formalism ([CoRh₂O₄ SWT](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4.html)) and its generalization to spin multipoles via multi-flavor bosons ([FeI₂ SU(3) SWT](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html)). Incommensurate spiral order is also supported ([Ba₃NbFe₃Si₂O₁₄ spiral](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html)).
-- **Disordered systems** with an efficient solver for spin waves of very large systems ([disordered SWT](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html)).
-- **Finite-temperature dynamics and sampling**. This includes the Landau-Lifshitz spin dynamics with Langevin coupling to a thermal bath ([CoRh₂O₄ dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/02_LLD_CoRh2O4.html)) and its generalization to spin multipoles via SU(_N_) coherent states ([FeI₂ dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/04_GSD_FeI2.html)). Monte Carlo methods such as parallel tempering accelerate sampling of frustrated magnets ([Advanced MC]((https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra/Advanced_MC))).
-- **Self-consistent Gaussian approximation** [(SCGA)](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SCGA) for efficient paramagnetic-phase observables, e.g. susceptibility and diffuse scattering intensity.
-- **Long-range dipole-dipole interactions** with proper Ewald summation and customizable demagnetization tensor ([Pyrochlore Ewald demo](https://sunnysuite.github.io/Sunny.jl/stable/examples/07_Dipole_Dipole.html)).
+- **Symmetry-guided modeling**. Load CIF or mCIF files; enumerate the [symmetry-allowed couplings](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html#Symmetry-analysis); propagate interactions by symmetry equivalence.
+- **General spin couplings**. Arbitrary [single-ion anisotropy](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_onsite_coupling!) in Stevens operators or general spin polynomials; arbitrary [multipolar coupling](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!) between site pairs.
+- **Spin-wave theory** for quantum spin excitations, including the usual dipole formalism ([CoRh₂O₄ SWT](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4.html)) and its generalization to spin multipoles via multi-flavor bosons ([FeI₂ SU(3) SWT](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html)). Special calculators are available for incommensurate spiral order ([Ba₃NbFe₃Si₂O₁₄ spiral](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html)) and for linear-scaling calculations on very large magnetic cells ([KPM](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SpinWaveTheoryKPM)).
+- **Finite-temperature dynamics and sampling**. Landau-Lifshitz spin dynamics with Langevin coupling to a thermal bath ([CoRh₂O₄ dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/02_LLD_CoRh2O4.html)) and its generalization to spin multipoles via SU(_N_) coherent states ([FeI₂ dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/04_GSD_FeI2.html)). Monte Carlo methods such as parallel tempering accelerate sampling of frustrated magnets ([Advanced MC]((https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra/Advanced_MC))).
+- **Self-consistent Gaussian approximation** [(SCGA)](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SCGA) for static paramagnetic-phase observables, e.g. susceptibility and diffuse scattering intensity.
+- **Long-range dipole-dipole interactions** with proper Ewald summation and customizable demagnetization tensor ([Pyrochlore Ewald](https://sunnysuite.github.io/Sunny.jl/stable/examples/07_Dipole_Dipole.html)).
+- **Disordered systems** to model quenched defects ([Disordered SWT](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html)).
+- **Entangled units** for capturing local entanglement within predefined "units" of sites ([Ba₃Mn₂O₈ SWT](https://sunnysuite.github.io/Sunny.jl/stable/examples/contributed/entangled_units.html)). 
 - **Model fitting** to experimental data including magnon bands ([LuVO₃ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW35_LuVO3-fitting.html)), inelastic powder ([β-Na₂PrO₃ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/11_Powder_fitting.html)), and diffuse scattering ([MgCr₂O₄ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/10_SCGA_fitting.html)).
-- **Methods development** that connects theory and experiment ([team publications](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods)).
+- **Platform for methods development** that bridges theory and experiment ([team publications](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods)).
 
 Related packages include [SpinW](https://github.com/SpinW/spinw) (symmetry-guided spin wave theory), [McPhase](https://github.com/mducle/mcphase) (multi-flavor bosons for accurate treatment of spin multipoles), [Spinteract](https://doi.org/10.48550/arXiv.2210.09016) (SCGA solvers and fitting), and [Vampire](https://vampire.york.ac.uk/) (large-scale spin dynamics).
 
 ## Join our community
 
-We'd love to hear from you. [Join our Slack workspace](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello. If you run into issues, ask in the Slack `#helpdesk` channel. If you find Sunny useful, please cite the main [JOSS paper](https://doi.org/10.21105/joss.08138) and any relevant [methodology papers](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods). Share your work with others on the [Sunny Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+Say hello on [our Slack workspace](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA). Support is available on the `#helpdesk` channel.
+
+## Citation
+
+Please cite the main [JOSS paper](https://doi.org/10.21105/joss.08138) and any relevant [methodology papers](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature#methods) to help sustain Sunny development. 
 
 <br>
 <div>
