@@ -225,3 +225,87 @@ end
 
     test_spin_chain_energy()
 end
+
+@testitem "Planck noise generator" begin
+    import FFTW: fft!, fftfreq
+
+    # Generate a trajectory from the Planck noise generator
+    function generate_pn_traj(N, dt, damping, kT; numburnin=1000)
+        cng = Sunny.PlanckNoiseGenerator(dt; kT, damping, dims=(1,1,1,1))
+        buf = zeros(N)
+
+        # Burnin
+        for _ in 1:numburnin
+            Sunny.step_pn!(cng) 
+        end
+
+        # Trajectory
+        for i in 1:N
+            Sunny.step_pn!(cng) 
+            buf[i] = cng.ζ[1]
+        end
+
+        buf
+    end
+
+    # Hann window for Welch averaging.
+    hann(L) = 0.5 .* (1 .- cos.(2π .* (0:L-1) ./ (L-1)))
+
+    # Simple routine for calculating the two-sided Welch-averaged estimage of the
+    # power spectrum.
+    function welch_psd_twosided(x, dt; nperseg=1024, overlap=0.5)
+        N = nperseg
+        step = round(Int64, N * (1 - overlap))
+        fs = 1/dt
+
+        w = hann(N)
+        specnorm = fs * sum(abs2, w)
+        X = zeros(ComplexF64, N)
+        pspec = zeros(N)
+
+        count = 0
+        for n in 1:step:(length(x)-N+1)
+            @. X = x[n:n+N-1] * w
+            fft!(X)
+            @. pspec += abs2(X) / specnorm
+            count += 1
+        end
+        pspec ./= count
+
+        fs = fftfreq(N, fs)   # frequencies in cycles / unit time
+
+        return fs, pspec
+    end
+
+    function test_planck_noise_power_spectrum()
+        kTs = [0.1, 1.0, 10.0, 100.0]
+        damping = 1.0
+
+        for kT in kTs
+            dt = 1/(10kT)   # Roughly, largest step side that maintains stability of filter dynamics
+            nperseg = 1024  # Window size for Welch averaging estimate of power spectrum
+
+            sig_pn = generate_pn_traj(1_000_000, dt, damping, kT)
+            fs, pspec = welch_psd_twosided(sig_pn, dt; nperseg)
+
+            ωs = 2π*fs[1:(nperseg÷2)]
+            estspec = pspec[1:(nperseg÷2)]
+            refspec = map(ω -> Sunny.planck_spectrum(ω, kT), ωs)
+
+            # Examine the relative error at frequencies not too low (requires very
+            # large trajectory) and not too high (relative error hard to measure
+            # because of small denominator).
+            ilo = findfirst(ω -> ω > kT/5, ωs)
+            ihi = findfirst(ω -> ω > 5kT, ωs) - 1
+            relerr = @. abs(estspec[ilo:ihi] - refspec[ilo:ihi]) / refspec[ilo:ihi]
+
+            # Note that a maximum of something like 10% relative error is expected
+            # around ω=0.35kT due to the limitations of fitting with just two
+            # second-order filters. This is the crossover region between the two
+            # filters. Improving the fit is a possible direction for research.
+            @test maximum(relerr) < 0.15 && sum(relerr)/length(relerr) < 0.05 
+        end
+    end
+
+    test_planck_noise_power_spectrum()
+end
