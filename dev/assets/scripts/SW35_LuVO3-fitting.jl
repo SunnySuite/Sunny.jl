@@ -1,5 +1,5 @@
 using Sunny, GLMakie, LinearAlgebra
-@assert pkgversion(Sunny) >= v"0.9.1"
+@assert pkgversion(Sunny) >= v"0.9.2"
 
 a, b, c = 5.2821, 5.6144, 7.5283
 latvecs = lattice_vectors(a, b, c, 90, 90, 90)
