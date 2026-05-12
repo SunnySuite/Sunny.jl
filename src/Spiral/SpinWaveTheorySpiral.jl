@@ -304,7 +304,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
             Avec = zero(CVec{3})
             v = reshape(view(T, :, band, branch), Na, 2)
             for i in 1:Na
-                pref = swt_prefactor(measure, 1, i, q_reshaped, q_global, sys)
+                pref = observable_prefactor(measure, 1, i, q_reshaped, q_global, sys)
                 R = local_rotations[i]
                 displacement = R * SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
                 Avec += conj(pref) * (sqrtS[i] / √2) * gs[i] * displacement
