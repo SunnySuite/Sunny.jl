@@ -1,6 +1,6 @@
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}             # Rotations from global to quantization frame
-    observables_localized :: Array{Vec3, 2}           # Observables rotated to local frame (nsites, nobs)
+    observables_localized :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
     stevens_coefs         :: Vector{StevensExpansion} # Rotated onsite coupling as Steven expansion
     sqrtS                 :: Vector{Float64}          # Square root of spin magnitudes
 end
@@ -322,4 +322,10 @@ end
 function get_swt_formfactor(measure, μ, i)
     sys_dims = size(measure.observables)[2:4]
     measure.formfactors[μ, fld1(i, prod(sys_dims))]
+end
+
+function swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+    r_reshaped = sys.crystal.positions[i]
+    ff = get_swt_formfactor(measure, μ, i)
+    cis(2π * dot(q_reshaped, r_reshaped)) * compute_form_factor(ff, norm2(q_global))
 end

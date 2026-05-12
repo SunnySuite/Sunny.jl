@@ -94,21 +94,21 @@ end
 
 
 function mul_Ĩ!(y, x)
-    L = size(y, 2) ÷ 2
-    view(y, :, 1:L)    .= .+view(x, :, 1:L)
-    view(y, :, L+1:2L) .= .-view(x, :, L+1:2L)
+    L = size(y, 1) ÷ 2
+    view(y, 1:L, :)    .= .+view(x, 1:L, :)
+    view(y, L+1:2L, :) .= .-view(x, L+1:2L, :)
 end
 
 function mul_A!(swt, y, x, qs_reshaped, γ)
-    L = size(y, 2) ÷ 2
-    mul_dynamical_matrix!(swt, y, x, qs_reshaped)
-    view(y, :, 1:L)    .*= +1/γ
-    view(y, :, L+1:2L) .*= -1/γ
+    L = size(y, 1) ÷ 2
+    mul_dynamical_matrix!(swt, transpose(y), transpose(x), qs_reshaped)
+    view(y, 1:L, :)    .*= +1/γ
+    view(y, L+1:2L, :) .*= -1/γ
 end
 
 function set_moments!(moments, measure, u, α)
     map!(moments, measure.corr_pairs) do (μ, ν)
-        dot(view(u, μ, :), view(α, ν, :))
+        dot(view(u, :, μ), view(α, :, ν))
     end
 end
 
@@ -128,52 +128,44 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
     Ncells = Na / natoms(cryst)
     Nf = nflavors(swt)
     L = Nf*Na
-    Avec_pref = zeros(ComplexF64, Na) # initialize array of some prefactors
 
     Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
     corrbuf = zeros(ComplexF64, Ncorr)
     moments = ElasticArray{ComplexF64}(undef, Ncorr, 0)
 
-    u = zeros(ComplexF64, Nobs, 2L)
-    α0 = zeros(ComplexF64, Nobs, 2L)
-    α1 = zeros(ComplexF64, Nobs, 2L)
-    α2 = zeros(ComplexF64, Nobs, 2L)
+    u = zeros(ComplexF64, 2L, Nobs)
+    α0 = zeros(ComplexF64, 2L, Nobs)
+    α1 = zeros(ComplexF64, 2L, Nobs)
+    α2 = zeros(ComplexF64, 2L, Nobs)
 
     for iq in CartesianIndices(qpts.qs)
         q = qpts.qs[iq]
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        # Represent each local observable A(q) as a complex vector u(q) that
-        # denotes a linear combination of HP bosons.
-
-        for i in 1:Na
-            r = sys.crystal.positions[i]
-            ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = cis(2π * dot(q_reshaped, r))
-            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
-        end
+        # Represent each local observable A(q) = Σᵢ exp(+i q⋅rᵢ) Aᵢ as a
+        # complex vector u(q) that denotes a linear combination of HP bosons.
 
         if sys.mode == :SUN
             (; observables_localized) = swt.data::SWTDataSUN
             N = sys.Ns[1]
-            for i in 1:Na, μ in 1:Nobs
+            for μ in 1:Nobs, i in 1:Na
+                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
                 O = observables_localized[μ, i]
                 for f in 1:Nf
-                    u[μ, f + (i-1)*Nf]     = Avec_pref[i] * O[f, N]
-                    u[μ, f + (i-1)*Nf + L] = Avec_pref[i] * O[N, f]
+                    u[f + (i-1)*Nf, μ]     = pref * O[f, N]
+                    u[f + (i-1)*Nf + L, μ] = pref * O[N, f]
                 end
             end
         else
             @assert sys.mode in (:dipole, :dipole_uncorrected)
             (; sqrtS, observables_localized) = swt.data::SWTDataDipole
-            for i in 1:Na
-                for μ in 1:Nobs
-                    O = observables_localized[μ, i]
-                    u[μ, i]   = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] + im*O[2])
-                    u[μ, i+L] = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] - im*O[2])
-                end
+            for μ in 1:Nobs, i in 1:Na
+                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+                O = observables_localized[μ, i]
+                u[i, μ]   = pref * (sqrtS[i] / √2) * (O[1] + im*O[2])
+                u[i+L, μ] = pref * (sqrtS[i] / √2) * (O[1] - im*O[2])
             end
         end
 
@@ -254,7 +246,6 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
     Ncells = Na / natoms(cryst)
     Nf = nflavors(swt)
     L = Nf*Na
-    Avec_pref = zeros(ComplexF64, Na)
 
     Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
@@ -269,33 +260,28 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        # Represent each local observable A(q) as a complex vector u(q) that
-        # denotes a linear combination of HP bosons.
-
-        for i in 1:Na
-            r = sys.crystal.positions[i]
-            ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = cis(2π * dot(q_reshaped, r))
-            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
-        end
+        # Represent each local observable A(q) = Σᵢ exp(+i q⋅rᵢ) Aᵢ as a
+        # complex vector u(q) that denotes a linear combination of HP bosons.
 
         if sys.mode == :SUN
             (; observables_localized) = swt.data::SWTDataSUN
             N = sys.Ns[1]
             for μ in 1:Nobs, i in 1:Na
+                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
                 O = observables_localized[μ, i]
                 for f in 1:Nf
-                    u[f + (i-1)*Nf, μ]     = Avec_pref[i] * O[f, N]
-                    u[f + (i-1)*Nf + L, μ] = Avec_pref[i] * O[N, f]
+                    u[f + (i-1)*Nf, μ]     = pref * O[f, N]
+                    u[f + (i-1)*Nf + L, μ] = pref * O[N, f]
                 end
             end
         else
             @assert sys.mode in (:dipole, :dipole_uncorrected)
             (; sqrtS, observables_localized) = swt.data::SWTDataDipole
             for μ in 1:Nobs, i in 1:Na
+                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
                 O = observables_localized[μ, i]
-                u[i, μ]   = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] + im*O[2])
-                u[i+L, μ] = Avec_pref[i] * (sqrtS[i] / √2) * (O[1] - im*O[2])
+                u[i, μ]   = pref * (sqrtS[i] / √2) * (O[1] + im*O[2])
+                u[i+L, μ] = pref * (sqrtS[i] / √2) * (O[1] - im*O[2])
             end
         end
 
