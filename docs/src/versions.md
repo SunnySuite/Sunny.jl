@@ -1,5 +1,8 @@
 # Release Notes
 
+## v0.9.2
+(In development)
+
 ## v0.9.1
 (Apr 25, 2026)
 
