@@ -86,7 +86,7 @@ fit = Optim.optimize(loss_reduced, guess, Optim.NelderMead(), options)</code></p
     √(Σ(yᵢ-ȳ)²)/n ≤ 1.0e-05
 
  * Work counters
-    Seconds run:   15  (vs limit Inf)
+    Seconds run:   14  (vs limit Inf)
     Iterations:    20
     f(x) calls:    42
 </code></pre><p>Report misfit tolerances derived from <a href="../library.html#Sunny.uncertainty_matrix"><code>uncertainty_matrix</code></a>. This is a pragmatic choice if the measured data has high precision relative to systematic modeling errors.</p><pre><code class="language-julia hljs">U = uncertainty_matrix(loss_reduced, fit.minimizer)
