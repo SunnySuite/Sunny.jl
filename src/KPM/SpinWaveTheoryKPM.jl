@@ -131,7 +131,7 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
 
     Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
-    corrbuf = zeros(ComplexF64, Ncorr)
+    corr = zeros(ComplexF64, Ncorr)
     moments = ElasticArray{ComplexF64}(undef, Ncorr, 0)
 
     u = zeros(ComplexF64, 2L, Nobs)
@@ -199,9 +199,9 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
             coefs = cheb_coefs!(M, f, (-γ, γ); buf, plan)
             # apply_jackson_kernel!(coefs)
             for i in 1:Ncorr
-                corrbuf[i] = dot(coefs, view(moments, i, :)) / Ncells
+                corr[i] = dot(coefs, view(moments, i, :)) / Ncells
             end
-            data[iω, iq] = measure.combiner(q_global, corrbuf)
+            data[iω, iq] = measure.combiner(q_global, corr)
         end
     end
 
@@ -226,7 +226,7 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
 
     Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
-    corrbuf = zeros(ComplexF64, Ncorr)
+    corr = zeros(ComplexF64, Ncorr)
 
     u = zeros(ComplexF64, 2L, Nobs)
     v = zeros(ComplexF64, 2L)
@@ -304,17 +304,17 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
                 # accumulate C̃[ν, ξ]* into C[μ, ν] if ξ = μ. A factor of 1/2
                 # avoids double counting. In the special case that μ = ν, this
                 # assigns real(C̃[μ, μ]) to C[μ, μ] only once.
-                corrbuf .= 0
+                corr .= 0
                 for (i, (μ, ν)) in enumerate(measure.corr_pairs)
-                    ξ == ν && (corrbuf[i] += (1/2) *     (corr_ξ[μ] / Ncells))
-                    ξ == μ && (corrbuf[i] += (1/2) * conj(corr_ξ[ν] / Ncells))
+                    ξ == ν && (corr[i] += (1/2) *     (corr_ξ[μ] / Ncells))
+                    ξ == μ && (corr[i] += (1/2) * conj(corr_ξ[ν] / Ncells))
                 end
 
                 # This step assumes that combiner is linear, so that it is valid
                 # to move the ξ loop outside the data accumulation. One could
                 # relax this assumption by preallocating an array of size (Nω,
-                # Ncorr) to accumulate into corrbuf prior to calling combiner.
-                data[iω, iq] += measure.combiner(q_global, corrbuf)
+                # Ncorr) to accumulate into corr prior to calling combiner.
+                data[iω, iq] += measure.combiner(q_global, corr)
             end
         end
     end
