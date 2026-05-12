@@ -194,7 +194,7 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
                     for (subsite, inverse_info) in enumerate(inverse_infos)
                         site_original, offset = inverse_info.site, inverse_info.offset
                         ff = get_swt_formfactor(measure, 1, site_original)
-                        prefactor = exp(-2π*im*(q_reshaped ⋅ offset)) * compute_form_factor(ff, norm2(q_global))
+                        prefactor = cis(-2π * dot(q_reshaped, offset)) * compute_form_factor(ff, norm2(q_global))
                         O += prefactor * data.observables_localized[subsite, μ, i]
                     end
                     for α in 1:N-1
