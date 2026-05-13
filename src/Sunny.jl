@@ -14,6 +14,7 @@ import LineSearches
 import MappedArrays: mappedarray
 import OffsetArrays: OffsetArray
 import Optim
+import Polyester: @batch
 import Printf: Printf, @printf, @sprintf
 import Random: Random, randn!
 import SpecialFunctions: erf, erfc

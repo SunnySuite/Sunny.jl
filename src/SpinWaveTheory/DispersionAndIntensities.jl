@@ -140,13 +140,14 @@ function dispersion(swt::SpinWaveTheory, qpts)
 end
 
 """
-    intensities_bands(swt::SpinWaveTheory, qpts; kT=0)
+    intensities_bands(swt::SpinWaveTheory, qpts; kT=0, threaded=false)
 
 Calculate spin wave excitation bands for a set of q-points in reciprocal space.
 This calculation is analogous to [`intensities`](@ref), but does not perform
-line broadening of the bands.
+line broadening of the bands. Set `threaded=true` to parallelize the calculation
+over q-points using Julia threads.
 """
-function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
+function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false, threaded=false)
     (; sys, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     with_negative && error("Option `with_negative=true` not yet supported.")
@@ -167,17 +168,21 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     # Temporary storage for pair correlations
     Nobs = num_observables(measure)
     Ncorr = num_correlations(measure)
-    corr = zeros(ComplexF64, Ncorr)
 
-    # Preallocation
-    T = zeros(ComplexF64, 2L, 2L)
-    H = zeros(ComplexF64, 2L, 2L)
-    u = zeros(ComplexF64, 2L, Nobs)
-    Avec = zeros(ComplexF64, Nobs)
     disp = zeros(Float64, L, Nq)
     intensity = zeros(eltype(measure), L, Nq)
 
-    for (iq, q) in enumerate(qpts.qs)
+    newbuf() = (
+        T    = zeros(ComplexF64, 2L, 2L),
+        H    = zeros(ComplexF64, 2L, 2L),
+        u    = zeros(ComplexF64, 2L, Nobs),
+        Avec = zeros(ComplexF64, Nobs),
+        corr = zeros(ComplexF64, Ncorr),
+    )
+
+    function calc_iq!(buf, iq)
+        (; T, H, u, Avec, corr) = buf
+        q = qpts.qs[iq]
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
@@ -199,29 +204,38 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
         end
     end
 
+    if threaded
+        @batch threadlocal=newbuf() for iq in 1:Nq
+            calc_iq!(threadlocal, iq)
+        end
+    else
+        buf = newbuf()
+        foreach(iq -> calc_iq!(buf, iq), 1:Nq)
+    end
+
     disp = reshape(disp, L, size(qpts.qs)...)
     intensity = reshape(intensity, L, size(qpts.qs)...)
     return BandIntensities(cryst, qpts, disp, intensity)
 end
 
 """
-    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, kT=0)
+    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, kT=0, threaded=false)
     intensities!(data, sc::SampledCorrelations, qpts; energies, kernel=nothing, kT=0)
 
 Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
 """
-function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
+function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0, threaded=false)
     qpts = convert(AbstractQPoints, qpts)
     @assert size(data) == (length(energies), size(qpts.qs)...)
-    bands = intensities_bands(swt, qpts; kT)
+    bands = intensities_bands(swt, qpts; kT, threaded)
     @assert eltype(bands) == eltype(data)
     broaden!(data, bands; energies, kernel)
     return Intensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
 end
 
 """
-    intensities(swt::SpinWaveTheory, qpts; energies, kernel, kT=0)
+    intensities(swt::SpinWaveTheory, qpts; energies, kernel, kT=0, threaded=false)
     intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
 
 Calculates dynamical pair correlation intensities for a set of ``𝐪``-points in
@@ -246,12 +260,12 @@ factor. The special choice `kT = nothing` will suppress the classical-to-quantum
 correction factor, and yield statistics consistent with the classical Boltzmann
 distribution.
 """
-function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
-    return broaden(intensities_bands(swt, qpts; kT); energies, kernel)
+function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0, threaded=false)
+    return broaden(intensities_bands(swt, qpts; kT, threaded); energies, kernel)
 end
 
 """
-    intensities_static(swt::SpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0)
+    intensities_static(swt::SpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0, threaded=false)
     intensities_static(sc::SampledCorrelations, qpts; bounds=(-Inf, Inf), kT)
     intensities_static(sc::SampledCorrelationsStatic, qpts)
 
@@ -274,8 +288,8 @@ Static intensities calculated from [`SampledCorrelationsStatic`](@ref) are
 dynamics-independent. Instead, instantaneous correlations sampled from the
 classical Boltzmann distribution will be reported.
 """
-function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0)
-    res = intensities_bands(swt, qpts; kT)  # TODO: with_negative=true
+function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0, threaded=false)
+    res = intensities_bands(swt, qpts; kT, threaded)  # TODO: with_negative=true
     data_reduced = zeros(eltype(res.data), size(res.data)[2:end])
     for iq in CartesianIndices(data_reduced), ib in axes(res.data, 1)
         ϵ = res.disp[ib, iq]
