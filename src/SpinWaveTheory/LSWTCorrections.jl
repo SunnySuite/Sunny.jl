@@ -121,3 +121,121 @@ function magnetization_lswt_correction(swt::SpinWaveTheory; opts...)
     end
     return δS
 end
+
+
+"""
+    intensities_free_two_magnon(swt::SpinWaveTheory, q, energies, η::Float64; opts...)
+
+Calculates dynamical pair correlation intensities for a provided ``𝐪``-point in
+reciprocal space.
+"""
+function intensities_free_two_magnon(swt::SpinWaveTheory, q, energies, η::Float64; opts...)
+    kernel = lorentzian(; fwhm=2η)
+
+    (; sys, data, measure) = swt
+    cryst = orig_crystal(sys)
+    q_global = cryst.recipvecs * q
+    q_reshaped = to_reshaped_rlu(sys, q)
+
+    # Number of atoms in magnetic cell
+    Nm = length(sys.dipoles)
+    # Number of chemical cells in magnetic cell
+    Ncells = Nm / natoms(cryst)
+    # Dimension of Hilbert space
+    N = sys.Ns[1]
+    # Number of quasiparticle modes
+    L = nbands(swt)
+
+    # Get some integer numbers for later use
+    num_energies = length(energies)
+    num_obs = num_observables(measure)
+    num_corrs = num_correlations(measure)
+
+    # Preallocation
+    # H1, V1 for q+k
+    H1 = zeros(ComplexF64, 2L, 2L)
+    V1 = zeros(ComplexF64, 2L, 2L)
+    # H2, V2 for -k
+    H2 = zeros(ComplexF64, 2L, 2L)
+    V2 = zeros(ComplexF64, 2L, 2L)
+
+    Avec_pref = zeros(ComplexF64, num_obs, Nm)
+    Avec = zeros(ComplexF64, num_obs, L, L)
+    corrbuf = zeros(ComplexF64, num_corrs, num_energies)
+    resbuf = zeros(num_energies)
+
+
+    for i = 1:Nm, μ in 1:num_obs
+        r_global = global_position(sys, (1,1,1,i))
+        ff = get_swt_formfactor(measure, μ, i)
+        Avec_pref[μ, i] = exp(-1im * dot(q_global, r_global))
+        Avec_pref[μ, i] *= compute_form_factor(ff, norm2(q_global))
+    end
+
+    ints = hcubature((0,0,0), (1,1,1); opts...) do k_reshaped
+        qpk_reshaped = q_reshaped + k_reshaped
+        if sys.mode == :SUN
+            swt_hamiltonian_SUN!(H1, swt, qpk_reshaped)
+            swt_hamiltonian_SUN!(H2, swt, -k_reshaped)
+        else
+            @assert sys.mode in (:dipole, :dipole_large_S)
+            swt_hamiltonian_dipole!(H1, swt, qpk_reshaped)
+            swt_hamiltonian_dipole!(H2, swt, -k_reshaped)
+        end
+
+        disp1 = bogoliubov!(V1, H1)
+        disp2 = bogoliubov!(V2, H2)
+
+        # Fill the buffers with zeros
+        Avec .= 0.0
+        resbuf .= 0.0
+        corrbuf .= 0.0
+
+        if sys.mode == :SUN
+            for band1 = 1:L
+                v1 = reshape(view(V1, :, band1), N-1, Nm, 2)
+                for band2 = 1:L
+                    v2 = reshape(view(V2, :, band2), N-1, Nm, 2)
+                    for i = 1:Nm
+                        for μ = 1:num_obs
+                            O = data.observables_localized[μ, i]
+                            for α = 1:N-1
+                                for β = 1:N-1
+                                    Avec[μ, band1, band2] += Avec_pref[μ, i] * (O[α, β] - δ(α, β) * O[N, N]) * (v1[α, i, 2]*v2[β, i, 1] + v1[β, i, 1]*v2[α, i, 2])
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        else
+            @assert sys.mode in (:dipole, :dipole_large_S)
+            for band1 = 1:L
+                v1 = reshape(view(V1, :, band1), Nm, 2)
+                for band2 = 1:L
+                    v2 = reshape(view(V2, :, band2), Nm, 2)
+                    for i = 1:Nm
+                        for μ = 1:num_obs
+                            O = data.observables_localized[μ, i]
+                            Avec[μ, band1, band2] += Avec_pref[μ, i] * O[3] * (v1[i, 2]*v2[i, 1] + v1[i, 1]*v2[i, 2])
+                        end
+                    end
+                end
+            end
+        end
+
+        for (ie, energy) in enumerate(energies)
+            for (i, (α, β)) in enumerate(measure.corr_pairs)
+                for band1 in 1:L, band2 in 1:L
+                    corrbuf[i, ie] += Avec[α, band1, band2] * conj(Avec[β, band1, band2]) * kernel(disp1[band1]+disp2[band2], energy) / Ncells
+                end
+            end
+
+            resbuf[ie] += measure.combiner(q_global, corrbuf[:, ie])
+        end
+
+        return SVector{num_energies}(resbuf)
+    end
+
+    return Vector(ints[1])
+end
