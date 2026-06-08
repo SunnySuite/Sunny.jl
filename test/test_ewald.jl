@@ -69,3 +69,24 @@
     E = sum((1/2)d⋅b for (d, b) in zip(sys.dipoles, ∇E))
     @test isapprox(energy(sys), E; atol=1e-12)
 end
+
+
+@testitem "Truncated dipole-dipole by neighbor shell" begin
+    cryst = Sunny.chain_crystal()
+    moments = [1 => Moment(s=1, g=1)]
+
+    sys_shell1 = System(cryst, moments, :dipole)
+    sys_cutoff = System(cryst, moments, :dipole)
+    sys_shell2 = System(cryst, moments, :dipole)
+
+    msg = r"nearest-neighbor distance shell"
+    @test_logs (:info, msg) modify_exchange_with_truncated_dipole_dipole_by_shell!(sys_shell1, 1, 1.0)
+    modify_exchange_with_truncated_dipole_dipole!(sys_cutoff, 1.5, 1.0)
+    @test Sunny.get_exchange(sys_shell1, Bond(1, 1, [0, 0, 1])) ≈ Sunny.get_exchange(sys_cutoff, Bond(1, 1, [0, 0, 1]))
+    @test iszero(Sunny.get_exchange(sys_shell1, Bond(1, 1, [0, 0, 2])))
+
+    modify_exchange_with_truncated_dipole_dipole_by_shell!(sys_shell2, 2, 1.0)
+    @test !iszero(Sunny.get_exchange(sys_shell2, Bond(1, 1, [0, 0, 2])))
+    @test iszero(Sunny.get_exchange(sys_shell2, Bond(1, 1, [0, 0, 3])))
+    @test_throws "positive" modify_exchange_with_truncated_dipole_dipole_by_shell!(sys_shell1, 0, 1.0)
+end

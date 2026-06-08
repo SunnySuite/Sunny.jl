@@ -240,6 +240,75 @@ function ewald_energy_delta(sys::System{N}, site, S::Vec3) where N
     return ΔS⋅∇E + dot(Δμ, ewald.A[1, 1, 1, i, i], Δμ) / 2
 end
 
+function ordinal_string(n::Int)
+    suffix = if n % 100 in 11:13
+        "th"
+    elseif n % 10 == 1
+        "st"
+    elseif n % 10 == 2
+        "nd"
+    elseif n % 10 == 3
+        "rd"
+    else
+        "th"
+    end
+    return string(n, suffix)
+end
+
+function distance_shells(cryst::Crystal, bonds; tol=1e-12)
+    distances = sort!(filter(>(0.0), global_distance.(Ref(cryst), bonds)))
+    shell_distances = Float64[]
+    shell_counts = Int[]
+    for d in distances
+        if !isempty(shell_distances) && isapprox(shell_distances[end], d; rtol=tol)
+            shell_counts[end] += 1
+        else
+            push!(shell_distances, d)
+            push!(shell_counts, 1)
+        end
+    end
+    return shell_distances, shell_counts
+end
+
+function log_truncated_dipole_dipole_cutoff(cryst::Crystal, bonds, cutoff; tol=1e-12)
+    shell_distances, shell_counts = distance_shells(cryst, bonds; tol)
+    if isempty(shell_distances)
+        cutoff_str = number_to_simple_string(cutoff; digits=6)
+        @info "Truncated dipole-dipole cutoff $cutoff_str includes no nonzero bonds."
+        return
+    end
+
+    nshells = length(shell_distances)
+    shell_name = if nshells == 1
+        "nearest-neighbor distance shell"
+    else
+        "$(ordinal_string(nshells))-neighbor distance shell"
+    end
+    cutoff_str = number_to_simple_string(cutoff; digits=6)
+    dist_str = number_to_simple_string(shell_distances[end]; digits=6)
+    nbonds = sum(shell_counts)
+    bond_word = nbonds == 1 ? "bond" : "bonds"
+    @info "Truncated dipole-dipole cutoff $cutoff_str includes interactions through the $shell_name " *
+          "(distance $dist_str), with $nbonds symmetry-inequivalent reference $bond_word."
+end
+
+function cutoff_for_neighbor_shell(cryst::Crystal, nshells::Integer; tol=1e-12)
+    nshells > 0 || error("Number of neighbor shells must be positive.")
+    nshells = Int(nshells)
+
+    radius = minimum(svdvals(cryst.latvecs))
+    for _ in 1:64
+        bonds = reference_bonds(cryst, radius)
+        shell_distances, _ = distance_shells(cryst, bonds; tol)
+        if length(shell_distances) >= nshells + 1
+            return (shell_distances[nshells] + shell_distances[nshells + 1]) / 2
+        end
+        radius *= 2
+    end
+
+    error("Could not find $(nshells + 1) neighbor distance shells.")
+end
+
 """
     modify_exchange_with_truncated_dipole_dipole!(sys::System, cutoff, μ0_μB²)
 
@@ -249,7 +318,8 @@ Whereas `enable_dipole_dipole!` employs Ewald summation, this function instead
 employs real-space pair couplings with truncation at the specified `cutoff`
 distance. The implicit demagnetization factor is 1/3, as appropriate for a
 spherical sample in vacuum. If the cutoff is relatively small, then this
-function may be faster than `enable_dipole_dipole!`.
+function may be faster than `enable_dipole_dipole!`. An informational log reports
+the farthest included neighbor distance shell.
 """
 function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, μ0_μB²=nothing) where N
     if isnothing(μ0_μB²)
@@ -268,8 +338,11 @@ function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, �
     # https://github.com/SunnySuite/Sunny.jl/pull/416).
     is_homogeneous(sys) || error("System must be homogeneous")
 
+    bonds = reference_bonds(sys.crystal, cutoff)
+    log_truncated_dipole_dipole_cutoff(sys.crystal, bonds, cutoff)
+
     pairs = PairCoupling[]
-    for bond in reference_bonds(sys.crystal, cutoff)
+    for bond in bonds
         for i in 1:natoms(sys.crystal)
             for bond′ in all_symmetry_related_bonds_for_atom(sys.crystal, i, bond)
                 (; j) = bond′
@@ -286,4 +359,18 @@ function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, �
     # Add to model params and repopulate couplings
     replace_model_param!(sys, :TruncatedDipoleDipole => 1.0; pairs)
     repopulate_couplings_from_params!(sys)
+end
+
+"""
+    modify_exchange_with_truncated_dipole_dipole_by_shell!(sys::System, nshells::Integer, μ0_μB²)
+
+Like [`modify_exchange_with_truncated_dipole_dipole!`](@ref), but specifies the
+truncation by the number of included neighbor distance shells. The real-space
+cutoff is chosen midway between shells `nshells` and `nshells + 1`.
+"""
+function modify_exchange_with_truncated_dipole_dipole_by_shell!(sys::System, nshells::Integer, μ0_μB²=nothing)
+    sys_orig = something(sys.origin, sys)
+    cutoff = cutoff_for_neighbor_shell(sys_orig.crystal, nshells)
+    modify_exchange_with_truncated_dipole_dipole!(sys, cutoff, μ0_μB²)
+    return
 end
