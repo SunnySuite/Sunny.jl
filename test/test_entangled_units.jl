@@ -106,6 +106,16 @@ end
 
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
 
+    # Test the fitting API on a minimal entangled system with a labeled bond.
+    fit_sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
+    set_exchange!(fit_sys, J, Bond(1, 2, [0, 0, 0]), :J => J)
+    fit_esys = Sunny.EntangledSystem(fit_sys, [(1, 2)])
+    loss = make_loss_fn(fit_esys, [:J]) do sys
+        energy(sys)
+    end
+    @test loss([J]) ≈ energy(fit_esys)
+    @test loss([2J]) ≈ 2 * loss([J])
+
     # Test static structure factor is zero (dipolar sector)
     ssf = SampledCorrelationsStatic(esys; measure=ssf_trace(esys))
     add_sample!(ssf, esys)
