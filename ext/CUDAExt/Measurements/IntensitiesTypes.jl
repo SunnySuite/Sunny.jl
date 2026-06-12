@@ -59,3 +59,23 @@ function Base.show(io::IO, res::PowderIntensitiesDevice)
     sz = join(size(res.data), "×")
     print(io, string(typeof(res)) * " ($sz elements)")
 end
+
+struct StaticIntensitiesDevice{T, Q <: Sunny.AbstractQPoints, D} <: Sunny.AbstractIntensities
+    # Original chemical cell
+    crystal :: CrystalDevice
+    # Wavevectors in RLU
+    qpts :: Q
+    # Intensity data integrated over ω
+    data :: CUDA.CuArray{T, D} # (nq...)
+end
+
+function Sunny.StaticIntensities(device::StaticIntensitiesDevice, crystal::Sunny.Crystal)
+    if device.qpts isa QPathDevice
+        qpts = Sunny.QPath(device.qpts)
+    elseif device.qpts isa QPointsDevice
+        qpts = Sunny.QPoints(device.qpts)
+    else
+        qpts = device.qpts
+    end
+    return Sunny.StaticIntensities(crystal, qpts, Array(device.data))
+end

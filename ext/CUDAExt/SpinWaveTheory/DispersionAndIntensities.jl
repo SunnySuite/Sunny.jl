@@ -36,6 +36,14 @@ function _frequencies(H, evalues)
     return
 end
 
+function Avec_pref(sys, measure, q_global, μ, i)
+    r_global = global_position(sys, (1, 1, 1, i)) # + offsets[μ, i]
+    ff = Sunny.get_swt_formfactor(measure, μ, i)
+    value = exp(- im * dot(q_global, r_global))
+    value *= Sunny.compute_form_factor(ff, Sunny.norm2(q_global))
+    return value
+end
+
 function _intensities(swt, qs, L, Ncells, H, Nobs, Na, Ncorr, recipvecs, intensity, kT, disp)
     iq = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
     if iq > size(H,3)
@@ -85,6 +93,65 @@ function _intensities(swt, qs, L, Ncells, H, Nobs, Na, Ncorr, recipvecs, intensi
                 # the transverse part only, so the last entry is zero)
                 displacement_local_frame = Sunny.SA[t[i + Na] + t[i], im * (t[i + Na] - t[i]), 0.0]
                 Avecq[μ] += Avec_prefq[μ, i] * (data.sqrtS[i]/√2) * (O' * displacement_local_frame)[1]
+            end
+        end
+        for idx in eachindex(corrbufq)
+            (μ, ν) = measure.corr_pairs[idx]
+            corrbufq[idx] = Avecq[μ] * conj(Avecq[ν]) / Ncells
+        end
+        intensity[band, iq] = Sunny.thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbufq)
+    end
+    return
+end
+
+function _intensities_lowershmem(swt, qs, L, Ncells, H, Nobs, Na, Ncorr, recipvecs, intensity, kT, disp)
+    iq = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
+    if iq > size(H,3)
+        return
+    end
+    q = qs[iq]
+    Hq = view(H,:,:,iq)
+    corrbuf = CuDynamicSharedArray(ComplexF64, (Ncorr, blockDim().x))
+    corrbufq = view(corrbuf,:,threadIdx().x)
+
+    (; sys, measure) = swt
+    q_global = recipvecs * q
+
+    Avec = CuDynamicSharedArray(ComplexF64, (Nobs, blockDim().x), Ncorr * blockDim().x * sizeof(ComplexF64))
+    Avecq = view(Avec, :, threadIdx().x)
+    # Fill `intensity` array
+    for band in 1:L
+        t = view(Hq, :, band+L)
+        if sys.mode == SUN
+            data = swt.data::SWTDataSUNDevice
+            N = sys.Ns
+	        for μ in 1:Nobs
+                outer_sum = ComplexF64(0.)
+                for i in 1:Na
+                    O = view(data.observables_localized, :, :, μ, i)
+                    inner_sum = ComplexF64(0.)
+                    for α in 1:N-1
+                        idx = α + (i-1)*(N-1)
+                        inner_sum += (O[α, N] * t[idx + L] + O[N, α] * t[idx])
+                    end
+                    outer_sum += Avec_pref(sys, measure, q_global, μ, i) * inner_sum
+		        end
+		        Avecq[μ] = outer_sum
+            end
+        else
+            data = swt.data::SWTDataDipoleDevice
+	        for μ in 1:Nobs
+                sum = ComplexF64(0.)
+                for i in 1:Na
+                    O = data.observables_localized[μ, i]
+                    # This is the Avec of the two transverse and one
+                    # longitudinal directions in the local frame. (In the
+                    # local frame, z is longitudinal, and we are computing
+                    # the transverse part only, so the last entry is zero)
+                    displacement_local_frame = Sunny.SA[t[i + Na] + t[i], im * (t[i + Na] - t[i]), 0.0]
+                    sum += Avec_pref(sys, measure, q_global, μ, i) * (data.sqrtS[i]/√2) * (O' * displacement_local_frame)[1]
+                end
+                Avecq[μ] = sum
             end
         end
         for idx in eachindex(corrbufq)
@@ -172,11 +239,75 @@ function Sunny.intensities_bands(swt::SpinWaveTheoryDevice, qpts; kT=0, with_neg
     kernel = @cuda launch=false _intensities(swt, qs_d, L, Ncells, I_d, Nobs, Na, Ncorr, cryst.recipvecs, intensity_d, kT, disp_d)
     get_shmem(threads; Nobs=Nobs, Na=Na, Ncorr=Ncorr) = threads * sizeof(ComplexF64) * (Nobs * (1 + Na) + Ncorr)
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
+    use_lowershmem = config.threads < 1
+    if(use_lowershmem)
+        kernel = @cuda launch=false _intensities_lowershmem(swt, qs_d, L, Ncells, I_d, Nobs, Na, Ncorr, cryst.recipvecs, intensity_d, kT, disp_d)
+        get_shmem_low(threads; Nobs=Nobs, Na=Na, Ncorr=Ncorr) = threads * sizeof(ComplexF64) * (Nobs + Ncorr)
+        config = launch_configuration(kernel.fun, shmem=threads->get_shmem_low(threads))
+    end
     threads = Base.min(Nq, config.threads)
     blocks = cld(Nq, threads)
-    kernel(swt, qs_d, L, Ncells, I_d, Nobs, Na, Ncorr, cryst.recipvecs, intensity_d, kT, disp_d; threads=threads, blocks=blocks, shmem=get_shmem(threads))
+    kernel(swt, qs_d, L, Ncells, I_d, Nobs, Na, Ncorr, cryst.recipvecs, intensity_d, kT, disp_d; threads=threads, blocks=blocks, shmem = use_lowershmem ? get_shmem_low(threads) : get_shmem(threads))
 
     disp_d = reshape(CuArray(disp_d), L, size(qpts.qs)...)
     intensity_d = reshape(intensity_d, L, size(qpts.qs)...)
     return BandIntensitiesDevice(cryst, qpts, disp_d, intensity_d)
+end
+
+function _sum_intensities(bounds, data_reduced, res_disp, res_data)
+    i = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
+    if i > length(data_reduced)
+        return
+    end
+    sum = 0.
+    iq = CartesianIndices(size(data_reduced))[i]
+    @inbounds for ib in axes(res_data, 1)
+        ϵ = res_disp[ib, iq]
+        if bounds[1] <= ϵ < bounds[2]
+            sum += res_data[ib, iq]
+        end
+    end
+    data_reduced[iq] = sum
+    return
+end
+
+function _sum_intensities_kernel(bounds, kernel, data_reduced, res_disp, res_data)
+    i = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
+    if i > length(data_reduced)
+        return
+    end
+    sum = 0.
+    iq = CartesianIndices(size(data_reduced))[i]
+    @inbounds for ib in axes(res_data, 1)
+        ϵ = res_disp[ib, iq]
+        ihi = kernel.integral(bounds[2] - ϵ)
+        ilo = kernel.integral(bounds[1] - ϵ)
+        sum += res.data[ib, iq] * (ihi - ilo)
+    end
+    data_reduced[iq] = sum
+    return
+end
+
+function intensities_static(swt::SpinWaveTheoryDevice, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0)
+    res = intensities_bands(swt, qpts; kT)  # TODO: with_negative=true
+    if bounds == (-Inf, Inf)
+        return StaticIntensitiesDevice(res.crystal, res.qpts, sum(res.data, dims=1))
+    end
+    data_reduced = CUDA.CuArray{eltype(res.data)}(undef, size(res.data)[2:end])
+    if isnothing(kernel)
+        Nq = length(data_reduced)
+        kernel  = CUDA.@cuda launch=false _sum_intensities(bounds, data_reduced, res.disp, res.data)
+        config = launch_configuration(kernel.   fun)
+        threads = Base.min(Nq, config.threads)
+        blocks = cld(Nq, threads)
+        kernel(bounds, data_reduced, res.disp, res.data; threads=threads, blocks=blocks)
+    else
+        Nq = length(data_reduced)
+        kernel  = CUDA.@cuda launch=false _sum_intensities_kernel(bounds, kernel, data_reduced, res.disp, res.data)
+        config = launch_configuration(kernel.fun)
+        threads = Base.min(Nq, config.threads)
+        blocks = cld(Nq, threads)
+        kernel(bounds, kernel, data_reduced, res.disp, res.data; threads=threads, blocks=blocks)
+    end
+    StaticIntensitiesDevice(res.crystal, res.qpts, data_reduced)
 end

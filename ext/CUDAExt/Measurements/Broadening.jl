@@ -1,14 +1,16 @@
-struct BroadeningDevice{F} <: Sunny.AbstractBroadening
+struct BroadeningDevice{F, G} <: Sunny.AbstractBroadening
     kernel :: F        # Function mapping x = (ω - ϵ) to an intensity scaling factor
+    integral :: G      # Definite integral of kernel from 0 to x
     fwhm :: Float64
 end
 
-BroadeningDevice(host::Sunny.Broadening) = BroadeningDevice(host.kernel, host.fwhm)
+BroadeningDevice(host::Sunny.Broadening) = BroadeningDevice(host.kernel, host.integral, host.fwhm)
 
 function Adapt.adapt_structure(to, data::BroadeningDevice)
     kernel = Adapt.adapt_structure(to, data.kernel)
+    integral = Adapt.adapt_structure(to, data.integral)
     fwhm = Adapt.adapt_structure(to, data.fwhm)
-    BroadeningDevice(kernel, fwhm)
+    BroadeningDevice(kernel, integral, fwhm)
 end
 
 function (b::BroadeningDevice)(ϵ, ω)
