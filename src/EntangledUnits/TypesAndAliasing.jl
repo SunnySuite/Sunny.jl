@@ -134,7 +134,8 @@ function sync_entangled_system_from_origin!(esys::EntangledSystem)
     (; sys_entangled) = entangle_system(sys_origin, units)
 
     # Preserve the existing contracted-system object and only refresh the
-    # mutable fields that depend on model parameters.
+    # mutable fields that depend on model parameters. This keeps the coherents
+    # of the entangled system intact.
     esys.sys.params = copy.(sys_entangled.params)
     esys.sys.interactions_union = sys_entangled.interactions_union
     esys.sys.ewald = sys_entangled.ewald
