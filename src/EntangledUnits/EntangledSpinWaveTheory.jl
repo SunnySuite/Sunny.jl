@@ -4,7 +4,7 @@ struct SWTDataEntangled
     observable_buf            :: Array{ComplexF64, 2}   # Buffer for use while constructing boson rep of observables
 end
 
-struct EntangledSpinWaveTheory <: AbstractSpinWaveTheory
+struct EntangledSpinWaveTheory <: AbstractDirectSpinWaveTheory
     sys              :: System
     data             :: SWTDataEntangled
     measure          :: MeasureSpec
@@ -218,51 +218,6 @@ end
 ################################################################################
 # To be simplified, but requires editing existing code
 ################################################################################
-# No changes
-function dynamical_matrix!(H, swt::EntangledSpinWaveTheory, q_reshaped)
-    if swt.sys.mode == :SUN
-        swt_hamiltonian_SUN!(H, swt, q_reshaped)
-    else
-        @assert swt.sys.mode in (:dipole, :dipole_uncorrected)
-        swt_hamiltonian_dipole!(H, swt, q_reshaped)
-    end
-end
-
-# No changes
-function excitations!(T, tmp, swt::EntangledSpinWaveTheory, q)
-    L = nbands(swt)
-    size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
-
-    q_reshaped = to_reshaped_rlu(swt.sys, q)
-    dynamical_matrix!(tmp, swt, q_reshaped)
-
-    try
-        return bogoliubov!(T, tmp)
-    catch _
-        error("Instability at wavevector q = $q")
-    end
-end
-
-# No changes
-function excitations(swt::EntangledSpinWaveTheory, q)
-    L = nbands(swt)
-    T = zeros(ComplexF64, 2L, 2L)
-    H = zeros(ComplexF64, 2L, 2L)
-    energies = excitations!(T, H, swt, q)
-    return (energies, T)
-end
-
-# No changes
-function dispersion(swt::EntangledSpinWaveTheory, qpts)
-    L = nbands(swt)
-    qpts = convert(AbstractQPoints, qpts)
-    disp = zeros(L, length(qpts.qs))
-    for (iq, q) in enumerate(qpts.qs)
-        view(disp, :, iq) .= view(excitations(swt, q)[1], 1:L)
-    end
-    return reshape(disp, L, size(qpts.qs)...)
-end
-
 # No changes
 function energy_per_site_lswt_correction(swt::EntangledSpinWaveTheory; opts...)
     any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")

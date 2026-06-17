@@ -11,8 +11,10 @@ struct SWTDataSUN
     spins_localized       :: Array{HermitianC64, 2}     # Spins rotated to local frame (3 × nsites)
 end
 
-# To facilitate sharing some code with SpinWaveTheorySpiral
+# To facilitate code sharing with SpinWaveTheorySpiral
 abstract type AbstractSpinWaveTheory end
+# To facilitate code sharing with EntangledSpinWaveTheory
+abstract type AbstractDirectSpinWaveTheory <: AbstractSpinWaveTheory end
 
 """
     SpinWaveTheory(sys::System; measure, regularization=1e-8)
@@ -91,14 +93,14 @@ function to_reshaped_rlu(sys::System, q)
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
-function dynamical_matrix(swt::SpinWaveTheory, q_reshaped)
+function dynamical_matrix(swt::AbstractDirectSpinWaveTheory, q_reshaped)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     dynamical_matrix!(H, swt, q_reshaped)
     return Hermitian(H)
 end
 
-function dynamical_matrix!(H, swt::SpinWaveTheory, q_reshaped)
+function dynamical_matrix!(H, swt::AbstractDirectSpinWaveTheory, q_reshaped)
     if swt.sys.mode == :SUN
         swt_hamiltonian_SUN!(H, swt, q_reshaped)
     else
