@@ -35,7 +35,7 @@ matrix to avoid numerical issues with quasi-particle modes of vanishing energy.
 Physically, this shift can be interpreted as application of an inhomogeneous
 field aligned with the magnetic ordering.
 """
-struct SpinWaveTheory <: AbstractSpinWaveTheory
+struct SpinWaveTheory <: AbstractDirectSpinWaveTheory
     sys            :: System
     data           :: Union{SWTDataDipole, SWTDataSUN}
     measure        :: MeasureSpec
