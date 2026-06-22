@@ -1,3 +1,16 @@
+# Defined so that `reverse_kron(A⊗B) == B⊗A`. This is currently only used in the
+# test suite.
+# 
+# To understand the implementation, note that:
+# - `A_ij B_kl = (A⊗B)_kilj`
+# - `(A⊗B)_ijkl = A_jl B_ik`
+function reverse_kron(C, N1, N2)
+    @assert length(C) == N2*N1*N2*N1
+    C = reshape(C, N2, N1, N2, N1)
+    C = permutedims(C, (2, 1, 4, 3))
+    return reshape(C, N1*N2, N1*N2)
+end
+
 @inline vec_index(i, j, N) = i + (j - 1) * N
 
 # Converts an NxN Hermitian matrix X into a real vector of coordinates for a
@@ -89,8 +102,9 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2; tol=1e-12) where T
     C = matrix_entries_to_hermitian_coords(D̃, N1, Val(1))
     C = matrix_entries_to_hermitian_coords(C, N2, Val(2))
 
-    # Operator in product space must be Hermitian
-    @assert diffnorm2(C, C') < 1e-12
+    # In a Hermitian-product basis, Hermiticity is equivalent to real
+    # expansion coefficients, even when N1 != N2.
+    @assert norm2(imag.(C)) < 1e-12
 
     # Project numerical noise back onto the real Hermitian-product space.
     C = real.(C)
