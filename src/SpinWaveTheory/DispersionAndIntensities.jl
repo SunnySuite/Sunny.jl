@@ -153,7 +153,6 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
-    rs_global = global_positions(sys)
 
     # Number of (magnetic) atoms in magnetic cell
     @assert sys.dims == (1,1,1)
@@ -168,60 +167,35 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     # Temporary storage for pair correlations
     Nobs = num_observables(measure)
     Ncorr = num_correlations(measure)
-    corrbuf = zeros(ComplexF64, Ncorr)
+    corr = zeros(ComplexF64, Ncorr)
 
     # Preallocation
     T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
-    Avec_pref = zeros(ComplexF64, Nobs, Na)
+    u = zeros(ComplexF64, 2L, Nobs)
+    Avec = zeros(ComplexF64, Nobs)
     disp = zeros(Float64, L, Nq)
     intensity = zeros(eltype(measure), L, Nq)
 
     for (iq, q) in enumerate(qpts.qs)
+        q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
-        for i in 1:Na, μ in 1:Nobs
-            r_global = rs_global[i] # + offsets[μ, i]
-            ff = get_swt_formfactor(measure, μ, i)
-            Avec_pref[μ, i] = exp(- im * dot(q_global, r_global))
-            Avec_pref[μ, i] *= compute_form_factor(ff, norm2(q_global))
-        end
-
-        Avec = zeros(ComplexF64, Nobs)
+        # Linearized observables Â_μ(q) in Holstein-Primakoff bosons
+        set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
 
         # Fill `intensity` array
         for band in 1:L
-            fill!(Avec, 0)
-            if sys.mode == :SUN
-                data = swt.data::SWTDataSUN
-                N = sys.Ns[1]
-                t = reshape(view(T, :, band), N-1, Na, 2)
-                for i in 1:Na, μ in 1:Nobs
-                    O = data.observables_localized[μ, i]
-                    for α in 1:N-1
-                        Avec[μ] += Avec_pref[μ, i] * (O[α, N] * t[α, i, 2] + O[N, α] * t[α, i, 1])
-                    end
-                end
-            else
-                @assert sys.mode in (:dipole, :dipole_uncorrected)
-                data = swt.data::SWTDataDipole
-                t = reshape(view(T, :, band), Na, 2)
-                for i in 1:Na, μ in 1:Nobs
-                    O = data.observables_localized[μ, i]
-                    # This is the Avec of the two transverse and one
-                    # longitudinal directions in the local frame. (In the
-                    # local frame, z is longitudinal, and we are computing
-                    # the transverse part only, so the last entry is zero)
-                    displacement_local_frame = SA[t[i, 2] + t[i, 1], im * (t[i, 2] - t[i, 1]), 0.0]
-                    Avec[μ] += Avec_pref[μ, i] * (data.sqrtS[i]/√2) * (O' * displacement_local_frame)[1]
-                end
+            for μ in 1:Nobs
+                # Left matrix amplitude ⟨0|Â_μ(q)†|n⟩
+                Avec[μ] = dot(view(u, :, μ), view(T, :, band))
             end
-
-            map!(corrbuf, measure.corr_pairs) do (μ, ν)
+            map!(corr, measure.corr_pairs) do (μ, ν)
+                # Pair correlations ⟨0|Â_μ(q)†|n⟩⟨n|Â_ν(q)|0⟩
                 Avec[μ] * conj(Avec[ν]) / Ncells
             end
-            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbuf)
+            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corr)
         end
     end
 

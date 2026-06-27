@@ -144,7 +144,6 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
-    rs_global = global_positions(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
@@ -158,55 +157,53 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
     Nq = length(qpts.qs)
 
     # Preallocation
+    Nobs = size(measure.observables, 1)
+
     T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
-    Avec_pref = zeros(ComplexF64, nunits)
+    u = zeros(ComplexF64, 2L, Nobs)
     disp = zeros(Float64, L, Nq)
     intensity = zeros(eltype(measure), L, Nq)
 
     # Temporary storage for pair correlations
     Ncorr = length(measure.corr_pairs)
-    corrbuf = zeros(ComplexF64, Ncorr)
-
-    Nobs = size(measure.observables, 1)
+    corr = zeros(ComplexF64, Ncorr)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
         q_reshaped = cryst.recipvecs \ (crystal_origin.recipvecs * q)
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
-        for i in 1:nunits
-            Avec_pref[i] = exp(- im * dot(q_global, rs_global[i]))
+        O = data.observable_buf
+        N = sys.Ns[1]
+        for μ in 1:Nobs, i in 1:nunits
+            fill!(O, 0)
+            inverse_infos = contraction_info.inverse[i]
+            r_reshaped = sys.crystal.positions[i]
+            for (subsite, inverse_info) in enumerate(inverse_infos)
+                site_original, offset = inverse_info.site, inverse_info.offset
+                ff = formfactor_for_flattened_sys(measure, 1, site_original)
+                pref = cis(2π * dot(q_reshaped, r_reshaped + offset)) * compute_form_factor(ff, norm2(q_global))
+                O .+= pref * data.observables_localized[subsite, μ, i]
+            end
+            for α in 1:N-1
+                u[α + (i-1)*(N-1), μ]     = O[α, N]
+                u[α + (i-1)*(N-1) + L, μ] = O[N, α]
+            end
         end
 
         Avec = zeros(ComplexF64, Nobs)
 
         # Fill `intensity` array
-        O = data.observable_buf
         for band = 1:L
-            fill!(Avec, 0)
-            N = sys.Ns[1]
-            t = reshape(view(T, :, band), N-1, nunits, 2)
-            for i in 1:nunits
-                inverse_infos = contraction_info.inverse[i]
-                for μ in 1:Nobs
-                    fill!(O, 0)
-                    for (subsite, inverse_info) in enumerate(inverse_infos)
-                        site_original, offset = inverse_info.site, inverse_info.offset
-                        ff = get_swt_formfactor(measure, 1, site_original)
-                        prefactor = exp(-2π*im*(q_reshaped ⋅ offset)) * compute_form_factor(ff, norm2(q_global))
-                        O += prefactor * data.observables_localized[subsite, μ, i]
-                    end
-                    for α in 1:N-1
-                        Avec[μ] += Avec_pref[i] * (O[α, N] * t[α, i, 2] + O[N, α] * t[α, i, 1])
-                    end
-                end
+            for μ in 1:Nobs
+                Avec[μ] = dot(view(u, :, μ), view(T, :, band))
             end
 
-            map!(corrbuf, measure.corr_pairs) do (μ, ν)
+            map!(corr, measure.corr_pairs) do (μ, ν)
                 Avec[μ] * conj(Avec[ν]) / Ncells
             end
-            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbuf)
+            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corr)
         end
     end
 

@@ -246,7 +246,7 @@ function lagrange_multiplier_jacobian(sys, qs, β, λs, labels)
     Λ = Diagonal(repeat(λs, inner=3))
     A = zeros(ComplexF64, 3Na, 3Na)
     A⁻¹ = zeros(ComplexF64, 3Na, 3Na)
-    A⁻¹_block = reshape(A⁻¹, 3, Na, 3, Na)
+    A⁻¹r = reshape(A⁻¹, 3, Na, 3, Na)
     H = zeros(Float64, Na, Na)
 
     v = zeros(Float64, Na, length(labels))
@@ -257,13 +257,13 @@ function lagrange_multiplier_jacobian(sys, qs, β, λs, labels)
         A_chol = cholesky!(A, RowMaximum())
         ldiv!(A⁻¹, A_chol, I(3Na))
         for i in 1:Na, j in 1:Na
-            H[i, j] += + norm(view(A⁻¹_block, :, i, :, j))^2 / 2β
+            H[i, j] += + norm(view(A⁻¹r, :, i, :, j))^2 / 2β
         end
 
         for (k, label) in enumerate(labels)
             fourier_exchange_matrix_sensitivity!(∂J, sys, label; q)
             for i in 1:Na
-                y_i = reshape(view(A⁻¹_block, :, :, :, i), 3Na, 3)
+                y_i = reshape(view(A⁻¹r, :, :, :, i), 3Na, 3)
                 v[i, k] += real(dot(y_i, ∂J, y_i)) / 2β # TODO: remove allocation?
             end
         end
@@ -280,7 +280,6 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
-    rs_global = global_positions(sys)
 
     Na = nsites(sys)
     Ncells = Na / natoms(cryst)
@@ -293,21 +292,20 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
     # Preallocation
     A = zeros(ComplexF64, 3Na, 3Na)
     O = view(measure.observables::Array{Vec3, 5}, :, 1, 1, 1, :)
-    X = zeros(ComplexF64, 3Na, Nobs)
-    pref = zeros(ComplexF64, 3Na, Nobs)
-    pref_reshaped = reshape(pref, 3, Na, Nobs)
+    v = zeros(ComplexF64, 3Na, Nobs)
+    u = zeros(ComplexF64, 3Na, Nobs)
+    ur = reshape(u, 3, Na, Nobs)
 
     data = map(qpts.qs) do q
         any(isnan, q) && return NaN * zero(eltype(measure))
 
+        q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
         for i in 1:Na, μ in 1:Nobs
-            r_global = rs_global[i] # + offsets[μ, i]
-            ff = get_swt_formfactor(measure, μ, i)
-            c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
+            pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
             for α in 1:3
-                pref_reshaped[α, i, μ] = c * O[μ, i][α]
+                ur[α, i, μ] = pref * O[μ, i][α]
             end
         end
 
@@ -317,21 +315,11 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
 
         A_chol = cholesky!(A; check=false)
         issuccess(A_chol) || InstabilityError("Self-consistency failed at q = $(vec3_to_string(q)); try raising kT or refining dq")
-        ldiv!(X, A_chol, pref)
+        ldiv!(v, A_chol, u)
         map!(corr, measure.corr_pairs) do (μ, ν)
-            return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
+            # Contraction: conj(u[α, i, μ]) A⁻¹[α, i, β, j] u[β, j, ν]
+            return dot(view(u, :, μ), view(v, :, ν)) / Ncells
         end
-
-        #=
-        A⁻¹ = reshape(inv(β*Λ + β*Jq), 3, Na, 3, Na)
-        map!(corr, measure.corr_pairs) do (μ, ν)
-            acc = zero(ComplexF64)
-            for α in 1:3, β in 1:3, i in 1:Na, j in 1:Na
-                acc += conj(pref[α, i, μ]) * A⁻¹[α, i, β, j] * pref[β, j, ν]
-            end
-            return acc / Ncells
-        end
-        =#
 
         return measure.combiner(q_global, corr)
     end
@@ -469,7 +457,6 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
         (; sys, λs, β) = scga
         measure = @something measure scga.measure
         cryst = orig_crystal(sys)
-        rs_global = global_positions(sys)
 
         Na = nsites(sys)
         Ncells = Na / natoms(cryst)
@@ -480,9 +467,9 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
         # Forward-work buffers
         Λ = Diagonal(repeat(λs, inner=3))
         A = zeros(ComplexF64, 3Na, 3Na)
-        X = zeros(ComplexF64, 3Na, Nobs)
-        pref = zeros(ComplexF64, 3Na, Nobs)
-        pref_reshaped = reshape(pref, 3, Na, Nobs)
+        v = zeros(ComplexF64, 3Na, Nobs)
+        u = zeros(ComplexF64, 3Na, Nobs)
+        ur = reshape(u, 3, Na, Nobs)
         corr = zeros(ComplexF64, Ncorr)
         O = view(measure.observables::Array{Vec3,5}, :, 1, 1, 1, :)
 
@@ -490,10 +477,10 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
         Δvals = zeros(Float64, length(sys.active_labels))
         Δλs = zeros(Float64, length(λs))
 
-        ΔX = zeros(ComplexF64, 3Na, Nobs)
+        Δv = zeros(ComplexF64, 3Na, Nobs)
         G = zeros(ComplexF64, 3Na, Nobs)
         ΔA = zeros(ComplexF64, 3Na, 3Na)
-        ΔA_reshaped = reshape(ΔA, 3, Na, 3, Na)
+        ΔAr = reshape(ΔA, 3, Na, 3, Na)
         ∂J = zeros(ComplexF64, 3Na, 3Na)
 
         foreach(qpts.qs, res.data, Δdata) do q, d, Δd
@@ -501,14 +488,13 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
 
             ### REPEAT FORWARD CALCULATION (no tape to avoid memory costs)
 
+            q_reshaped = to_reshaped_rlu(sys, q)
             q_global = cryst.recipvecs * q
 
             for i in 1:Na, μ in 1:Nobs
-                r_global = rs_global[i] # + offsets[μ, i]
-                ff = get_swt_formfactor(measure, μ, i)
-                c = exp(+ im * dot(q_global, r_global)) * compute_form_factor(ff, norm2(q_global))
+                pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
                 for α in 1:3
-                    pref_reshaped[α, i, μ] = c * O[μ, i][α]
+                    ur[α, i, μ] = pref * O[μ, i][α]
                 end
             end
 
@@ -517,14 +503,14 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             A .+= Λ
             A .*= β
 
-            # X = A \ pref
+            # v = A \ u
             A_chol = cholesky!(A; check=false)
             issuccess(A_chol) || InstabilityError("Self-consistency failed at q = $(vec3_to_string(q)); try raising kT or refining dq")
-            ldiv!(X, A_chol, pref)
+            ldiv!(v, A_chol, u)
 
-            # corr = dot(pref_μ, X_ν) / Ncells
+            # corr = dot(u_μ, v_ν) / Ncells
             map!(corr, measure.corr_pairs) do (μ, ν)
-                return dot(view(pref, :, μ), view(X, :, ν)) / Ncells
+                return dot(view(u, :, μ), view(v, :, ν)) / Ncells
             end
 
             # data = measure.combiner(corr)
@@ -539,16 +525,16 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
                 return
             end
 
-            # Pullback on: corr = dot(pref_μ, X_ν) / Ncells
-            fill!(ΔX, 0)
+            # Pullback on: corr = dot(u_μ, v_ν) / Ncells
+            fill!(Δv, 0)
             for (k, (μ, ν)) in enumerate(measure.corr_pairs)
-                view(ΔX, :, ν) .+= Δcorr[k] .* view(pref, :, μ) ./ Ncells
+                view(Δv, :, ν) .+= Δcorr[k] .* view(u, :, μ) ./ Ncells
             end
 
-            # Pullback on: X = A \ pref
-            ldiv!(G, A_chol', ΔX) # G = A' \ ΔX
-            mul!(ΔA, G, X')       # ΔA = G * X'
-            ΔA .*= -1             # ΔA = - (A' \ ΔX) * X'
+            # Pullback on: v = A \ u
+            ldiv!(G, A_chol', Δv) # G = A' \ Δv
+            mul!(ΔA, G, v')       # ΔA = G * v'
+            ΔA .*= -1             # ΔA = - (A' \ Δv) * v'
 
             # Pullback on: A = β*(J+Λ) for J(vals)
             for (k, label) in enumerate(sys.active_labels)
@@ -558,9 +544,9 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
 
             # Pullback on: A = β*(J+Λ) for Λ = Diagonal(repeat(λs, inner=3))
             for i in 1:length(λs)
-                Δλs[i] += β * real(ΔA_reshaped[1, i, 1, i] +
-                                   ΔA_reshaped[2, i, 2, i] +
-                                   ΔA_reshaped[3, i, 3, i])
+                Δλs[i] += β * real(ΔAr[1, i, 1, i] +
+                                   ΔAr[2, i, 2, i] +
+                                   ΔAr[3, i, 3, i])
             end
         end
 
