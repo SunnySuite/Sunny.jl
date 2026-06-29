@@ -143,15 +143,14 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
 
     qpts = convert(AbstractQPoints, qpts)
-    cryst = orig_crystal(sys)
     rs_global = global_positions(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
-    nunits = nsites(sys)
+    nunits = nsites(sys)                                    # Each "site" corresponds to a unit, not an atomic site of the original cyrstal
+    Na = sum(length(el) for el in contraction_info.inverse) # Reconstruct number of atomic sites of reshaped entangled system from units
     # Number of chemical cells in magnetic cell
-    # Ncells = Na / natoms(cryst)         # TODO: Pass information about natoms in unreshaped, uncontracted system
-    Ncells = 1
+    Ncells = Na / natoms(crystal_origin)                    # `crystal_origin` is `orig_crystal(sys_origin)`, where `sys_origin` is the original unentangled system
     # Number of quasiparticle modes
     L = nbands(swt)
     # Number of wavevectors
@@ -171,8 +170,8 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
     Nobs = size(measure.observables, 1)
 
     for (iq, q) in enumerate(qpts.qs)
-        q_global = cryst.recipvecs * q
-        q_reshaped = cryst.recipvecs \ (crystal_origin.recipvecs * q)
+        q_global = crystal_origin.recipvecs * q
+        q_reshaped = sys.crystal.recipvecs \ (crystal_origin.recipvecs * q)
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:nunits
@@ -212,7 +211,7 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
 
     disp = reshape(disp, L, size(qpts.qs)...)
     intensity = reshape(intensity, L, size(qpts.qs)...)
-    return BandIntensities(cryst, qpts, disp, intensity)
+    return BandIntensities(crystal_origin, qpts, disp, intensity)
 end
 
 ################################################################################
