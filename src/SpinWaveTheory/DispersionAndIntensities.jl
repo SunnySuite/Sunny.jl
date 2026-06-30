@@ -92,7 +92,7 @@ function excitations!(T, tmp, swt::AbstractDirectSpinWaveTheory, q)
     L = nbands(swt)
     size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
 
-    q_reshaped = to_reshaped_rlu(swt.sys, q)
+    q_reshaped = to_reshaped_rlu(swt, q)
     dynamical_matrix!(tmp, swt, q_reshaped)
 
     try

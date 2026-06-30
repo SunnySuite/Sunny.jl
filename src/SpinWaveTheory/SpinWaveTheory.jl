@@ -93,6 +93,13 @@ function to_reshaped_rlu(sys::System, q)
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
+# Give EntangledSpinWaveTheory an overloading hook. The fundamental problem is
+# that orig_crystal(eswt.sys) is not guaranteed to be the actual original
+# chemical cell.
+function to_reshaped_rlu(swt::SpinWaveTheory, q)
+    to_reshaped_rlu(swt.sys, q)
+end
+
 function dynamical_matrix(swt::AbstractDirectSpinWaveTheory, q_reshaped)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)

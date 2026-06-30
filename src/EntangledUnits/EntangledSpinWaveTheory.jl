@@ -61,6 +61,11 @@ function to_reshaped_rlu(esys::EntangledSystem, q)
     return sys.crystal.recipvecs \ (orig_crystal(sys_origin).recipvecs * q)
 end
 
+function to_reshaped_rlu(eswt::EntangledSpinWaveTheory, q)
+    (; sys, crystal_origin) = eswt
+    return sys.crystal.recipvecs \ (crystal_origin.recipvecs * q)
+end
+
 # obs are observables _given in terms of `sys_original`_
 function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
 
@@ -147,10 +152,10 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
-    nunits = nsites(sys)                                    # Each "site" corresponds to a unit, not an atomic site of the original cyrstal
-    Na = sum(length(el) for el in contraction_info.inverse) # Reconstruct number of atomic sites of reshaped entangled system from units
+    nunits = nsites(sys)                  # System "sites" are really entangled units
+    nunits_per_cell = natoms(sys.crystal) # Crystal "atoms" are really entangled units
     # Number of chemical cells in magnetic cell
-    Ncells = Na / natoms(crystal_origin)                    # `crystal_origin` is `orig_crystal(sys_origin)`, where `sys_origin` is the original unentangled system
+    Ncells = nunits / nunits_per_cell
     # Number of quasiparticle modes
     L = nbands(swt)
     # Number of wavevectors

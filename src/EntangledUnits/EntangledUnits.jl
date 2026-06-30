@@ -239,7 +239,7 @@ end
 
 # More battle-tested approach. Iterates over over contracted system. Move to
 # iteration scheme of original system moving forward for clarity and support of
-# inhomogenous interactioninteractions
+# inhomogenous interactions
 function entangle_system(sys::System{M}, units) where M
     # Construct contracted crystal
     contracted_crystal, contraction_info = contract_crystal(sys.crystal, units)
