@@ -320,7 +320,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
     end
 
     # H must be hermitian up to round-off errors
-    @assert diffnorm2(H, H') < 1e-12
+    @assert maxdiff(H, H') < 1e-12
 
     # Make H exactly hermitian
     hermitianpart!(H)

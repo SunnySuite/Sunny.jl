@@ -1,16 +1,3 @@
-# Defined so that `reverse_kron(A⊗B) == B⊗A`. This is currently only used in the
-# test suite.
-# 
-# To understand the implementation, note that:
-# - `A_ij B_kl = (A⊗B)_kilj`
-# - `(A⊗B)_ijkl = A_jl B_ik`
-function reverse_kron(C, N1, N2)
-    @assert length(C) == N2*N1*N2*N1
-    C = reshape(C, N2, N1, N2, N1)
-    C = permutedims(C, (2, 1, 4, 3))
-    return reshape(C, N1*N2, N1*N2)
-end
-
 @inline vec_index(i, j, N) = i + (j - 1) * N
 
 # Converts an NxN Hermitian matrix X into a real vector of coordinates for a
@@ -84,16 +71,15 @@ function hermitian_matrix_from_coords(x::AbstractVector{<:Real}, N::Integer)
     return Hermitian(A, :U)
 end
 
-# Use and SVD to find the minimal set of operator pairs necessary to represent
-# an arbitrary interaction.
+# Given a Hermitian operator D living in tensor-product space, use SVD to find
+# the decomposition D = ∑ₖ Aₖ ⊗ Bₖ, where Aₖ is N₁×N₁ and Bₖ is N₂×N₂. Returns
+# the list of Hermitian matrix pairs [(A₁, B₁), (A₂, B₂), ...].
 function svd_tensor_expansion(D::Matrix{T}, N1, N2; tol=1e-12) where T
+    maxdiff(D, D') < 1e-12 || error("Detected non-Hermitian operator")
     @assert size(D, 1) == size(D, 2) == N1*N2
 
-    # Reshuffle D 
-    #
-    #   D[(a,i), (b,j)] -> D̃[(i,j), (a,b)]
-    #
-    # so that D̃ is an N1^2 × N2^2 matrix.
+    # Reshuffle D_{(a,i),(b,j)} -> D̃_{(i,j),(a,b)} so that D̃ is an N1^2 × N2^2
+    # matrix.
     D̃ = permutedims(reshape(ComplexF64.(D), N2, N1, N2, N1), (2, 4, 1, 3))
     D̃ = reshape(D̃, N1*N1, N2*N2)
 
@@ -102,15 +88,14 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2; tol=1e-12) where T
     C = matrix_entries_to_hermitian_coords(D̃, N1, Val(1))
     C = matrix_entries_to_hermitian_coords(C, N2, Val(2))
 
-    # In a Hermitian-product basis, Hermiticity is equivalent to real
-    # expansion coefficients, even when N1 != N2.
-    @assert norm2(imag.(C)) < 1e-12
+    # Hermiticity of D is equivalent to real expansion coefficients in C
+    @assert all(x -> abs(imag(x)) < 1e-12, C)
 
-    # Project numerical noise back onto the real Hermitian-product space.
+    # Work in exact Hermitian-product space.
     C = real.(C)
 
-    # Real SVD. The dimensions are the same as the original complex SVD, but
-    # the singular vectors now live in the real vector space of Hermitian matrices.
+    # Real SVD. Components of the singular vectors live in the real vector space
+    # of Hermitian matrices.
     F = svd!(C)
 
     ret = Tuple{HermitianC64, HermitianC64}[]
