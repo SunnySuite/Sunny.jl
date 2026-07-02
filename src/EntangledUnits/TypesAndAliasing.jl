@@ -128,6 +128,52 @@ function clone_system(esys::EntangledSystem)
     return EntangledSystem(sys, sys_origin, contraction_info, dipole_operators, source_idcs)
 end
 
+function sync_entangled_system_from_origin!(esys::EntangledSystem)
+    (; sys_origin) = esys
+    units = original_unit_spec(esys)
+    (; sys_entangled) = entangle_system(sys_origin, units)
+
+    # Preserve the existing contracted-system object and only refresh the
+    # mutable fields that depend on model parameters. This keeps the coherents
+    # of the entangled system intact.
+    esys.sys.params = copy.(sys_entangled.params)
+    esys.sys.interactions_union = sys_entangled.interactions_union
+    esys.sys.ewald = sys_entangled.ewald
+    return esys
+end
+
+function set_active_labels!(esys::EntangledSystem, labels::Vector{Symbol})
+    set_active_labels!(esys.sys, labels)
+    set_active_labels!(esys.sys_origin, labels)
+    return esys
+end
+
+get_active_labels(esys::EntangledSystem) = get_active_labels(esys.sys)
+
+function get_param(esys::EntangledSystem, label::Symbol)
+    return get_param(esys.sys_origin, label)
+end
+
+function get_params(esys::EntangledSystem, labels::Vector{Symbol})
+    return get_param.(Ref(esys), labels)
+end
+
+function set_param!(esys::EntangledSystem, label::Symbol, val::Real)
+    return set_params!(esys, [label], [val])
+end
+
+function set_params!(esys::EntangledSystem, labels::Vector{Symbol}, vals::Vector{<: Real})
+    set_params!(esys.sys_origin, labels, vals)
+    sync_entangled_system_from_origin!(esys)
+    return
+end
+
+function add_auxiliary_param!(esys::EntangledSystem, paramspec::ParamSpec)
+    add_auxiliary_param!(esys.sys_origin, paramspec)
+    sync_entangled_system_from_origin!(esys)
+    return
+end
+
 function set_field!(esys::EntangledSystem, B)
     (; sys, sys_origin, dipole_operators, source_idcs) = esys 
     B_old = sys_origin.extfield[1,1,1,1] 

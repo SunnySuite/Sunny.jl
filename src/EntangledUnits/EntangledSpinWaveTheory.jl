@@ -4,7 +4,7 @@ struct SWTDataEntangled
     observable_buf            :: Array{ComplexF64, 2}   # Buffer for use while constructing boson rep of observables
 end
 
-struct EntangledSpinWaveTheory <: AbstractSpinWaveTheory
+struct EntangledSpinWaveTheory <: AbstractDirectSpinWaveTheory
     sys              :: System
     data             :: SWTDataEntangled
     measure          :: MeasureSpec
@@ -59,6 +59,11 @@ nbands(swt::EntangledSpinWaveTheory) = (swt.sys.Ns[1]-1)  * natoms(swt.sys.cryst
 function to_reshaped_rlu(esys::EntangledSystem, q)
     (; sys, sys_origin) = esys
     return sys.crystal.recipvecs \ (orig_crystal(sys_origin).recipvecs * q)
+end
+
+function to_reshaped_rlu(eswt::EntangledSpinWaveTheory, q)
+    (; sys, crystal_origin) = eswt
+    return sys.crystal.recipvecs \ (crystal_origin.recipvecs * q)
 end
 
 # obs are observables _given in terms of `sys_original`_
@@ -143,15 +148,14 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
 
     qpts = convert(AbstractQPoints, qpts)
-    cryst = orig_crystal(sys)
     rs_global = global_positions(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
-    nunits = nsites(sys)
+    nunits = nsites(sys)                  # System "sites" are really entangled units
+    nunits_per_cell = natoms(sys.crystal) # Crystal "atoms" are really entangled units
     # Number of chemical cells in magnetic cell
-    # Ncells = Na / natoms(cryst)         # TODO: Pass information about natoms in unreshaped, uncontracted system
-    Ncells = 1
+    Ncells = nunits / nunits_per_cell
     # Number of quasiparticle modes
     L = nbands(swt)
     # Number of wavevectors
@@ -171,8 +175,8 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
     Nobs = size(measure.observables, 1)
 
     for (iq, q) in enumerate(qpts.qs)
-        q_global = cryst.recipvecs * q
-        q_reshaped = cryst.recipvecs \ (crystal_origin.recipvecs * q)
+        q_global = crystal_origin.recipvecs * q
+        q_reshaped = sys.crystal.recipvecs \ (crystal_origin.recipvecs * q)
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:nunits
@@ -212,57 +216,12 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
 
     disp = reshape(disp, L, size(qpts.qs)...)
     intensity = reshape(intensity, L, size(qpts.qs)...)
-    return BandIntensities(cryst, qpts, disp, intensity)
+    return BandIntensities(crystal_origin, qpts, disp, intensity)
 end
 
 ################################################################################
 # To be simplified, but requires editing existing code
 ################################################################################
-# No changes
-function dynamical_matrix!(H, swt::EntangledSpinWaveTheory, q_reshaped)
-    if swt.sys.mode == :SUN
-        swt_hamiltonian_SUN!(H, swt, q_reshaped)
-    else
-        @assert swt.sys.mode in (:dipole, :dipole_uncorrected)
-        swt_hamiltonian_dipole!(H, swt, q_reshaped)
-    end
-end
-
-# No changes
-function excitations!(T, tmp, swt::EntangledSpinWaveTheory, q)
-    L = nbands(swt)
-    size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
-
-    q_reshaped = to_reshaped_rlu(swt.sys, q)
-    dynamical_matrix!(tmp, swt, q_reshaped)
-
-    try
-        return bogoliubov!(T, tmp)
-    catch _
-        error("Instability at wavevector q = $q")
-    end
-end
-
-# No changes
-function excitations(swt::EntangledSpinWaveTheory, q)
-    L = nbands(swt)
-    T = zeros(ComplexF64, 2L, 2L)
-    H = zeros(ComplexF64, 2L, 2L)
-    energies = excitations!(T, H, swt, q)
-    return (energies, T)
-end
-
-# No changes
-function dispersion(swt::EntangledSpinWaveTheory, qpts)
-    L = nbands(swt)
-    qpts = convert(AbstractQPoints, qpts)
-    disp = zeros(L, length(qpts.qs))
-    for (iq, q) in enumerate(qpts.qs)
-        view(disp, :, iq) .= view(excitations(swt, q)[1], 1:L)
-    end
-    return reshape(disp, L, size(qpts.qs)...)
-end
-
 # No changes
 function energy_per_site_lswt_correction(swt::EntangledSpinWaveTheory; opts...)
     any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")
@@ -361,7 +320,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
     end
 
     # H must be hermitian up to round-off errors
-    @assert diffnorm2(H, H') < 1e-12
+    @assert maxdiff(H, H') < 1e-12
 
     # Make H exactly hermitian
     hermitianpart!(H)

@@ -17,8 +17,6 @@
     end
 end
 
-# TODO: Add reshapings tests.
-
 # TODO: Add test with magnetic unit cell larger than a single unit (i.e. not q=0
 # ordering).
 
@@ -105,6 +103,43 @@ end
     ωs_numerical = disp[1,:]
 
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
+
+    # Reference intensities calculation for use below
+    swt_bands = SpinWaveTheory(esys; measure=ssf_perp(esys))
+    res = intensities_bands(swt_bands, qs)
+
+    # Test that an unsupported reshaping throws an interpretable error
+    shape = [1 2 0; 0 1 0; 0 0 1]
+    @test_throws "This reshaping must be performed prior to calling EntangledSystem" reshape_supercell(esys, shape)
+
+    # Test that a carefully designed reshaping works as expected on an EntangledSystem
+    shape = [1 0 0; 2 1 0; 0 0 1]
+    esys_sheared = reshape_supercell(esys, shape)
+    swt_bands_sheared = SpinWaveTheory(esys_sheared; measure=ssf_perp(esys_sheared))
+    res_sheared = intensities_bands(swt_bands_sheared, qs)
+    @test res_sheared.disp ≈ res.disp atol=1e-11
+    @test sum(res_sheared.data; dims=1) ≈ sum(res.data; dims=1) atol=1e-11
+
+    # Test that a system can be reshaped first, then entangled
+    sys_sheared = reshape_supercell(sys, shape)
+    esys_sheared = Sunny.EntangledSystem(sys_sheared, [(1, 2)])
+    for unit in Sunny.eachunit(esys_sheared)
+        set_coherent!(esys_sheared, [0, 1/√2, -1/√2, 0], unit)
+    end
+    swt_bands_sheared_alt = SpinWaveTheory(esys_sheared; measure=ssf_perp(esys_sheared))
+    res_sheared_alt = intensities_bands(swt_bands_sheared_alt, qs)
+    @test res_sheared_alt.disp ≈ res.disp atol=1e-11
+    @test sum(res_sheared_alt.data; dims=1) ≈ sum(res.data; dims=1) atol=1e-11
+
+    # Test the fitting API on a minimal entangled system with a labeled bond.
+    fit_sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
+    set_exchange!(fit_sys, J, Bond(1, 2, [0, 0, 0]), :J => J)
+    fit_esys = Sunny.EntangledSystem(fit_sys, [(1, 2)])
+    loss = make_loss_fn(fit_esys, [:J]) do sys
+        energy(sys)
+    end
+    @test loss([J]) ≈ energy(fit_esys)
+    @test loss([2J]) ≈ 2 * loss([J])
 
     # Test static structure factor is zero (dipolar sector)
     ssf = SampledCorrelationsStatic(esys; measure=ssf_trace(esys))

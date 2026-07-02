@@ -1,5 +1,5 @@
 #TODO: Test this rigorously -- this is key to reshaping EntangledSystems and
-# making EntangledSpinWaveTheorys. 
+# making EntangledSpinWaveTheorys.
 
 # An entangled system can be specified with a list of
 # tuples, e.g. [(1,2), (3,4)], which will group the original sites 1 and 2 into
@@ -7,7 +7,7 @@
 # sys_origin and and a reshaped sys_origin, this function returns a list of
 # tuples for specifying the corresponding entanglement of the reshaped system.
 function units_for_reshaped_system(reshaped_sys_origin, esys)
-    (; sys_origin) = esys                 
+    (; sys_origin) = esys
     units = original_unit_spec(esys)
     new_crystal = reshaped_sys_origin.crystal
     new_atoms = collect(1:natoms(new_crystal))
@@ -22,7 +22,7 @@ function units_for_reshaped_system(reshaped_sys_origin, esys)
     while length(new_atoms) > 0
         # Pick any site from list of new sites
         new_atom = new_atoms[1]
-        new_site = (1, 1, 1, new_atom) # Only need to define for a single unit cell, may as well be the first 
+        new_site = (1, 1, 1, new_atom) # Only need to define for a single unit cell, may as well be the first
         new_position = position_at(reshaped_sys_origin, new_site)
 
         # Find corresponding original atom number.
@@ -64,40 +64,25 @@ function reshape_supercell(esys::EntangledSystem, shape)
 
     # Reshape the the underlying "entangled" System.
     units_new = units_for_reshaped_system(sys_origin_new, esys)
-    _, contraction_info = contract_crystal(sys_origin_new.crystal, units_new)
+    contracted_crystal, contraction_info = contract_crystal(sys_origin_new.crystal, units_new)
     sys_new = reshape_supercell(sys, shape)
 
+    # The two reshape paths must agree on crystal positions
+    contracted_crystal.positions ≈ sys_new.crystal.positions || error("This reshaping must be performed prior to calling EntangledSystem")
+
     # Construct dipole operator field for reshaped EntangledSystem
-    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
+    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false)
     (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
 
     return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
 end
 
-function repeat_periodically(esys, counts)
-    (; sys, sys_origin, contraction_info) = esys
-
-    # Repeat both entangled and original system periodically
-    sys_new = repeat_periodically(sys, counts)
-    sys_origin_new = repeat_periodically(sys_origin, counts)
-
-    # Construct dipole operator field for reshaped EntangledSystem
-    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
-
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
+function repeat_periodically(esys::EntangledSystem, counts)
+    all(>=(1), counts) || error("Require at least one count in each direction.")
+    shape = cell_shape(esys.sys) * diagm(Vec3(esys.sys.dims .* counts))
+    return reshape_supercell(esys, shape)
 end
 
 function resize_supercell(esys::EntangledSystem, dims::NTuple{3,Int})
-    (; sys, sys_origin, contraction_info) = esys
-
-    # Resize both entangled and original system periodically
-    sys_new = reshape_supercell(sys, diagm(Vec3(dims)))
-    sys_origin_new = reshape_supercell(sys_origin, diagm(Vec3(dims)))
-
-    # Construct dipole operator field for reshaped EntangledSystem
-    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
-
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
+    return reshape_supercell(esys, diagm(Vec3(dims)))
 end
