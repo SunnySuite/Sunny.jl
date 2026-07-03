@@ -334,18 +334,18 @@ end
 
 
 function set_expected_dipoles_of_entangled_system!(esys)
-    for site in eachsite(esys.sys_origin)
+    for site in eachsite(esys.sys_uncontracted)
         set_expected_dipole_of_entangled_system!(esys, site)
     end
 end
 
 function set_expected_dipole_of_entangled_system!(esys, site)
-    (; sys, sys_origin, dipole_operators, source_idcs) = esys
-    (; dipoles) = sys_origin
+    (; sys_contracted, sys_uncontracted, dipole_operators, source_idcs) = esys
+    (; dipoles) = sys_uncontracted
 
     a, b, c, _ = site.I
     source_idx = source_idcs[site]
-    Z = sys.coherents[a, b, c, source_idx]
+    Z = sys_contracted.coherents[a, b, c, source_idx]
     dipoles[site] = ntuple(i -> real(dot(Z, dipole_operators[i, site], Z)), 3)
 
     nothing
