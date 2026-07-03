@@ -110,7 +110,7 @@ end
 
     # Test that an unsupported reshaping throws an interpretable error
     shape = [1 2 0; 0 1 0; 0 0 1]
-    @test_throws "This reshaping must be performed prior to calling EntangledSystem" reshape_supercell(esys, shape)
+    @test_throws "Given shape incompatible with entangled unit structure. Unit split between crystallographic cells." reshape_supercell(esys, shape)
 
     # Test that a carefully designed reshaping works as expected on an EntangledSystem
     shape = [1 0 0; 2 1 0; 0 0 1]
