@@ -125,8 +125,8 @@ atoms_in_unit(contraction_info, i) = [inverse_data.site for inverse_data in cont
 # Get the list of tuples specifying the units in terms of the uncontracted
 # system.
 function original_unit_spec(esys::EntangledSystem)
-    (; sys, contraction_info) = esys
-    return [Tuple(atoms_in_unit(contraction_info, unit)) for unit in axes(sys.dipoles, 4)]
+    (; sys_contracted, contraction_info) = esys
+    return [Tuple(atoms_in_unit(contraction_info, unit)) for unit in axes(sys_contracted.coherents, 4)]
 end
 
 
@@ -256,10 +256,10 @@ function entangle_system(sys::System{M}, units) where M
     # Construct empty contracted system
     dims = size(sys.dipoles)[1:3]
     spin_infos = [i => Moment(s=(N-1)/2, g=1.0) for (i, N) in enumerate(Ns_contracted)]  # TODO: Decisions about g-factor 
-    sys_entangled = System(contracted_crystal, spin_infos, :SUN; dims)
+    sys_contracted = System(contracted_crystal, spin_infos, :SUN; dims)
 
     # Transfer rng from origin system to entangled system
-    copy!(sys_entangled.rng, sys.rng)
+    copy!(sys_contracted.rng, sys.rng)
 
     # TODO: Extend to inhomogenous systems
     # For each contracted site, scan original interactions and reconstruct as necessary.
@@ -300,7 +300,7 @@ function entangle_system(sys::System{M}, units) where M
         for pc in pcs_intra
             accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, sys, contracted_site, contraction_info)
         end
-        set_onsite_coupling!(sys_entangled, unit_operator, contracted_site)
+        set_onsite_coupling!(sys_contracted, unit_operator, contracted_site)
 
         ## Convert inter-unit PairCouplings into new pair couplings
         for pc in pcs_inter
@@ -326,26 +326,26 @@ function entangle_system(sys::System{M}, units) where M
     for bond in exemplars
         relevant_interactions = filter(data -> data[1] == bond, new_pair_data)
         bond_operator = sum(data[2] for data in relevant_interactions)
-        set_pair_coupling!(sys_entangled, bond_operator, bond)
+        set_pair_coupling!(sys_contracted, bond_operator, bond)
     end
 
-    return (; sys_entangled, contraction_info)
+    return (; sys_contracted, contraction_info)
 end
 
 
 function set_expected_dipoles_of_entangled_system!(esys)
-    for site in eachsite(esys.sys_origin)
+    for site in eachsite(esys.sys_uncontracted)
         set_expected_dipole_of_entangled_system!(esys, site)
     end
 end
 
 function set_expected_dipole_of_entangled_system!(esys, site)
-    (; sys, sys_origin, dipole_operators, source_idcs) = esys
-    (; dipoles) = sys_origin
+    (; sys_contracted, sys_uncontracted, dipole_operators, source_idcs) = esys
+    (; dipoles) = sys_uncontracted
 
     a, b, c, _ = site.I
     source_idx = source_idcs[site]
-    Z = sys.coherents[a, b, c, source_idx]
+    Z = sys_contracted.coherents[a, b, c, source_idx]
     dipoles[site] = ntuple(i -> real(dot(Z, dipole_operators[i, site], Z)), 3)
 
     nothing

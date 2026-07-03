@@ -17,19 +17,19 @@ end
 
 
 function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
-    (; sys, sys_origin) = esys
-    crystal_origin = orig_crystal(sys_origin)
-    if !isnothing(sys.ewald)
+    (; sys_contracted, sys_uncontracted) = esys
+    crystal_origin = orig_crystal(sys_uncontracted)
+    if !isnothing(sys_contracted.ewald)
         error("EntangledSpinWaveTheory does not yet support long-range dipole-dipole interactions.")
     end
 
-    measure = @something measure empty_measurespec(sys)
-    if nsites(sys_origin) != prod(size(measure.observables)[2:5])
+    measure = @something measure empty_measurespec(sys_contracted)
+    if nsites(sys_uncontracted) != prod(size(measure.observables)[2:5])
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    # Reshape (flatten) both sys and sys_origin in corresponding ways
-    sys, sys_origin = map([sys, sys_origin]) do sys
+    # Reshape (flatten) both sys_contracted and sys_uncontracted in corresponding ways
+    sys_contracted, sys_uncontracted = map([sys_contracted, sys_uncontracted]) do sys
         new_shape = cell_shape(sys) * diagm(Vec3(sys.dims))
         new_cryst = reshape_crystal(orig_crystal(sys), new_shape)
 
@@ -39,13 +39,13 @@ function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
 
     # Construct the new contraction_info (i.e. reconstruct maps between
     # entangled and unentangled systems)
-    new_units = units_for_reshaped_system(sys_origin, esys)
-    _, new_contraction_info = contract_crystal(sys_origin.crystal, new_units)
-    new_Ns_unit = Ns_in_units(sys_origin, new_contraction_info)
+    new_units = units_for_reshaped_system(sys_uncontracted, esys)
+    _, new_contraction_info = contract_crystal(sys_uncontracted.crystal, new_units)
+    new_Ns_unit = Ns_in_units(sys_uncontracted, new_contraction_info)
 
-    data = swt_data_entangled(sys, sys_origin, new_Ns_unit, new_contraction_info, measure)
+    data = swt_data_entangled(sys_contracted, sys_uncontracted, new_Ns_unit, new_contraction_info, measure)
 
-    return EntangledSpinWaveTheory(sys, data, measure, regularization, crystal_origin, new_contraction_info, new_Ns_unit)
+    return EntangledSpinWaveTheory(sys_contracted, data, measure, regularization, crystal_origin, new_contraction_info, new_Ns_unit)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", swt::EntangledSpinWaveTheory)
@@ -57,8 +57,8 @@ end
 nbands(swt::EntangledSpinWaveTheory) = (swt.sys.Ns[1]-1)  * natoms(swt.sys.crystal)
 
 function to_reshaped_rlu(esys::EntangledSystem, q)
-    (; sys, sys_origin) = esys
-    return sys.crystal.recipvecs \ (orig_crystal(sys_origin).recipvecs * q)
+    (; sys_contracted, sys_uncontracted) = esys
+    return sys_contracted.crystal.recipvecs \ (orig_crystal(sys_uncontracted).recipvecs * q)
 end
 
 function to_reshaped_rlu(eswt::EntangledSpinWaveTheory, q)
@@ -67,12 +67,12 @@ function to_reshaped_rlu(eswt::EntangledSpinWaveTheory, q)
 end
 
 # obs are observables _given in terms of `sys_original`_
-function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
+function swt_data_entangled(sys_contracted, sys_uncontracted, Ns_unit, contraction_info, measure)
 
     # Calculate transformation matrices into local reference frames
-    N = sys.Ns[1] # Assume uniform contraction for now
-    nunits = nsites(sys)
-    natoms = nsites(sys_origin)
+    N = sys_contracted.Ns[1] # Assume uniform contraction for now
+    nunits = nsites(sys_contracted)
+    natoms = nsites(sys_uncontracted)
     nobs = size(measure.observables, 1)
     observables = reshape(measure.observables, nobs, natoms)
 
@@ -94,7 +94,7 @@ function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
     for i in 1:nunits
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
         # Z that defines quantization axis
-        Z = sys.coherents[i]
+        Z = sys_contracted.coherents[i]
         U = hcat(nullspace(Z'), Z)
         local_unitaries[i] = U
 
@@ -113,7 +113,7 @@ function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
         U = local_unitaries[unit]
 
         # Rotate interactions into local reference frames
-        int = sys.interactions_union[unit]
+        int = sys_contracted.interactions_union[unit]
 
         # Rotate onsite anisotropy (not that, for entangled units, onsite already includes Zeeman)
         int.onsite = Hermitian(U' * int.onsite * U)
@@ -122,7 +122,7 @@ function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
         pair_new = PairCoupling[]
         for pc in int.pair
             # Convert PairCoupling to a purely general (tensor decomposed) interaction.
-            pc_general = as_general_pair_coupling(pc, sys)
+            pc_general = as_general_pair_coupling(pc, sys_contracted)
 
             # Rotate tensor decomposition into local frame.
             bond = pc.bond
