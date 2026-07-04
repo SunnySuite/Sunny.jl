@@ -1,6 +1,3 @@
-#TODO: Test this rigorously -- this is key to reshaping EntangledSystems and
-# making EntangledSpinWaveTheorys.
-
 # An entangled system can be specified with a list of
 # tuples, e.g. [(1,2), (3,4)], which will group the original sites 1 and 2 into
 # one unit and 3 and 4 into another. Given an EntangledSystem constructed from a
@@ -16,8 +13,9 @@ function units_for_reshaped_system(reshaped_sys_uncontracted, esys)
     # Take a list of all the new atoms in the reshaped system. Pick the first.
     # Map it back to the original system to determine what unit it belongs to.
     # Then map all members of the unit forward to define the unit in terms of
-    # the atoms of the reshaped system. Remove these atoms from the list of
-    # sites left to be "entangled" and repeat until list of new atoms is
+    # the atoms of the reshaped system. In so doing ensure that the unit has not
+    # been split across multiple reshaped cells. Remove these atoms from the
+    # list of sites left to be "entangled" and repeat until list of new atoms is
     # exhausted.
     while length(new_atoms) > 0
         # Pick any site from list of new sites
@@ -48,7 +46,7 @@ function units_for_reshaped_system(reshaped_sys_uncontracted, esys)
         end
         new_unit = Int64[]
         for (a, lattice_offset) in new_unit_sites
-            if !all(==(0), lattice_offset)
+            if !allequal(lattice_offset)
                 error("Given shape incompatible with entangled unit structure. Unit split between crystallographic cells.")
             end
             push!(new_unit, a)
