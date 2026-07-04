@@ -22,31 +22,33 @@ function units_for_reshaped_system(reshaped_sys_uncontracted, esys)
     while length(new_atoms) > 0
         # Pick any site from list of new sites
         new_atom = new_atoms[1]
-        new_site = (1, 1, 1, new_atom) # Only need to define for a single unit cell, may as well be the first
-        new_position = position_at(reshaped_sys_uncontracted, new_site)
+        new_site = (1, 1, 1, new_atom) # Any representative cell works.
+        new_site_global = global_position_at(reshaped_sys_uncontracted, new_site)
 
-        # Find corresponding original atom number.
-        site = position_to_site(sys_uncontracted, position_at(reshaped_sys_uncontracted, new_site))
-        original_atom = site[4]
-        position_of_corresponding_atom = position_at(sys_uncontracted, (1, 1, 1, original_atom))
-        offset = new_position - position_of_corresponding_atom
+        # Map the reshaped site back to an atom in the original crystal.
+        new_site_in_original_basis = sys_uncontracted.crystal.latvecs \ new_site_global
+        original_site = position_to_site(sys_uncontracted, new_site_in_original_basis)
+        original_atom = original_site[4]
 
-        # Find the unit to which this original atom belongs.
+        # Find the original unit containing this atom.
         unit = units[findfirst(unit -> original_atom in unit, units)]
 
-        # Find positions of all atoms in the unit, map into the reshaped
-        # crystal, and reject any mapping that requires a nonzero lattice
-        # offset (indicating a split across crystallographic cells).
-        unit_positions = [position_at(sys_uncontracted, (1, 1, 1, atom)) for atom in unit]
-        new_unit_sites = map(unit_positions) do position
-            position_to_atom_and_offset(
-                reshaped_sys_uncontracted.crystal,
-                reshaped_sys_uncontracted.crystal.latvecs \ orig_crystal(reshaped_sys_uncontracted).latvecs * (position + offset),
-            )
+        # Build displacements from the reference atom to every atom in the
+        # unit, then apply those displacements to the reshaped reference site.
+        original_reference_position = position_at(sys_uncontracted, (1, 1, 1, original_atom))
+        unit_displacements = [position_at(sys_uncontracted, (1, 1, 1, atom)) - original_reference_position for atom in unit]
+        unit_displacements_global = [sys_uncontracted.crystal.latvecs * displacement for displacement in unit_displacements]
+
+        # Map each target position back to a reshaped-crystal atom + lattice
+        # offset. Any nonzero offset means the unit was split across cells.
+        new_unit_sites = map(unit_displacements_global) do displacement_global
+            target_global = new_site_global + displacement_global
+            target_in_reshaped_basis = reshaped_sys_uncontracted.crystal.latvecs \ target_global
+            position_to_atom_and_offset(reshaped_sys_uncontracted.crystal, target_in_reshaped_basis)
         end
         new_unit = Int64[]
-        for (a, n) in new_unit_sites
-            if !all(==(0), n)
+        for (a, lattice_offset) in new_unit_sites
+            if !all(==(0), lattice_offset)
                 error("Given shape incompatible with entangled unit structure. Unit split between crystallographic cells.")
             end
             push!(new_unit, a)
