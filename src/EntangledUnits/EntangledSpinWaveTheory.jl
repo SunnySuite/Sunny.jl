@@ -152,10 +152,11 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
-    nunits = nsites(sys)                  # System "sites" are really entangled units
-    nunits_per_cell = natoms(sys.crystal) # Crystal "atoms" are really entangled units
+    nunits = nsites(sys)                                                # System "sites" are really entangled units
+    natoms_magcell = sum(length(el) for el in contraction_info.inverse) # Reconstruct number of atomic sites
+    natoms_crystcell = natoms(crystal_origin)                           # Number of atoms in defining crystal
     # Number of chemical cells in magnetic cell
-    Ncells = nunits / nunits_per_cell
+    Ncells = natoms_magcell / natoms_crystcell
     # Number of quasiparticle modes
     L = nbands(swt)
     # Number of wavevectors
