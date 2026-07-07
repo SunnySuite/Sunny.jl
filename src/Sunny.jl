@@ -39,6 +39,7 @@ export spin_matrices, stevens_matrices, to_product_space, rotate_operator, print
 include("Symmetry/SymOp.jl")
 include("Symmetry/MSymOp.jl")
 include("Symmetry/SpacegroupData.jl")
+include("Symmetry/TSubgroupData.jl")
 include("Symmetry/WyckoffData.jl")
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/Crystal.jl")

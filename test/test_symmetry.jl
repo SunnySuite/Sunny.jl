@@ -343,7 +343,7 @@ end
         # match the magnetic cell of that mCIF. For this reason, we need a fixed
         # and unambiguous convention. The function `conventionalize_setting`
         # includes heuristics that aim for consistency with the table
-        # `mapping_to_standard_setting`, which was sourced from PyXTal.
+        # `mapping_to_standard_setting`, which was sourced from PyXtal.
         if !(sg.setting ≈ setting′)
             push!(misses, hall)
         end
@@ -357,9 +357,9 @@ end
 
     # The simple heuristics in `conventionalize_setting` miss for the 54 Hall
     # numbers listed below. These misses are to some extent arbitrary (depending
-    # on the choices made in the PyXTal-sourced table). The purpose of this test
-    # is to maintain consistency of the `conventionalize_setting` behavior,
-    # which determines indexing conventions when loading mCIF cells.
+    # on the choices made in the PyXtal-sourced table). The purpose of this test
+    # is to encourage consistency in `conventionalize_setting`, which determines
+    # indexing conventions when loading mCIF cells.
     @test misses == [5, 11, 14, 15, 59, 65, 68, 69, 111, 114, 118, 121, 127, 136, 141, 153, 163, 172, 175, 184, 189, 195, 201, 207, 211, 214, 217, 220, 225, 232, 237, 240, 242, 243, 252, 255, 265, 277, 282, 299, 302, 305, 308, 312, 315, 317, 320, 324, 328, 330, 340, 344, 347, 527]
 end
 
