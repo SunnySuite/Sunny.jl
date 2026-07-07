@@ -279,7 +279,7 @@ end
 function hall_number_from_symops(sgnum, symops; tol)
     sgts = filter(all_spacegroup_types_for_symbol(sgnum)) do sgt
         Rs, Ts = Spglib.get_symmetry_from_database(sgt.hall_number)
-        isapprox(SymOp.(Rs, Ts), symops; atol=tol)
+        same_symops(SymOp.(Rs, Ts), symops; atol=tol)
     end
 
     if isempty(sgts)

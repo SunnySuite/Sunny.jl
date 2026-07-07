@@ -71,16 +71,11 @@ function parse_op(str::AbstractString) :: SymOp
             if isnothing(j)
                 T[i] += parse_number_or_fraction(t)
             else
-                coeff = t[begin:end-1]
-                R[i, j] += begin
-                    if coeff == ""
-                        1
-                    elseif coeff == "-"
-                        -1
-                    else
-                        parse_number_or_fraction(coeff)
-                    end
-                end
+                # The variable is the last character; the prefix is its
+                # coefficient. Any fractional coefficient is parenthesized,
+                # e.g. "(1/2)x", so that the variable stays last.
+                coeff = replace(t[begin:end-1], "(" => "", ")" => "")
+                R[i, j] += coeff == "" ? 1 : coeff == "-" ? -1 : parse_number_or_fraction(coeff)
             end
         end
     end
@@ -254,7 +249,7 @@ function Crystal(filename::AbstractString; symprec=nothing, keep_supercell=false
             error("Inferred spacegroup $(ret.sg.number) differs from $sg_number in CIF.$suggest_symprec")
         end
 
-        symops_consistent = isapprox(symops, ret.sg.symops; atol=symprec)
+        symops_consistent = same_symops(symops, ret.sg.symops; atol=symprec)
         hall_number_inferred = hall_number_from_symops(ret.sg.number, ret.sg.symops; tol=symprec)
 
         if symops_consistent

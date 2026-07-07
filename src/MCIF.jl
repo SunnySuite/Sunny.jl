@@ -53,6 +53,11 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString; symprec=n
     # round-tripping through the "ITA standard" chemical cell.
     map_mcif_coord = MSymOp(inv(cryst.sg.setting) * mcif_cryst.sg.setting)
 
+    # When the chemical and magnetic cells are constructed through different
+    # pathways, they may differ in, e.g., the origin choice implicit to
+    # `setting`. Check self-consistency before proceeding.
+    all_integer(map_mcif_coord.T; tol=1e-12) || error("Inconsistent chemical and mCIF settings")
+
     # Use the zero vector as a marker for unvisited sites
     fill!(sys.dipoles, zero(Vec3))
 

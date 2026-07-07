@@ -65,9 +65,10 @@ function position_to_wyckoff_params(r::Vec3, w::WyckoffExpr; tol)
     # systems. Empirical tests indicate that just eight shifts are sufficient:
     # Δb ∈ [{-1,0}, {-1,0}, {-1,0}]. Removing these shifts will cause failures
     # in the "Wyckoff table" unit test.
+    pinv_F = pinv(F)
     for Δb in Iterators.product((-1, 0), (-1, 0), (-1, 0))
         Δb = Vec3(Δb)
-        θ = pinv(F) * (b + Δb)
+        θ = pinv_F * (b + Δb)
         if isapprox(F * θ, b + Δb; atol=tol)
             return θ
         end

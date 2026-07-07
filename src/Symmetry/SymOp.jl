@@ -45,7 +45,7 @@ function Base.isapprox(s1::SymOp, s2::SymOp; atol=1e-12)
     return isapprox(s1.R, s2.R; atol=atol*√9) && isapprox(T1, T2; atol=atol*√3)
 end
 
-# Approximate group subset relation
+# Approximate subset relation between symops
 function Base.issubset(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; atol=1e-8)
     return all(g1) do s
         any(g2) do s′
@@ -54,8 +54,8 @@ function Base.issubset(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; ato
     end
 end
 
-# Approximate equality of groups
-function Base.isapprox(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; atol=1e-12)
+# Approximate equality of two sets of symops
+function same_symops(g1::AbstractVector{SymOp}, g2::AbstractVector{SymOp}; atol=1e-8)
     return issubset(g1, g2; atol) && issubset(g2, g1; atol)
 end
 

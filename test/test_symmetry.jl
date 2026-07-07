@@ -57,7 +57,7 @@ end
     positions = [[1, 1, 1], [-1, -1, -1]] / 8
     msg = "Cell is 1/4 the standard size for spacegroup 227. Consider `standardize`."
     cryst = @test_logs (:info, msg) Crystal(latvecs, positions)
-    ref_bonds = reference_bonds(cryst, 2.)
+    ref_bonds = reference_bonds(cryst, 1.)
     dist1 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
     # From spacegroup symmetry
@@ -65,7 +65,7 @@ end
     positions = [Sunny.Vec3(1, 1, 1) / 8]
     types = [""]
     cryst = Sunny.crystal_from_spacegroup(latvecs, positions, types, cryst.sg; symprec=1e-8)
-    ref_bonds = reference_bonds(cryst, 2.)
+    ref_bonds = reference_bonds(cryst, 1.)
     dist2 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
     # Using international symbol
@@ -73,7 +73,7 @@ end
     positions = [[1, 1, 1] / 4]
     @test_throws "Symbol \"F d -3 m\" is ambiguous; consider choice=\"2\" (standard) or choice=\"1\"" Crystal(latvecs, positions, "F d -3 m")
     cryst = Crystal(latvecs, positions, "F d -3 m"; choice="1")
-    ref_bonds = reference_bonds(cryst, 2.)
+    ref_bonds = reference_bonds(cryst, 1.)
     dist3 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
     @test dist1 ≈ dist2 ≈ dist3
@@ -92,7 +92,7 @@ end
     @test Sunny.get_wyckoff(cryst, 1) == Sunny.get_wyckoff(cryst′, 1)
 
     # Calculate interaction table
-    ref_bonds = reference_bonds(cryst, 2.)
+    ref_bonds = reference_bonds(cryst, 1.0)
     bond = ref_bonds[2]
     basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, bond)
     bs = Sunny.all_symmetry_related_bonds_for_atom(cryst, bond.i, bond)
@@ -212,7 +212,7 @@ end
         setting = Sunny.mapping_to_standard_setting(hall_c)
         g_c = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall_c)...)
         g_s = Sunny.SymOp.(Spglib.get_symmetry_from_database(hall_s)...)
-        @test Sunny.map_symop_to_setting.(g_s; setting) ≈ g_c
+        @test Sunny.same_symops(Sunny.map_symop_to_setting.(g_s; setting), g_c)
     end
 
     ### Check settings for trigonal spacegroup
@@ -343,7 +343,7 @@ end
         # match the magnetic cell of that mCIF. For this reason, we need a fixed
         # and unambiguous convention. The function `conventionalize_setting`
         # includes heuristics that aim for consistency with the table
-        # `mapping_to_standard_setting`, which was sourced from PyXTal.
+        # `mapping_to_standard_setting`, which was sourced from PyXtal.
         if !(sg.setting ≈ setting′)
             push!(misses, hall)
         end
@@ -357,9 +357,9 @@ end
 
     # The simple heuristics in `conventionalize_setting` miss for the 54 Hall
     # numbers listed below. These misses are to some extent arbitrary (depending
-    # on the choices made in the PyXTal-sourced table). The purpose of this test
-    # is to maintain consistency of the `conventionalize_setting` behavior,
-    # which determines indexing conventions when loading mCIF cells.
+    # on the choices made in the PyXtal-sourced table). The purpose of this test
+    # is to encourage consistency in `conventionalize_setting`, which determines
+    # indexing conventions when loading mCIF cells.
     @test misses == [5, 11, 14, 15, 59, 65, 68, 69, 111, 114, 118, 121, 127, 136, 141, 153, 163, 172, 175, 184, 189, 195, 201, 207, 211, 214, 217, 220, 225, 232, 237, 240, 242, 243, 252, 255, 265, 277, 282, 299, 302, 305, 308, 312, 315, 317, 320, 324, 328, 330, 340, 344, 347, 527]
 end
 
@@ -676,4 +676,75 @@ end
     E = energy(sys)
 
     @test E ≈ E0
+end
+
+@testitem "Subgroup crystal" begin
+    using LinearAlgebra
+    import Spglib
+    using Sunny: SymOp, parse_op, standard_setting, t_subgroups, subgroup_crystal, same_symops
+
+    # A representative cell for each lattice system.
+    function rep_latvecs(sgnum)
+        ct = Sunny.cell_type(standard_setting[sgnum])
+        ct == Sunny.triclinic    ? lattice_vectors(5, 6, 7, 80, 85, 95) :
+        ct == Sunny.monoclinic   ? lattice_vectors(5, 6, 7, 90, 100, 90) :
+        ct == Sunny.orthorhombic ? lattice_vectors(5, 6, 7, 90, 90, 90) :
+        ct == Sunny.tetragonal   ? lattice_vectors(5, 5, 7, 90, 90, 90) :
+        ct == Sunny.hexagonal    ? lattice_vectors(5, 5, 7, 90, 90, 120) :
+                                   lattice_vectors(5, 5, 5, 90, 90, 90)
+    end
+
+    # Exhaustively sweep every tabulated t-subgroup of every spacegroup.
+    for sgnum in 1:230
+        isempty(t_subgroups[sgnum]) && continue
+        cryst = Crystal(rep_latvecs(sgnum), [[0.2, 0.1, 0.3]], sgnum)
+
+        for (subnum, str) in t_subgroups[sgnum]
+            # `str` round-trips through `parse_op` (also exercises "x/2" forms).
+            @test string(parse_op(str)) isa String
+
+            # Extract the parent symops belonging to this t-subgroup, and skip
+            # entries that don't form a complete group in this representative
+            # cell (e.g. when a mirror collapses onto the identity).
+            P = inv(parse_op(str)) * cryst.sg.setting
+            subdb = SymOp.(Spglib.get_symmetry_from_database(standard_setting[subnum])...)
+            symops = filter(s -> issubset([P * s * inv(P)], subdb), cryst.sg.symops)
+            same_symops([P * s * inv(P) for s in symops], subdb; atol=1e-6) || continue
+
+            # `subgroup_crystal` runs `validate_crystal` internally, which checks
+            # Wyckoff multiplicities against the (possibly enlarged) cell.
+            sub = subgroup_crystal(cryst, symops)
+            @test sub.sg.number == subnum
+
+            # Verify against Spglib: the subgroup symops, mapped to the ITA
+            # standard setting, are a subset of the tabulated database group.
+            Q = sub.sg.setting
+            @test same_symops([Q * s * inv(Q) for s in sub.sg.symops], subdb)
+        end
+    end
+
+    # Recursion through the maximal-subgroup chain: from Pmmm (#47) these targets
+    # sit several levels down, so a single tabulated lookup cannot reach them.
+    # Enumerating all descent paths and selecting the best-scoring setting keeps
+    # the axis-aligned cell aligned: breaking down to P1/P-1 yields the identity
+    # setting, with no gratuitous axis permutation or translation.
+    cryst = Crystal(lattice_vectors(5, 6, 7, 90, 90, 90), [[0.2, 0.1, 0.3]], 47)
+    p1 = subgroup_crystal(cryst, [SymOp("x,y,z")])                     # P1
+    @test p1.sg.number == 1 && p1.sg.setting ≈ SymOp("x,y,z")
+    pbar1 = subgroup_crystal(cryst, [SymOp("x,y,z"), SymOp("-x,-y,-z")])  # P-1
+    @test pbar1.sg.number == 2 && pbar1.sg.setting ≈ SymOp("x,y,z")
+    @test subgroup_crystal(cryst, [SymOp("x,y,z"), SymOp("x,y,-z")]).sg.number == 6    # Pm
+
+    # Deep descent from a body-centered cubic parent (#229) once triggered
+    # unbounded recursion. The P1/P-1 standard cell is primitive (half volume),
+    # so the setting has determinant 2 with no translation.
+    cryst = Crystal(lattice_vectors(5, 5, 5, 90, 90, 90), [[0.2, 0.1, 0.3]], 229)
+    p1 = subgroup_crystal(cryst, [SymOp("x,y,z")])
+    @test p1.sg.number == 1 && det(p1.sg.setting.R) ≈ 2 && iszero(p1.sg.setting.T)
+    pbar1 = subgroup_crystal(cryst, [SymOp("x,y,z"), SymOp("-x,-y,-z")])
+    @test pbar1.sg.number == 2 && det(pbar1.sg.setting.R) ≈ 2 && iszero(pbar1.sg.setting.T)
+
+    # Error when the provided symops are not a subset of the parent group.
+    cryst = Crystal(lattice_vectors(3, 4, 5, 90, 90, 90), [[0, 0, 0]], 16)
+    @test_throws "not a subset" subgroup_crystal(cryst, [SymOp("x,y,z"), SymOp("y,x,z")])
 end
