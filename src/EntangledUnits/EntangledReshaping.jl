@@ -6,8 +6,9 @@
 function units_for_reshaped_system(reshaped_sys_uncontracted, esys)
     (; sys_uncontracted) = esys
     units = original_unit_spec(esys)
-    new_crystal = reshaped_sys_uncontracted.crystal
-    new_atoms = collect(1:natoms(new_crystal))
+    base_crystal = sys_uncontracted.crystal # NOT orig_crystal
+    reshaped_crystal = reshaped_sys_uncontracted.crystal
+    new_atoms = collect(1:natoms(reshaped_crystal))
     new_units = []
 
     # Take a list of all the new atoms in the reshaped system. Pick the first.
@@ -17,40 +18,47 @@ function units_for_reshaped_system(reshaped_sys_uncontracted, esys)
     # been split across multiple reshaped cells. Remove these atoms from the
     # list of sites left to be "entangled" and repeat until list of new atoms is
     # exhausted.
+    #
+    # It's important here to not rely on functions that implicitly 
+    # go back to `orig_crystal` internally. This very un-Sunny-like behavior
+    # will be remedied with the big refactor, but this is the correct procedure
+    # for the current set up. This is necessitated because the "entanglement recipe"
+    # is potentially specified on the atom numbers of a reshaped crystal. (Sunny
+    # doesn't make these numbers public, but they can be determined by inspection, and
+    # must be when setting up a system in the current implementation.)
     while length(new_atoms) > 0
         # Pick any site from list of new sites
         new_atom = new_atoms[1]
+        new_site_global = reshaped_crystal.latvecs * reshaped_crystal.positions[new_atom] 
 
         # Get the corresponding atom in the original system
-        original_atom = map_atom_to_other_system(new_crystal, new_atom, sys_uncontracted)[4]
+        new_site_in_original_basis = sys_uncontracted.crystal.latvecs \ new_site_global
+        original_atom = position_to_atom(sys_uncontracted.crystal, new_site_in_original_basis)
 
         # Find the original unit containing this atom.
         unit = units[findfirst(unit -> original_atom in unit, units)]
 
         # Build displacements from the reference atom to every atom in the
         # unit, then apply those displacements to the reshaped reference site.
-        original_reference_position = position_at(sys_uncontracted, (1, 1, 1, original_atom))
-        unit_displacements = [position_at(sys_uncontracted, (1, 1, 1, atom)) - original_reference_position for atom in unit]
+        unit_displacements = [base_crystal.positions[atom] - base_crystal.positions[original_atom] for atom in unit]
 
         # Map each target position back to a reshaped-crystal atom + lattice
         # offset. Any nonzero offset means the unit was split across cells.
         new_unit_atoms_and_offsets = map(unit_displacements) do displacement
-            target_global = orig_crystal(sys_uncontracted).latvecs*(original_reference_position + displacement)
+            target_global = base_crystal.latvecs*(new_site_in_original_basis + displacement)
             target_in_reshaped_basis = reshaped_sys_uncontracted.crystal.latvecs \ target_global
             position_to_atom_and_offset(reshaped_sys_uncontracted.crystal, target_in_reshaped_basis)
         end
-        new_unit = Int64[]
-        for (a, lattice_offset) in new_unit_atoms_and_offsets
-            if !allequal(lattice_offset)
-                error("Given shape incompatible with entangled unit structure. Unit split between crystallographic cells.")
-            end
-            push!(new_unit, a)
+        new_unit_atoms   = [info[1] for info in new_unit_atoms_and_offsets]
+        new_unit_offsets = [info[2] for info in new_unit_atoms_and_offsets]
+        if !allequal(new_unit_offsets) || (length(unique(new_unit_atoms)) != length(new_unit_atoms))
+            error("Given shape incompatible with entangled unit structure. Unit split between crystallographic cells.")
         end
-        push!(new_units, Tuple(new_unit))
+        push!(new_units, Tuple(new_unit_atoms))
 
         # Delete members of newly defined unit from list of all atoms in the
         # reshaped system.
-        idcs = findall(atom -> atom in new_unit, new_atoms)
+        idcs = findall(atom -> atom in new_unit_atoms, new_atoms)
         deleteat!(new_atoms, idcs)
     end
 
