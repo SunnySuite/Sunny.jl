@@ -1,55 +1,64 @@
-#TODO: Test this rigorously -- this is key to reshaping EntangledSystems and
-# making EntangledSpinWaveTheorys. 
-
 # An entangled system can be specified with a list of
 # tuples, e.g. [(1,2), (3,4)], which will group the original sites 1 and 2 into
 # one unit and 3 and 4 into another. Given an EntangledSystem constructed from a
-# sys_origin and and a reshaped sys_origin, this function returns a list of
+# sys_uncontracted and a reshaped sys_uncontracted, this function returns a list of
 # tuples for specifying the corresponding entanglement of the reshaped system.
-function units_for_reshaped_system(reshaped_sys_origin, esys)
-    (; sys_origin) = esys                 
+function units_for_reshaped_system(reshaped_sys_uncontracted, esys)
+    (; sys_uncontracted) = esys
     units = original_unit_spec(esys)
-    new_crystal = reshaped_sys_origin.crystal
-    new_atoms = collect(1:natoms(new_crystal))
+    base_crystal = sys_uncontracted.crystal # NOT orig_crystal
+    reshaped_crystal = reshaped_sys_uncontracted.crystal
+    new_atoms = collect(1:natoms(reshaped_crystal))
     new_units = []
 
     # Take a list of all the new atoms in the reshaped system. Pick the first.
     # Map it back to the original system to determine what unit it belongs to.
     # Then map all members of the unit forward to define the unit in terms of
-    # the atoms of the reshaped system. Remove these atoms from the list of
-    # sites left to be "entangled" and repeat until list of new atoms is
+    # the atoms of the reshaped system. In so doing ensure that the unit has not
+    # been split across multiple reshaped cells. Remove these atoms from the
+    # list of sites left to be "entangled" and repeat until list of new atoms is
     # exhausted.
+    #
+    # It's important here to not rely on functions that implicitly 
+    # go back to `orig_crystal` internally. This very un-Sunny-like behavior
+    # will be remedied with the big refactor, but this is the correct procedure
+    # for the current set up. This is necessitated because the "entanglement recipe"
+    # is potentially specified on the atom numbers of a reshaped crystal. (Sunny
+    # doesn't make these numbers public, but they can be determined by inspection, and
+    # must be when setting up a system in the current implementation.)
     while length(new_atoms) > 0
         # Pick any site from list of new sites
         new_atom = new_atoms[1]
-        new_site = (1, 1, 1, new_atom) # Only need to define for a single unit cell, may as well be the first 
-        new_position = position_at(reshaped_sys_origin, new_site)
+        new_site_global = reshaped_crystal.latvecs * reshaped_crystal.positions[new_atom] 
 
-        # Find corresponding original atom number.
-        site = position_to_site(sys_origin, position_at(reshaped_sys_origin, new_site))
-        original_atom = site[4]
-        position_of_corresponding_atom = position_at(sys_origin, (1, 1, 1, original_atom))
-        offset = new_position - position_of_corresponding_atom
+        # Get the corresponding atom in the original system
+        new_site_in_original_basis = sys_uncontracted.crystal.latvecs \ new_site_global
+        original_atom = position_to_atom(sys_uncontracted.crystal, new_site_in_original_basis)
 
-        # Find the unit to which this original atom belongs.
+        # Find the original unit containing this atom.
         unit = units[findfirst(unit -> original_atom in unit, units)]
 
-        # Find positions of all atoms in the unit, find corresponding sites in reshape system, and define unit for reshaped system.
-        unit_positions = [position_at(sys_origin, (1, 1, 1, atom)) for atom in unit]
-        new_unit_sites = [position_to_site(reshaped_sys_origin, position + offset) for position in unit_positions]
-        new_unit = Int64[]
-        for new_site in new_unit_sites
-            i, j, k, a = new_site.I
-            if !(i == j == k == 1)
-                error("Specified reshaping incompatible with specified entangled units. (Unit split between crystalographic unit cells.)")
-            end
-            push!(new_unit, a)
+        # Build displacements from the reference atom to every atom in the
+        # unit, then apply those displacements to the reshaped reference site.
+        unit_displacements = [base_crystal.positions[atom] - base_crystal.positions[original_atom] for atom in unit]
+
+        # Map each target position back to a reshaped-crystal atom + lattice
+        # offset. Any nonzero offset means the unit was split across cells.
+        new_unit_atoms_and_offsets = map(unit_displacements) do displacement
+            target_global = base_crystal.latvecs*(new_site_in_original_basis + displacement)
+            target_in_reshaped_basis = reshaped_sys_uncontracted.crystal.latvecs \ target_global
+            position_to_atom_and_offset(reshaped_sys_uncontracted.crystal, target_in_reshaped_basis)
         end
-        push!(new_units, Tuple(new_unit))
+        new_unit_atoms   = [info[1] for info in new_unit_atoms_and_offsets]
+        new_unit_offsets = [info[2] for info in new_unit_atoms_and_offsets]
+        if !allequal(new_unit_offsets) || (length(unique(new_unit_atoms)) != length(new_unit_atoms))
+            error("Given shape incompatible with entangled unit structure. Unit split between crystallographic cells.")
+        end
+        push!(new_units, Tuple(new_unit_atoms))
 
         # Delete members of newly defined unit from list of all atoms in the
         # reshaped system.
-        idcs = findall(atom -> atom in new_unit, new_atoms)
+        idcs = findall(atom -> atom in new_unit_atoms, new_atoms)
         deleteat!(new_atoms, idcs)
     end
 
@@ -57,47 +66,33 @@ function units_for_reshaped_system(reshaped_sys_origin, esys)
 end
 
 function reshape_supercell(esys::EntangledSystem, shape)
-    (; sys, sys_origin) = esys
+    (; sys_contracted, sys_uncontracted) = esys
 
     # Reshape the origin System.
-    sys_origin_new = reshape_supercell(sys_origin, shape)
+    sys_uncontracted_new = reshape_supercell(sys_uncontracted, shape)
 
     # Reshape the the underlying "entangled" System.
-    units_new = units_for_reshaped_system(sys_origin_new, esys)
-    _, contraction_info = contract_crystal(sys_origin_new.crystal, units_new)
-    sys_new = reshape_supercell(sys, shape)
+    units_new = units_for_reshaped_system(sys_uncontracted_new, esys)
+    contracted_crystal, contraction_info = contract_crystal(sys_uncontracted_new.crystal, units_new)
+    sys_contracted_new = reshape_supercell(sys_contracted, shape)
+
+    # The two reshape paths must agree on crystal positions
+    contracted_crystal.positions ≈ sys_contracted_new.crystal.positions || error("Given shape incompatible with entangled unit structure.")
 
     # Construct dipole operator field for reshaped EntangledSystem
-    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
+    dipole_operators_origin = all_dipole_observables(sys_uncontracted_new; apply_g=false)
+    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_uncontracted_new, contraction_info)
 
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
+    return EntangledSystem(sys_contracted_new, sys_uncontracted_new, contraction_info, observables, source_idcs)
 end
 
-function repeat_periodically(esys, counts)
-    (; sys, sys_origin, contraction_info) = esys
-
-    # Repeat both entangled and original system periodically
-    sys_new = repeat_periodically(sys, counts)
-    sys_origin_new = repeat_periodically(sys_origin, counts)
-
-    # Construct dipole operator field for reshaped EntangledSystem
-    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
-
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
+function repeat_periodically(esys::EntangledSystem, counts)
+    (; sys_contracted) = esys
+    all(>=(1), counts) || error("Require at least one count in each direction.")
+    shape = cell_shape(sys_contracted) * diagm(Vec3(sys_contracted.dims .* counts))
+    return reshape_supercell(esys, shape)
 end
 
 function resize_supercell(esys::EntangledSystem, dims::NTuple{3,Int})
-    (; sys, sys_origin, contraction_info) = esys
-
-    # Resize both entangled and original system periodically
-    sys_new = reshape_supercell(sys, diagm(Vec3(dims)))
-    sys_origin_new = reshape_supercell(sys_origin, diagm(Vec3(dims)))
-
-    # Construct dipole operator field for reshaped EntangledSystem
-    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
-
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
+    return reshape_supercell(esys, diagm(Vec3(dims)))
 end

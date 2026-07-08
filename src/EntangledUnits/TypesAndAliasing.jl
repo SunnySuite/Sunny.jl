@@ -36,9 +36,9 @@ end
 ################################################################################
 struct EntangledSystem
     # Entangled System, original system, and mapping info between systems
-    sys               :: System                         # System containing entangled units
-    sys_origin        :: System                         # Original "uncontracted" system
-    contraction_info  :: CrystalContractionInfo         # Forward and inverse mapping data for sys <-> sys_origin
+    sys_contracted    :: System                         # System containing entangled units
+    sys_uncontracted  :: System                         # Original "uncontracted" system
+    contraction_info  :: CrystalContractionInfo         # Forward and inverse mapping data for sys_contracted <-> sys_uncontracted
 
     # Observable field for dipoles and mapping information for loops
     dipole_operators  :: Array{Matrix{ComplexF64}, 5}   # An observable field corresponding to dipoles of the original system.
@@ -61,30 +61,30 @@ Interactions must be specified for the original `System`. Sunny will
 automatically reconstruct the appropriate interactions for the
 `EntangledSystem`.
 """
-function EntangledSystem(sys::System{N}, units) where {N}
+function EntangledSystem(sys_uncontracted::System{N}, units) where {N}
     # Since external field is stored in the onsite interactions in
     # EntangledSystems and EntangledSystems are always homogenous (i.e.,
     # interactions are indexed by atom/unit, not site, external field
     # information must also be tracked by atom/unit index only.
-    for atom in axes(sys.coherents, 4)
-        @assert allequal(@view sys.gs[:,:,:,atom]) "`EntangledSystem` require g-factors be uniform across unit cells" 
+    for atom in axes(sys_uncontracted.coherents, 4)
+        @assert allequal(@view sys_uncontracted.gs[:,:,:,atom]) "`EntangledSystem` require g-factors be uniform across unit cells" 
     end
 
     # Generate pair of contracted and uncontracted systems
-    (; sys_entangled, contraction_info) = entangle_system(sys, units)
-    sys_origin = clone_system(sys)
+    (; sys_contracted, contraction_info) = entangle_system(sys_uncontracted, units)
+    sys_uncontracted = clone_system(sys_uncontracted)
 
     # Generate observable field. This observable field has as many entries as
     # the uncontracted system but contains operators in the local product spaces
     # of the contracted system. `source_idcs` provides the unit index (of the
     # contracted system) in terms of the atom index (of the uncontracted
     # system).
-    dipole_operators_origin = all_dipole_observables(sys_origin; apply_g=false) 
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
+    dipole_operators_origin = all_dipole_observables(sys_uncontracted; apply_g=false) 
+    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_uncontracted, contraction_info)
 
-    esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables, source_idcs)
+    esys = EntangledSystem(sys_contracted, sys_uncontracted, contraction_info, observables, source_idcs)
 
-    # Coordinate sys_entangled and sys_origin
+    # Coordinate sys_contracted and sys_uncontracted
     set_expected_dipoles_of_entangled_system!(esys)
 
     return esys
@@ -99,47 +99,93 @@ end
 # Aliasing 
 ################################################################################
 function Base.show(io::IO, esys::EntangledSystem)
-    print(io, "EntangledSystem($(mode_to_str(esys.sys)), $(supercell_to_str(esys.sys_origin.dims, esys.sys_origin.crystal)), $(energy_to_str(esys.sys)))")
+    print(io, "EntangledSystem($(mode_to_str(esys.sys_contracted)), $(supercell_to_str(esys.sys_uncontracted.dims, esys.sys_uncontracted.crystal)), $(energy_to_str(esys.sys_contracted)))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", esys::EntangledSystem)
-    printstyled(io, "EntangledSystem $(mode_to_str(esys.sys))\n"; bold=true, color=:underline)
-    println(io, supercell_to_str(esys.sys_origin.dims, esys.sys_origin.crystal))
-    if !isnothing(esys.sys_origin.origin)
-        shape = number_to_math_string.(cell_shape(esys.sys_origin))
+    printstyled(io, "EntangledSystem $(mode_to_str(esys.sys_contracted))\n"; bold=true, color=:underline)
+    println(io, supercell_to_str(esys.sys_uncontracted.dims, esys.sys_uncontracted.crystal))
+    if !isnothing(esys.sys_uncontracted.origin)
+        shape = number_to_math_string.(cell_shape(esys.sys_uncontracted))
         println(io, formatted_matrix(shape; prefix="Reshaped cell "))
     end
-    println(io, energy_to_str(esys.sys))
+    println(io, energy_to_str(esys.sys_contracted))
 end
 
-eachsite(esys::EntangledSystem) = eachsite(esys.sys_origin)
-eachunit(esys::EntangledSystem) = eachsite(esys.sys)
+eachsite(esys::EntangledSystem) = eachsite(esys.sys_uncontracted)
+eachunit(esys::EntangledSystem) = eachsite(esys.sys_contracted)
 
-energy(esys::EntangledSystem) = energy(esys.sys)
-energy_per_site(esys::EntangledSystem) = energy(esys.sys) / nsites(esys.sys_origin)
+energy(esys::EntangledSystem) = energy(esys.sys_contracted)
+energy_per_site(esys::EntangledSystem) = energy(esys.sys_contracted) / nsites(esys.sys_uncontracted)
 
 function clone_system(esys::EntangledSystem)
-    sys = clone_system(esys.sys)
-    sys_origin = clone_system(esys.sys_origin)
+    sys_contracted = clone_system(esys.sys_contracted)
+    sys_uncontracted = clone_system(esys.sys_uncontracted)
     contraction_info = copy(esys.contraction_info)
     dipole_operators = copy(esys.dipole_operators)
     source_idcs = copy(esys.source_idcs)
 
-    return EntangledSystem(sys, sys_origin, contraction_info, dipole_operators, source_idcs)
+    return EntangledSystem(sys_contracted, sys_uncontracted, contraction_info, dipole_operators, source_idcs)
+end
+
+function sync_entangled_system_from_origin!(esys::EntangledSystem)
+    (; sys_uncontracted) = esys
+    units = original_unit_spec(esys)
+    (; sys_contracted) = entangle_system(sys_uncontracted, units)
+
+    # Preserve the existing contracted-system object and only refresh the
+    # mutable fields that depend on model parameters. This keeps the coherents
+    # of the entangled system intact.
+    esys.sys_contracted.params = copy.(sys_contracted.params)
+    esys.sys_contracted.interactions_union = sys_contracted.interactions_union
+    esys.sys_contracted.ewald = sys_contracted.ewald
+    return esys
+end
+
+function set_active_labels!(esys::EntangledSystem, labels::Vector{Symbol})
+    set_active_labels!(esys.sys_contracted, labels)
+    set_active_labels!(esys.sys_uncontracted, labels)
+    return esys
+end
+
+get_active_labels(esys::EntangledSystem) = get_active_labels(esys.sys_contracted)
+
+function get_param(esys::EntangledSystem, label::Symbol)
+    return get_param(esys.sys_uncontracted, label)
+end
+
+function get_params(esys::EntangledSystem, labels::Vector{Symbol})
+    return get_param.(Ref(esys), labels)
+end
+
+function set_param!(esys::EntangledSystem, label::Symbol, val::Real)
+    return set_params!(esys, [label], [val])
+end
+
+function set_params!(esys::EntangledSystem, labels::Vector{Symbol}, vals::Vector{<: Real})
+    set_params!(esys.sys_uncontracted, labels, vals)
+    sync_entangled_system_from_origin!(esys)
+    return
+end
+
+function add_auxiliary_param!(esys::EntangledSystem, paramspec::ParamSpec)
+    add_auxiliary_param!(esys.sys_uncontracted, paramspec)
+    sync_entangled_system_from_origin!(esys)
+    return
 end
 
 function set_field!(esys::EntangledSystem, B)
-    (; sys, sys_origin, dipole_operators, source_idcs) = esys 
-    B_old = sys_origin.extfield[1,1,1,1] 
-    set_field!(sys_origin, B) 
+    (; sys_contracted, sys_uncontracted, dipole_operators, source_idcs) = esys
+    B_old = sys_uncontracted.extfield[1,1,1,1] 
+    set_field!(sys_uncontracted, B) 
 
     # Iterate through atom of original system and adjust the onsite operator of
     # corresponding unit of contracted system.
-    for atom in axes(sys_origin.coherents, 4)
+    for atom in axes(sys_uncontracted.coherents, 4)
         unit = source_idcs[1, 1, 1, atom]
         S = dipole_operators[:, 1, 1, 1, atom]
-        ΔB = sys_origin.gs[1, 1, 1, atom]' * (B - B_old) 
-        sys.interactions_union[unit].onsite += Hermitian(ΔB' * S)
+        ΔB = sys_uncontracted.gs[1, 1, 1, atom]' * (B - B_old) 
+        sys_contracted.interactions_union[unit].onsite += Hermitian(ΔB' * S)
     end
 end
 
@@ -156,7 +202,7 @@ end
 # Find the unique coherent state corresponding to a set of fully-polarized
 # dipoles on each site inside a specified entangled unit.
 function coherent_state_from_dipoles(esys::EntangledSystem, dipoles, unit)
-    (; sys_origin, contraction_info) = esys
+    (; sys_uncontracted, contraction_info) = esys
 
     # Find the atom indices (of original system) that lie in the specified unit
     # (of contracted system).
@@ -168,7 +214,7 @@ function coherent_state_from_dipoles(esys::EntangledSystem, dipoles, unit)
 
     # Retrieve the dimensions of the local Hilbert spaces corresponding to those
     # atoms.
-    Ns = Ns_in_units(sys_origin, contraction_info)[unit]
+    Ns = Ns_in_units(sys_uncontracted, contraction_info)[unit]
 
     # Generate a list of coherent states corresponding to given dipoles _in each
     # local Hilbert space_.
@@ -192,8 +238,9 @@ end
 # contracted lattice (i.e., to a "unit"). The function then updates all dipoles
 # in the uncontracted system that are determined by the coherent state. 
 function set_coherent!(esys::EntangledSystem, coherent, site)
+    (; sys_contracted) = esys
     site = to_cartesian(site)
-    set_coherent!(esys.sys, coherent, site)
+    set_coherent!(sys_contracted, coherent, site)
     a, b, c, unit = site.I
     for atom in atoms_in_unit(esys.contraction_info, unit)
         set_expected_dipole_of_entangled_system!(esys, CartesianIndex(a, b, c, atom))
@@ -201,36 +248,41 @@ function set_coherent!(esys::EntangledSystem, coherent, site)
 end
 
 function randomize_spins!(esys::EntangledSystem) 
-    randomize_spins!(esys.sys)
+    (; sys_contracted) = esys
+    randomize_spins!(sys_contracted)
     set_expected_dipoles_of_entangled_system!(esys)
 end
 
 function minimize_energy!(esys::EntangledSystem; kwargs...)
-    optout = minimize_energy!(esys.sys; kwargs...)
+    (; sys_contracted) = esys
+    optout = minimize_energy!(sys_contracted; kwargs...)
     set_expected_dipoles_of_entangled_system!(esys)
     return optout
 end
 
 function magnetic_moments(esys::EntangledSystem)
-    magnetic_moments(esys.sys_origin)
+    (; sys_uncontracted) = esys
+    magnetic_moments(sys_uncontracted)
 end
 
 function plot_spins(esys::EntangledSystem; kwargs...)
-    plot_spins(esys.sys_origin; kwargs...)
+    (; sys_uncontracted) = esys
+    plot_spins(sys_uncontracted; kwargs...)
 end
 
-ssf_custom(f, esys::EntangledSystem; kwargs...) = ssf_custom(f, esys.sys_origin; kwargs...)
-ssf_custom_bm(f, esys::EntangledSystem; kwargs...) = ssf_custom_bm(f, esys.sys_origin; kwargs...)
-ssf_trace(esys::EntangledSystem; kwargs...) = ssf_trace(esys.sys_origin; kwargs...)
-ssf_perp(esys::EntangledSystem; kwargs...) = ssf_perp(esys.sys_origin; kwargs...)
+ssf_custom(f, esys::EntangledSystem; kwargs...) = ssf_custom(f, esys.sys_uncontracted; kwargs...)
+ssf_custom_bm(f, esys::EntangledSystem; kwargs...) = ssf_custom_bm(f, esys.sys_uncontracted; kwargs...)
+ssf_trace(esys::EntangledSystem; kwargs...) = ssf_trace(esys.sys_uncontracted; kwargs...)
+ssf_perp(esys::EntangledSystem; kwargs...) = ssf_perp(esys.sys_uncontracted; kwargs...)
 
 # TODO: Note this simple wrapper makes everything work, but is not the most
 # efficient solution. `step!` currently syncs the dipoles field of the
 # EntangledSystem in a meaninless way. This field is ignored everywhere, but
 # this step represents needless computation.
 function step!(esys::EntangledSystem, integrator)
-    step!(esys.sys, integrator) 
+    (; sys_contracted) = esys
+    step!(sys_contracted, integrator) 
     set_expected_dipoles_of_entangled_system!(esys)
 end
 
-suggest_timestep(esys::EntangledSystem, integrator; kwargs...) = suggest_timestep(esys.sys, integrator; kwargs...)
+suggest_timestep(esys::EntangledSystem, integrator; kwargs...) = suggest_timestep(esys.sys_contracted, integrator; kwargs...)
