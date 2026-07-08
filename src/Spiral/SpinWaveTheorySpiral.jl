@@ -182,7 +182,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
         H[i+L, i]   += 2s*(c2[1]-im*c2[5]) + 12s^3*(c4[3]-im*c4[7]) + 32s^5*(c6[5]-im*c6[9])
     end
 
-    @assert diffnorm2(H, H') < 1e-12
+    @assert maxdiff(H, H') < 1e-12
     hermitianpart!(H)
 
     for i in 1:2L
