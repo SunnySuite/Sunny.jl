@@ -1,9 +1,10 @@
 # Release Notes
 
 ## v0.9.2
-(In development)
+(Jul 13, 2026)
 
-* Bug fixes and improvements to entangled units ([#494](@ref)).
+* Bug fixes and improvements to experimental entangled units feature
+  ([#494](@ref)).
 
 ## v0.9.1
 (Apr 25, 2026)
