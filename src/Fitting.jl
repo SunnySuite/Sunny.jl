@@ -608,9 +608,10 @@ end
 """
     uncertainty_matrix(loss, x)
 
-Returns the uncertainty matrix ``U = 2L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` at the loss
-minimizer ``\\hat 𝐱``. Uses finite differences to approximate the Hessian ``H =
-∇ ∇ L``.
+Returns the uncertainty matrix ``U = 2L(\\hat 𝐱) H(\\hat 𝐱)^{-1}`` at the
+minimizer ``\\hat 𝐱`` of the loss ``L``. The Hessian ``H = ∇ ∇ L`` is
+approximated using finite differences. Note that ``U`` is invariant to the
+overall loss scale.
 
 If ``L`` is a least-squares objective with a Gaussian noise model
 interpretation, then ``U/ν`` estimates the covariance of fitted parameters
@@ -622,51 +623,27 @@ parameters ``p``. Statistical error bars follow,
 \\mathrm{Std}(\\hat x_i) ≈ \\sqrt{U_{ii} / ν}.
 ```
 
-Aside from statistics, the matrix ``U`` also admits a purely geometric
-interpretation. Consider a quadratic expansion of ``L(𝐱)`` about ``\\hat 𝐱``.
-Perturbations ``𝐱 - \\hat 𝐱`` that increase the loss by a factor of 2 satisfy
-``\\Delta 𝐱^T U^{-1} \\Delta 𝐱 ≈ 1``. Thus ``U^{-1}`` defines an ellipsoid
-characterizing the shape and scale of the local loss basin.
+This estimator is valid provided that systematic modeling errors are negligible.
+Frequently, however, one works in the opposite limit. If the experimental data
+is relatively clean, then the true fit quality may actually be limited by
+systematic errors like incompleteness of the Hamiltonian ansatz, imperfect
+global optimization of the Hamiltonian parameters, or intrinsic inaccuracies of
+the calculation method itself.
 
-We define the _**misfit tolerance**_ ``\\sqrt{𝐧^T U 𝐧 / 2}`` along any
-normalized direction ``𝐧`` in parameter space. In particular, the misfit
-tolerance for ``\\hat x_i`` is
+When systematic errors dominate, a useful quantity is the "misfit tolerance",
 
 ```math
 δ\\hat x_i = \\sqrt{U_{ii} / 2}.
 ```
 
-Geometrically, ``δ\\hat x_i`` measures the scale over which ``x_i`` can vary
-before the loss grows by about 50%, while allowing correlated adjustments of the
-remaining parameters. The misfit tolerance is not a statistical quantity, but
-rather suggests a scale for admissible parameter variation that may become
-relevant when systematic modeling errors are large.
+Unlike the statistical error bar, this expression does _not_ typically vanish in
+the large-data limit, ``ν → ∞``. Geometrically, ``δ\\hat x_i`` measures the
+scale over which ``x_i`` can vary before the loss grows by about 50% (while
+allowing correlated adjustments of the remaining parameters). The misfit
+tolerance is not a statistical quantity, but rather suggests a scale for
+admissible parameter variation based on the loss function geometry.
 
-!!! tip "Comparing statistical uncertainty and misfit tolerance"
-
-    Observe that the misfit tolerance ``δ\\hat x_i`` has the same form as
-    ``\\mathrm{Std}(\\hat x_i)``, but is significantly larger due to the missing
-    ``ν^{-1/2}`` scaling factor.
-
-    If noise in the data is the main limitation to overall fit quality, then
-    ``\\mathrm{Std}(\\hat x_i)`` is the appropriate uncertainty measure. A signature
-    of this regime is that the residuals ``y_i-f_i(\\hat 𝐱)`` show no obvious
-    structure after accounting for known noise correlations.
-
-    Often, however, statistical noise is effectively small relative to systematic
-    modeling errors of various forms. For example, the fit could actually be limited
-    by incompleteness of the Hamiltonian ansatz, imperfect global optimization of
-    the Hamiltonian parameters, or intrinsic inaccuracies of the calculation method
-    itself.
-
-    When the observed loss is dominated by systematic errors, the misfit tolerance
-    ``δ\\hat x_i`` may provide useful information; it defines a parameter range that
-    allows for about 50% additional growth of the loss. Whereas statistical error
-    bars decay like ``ν^{-1/2} \\sim N^{-1/2}``, the misfit tolerance ``δ\\hat x_i``
-    will typically _not_ vanish in the large-data limit – even for a correctly
-    specified model!
-
-!!! tip "Derivation of the covariance estimator"
+!!! tip "Derivation of the statistical covariance estimator"
 
     Suppose the loss is a sum of squared errors with arbitrary scale ``c``,
 
