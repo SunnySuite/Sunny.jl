@@ -623,11 +623,10 @@ parameters ``p``. Statistical error bars follow,
 \\mathrm{Std}(\\hat x_i) ≈ \\sqrt{U_{ii} / ν}.
 ```
 
-This estimator is valid provided that systematic modeling errors are negligible.
-Frequently, however, one works in the opposite limit. If the experimental data
-is relatively clean, then the model may actually be limited by, e.g.,
-incompleteness of the Hamiltonian ansatz, imperfect global optimization of the
-model parameters, or intrinsic inaccuracies of the calculation method itself.
+This estimator ignores systematic modeling errors. Frequently, however, fit
+quality may actually be limited by, e.g., incompleteness of the Hamiltonian
+ansatz, imperfect global optimization of the model parameters, or intrinsic
+inaccuracies of the calculation method itself.
 
 When systematic errors dominate, a useful quantity is the "misfit tolerance",
 
@@ -635,12 +634,12 @@ When systematic errors dominate, a useful quantity is the "misfit tolerance",
 δ\\hat x_i = \\sqrt{U_{ii} / 2}.
 ```
 
-Unlike the statistical error bar, this expression does _not_ typically vanish in
-the large-data limit, ``ν → ∞``. Geometrically, ``δ\\hat x_i`` measures the
-scale over which ``x_i`` can vary before the loss grows by about 50% (while
-allowing correlated adjustments of the remaining parameters). The misfit
-tolerance is not a statistical quantity, but rather suggests a scale for
-admissible parameter variation based on the loss function geometry.
+Notably, this expression does _not_ typically vanish in the large-data limit,
+``ν → ∞``. Geometrically, ``δ\\hat x_i`` measures the scale over which ``x_i``
+can vary before the loss grows by about 50% (while allowing correlated
+adjustments of the remaining parameters). The misfit tolerance is not a
+statistical quantity, but rather suggests a scale for admissible parameter
+variation based on the loss function geometry.
 
 !!! tip "Derivation of the statistical covariance estimator"
 
