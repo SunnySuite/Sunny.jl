@@ -625,10 +625,9 @@ parameters ``p``. Statistical error bars follow,
 
 This estimator is valid provided that systematic modeling errors are negligible.
 Frequently, however, one works in the opposite limit. If the experimental data
-is relatively clean, then the true fit quality may actually be limited by
-systematic errors like incompleteness of the Hamiltonian ansatz, imperfect
-global optimization of the Hamiltonian parameters, or intrinsic inaccuracies of
-the calculation method itself.
+is relatively clean, then the model may actually be limited by, e.g.,
+incompleteness of the Hamiltonian ansatz, imperfect global optimization of the
+model parameters, or intrinsic inaccuracies of the calculation method itself.
 
 When systematic errors dominate, a useful quantity is the "misfit tolerance",
 
