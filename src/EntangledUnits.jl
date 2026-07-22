@@ -345,10 +345,6 @@ function entangle_system(uncontracted::System{M}, groupings) where M
     # Construct contracted (P1) crystal and the chemical-cell map
     contracted_crystal, unit_map = contract_crystal(uncontracted.crystal, unit_atoms, unit_offsets)
 
-    # The (uniform) external field couples to each unit's total moment
-    @assert allequal(@view uncontracted.extfield[:,:,:,:]) "Entangled units require a uniform applied field."
-    B = uncontracted.extfield[1,1,1,1]
-
     # Local Hilbert space dimensions per unit (all must be equal). (TODO:
     # Determine if alternative behavior preferable in mixed case.)
     Ns_units = [uncontracted.Ns[atoms_in_unit(unit_map, u)] for u in eachindex(unit_map.unit_to_members)]
@@ -356,18 +352,16 @@ function entangle_system(uncontracted::System{M}, groupings) where M
     @assert allequal(Ns_contracted) "After contraction, the dimensions of the local Hilbert spaces on each generalized site must all be equal."
     N = first(Ns_contracted)
 
-    # Build the contracted `System{N}` fields directly (cf. `reshape_supercell_aux`).
-    # An entangled system is an ordinary single-cell system that carries
-    # entanglement metadata: unit g-factors are the identity, κ = 1, and dipoles
-    # are undefined (NaN) because a unit's moment is a derived quantity. The
-    # couplings are installed below through the ordinary params backbone.
+    # Build the contracted System directly (cf. `reshape_supercell_aux`). Dipole
+    # and external field data are undefined here (NaN), and will instead be
+    # derived from the associated uncontracted system.
     nunits    = natoms(contracted_crystal)
     dims      = uncontracted.dims
     Ns        = reshape(collect(Ns_contracted), 1, 1, 1, :)
     κs        = ones(Float64, dims..., nunits)
     gs        = fill(Mat3(I), dims..., nunits)
     ints      = empty_interactions(:SUN, nunits, N)
-    extfield  = fill(B, dims..., nunits)
+    extfield  = fill(Vec3(NaN, NaN, NaN), dims..., nunits)
     dipoles   = fill(Vec3(NaN, NaN, NaN), dims..., nunits)
     coherents = zeros(CVec{N}, dims..., nunits)
     sys_entangled = System(nothing, :SUN, contracted_crystal, dims, Ns, κs, gs,

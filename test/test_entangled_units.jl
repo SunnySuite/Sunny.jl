@@ -67,13 +67,11 @@ end
     @test bare.dipoles[1,1,1,1][2] ≈ 1/2
     @test bare.dipoles[1,1,1,2][2] ≈ 1/2
 
-    # Test external field. The Zeeman term is not folded into the onsite
-    # operator; it lives in `extfield` (per unit) and couples to the unit's total
-    # moment via the per-unit total-moment operator. The onsite operator is
-    # unchanged.
+    # Test external field. The Zeeman coupling is derived through the
+    # uncontracted system.
     set_field!(esys, [0, 0, -10])
     @test esys.interactions_union[1].onsite ≈ onsite_ref
-    @test esys.extfield[1] ≈ [0, 0, -10]
+    @test all(isnan, esys.extfield[1])
     @test bare.extfield[1, 1, 1, 1] ≈ [0, 0, -10]
     @test bare.extfield[1, 1, 1, 2] ≈ [0, 0, -10]
 

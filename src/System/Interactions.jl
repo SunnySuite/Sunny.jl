@@ -233,10 +233,12 @@ See the documentation of [`set_field!`](@ref) for more information.
 function set_field_at!(sys::System, B_μB, site)
     site = to_cartesian(site)
     B = Vec3(B_μB)
-    sys.extfield[site] = B
 
-    # Mirror the field onto the physical member sites of this unit (straddle-safe).
-    if !isnothing(sys.entanglement)
+    if isnothing(sys.entanglement)
+        sys.extfield[site] = B
+    else
+        # For an entangled system, `sys.extfield` stays NaN. The Zeeman coupling
+        # is instead tracked through member sites of the uncontracted system.
         (; uncontracted) = get_entanglement(sys)
         for bs in entangled_unit_members(sys, site)
             uncontracted.extfield[bs] = B
