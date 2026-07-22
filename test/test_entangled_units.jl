@@ -275,5 +275,83 @@ end
 end
 
 
+@testitem "Cell offset for straddling dimers" begin
+    import LinearAlgebra: norm
+
+    # This test verifies that cell offsets work correctly when specifying units
+    # that straddle cell boundaries from the start.
+    #
+    # Geometry: 2 atoms per cell at positions [0, 0, 0] and [0.5, 0, 0]
+    # We create dimers where atom 2 from one cell is paired with atom 1 from the
+    # next cell, specified as: [(2, [0,0,0]), (1, [1,0,0])]
+
+    latvecs = [1.0 0 0; 0 1 0; 0 0 1]
+    positions = [[0.0, 0, 0], [0.5, 0, 0]]
+    crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
+
+    J = 1.0   # Strong coupling within the straddling dimer
+    J′ = 0.1  # Weak coupling between dimers
+
+    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
+
+    # The strong bond connects atom 2 to atom 1 in the next cell
+    set_exchange!(sys, J, Bond(2, 1, [1, 0, 0]))
+    # The weak bond connects the dimers
+    set_exchange!(sys, J′, Bond(1, 2, [0, 0, 0]))
+
+    # Key: specify the straddling dimer using cell offsets
+    # This unit contains atom 2 at offset [0,0,0] and atom 1 at offset [1,0,0]
+    esys = entangle_system(sys, [[(2, [0, 0, 0]), (1, [1, 0, 0])]])
+
+    # Verify the contracted crystal has the expected structure
+    @test length(esys.crystal.positions) == 1  # One unit per cell
+
+    # The unit center should be at (0.5 + 1.0)/2 = 0.75
+    @test esys.crystal.positions[1][1] ≈ 0.75
+
+    # Verify the strong J coupling was captured in the onsite operator
+    interactions = esys.interactions_union[1]
+    S = spin_matrices(1/2)
+    # Note: member 1 is atom 2, member 2 is atom 1 (order from the unit spec)
+    S2, S1 = to_product_space(S, S)
+    onsite_ref = J * (S2' * S1)
+    @test interactions.onsite ≈ onsite_ref
+
+    # The weak J′ bond connects different units, so it appears as a pair coupling
+    # It gets symmetrized, so we have both [±1, 0, 0] directions
+    @test length(interactions.pair) == 2
+    for pc in interactions.pair
+        b = pc.bond
+        @test b.i == b.j == 1
+        @test abs(b.n[1]) == 1  # Cell offset along x
+    end
+
+    # Find the ground state
+    randomize_spins!(esys)
+    minimize_energy!(esys)
+    E0 = energy_per_site(esys)
+
+    # Test intensities_bands calculation with full structure factor
+    qs = [[0.1, 0, 0], [0.2, 0, 0]]
+
+    swt = SpinWaveTheory(esys; measure=ssf_perp(esys))
+    res = intensities_bands(swt, qs)
+
+    @test all(isfinite, res.disp)
+    @test all(isfinite, res.data)
+
+    # Test that reshaping preserves the physics
+    esys_reshaped = reshape_supercell(esys, [2 0 0; 0 1 0; 0 0 1])
+    @test energy_per_site(esys_reshaped) ≈ E0 atol=1e-12
+
+    # Verify intensities_bands still works after reshaping (different number of bands due to larger system)
+    swt_reshaped = SpinWaveTheory(esys_reshaped; measure=ssf_perp(esys_reshaped))
+    res_reshaped = intensities_bands(swt_reshaped, qs)
+
+    @test all(isfinite, res_reshaped.disp)
+    @test all(isfinite, res_reshaped.data)
+end
+
+
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
 # end
