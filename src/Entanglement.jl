@@ -5,7 +5,7 @@
 # One part of an entangled unit.
 struct UnitPart
     atom  :: Int            # Atom index in the uncontracted crystal
-    Δcell :: SVector{3,Int} # Cell of this atom relative to the unit's cell
+    Δcell :: SVector{3,Int} # Cell of this atom relative to the unit centroid's cell
 end
 
 # Metadata for a System with entangled units. Hilbert dimension N of the
