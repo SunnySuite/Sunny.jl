@@ -442,7 +442,7 @@ end
 
 @inline function coherent_state(sys::System{N}, site, Z) where N
     Z = normalize_ket(CVec{N}(Z), sys.κs[site])
-    S = expected_spin(Z)
+    S = is_entangled(sys) ? Vec3(NaN, NaN, NaN) : expected_spin(Z)
     return SpinState(S, Z)
 end
 
@@ -452,6 +452,7 @@ end
     return SpinState(S, Z)
 end
 @inline function dipolar_state(sys::System{N}, site, dir) where N
+    @assert !is_entangled(sys)
     return coherent_state(sys, site, ket_from_dipole(Vec3(dir), Val(N)))
 end
 
@@ -492,27 +493,24 @@ end
 @inline function setspin!(sys::System{N}, spin::SpinState{N}, site) where N
     sys.dipoles[site] = spin.S
     sys.coherents[site] = spin.Z
+
     # For an entangled system, keep the physical dipoles of the affected unit
     # coherent with the just-updated coherent state.
-    isnothing(sys.entanglement) || sync_entangled_unit!(sys, site)
+    if !isnothing(sys.entanglement)
+        sync_bare_dipoles_at!(sys, site)
+    end
     return
 end
 
-# Recompute cached dipoles from the coherent states. Generalizes the bare
-# `@. sys.dipoles = expected_spin(Z)` update that ends an SU(N) `step!`, with two
-# paths:
-#
-#   1. Ordinary system: `sys.dipoles = ⟨Z|S|Z⟩`, assuming each coherent state
-#      lives in a single spin-(N-1)/2 irrep.
-#   2. Entangled system: `expected_spin` is meaningless (the product-space
-#      dimension is not a single irrep). Instead sync the physical dipoles held
-#      in `sys.entanglement.bare_system`, and set each contracted `sys.dipoles`
-#      to the unit's total physical magnetic moment (see `sync_entangled_unit!`).
-function set_expected_dipoles!(sys::System{N}) where N
+# Recompute spin dipoles from the coherent states.
+function sync_dipoles!(sys::System{N}) where N
     if isnothing(sys.entanglement)
         @. sys.dipoles = expected_spin(sys.coherents)
     else
-        set_expected_dipoles_entangled!(sys)
+        @. sys.dipoles = Vec3(NaN, NaN, NaN)
+        for site in eachsite(sys)
+            sync_bare_dipoles_at!(sys, site)
+        end
     end
     return
 end

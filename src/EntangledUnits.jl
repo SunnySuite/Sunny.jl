@@ -280,13 +280,28 @@ end
 
 
 ################################################################################
-# System contraction
+# Public API
 ################################################################################
-function entangle_system(::System{0}, _)
-    error("Cannot contract a dipole system. Use :SUN mode.")
-end
+"""
+    entangle_units(sys::System{N}, units)
 
-function entangle_system(sys::System{M}, units) where M
+Create a new [`System`](@ref) of "entangled units" from an existing `System`.
+`units` is a list of tuples specifying the atoms inside each unit cell that will
+be grouped into a single "entangled unit." This feature is only supported for
+systems that can be viewed as a regular lattice of a single unit type (all
+dimers, all trimers, etc). Sunny will use the SU(_N_) formalism to model each
+one of these units as a distinct Hilbert space in which the full quantum
+mechanical structure is locally preserved.
+
+Interactions must be specified for the original `System`. Sunny will
+automatically reconstruct the appropriate interactions for the entangled system.
+The returned `System` reports physical geometry (positions, dipoles) against the
+original crystal, while its dynamical variables are the coherent states of the
+entangled units.
+"""
+function entangle_units(sys::System{M}, units) where M
+    isnothing(sys.origin) || error("Entangle a single-cell system first, then reshape")
+
     # Construct contracted crystal
     contracted_crystal, contraction_info = contract_crystal(sys.crystal, units)
 
@@ -294,7 +309,8 @@ function entangle_system(sys::System{M}, units) where M
     @assert allequal(@view sys.extfield[:,:,:,:]) "Entangled units require a uniform applied field."
     B = sys.extfield[1,1,1,1]
 
-    # Determine Ns for local Hilbert spaces (all must be equal). (TODO: Determine if alternative behavior preferable in mixed case.)
+    # Determine Ns for local Hilbert spaces (all must be equal). (TODO:
+    # Determine if alternative behavior preferable in mixed case.)
     Ns_unit = Ns_in_units(sys, contraction_info)
     Ns_contracted = map(Ns -> prod(Ns), Ns_unit)
     @assert allequal(Ns_contracted) "After contraction, the dimensions of the local Hilbert spaces on each generalized site must all be equal."
@@ -325,9 +341,9 @@ function entangle_system(sys::System{M}, units) where M
         # Pair interactions that become within-unit interactions
         original_interactions = sys.interactions_union[relevant_sites]
         for (site, interaction) in zip(relevant_sites, original_interactions)
-            # Onsite anisotropy portion. The Zeeman term is *not* folded in here;
-            # it is handled as a first-class term on the contracted system via
-            # `sys.extfield` and the cached per-unit `dipole_operators` (see
+            # Onsite anisotropy portion. The Zeeman term is *not* folded in
+            # here; it is handled as a first-class term on the contracted system
+            # via `sys.extfield` and the cached per-unit `dipole_operators` (see
             # `set_field_entangled!` and `set_energy_grad_coherents!`).
             onsite_original = interaction.onsite
             unit_index = contraction_info.forward[site][2]
@@ -374,18 +390,34 @@ function entangle_system(sys::System{M}, units) where M
     # We collected all bond_operators associated with a particular exemplar, sum
     # them, and set the interaction. Use `extract_parts=false` to keep the whole
     # operator in the `general` (tensor-decomposed) channel. Extracting bilinear
-    # and biquadratic parts would express them in terms of the unit's spin-(N-1)/2
-    # operators, but the contracted `sys.dipoles` holds a unit's *total moment*
-    # (Σₖ gₖ Sₖ), not ⟨spin_matrices_of_dim(N)⟩. Those channels would then be
-    # evaluated against the wrong vector in `energy_aux`/`set_energy_grad_*`. The
-    # general channel is evaluated directly from coherent states, so it is exact.
+    # and biquadratic parts would express them in terms of the unit's
+    # spin-(N-1)/2 operators, but the contracted `sys.dipoles` holds a unit's
+    # *total moment* (Σₖ gₖ Sₖ), not ⟨spin_matrices_of_dim(N)⟩. Those channels
+    # would then be evaluated against the wrong vector in
+    # `energy_aux`/`set_energy_grad_*`. The general channel is evaluated
+    # directly from coherent states, so it is exact.
     for bond in exemplars
         relevant_interactions = filter(data -> data[1] == bond, new_pair_data)
         bond_operator = sum(data[2] for data in relevant_interactions)
         set_pair_coupling!(sys_entangled, bond_operator, bond; extract_parts=false)
     end
 
-    return (; sys_entangled, contraction_info)
+    # Clone the physical (bare) system and derive all entanglement metadata from
+    # the immutable `units` truth. The contracted `sys_entangled` carries `origin`
+    # = its chemical cell (set by the `System` constructor), matching the physical
+    # `bare_system`, so both reshape in tandem through the ordinary backbone.
+    bare_system = clone_system(sys)
+    units_truth = [collect(Int, u) for u in units]
+    rebuild_entanglement!(sys_entangled, bare_system, units_truth)
+
+    # Coordinate dipole data
+    sync_dipoles!(sys_entangled)
+
+    return sys_entangled
+end
+
+function entangle_units(::System{0}, _)
+    error("Cannot entangle units of a `:dipole`-mode `System`. Use `:SUN` mode.")
 end
 
 
@@ -461,50 +493,6 @@ function rebuild_entanglement!(sys::System, bare_system, units)
 end
 
 
-################################################################################
-# Public API
-################################################################################
-"""
-    entangle_units(sys::System{N}, units)
-
-Create a new [`System`](@ref) of "entangled units" from an existing `System`.
-`units` is a list of tuples specifying the atoms inside each unit cell that will
-be grouped into a single "entangled unit." This feature is only supported for
-systems that can be viewed as a regular lattice of a single unit type (all
-dimers, all trimers, etc). Sunny will use the SU(_N_) formalism to model each
-one of these units as a distinct Hilbert space in which the full quantum
-mechanical structure is locally preserved.
-
-Interactions must be specified for the original `System`. Sunny will
-automatically reconstruct the appropriate interactions for the entangled system.
-The returned `System` reports physical geometry (positions, dipoles) against the
-original crystal, while its dynamical variables are the coherent states of the
-entangled units.
-"""
-function entangle_units(sys::System{N}, units) where {N}
-    isnothing(sys.origin) || error("Entangle a single-cell system first, then reshape")
-
-    # Generate the contracted system and the physical (bare) system. The
-    # contracted system carries `origin` = its chemical cell (set by the `System`
-    # constructor), matching the physical `bare_system`, so both reshape in
-    # tandem through the ordinary backbone.
-    sys_entangled = entangle_system(sys, units).sys_entangled
-    bare_system = clone_system(sys)
-
-    # Store the immutable `units` truth and derive all mapping metadata from it.
-    units_truth = [collect(Int, u) for u in units]
-    rebuild_entanglement!(sys_entangled, bare_system, units_truth)
-
-    # Coordinate the contracted coherent states and the physical dipoles.
-    set_expected_dipoles!(sys_entangled)
-
-    return sys_entangled
-end
-
-function entangle_units(::System{0}, _)
-    error("Cannot entangle units of a `:dipole`-mode `System`. Use `:SUN` mode.")
-end
-
 # Entangled path of `set_params!`. The labeled parameters live on the physical
 # (bare) system; the contracted couplings are a derived quantity that must be
 # regenerated. The entanglement *metadata* (contraction mapping, per-unit dipole
@@ -523,7 +511,7 @@ function set_params_entangled!(sys::System, labels, vals)
     #    contracted chemical cell (`something(sys.origin, sys)`); only coupling
     #    values differ.
     bare_origin = something(bare_system.origin, bare_system)
-    sys_chem = entangle_system(bare_origin, units).sys_entangled
+    sys_chem = entangle_units(bare_origin, units)
 
     # 3. Install the regenerated contracted couplings. For an unreshaped `sys`,
     #    write directly; for a reshaped `sys`, update its chemical-cell `origin`
