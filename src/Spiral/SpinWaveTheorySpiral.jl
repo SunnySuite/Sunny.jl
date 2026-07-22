@@ -303,7 +303,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
 
         for i in 1:Na
             ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = exp(- im * dot(q_global, rs_global[i]))
+            Avec_pref[i] = cis(- dot(q_global, rs_global[i]))
             Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 
