@@ -180,7 +180,7 @@ function clone_system(sys::System{N}) where N
     # `dipole_operators` is an immutable build-time table (never mutated in
     # place), so the reference can be shared with the clone.
     ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
-                 params_clone, active_labels, interactions_clone, nothing,
+                 params_clone, copy(active_labels), interactions_clone, nothing,
                  dipole_operators, copy(extfield), copy(dipoles), copy(coherents),
                  empty_dipole_buffers, empty_coherent_buffers, copy(rng), entanglement_clone)
 

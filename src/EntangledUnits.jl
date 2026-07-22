@@ -528,6 +528,8 @@ original crystal, while its dynamical variables are the coherent states of the
 entangled units.
 """
 function entangle_units(sys::System{N}, units) where {N}
+    isnothing(sys.origin) || error("Entangle a single-cell system first, then reshape")
+
     # External field is folded into the onsite interactions of the contracted
     # system, which is homogeneous (indexed by unit, not site). So g-factors must
     # be uniform across unit cells.

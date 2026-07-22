@@ -25,13 +25,18 @@ end
     positions = [[0.0, 0, 0], [0.5, 0, 0]]
     crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
 
-    function make_esys(; seed=1)
-        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed)
-        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
-        set_exchange!(sys, 0.1, Bond(1, 1, [0, 1, 0]))
-        set_exchange!(sys, 0.1, Bond(2, 2, [0, 1, 0]))
-        return Sunny.entangle_units(sys, [(1, 2)])
-    end
+    # Bare system
+    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
+    set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+    set_exchange!(sys, 0.1, Bond(1, 1, [0, 1, 0]))
+    set_exchange!(sys, 0.1, Bond(2, 2, [0, 1, 0]))
+
+    # Cannot reshape then entangle
+    sys_sheared = resize_supercell(sys, (2, 1, 1))
+    @test_throws "Entangle a single-cell system first, then reshape" Sunny.entangle_units(sys_sheared, [(1, 2)])
+
+    # Entangle the original cell
+    esys = Sunny.entangle_units(sys, [(1, 2)])
 
     # True when some unit has a member atom in a neighboring cell (a unit that
     # straddles the cell boundary of the reshaped system).
@@ -42,7 +47,6 @@ end
 
     set_q0(r) = for u in eachsite(r); set_coherent!(r, [0, 1/√2, -1/√2, 0], u); end
 
-    esys = make_esys()
     set_field!(esys, [0, 0, 0]); set_q0(esys)
     E0 = energy_per_site(esys)
 
@@ -281,6 +285,16 @@ end
 
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
 
+    # Reshaped entangled system produces the correct intensities
+    swt_bands = SpinWaveTheory(esys; measure=ssf_perp(esys))
+    res = intensities_bands(swt_bands, qs)
+    shape = [1 2 0; 0 1 0; 0 0 1]
+    esys_sheared = reshape_supercell(esys, shape)
+    swt_bands_sheared = SpinWaveTheory(esys_sheared; measure=ssf_perp(esys_sheared))
+    res_sheared = intensities_bands(swt_bands_sheared, qs)
+    @test res_sheared.disp ≈ res.disp atol=1e-11
+    @test sum(res_sheared.data; dims=1) ≈ sum(res.data; dims=1) atol=1e-11
+
     # Test static structure factor is zero (dipolar sector)
     ssf = SampledCorrelationsStatic(esys; measure=ssf_trace(esys))
     add_sample!(ssf, esys)
@@ -330,11 +344,12 @@ end
     crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
 
     function make_entangled(; seed)
-        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; dims=(2, 1, 1), seed)
+        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed)
         set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
         set_exchange!(sys, 0.1, Bond(1, 1, [1, 0, 0]))
         set_exchange!(sys, 0.1, Bond(2, 2, [1, 0, 0]))
-        esys = Sunny.entangle_units(sys, [(1, 2)])
+        # `units` indexes the chemical cell; reshape the entangled system to size.
+        esys = resize_supercell(Sunny.entangle_units(sys, [(1, 2)]), (2, 1, 1))
         enable_dipole_dipole!(esys, units.vacuum_permeability)
         return esys
     end
@@ -345,10 +360,10 @@ end
     @test isnothing(esys.ewald)
     @test !isnothing(esys.entanglement.bare_system.ewald)
 
-    # The dipole-dipole energy (evaluated on the physical bare system) must equal
-    # that of an equivalent ordinary SU(N) system with the same physical spins,
-    # for a matching polarized state. Compare the Ewald term in isolation, since
-    # `ord` carries no exchange couplings.
+    # The dipole-dipole energy (evaluated on the physical bare system) must
+    # equal that of an equivalent ordinary SU(N) system with the same physical
+    # spins, for a matching polarized state. Compare the Ewald term in
+    # isolation, since `ord` carries no exchange couplings.
     ord = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; dims=(2, 1, 1), seed=1)
     enable_dipole_dipole!(ord, units.vacuum_permeability)
     polarize_spins!(ord, [0, 0, 1])
@@ -396,11 +411,12 @@ end
     positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
     crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
 
+    # A dimer (intra-unit :J) with an inter-unit exchange (:Jp) along x, so that
+    # the entangled system has dispersion pinned by both parameters.
     function make_esys(J, Jp)
         sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
         set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J => J)
         set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :Jp => Jp)
-        set_exchange!(sys, 1.0, Bond(2, 2, [1, 0, 0]), :Jp => Jp)
         return Sunny.entangle_units(sys, [(1, 2)])
     end
     set_q0(s) = for u in eachsite(s); set_coherent!(s, [0, 1/√2, -1/√2, 0], u); end
@@ -417,11 +433,11 @@ end
                s -> resize_supercell(s, (3, 1, 1)),
                s -> reshape_supercell(s, [1 1 0; -1 1 0; 0 0 1]))
         ref = op(make_esys(2.0, 0.3)); set_q0(ref)
-        esys = op(make_esys(1.0, 0.1))
-        set_params!(esys, [:J, :Jp], [2.0, 0.3])
-        @test get_params(esys, [:J, :Jp]) == [2.0, 0.3]
-        set_q0(esys)
-        @test energy_per_site(esys) ≈ energy_per_site(ref)
+        esys_op = op(make_esys(1.0, 0.1))
+        set_params!(esys_op, [:J, :Jp], [2.0, 0.3])
+        @test get_params(esys_op, [:J, :Jp]) == [2.0, 0.3]
+        set_q0(esys_op)
+        @test energy_per_site(esys_op) ≈ energy_per_site(ref)
     end
 
     # `make_loss_fn` end-to-end: correct values, and evaluation leaves the
@@ -446,6 +462,25 @@ end
     end
     d1 = swt_loss([1.0]); d2 = swt_loss([2.0])
     @test isfinite(d1) && isfinite(d2) && !(d1 ≈ d2)
+
+    # Full fitting workflow: recover parameters by minimizing a dispersion loss
+    # against a synthetic target. The dimer's antisymmetric-channel dispersion,
+    # ω = J √(1 + 2(J′/J) cos 2πq), pins both :J and :Jp.
+    import Optim
+    qs = [[0.1, 0, 0], [0.25, 0, 0], [0.4, 0, 0]]
+    dispersion_at(s) = let
+        for u in eachsite(s); set_coherent!(s, [0, 1/√2, -1/√2, 0], u); end
+        swt = SpinWaveTheory(s; measure=Sunny.empty_measurespec(s), regularization=0.0)
+        dispersion(swt, qs)
+    end
+    Jtrue, Jptrue = 1.0, 0.2
+    target = dispersion_at(make_esys(Jtrue, Jptrue))
+    fit_loss = make_loss_fn(esys, [:J, :Jp]) do s
+        return squared_error(target, dispersion_at(s))
+    end
+    @test fit_loss([Jtrue, Jptrue]) < 1e-20
+    fit = Optim.optimize(fit_loss, [1.3, 0.4], Optim.NelderMead())
+    @test isapprox(fit.minimizer, [Jtrue, Jptrue]; atol=1e-2)
 end
 
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
