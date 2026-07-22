@@ -116,11 +116,14 @@ measure = ssf_custom((q, ssf) -> real(ssf[1, 1] + ssf[2, 2] + ssf[3, 3]), sys)
 See also the Sunny documentation on [Structure Factor Conventions](@ref).
 """
 function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
-    # For an entangled system, build the measure at the physical atom level and
-    # transform it into a unit-level measure indexed to the contracted system.
+    # For an entangled system, build the measure for the uncontracted system
+    # first, and then transform it to the entangled units.
     if !isnothing(sys.entanglement)
-        return ssf_custom_entangled(f, sys; apply_g, formfactors)
+        (; uncontracted) = get_entanglement(sys)
+        measure_atom = ssf_custom(f, uncontracted; apply_g, formfactors)
+        return entangled_measure(measure_atom, sys)
     end
+
     operators = all_dipole_observables(sys; apply_g)  # (1 × 3 × sys_dims × natoms)
     nobs = size(operators, 2)
     natoms_orig = natoms(sys.crystal)
