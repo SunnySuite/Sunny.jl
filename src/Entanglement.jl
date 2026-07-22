@@ -412,6 +412,9 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_units)
     # would signal that centroid wrapping misrouted an atom to the wrong unit.
     @assert all(isassigned(parts, p) for parts in units for p in 1:nparts) "Failed to assign all unit parts"
 
+    # In the base case (no reshaping), units should be unchanged.
+    @assert !isnothing(sys.origin) || units == orig_units
+
     lifted_spin_ops = map(1:natoms_bare) do atom
         S_local = spin_matrices_of_dim(; N=uncontracted.Ns[1, 1, 1, atom])
         u, p = unit_and_part(units, atom)
