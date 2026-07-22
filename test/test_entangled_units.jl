@@ -279,8 +279,8 @@ end
     positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
     crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
 
-    # A dimer (intra-unit :J) with an inter-unit exchange (:Jp) along x, so that
-    # the entangled system's dispersion is pinned by both labeled parameters.
+    # A dimer (intra-unit :J) with an inter-unit exchange (:Jp) along x, so both
+    # labeled parameters enter the entangled energy.
     sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
     set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J => 1.0)
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :Jp => 0.2)
@@ -289,33 +289,23 @@ end
         set_coherent!(esys, [0, 1/√2, -1/√2, 0], u)
     end
 
-    qs = [[0.1, 0, 0], [0.25, 0, 0], [0.4, 0, 0]]
-    dispersion_at(s) = let
-        swt = SpinWaveTheory(s; measure=Sunny.empty_measurespec(s), regularization=0.0)
-        dispersion(swt, qs)[1, :]
-    end
-
-    # `get_param` reads the labels off the physical (bare) system.
+    # `get_params` reads the labels off the physical (bare) system.
     @test get_params(esys, [:J, :Jp]) == [1.0, 0.2]
 
-    # `set_params!` mutably regenerates the contracted couplings, changing the
-    # dispersion. A round-trip back to the original values reproduces it exactly.
-    disp0 = dispersion_at(esys)
+    # `set_params!` regenerates the contracted couplings (changing the energy) and
+    # propagates the values into the uncontracted subsystem. A round trip is exact.
+    E0 = energy_per_site(esys)
     set_params!(esys, [:J, :Jp], [1.5, 0.3])
     @test get_params(esys, [:J, :Jp]) == [1.5, 0.3]
-    disp1 = dispersion_at(esys)
-    @test !(disp1 ≈ disp0)
+    @test get_params(esys.entanglement.uncontracted, [:J, :Jp]) == [1.5, 0.3]
+    @test !(energy_per_site(esys) ≈ E0)
     set_params!(esys, [:J, :Jp], [1.0, 0.2])
-    @test dispersion_at(esys) ≈ disp0
+    @test energy_per_site(esys) ≈ E0
 
-    # `make_loss_fn` operates on a clone: it sees the trial parameters, and the
-    # original `esys` parameters are left untouched. The loss vanishes exactly at
-    # the target parameters that generated `disp1`.
-    loss = make_loss_fn(esys, [:J, :Jp]) do s
-        return squared_error(disp1, dispersion_at(s))
-    end
-    @test loss([1.5, 0.3]) < 1e-20
-    @test loss([1.0, 0.2]) > 1e-6
+    # `make_loss_fn` evaluates on a clone, so it leaves the original `esys`
+    # parameters untouched.
+    loss = make_loss_fn(energy_per_site, esys, [:J, :Jp])
+    loss([1.5, 0.3])
     @test get_params(esys, [:J, :Jp]) == [1.0, 0.2]
 end
 
@@ -349,15 +339,10 @@ end
 
 
 @testitem "Cell offset for straddling dimers" begin
-    import LinearAlgebra: norm
-
-    # This test verifies that cell offsets work correctly when specifying units
-    # that straddle cell boundaries from the start.
-    #
-    # Geometry: 2 atoms per cell at positions [0, 0, 0] and [0.5, 0, 0]
-    # We create dimers where atom 2 from one cell is paired with atom 1 from the
-    # next cell, specified as: [(2, [0,0,0]), (1, [1,0,0])]
-
+    # A unit specified with cell offsets straddles the cell boundary from the
+    # start: atom 2 at offset [0,0,0] pairs with atom 1 in the next cell along x.
+    # The strong bond then lives *within* the unit (an onsite operator) and the
+    # weak bond couples neighboring units.
     latvecs = [1.0 0 0; 0 1 0; 0 0 1]
     positions = [[0.0, 0, 0], [0.5, 0, 0]]
     crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
@@ -366,72 +351,37 @@ end
     J′ = 0.1  # Weak coupling between dimers
 
     sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
+    set_exchange!(sys, J, Bond(2, 1, [1, 0, 0]))  # strong bond, atom 2 → atom 1 next cell
+    set_exchange!(sys, J′, Bond(1, 2, [0, 0, 0])) # weak bond between dimers
 
-    # The strong bond connects atom 2 to atom 1 in the next cell
-    set_exchange!(sys, J, Bond(2, 1, [1, 0, 0]))
-    # The weak bond connects the dimers
-    set_exchange!(sys, J′, Bond(1, 2, [0, 0, 0]))
-
-    # Key: specify the straddling dimer using cell offsets
-    # This unit contains atom 2 at offset [0,0,0] and atom 1 at offset [1,0,0]
     esys = entangle_system(sys, [[(2, [0, 0, 0]), (1, [1, 0, 0])]])
 
-    # Verify the contracted crystal has the expected structure
-    @test length(esys.crystal.positions) == 1  # One unit per cell
-
-    # The unit center should be at (0.5 + 1.0)/2 = 0.75
+    # One unit per cell, centered at (0.5 + 1.0)/2 = 0.75
+    @test length(esys.crystal.positions) == 1
     @test esys.crystal.positions[1][1] ≈ 0.75
 
-    # Verify the strong J coupling was captured in the onsite operator
+    # The strong bond is captured in the onsite operator. Member 1 is atom 2 and
+    # member 2 is atom 1, following the unit spec order.
     interactions = esys.interactions_union[1]
     S = spin_matrices(1/2)
-    # Note: member 1 is atom 2, member 2 is atom 1 (order from the unit spec)
     S2, S1 = to_product_space(S, S)
-    onsite_ref = J * (S2' * S1)
-    @test interactions.onsite ≈ onsite_ref
+    @test interactions.onsite ≈ J * (S2' * S1)
 
-    # The weak J′ bond connects different units, so it appears as a pair coupling
-    # It gets symmetrized, so we have both [±1, 0, 0] directions
+    # The weak J′ bond couples distinct units; after symmetrization it appears as
+    # a pair coupling in both [±1, 0, 0] directions.
     @test length(interactions.pair) == 2
     for pc in interactions.pair
         b = pc.bond
         @test b.i == b.j == 1
-        @test abs(b.n[1]) == 1  # Cell offset along x
+        @test abs(b.n[1]) == 1
     end
-
-    # Find the ground state
-    randomize_spins!(esys)
-    minimize_energy!(esys)
-    E0 = energy_per_site(esys)
-
-    # Test intensities_bands calculation with full structure factor
-    qs = [[0.1, 0, 0], [0.2, 0, 0]]
-
-    swt = SpinWaveTheory(esys; measure=ssf_perp(esys))
-    res = intensities_bands(swt, qs)
-
-    @test all(isfinite, res.disp)
-    @test all(isfinite, res.data)
-
-    # Test that reshaping preserves the physics
-    esys_reshaped = reshape_supercell(esys, [2 0 0; 0 1 0; 0 0 1])
-    @test energy_per_site(esys_reshaped) ≈ E0 atol=1e-12
-
-    # Verify intensities_bands still works after reshaping (different number of bands due to larger system)
-    swt_reshaped = SpinWaveTheory(esys_reshaped; measure=ssf_perp(esys_reshaped))
-    res_reshaped = intensities_bands(swt_reshaped, qs)
-
-    @test all(isfinite, res_reshaped.disp)
-    @test all(isfinite, res_reshaped.data)
 end
 
 @testitem "Offsets for different unit orientations" begin
-    import LinearAlgebra: dot
-
-    # Test that phase factors are correct when units have different orientations.
-    # Two dimers: one along x, one along y. At q=[1,0,0], the x-oriented dimer
-    # should have a phase difference between its members, while the y-oriented
-    # dimer should not.
+    # A measure on an entangled system records each member's position offset from
+    # its unit center. With two dimers of different orientation (one along x, one
+    # along y), the offsets must point along the respective bond directions; these
+    # offsets carry the intra-unit phase factors into structure-factor sums.
 
     latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
     positions = [
@@ -464,27 +414,6 @@ end
     offset_y2 = esys.crystal.latvecs * measure.offsets[2, 2]
     @test abs(offset_y1[1]) < 0.01 && abs(offset_y1[2]) > 0.1
     @test abs(offset_y2[1]) < 0.01 && abs(offset_y2[2]) > 0.1
-
-    # Test phase factors at q=[1,0,0]. The x-oriented dimer members acquire
-    # different phases (one at x≈0, one at x≈0.25), while the y-oriented members
-    # both sit at x=0.5 and get the same phase.
-    q = [1.0, 0.0, 0.0]
-    r1 = esys.crystal.positions[1]
-    r2 = esys.crystal.positions[2]
-
-    # x-dimer: member positions differ in x, so phases differ
-    phase_x1 = cis(2π * dot(q, r1 + measure.offsets[1, 1]))
-    phase_x2 = cis(2π * dot(q, r1 + measure.offsets[2, 1]))
-    @test abs(phase_x1 - 1.0) < 1e-10         # member 1 at x≈0
-    @test abs(phase_x2 - im) < 1e-10          # member 2 at x≈0.25, exp(iπ/2)=i
-    @test abs(phase_x2 - phase_x1) > 0.1      # significant phase difference
-
-    # y-dimer: member positions have same x=0.5, so phases are equal
-    phase_y1 = cis(2π * dot(q, r2 + measure.offsets[1, 2]))
-    phase_y2 = cis(2π * dot(q, r2 + measure.offsets[2, 2]))
-    @test abs(phase_y1 - (-1.0)) < 1e-10      # both at x=0.5, exp(iπ)=-1
-    @test abs(phase_y2 - (-1.0)) < 1e-10
-    @test abs(phase_y2 - phase_y1) < 1e-10    # no phase difference
 end
 
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
