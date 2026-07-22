@@ -68,7 +68,7 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
             @assert i == bond.i
             j = bond.j
 
-            J_lab = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo transformation in `swt_data`
+            J_lab = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo transformation in `swt_data!`
             J = exp(-2π * im * dot(q_reshaped, bond.n)) * J_lab
             Jq[i, j] += J
             Jq[j, i] += J'

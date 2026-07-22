@@ -25,9 +25,9 @@ end
 # Metadata for a System with entangled units. Hilbert dimension N of the
 # uncontracted System{N} is intentionally omitted to avoid dynamic lookup.
 struct Entanglement <: AbstractEntanglement
-    uncontracted          :: System                          # System prior to entanglement
-    unit_map              :: UnitMap                         # Map on the reshaped uncontracted crystal
-    bare_dipole_operators :: Vector{NTuple{3, HermitianC64}} # Product-space spin ops per physical atom
+    uncontracted          :: System                           # System prior to entanglement
+    unit_map              :: UnitMap                          # Map between units and atoms
+    bare_dipole_operators :: Vector{SVector{3, HermitianC64}} # Product-space spin ops per bare atom
 end
 
 
@@ -46,29 +46,37 @@ function uncontracted_system(sys::System)
     is_entangled(sys) ? get_entanglement(sys).uncontracted : sys
 end
 
-# Bare atom indices comprising a unit, ordered to match the unit_to_members
-# field of a UnitMap.
-atoms_in_unit(unit_map::UnitMap, u) = [m.atom for m in unit_map.unit_to_members[u]]
-
-# UnitMember data (Δpos and Δcell) for a bare atom.
-function unit_offsets_for_atom(unit_map::UnitMap, atom)
-    (; unit, part) = unit_map.atom_to_unit[atom]
-    return unit_map.unit_to_members[unit][part]
+function nbaresites(sys::System)
+    length(eachsite(uncontracted_system(sys)))
 end
 
-# Given a site representing an entangled unit, obtain the corresponding "bare
-# site" for the uncontracted system. Implementation mirrors `bonded_site`.
-function bare_site_for_unit_member(unit_site, member::UnitMember, dims)
-    (; atom, Δcell) = member
-    CartesianIndex(altmod1.(to_cell(unit_site) .+ Δcell, dims)..., atom)
+# Bare atom indices comprising a unit, ordered to match the unit_to_members
+# field of a UnitMap.
+function atoms_in_unit(unit_map::UnitMap, u)
+    [m.atom for m in unit_map.unit_to_members[u]]
+end
+function atoms_in_unit(sys::System, u)
+    is_entangled(sys) ? atoms_in_unit(get_entanglement(sys).unit_map, u) : [u]
 end
 
 # Given a site representing an entangled unit, return an iterator over the
 # corresponding "bare sites" of the uncontracted system.
 function bare_sites_for_unit(ent::Entanglement, unit_site)
     (; uncontracted, unit_map) = ent
+    (; dims) = uncontracted
     members = unit_map.unit_to_members[to_atom(unit_site)]
-    return (bare_site_for_unit_member(unit_site, m, uncontracted.dims) for m in members)
+    return Iterators.map(members) do m
+        # Mirrors `bonded_site`
+        CartesianIndex(altmod1.(to_cell(unit_site) .+ m.Δcell, dims)..., m.atom)
+    end
+end
+
+function bare_dipole_operator(sys::System, i)
+    if is_entangled(sys)
+        return get_entanglement(sys).bare_dipole_operators[i]
+    else
+        return spin_matrices_of_dim(; N=sys.Ns[i])
+    end
 end
 
 # Needed because uncontracted.dipoles and related state are mutably updated
@@ -82,6 +90,12 @@ clone_entanglement(::Nothing) = nothing
 ################################################################################
 # Pair-coupling contraction
 ################################################################################
+
+# UnitMember data (Δpos and Δcell) for a bare atom.
+function unit_offsets_for_atom(unit_map::UnitMap, atom)
+    (; unit, part) = unit_map.atom_to_unit[atom]
+    return unit_map.unit_to_members[unit][part]
+end
 
 # Convert a bond between physical atoms into the corresponding bond between
 # contracted units. If `bond.n` points from atom i in one cell to atom j in a
