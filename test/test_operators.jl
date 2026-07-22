@@ -32,10 +32,9 @@
 
     # Test action of mul_spin_matrices(B, Z)
     for N = 4:6
-        Λ = randn(ComplexF64, N, N)
         B = randn(Sunny.Vec3)
         Z = randn(Sunny.CVec{N})
-        @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*spin_matrices((N-1)/2)) * Z
+        @test Sunny.mul_spin_matrices(B, Z) ≈ B' * spin_matrices((N-1)/2) * Z
     end
 end
 

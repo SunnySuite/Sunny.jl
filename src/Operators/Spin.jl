@@ -128,21 +128,22 @@ function flip_ket(Z::CVec{N}) where N
 end
 
 
-# Returns (Λ + dE/d⟨S⟩ ⋅ S) Z
-@generated function mul_spin_matrices(Λ, dE_dS::Vec3, Z::CVec{N}) where N
+# Returns (dE/d⟨S⟩ ⋅ S) Z
+@generated function mul_spin_matrices(dE_dS::Vec3, Z::CVec{N}) where N
     S = spin_matrices_of_dim(; N)
     out = map(1:N) do i
         out_i = map(1:N) do j
-            terms = Any[:(Λ[$i,$j])]
+            terms = Any[]
             for α = 1:3
                 S_αij = S[α][i,j]
                 if !iszero(S_αij)
                     push!(terms, :(dE_dS[$α] * $S_αij))
                 end
             end
-            :(+($(terms...)) * Z[$j])
+            isempty(terms) ? nothing : :(+($(terms...)) * Z[$j])
         end
-        :(+($(out_i...)))
+        nonzero = filter(!isnothing, out_i)
+        isempty(nonzero) ? :(zero(ComplexF64)) : :(+($(nonzero...)))
     end
     return :(CVec{$N}($(out...)))
 end

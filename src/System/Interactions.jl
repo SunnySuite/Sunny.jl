@@ -185,11 +185,7 @@ function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; demag=1/3)
         μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
     end
     # For an entangled system, dipole-dipole interactions couple the physical
-    # magnetic moments, whose true positions and g-tensors live on `bare_system`
-    # (the contracted crystal only knows unit-center positions). So the Ewald
-    # structure is built on the bare system; the contracted `sys.ewald` stays
-    # `nothing`. Energy and coherent-state gradient reach into the bare system
-    # directly (see `energy` and `set_energy_grad_coherents!`).
+    # magnetic moments on the `bare_system`.
     if is_entangled(sys)
         enable_dipole_dipole!(get_entanglement(sys).bare_system, μ0_μB²; demag)
         return
@@ -239,10 +235,7 @@ function set_field_at!(sys::System, B_μB, site)
     B = Vec3(B_μB)
     sys.extfield[site] = B
 
-    # For an entangled system, `site` selects a unit; the same physical field is
-    # mirrored onto every bare atom of that unit. The unit's g-factor is the
-    # identity, so `sys.extfield` couples directly to the total moment (see
-    # `set_energy_grad_coherents!`); the bare field is kept in sync for observables.
+    # FIXME: Simply call set_field_at! on sys.entanglement.bare_system instead.
     if !isnothing(sys.entanglement)
         (; bare_system, contraction_info) = get_entanglement(sys)
         cell = to_cell(site)
@@ -549,6 +542,8 @@ end
 # dipole-dipole. Excluded terms include onsite coupling, and general pair
 # coupling (biquadratic and beyond).
 function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N}) where N
+    @assert isnothing(sys.entanglement)
+
     fill!(∇E, zero(Vec3))
 
     # Zeeman coupling, dE/dS = g' B. For an entangled system this is produced
@@ -556,10 +551,8 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
     # dipole-dipole) and translated in `set_energy_grad_coherents!`: a unit's
     # atoms feel independent fields, which cannot collapse into one per-unit
     # dE/dS vector. See `accum_bare_field_grad_coherents!`.
-    if isnothing(sys.entanglement)
-        for site in eachsite(sys)
-            ∇E[site] += sys.gs[site]' * sys.extfield[site]
-        end
+    for site in eachsite(sys)
+        ∇E[site] += sys.gs[site]' * sys.extfield[site]
     end
 
     # Anisotropies and exchange interactions
@@ -633,56 +626,50 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, int::Intera
 end
 
 # Updates `HZ` in-place to hold `dE/dZ̄`, which is the Schrödinger analog to the
-# quantity `dE/dS`. **Overwrites the first two dipole buffers in `sys`.**
+# quantity `dE/dS`. **Overwrites the first two dipole buffers in `sys`.** The
+# ordinary and entangled systems differ only in how the local effective field is
+# produced (`set_energy_grad_coherents_ordinary!` vs. `..._entangled!`); both
+# then run the same onsite/biquadratic/general pair-coupling accumulation.
 function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) where N
     @assert N > 0
-
     fill!(HZ, zero(CVec{N}))
 
-    # Accumulate Zeeman, Ewald interactions, and spin-bilinear exchange
-    # interactions into dE/dS, where S is the expected spin associated with Z.
-    # Note that dE_dS does _not_ include the onsite, biquadratic, or general
-    # pair couplings, which must be handled differently.
-    dE_dS, dipoles = get_dipole_buffers(sys, 2)
-    @. dipoles = expected_spin(Z)
-    set_energy_grad_dipoles!(dE_dS, dipoles, sys)
+    if isnothing(sys.entanglement)
+        # Calculate the local effective field dE/dS for Zeeman, dipole-dipole,
+        # and spin-bilinear exchange. Accumulate HZ += (dE/dS ⋅ S) Z.
+        dE_dS, dipoles = get_dipole_buffers(sys, 2)
+        @. dipoles = expected_spin(Z)
+        set_energy_grad_dipoles!(dE_dS, dipoles, sys)
+        for site in eachsite(sys)
+            HZ[site] += mul_spin_matrices(dE_dS[site], Z[site])
+        end
+    else
+        # Calculate the local effective field dE/dS for Zeeman and dipole-dipole
+        # for each part of an entangled unit on the bare system. Accumulate into
+        # HZ via the per-atom embedded spin operators.
+        accum_bare_field_grad_coherents!(HZ, Z, get_entanglement(sys))
+    end
 
-    # Anisotropies and exchange interactions
+    # Onsite, biquadratic, and general pair couplings.
     if is_homogeneous(sys)
         for i in 1:natoms(sys.crystal)
             interactions = sys.interactions_union[i]
-            set_energy_grad_coherents_aux!(HZ, Z, dE_dS, interactions, sys, eachsite_sublattice(sys, i))
+            set_energy_grad_coherents_aux!(HZ, Z, interactions, sys, eachsite_sublattice(sys, i))
         end
     else
         for site in eachsite(sys)
             interactions = sys.interactions_union[site]
-            set_energy_grad_coherents_aux!(HZ, Z, dE_dS, interactions, sys, (site,))
+            set_energy_grad_coherents_aux!(HZ, Z, interactions, sys, (site,))
         end
     end
-
-    # For an entangled system, the physical Zeeman and long-range dipole-dipole
-    # fields act per physical atom, at a finer granularity than the contracted
-    # per-unit `dE_dS` above can represent (a unit's atoms feel independent
-    # fields). Produce the per-atom dE/dSₐ on the bare system and translate it
-    # into the unit coherent gradient via the per-atom embedded spin operators.
-    # Guard with `isnothing` and pass the concrete-asserted entanglement so the
-    # barrier stays inference-clean (see the `energy` Ewald branch).
-    if !isnothing(sys.entanglement)
-        accum_bare_field_grad_coherents!(HZ, Z, get_entanglement(sys))
-    end
-
-    fill!(dE_dS, zero(Vec3))
-    fill!(dipoles, zero(Vec3))
 end
 
-function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{Vec3, 4}, int::Interactions, sys::System{N}, sites) where N
-    # HZ += (Λ + dE/dS ⋅ S) Z, where S are the single-irrep spin matrices. For an
-    # entangled system, the contracted `dE_dS` is zero (physical Zeeman and Ewald
-    # are handled per atom in `accum_bare_field_grad_coherents!`), so this reduces
-    # to the onsite term Λ Z, as required.
+
+function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, int::Interactions, sys::System{N}, sites) where N
+    # Onsite coupling, HZ += Λ Z.
     for site in sites
-        Λ = int.onsite :: HermitianC64
-        HZ[site] += mul_spin_matrices(Λ, dE_dS[site], Z[site])
+        Λ = SMatrix{N, N}(int.onsite :: HermitianC64)
+        HZ[site] += Λ * Z[site]
     end
 
     for pc in int.pair
