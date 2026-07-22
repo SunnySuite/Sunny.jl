@@ -1,18 +1,14 @@
 mutable struct SampledCorrelations
     # 𝒮^{αβ}(q,ω) data and metadata
     const data           :: Array{ComplexF64, 7}              # Raw SF with position indices (ncorrs × npos × npos × sys_dims × nω)
-    const M              :: Union{Nothing, Array{Float64, 7}} # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
+    const M              :: Union{Nothing, Array{Float64, 7}} # Running estimate of (nsamples-1)*σ² (where σ² is the variance of intensities)
     const recipvecs      :: Mat3                              # Reshaped recipvecs for interpretation of q indices in `data`
     const origin_crystal :: Crystal                           # Original user-specified crystal (possibly reshaped)
     const Δω             :: Float64                           # Energy step size 
 
-    # Observable information
-    measure            :: MeasureSpec                         # Storehouse for combiner. Mutable so combiner can be changed.
-    const observables  :: Array{Union{Vec3, HermitianC64}, 5} # Flattened measure observables (nobs × latsize × npos)
+    # Observables
+    measure            :: MeasureSpec                         # Only formfactors and combiner can be mutated
     const positions    :: Vector{Vec3}                        # Fractional positions of bare atoms in cell (npos = nunits × nparts)
-    const unit_idcs    :: Vector{Int64}                       # Unit index per position (npos)
-    ffs                :: Vector{FormFactor}                  # Form factor per position (npos)
-    const corr_pairs   :: Vector{NTuple{2, Int}}              # (ncorr)
 
     # Trajectory specs
     const integrator   :: AbstractIntegrator                  # Integrator for calculating sample trajectories.
@@ -51,16 +47,20 @@ end
 
 function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
     if sym == :measure
-        @assert sc.measure.observables ≈ val.observables "New MeasureSpec must contain identical observables."
-        @assert all(x -> x == 1, sc.measure.corr_pairs .== val.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
-        setfield!(sc, :measure, val)
-        # Form factors may differ in the new measure; refresh the cached flat
-        # form factors used by retrieval. (Observables/positions are unchanged
-        # by the assertions above, so only `ffs` needs recomputing.)
-        setfield!(sc, :ffs, flatten_measure(val, sc.sys_dims).ffs)
-    else
-        setfield!(sc, sym, val)
+        # The sc.data is fixed, so the new measure cannot change observables,
+        # offsets, or corre_pairs.
+        sc.measure.observables ≈ val.observables || error("Measure observables cannot change")
+        validate_formfactors(val)
+        sc.measure.offsets ≈ val.offsets || error("Measure offsets cannot change")
+        sc.measure.corr_pairs == val.corr_pairs || error("Measure corr_pairs cannot change")
     end
+    setfield!(sc, sym, val)
+end
+
+function validate_formfactors(measure)
+    # Dependence on observable dependence (index 1) disallowed for efficiency.
+    all(allequal, eachslice(measure.formfactors; dims=(2, 3))) ||
+        error("Observable-dependent form factors disallowed for efficiency")
 end
 
 """
@@ -112,9 +112,8 @@ function clone_correlations(sc::SampledCorrelations)
     corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations(
-        copy(sc.data), M, sc.recipvecs, sc.origin_crystal, sc.Δω,
-        deepcopy(sc.measure), copy(sc.observables), copy(sc.positions), copy(sc.unit_idcs), copy(sc.ffs), copy(sc.corr_pairs),
-        copy(sc.integrator), sc.measperiod, sc.nsamples,
+        copy(sc.data), M, sc.recipvecs, sc.origin_crystal, sc.Δω, sc.measure,
+        copy(sc.positions), copy(sc.integrator), sc.measperiod, sc.nsamples,
         copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
     )
 end
@@ -181,51 +180,6 @@ function to_reshaped_rlu(sc::SampledCorrelations, q)
     return sc.recipvecs \ sc.origin_crystal.recipvecs * q
 end
 
-# Physical position of each flattened observable. The flat index `i = u +
-# (p-1)*nunits` packs (sampled unit u, part p) unit-fastest. `unit_positions` are
-# the positions of the sampled sites (the contracted crystal for entangled
-# units); adding the part offset recovers the physical observable position. For
-# an ordinary system (nparts=1, zero offsets) this reduces to `unit_positions`.
-function flatten_measure_positions(measure::MeasureSpec, unit_positions::Vector{Vec3})
-    nunits = size(measure.observables, 5)
-    nparts = size(measure.observables, 6)
-    return [unit_positions[u] + measure.offsets[u, p] for p in 1:nparts for u in 1:nunits]
-end
-
-# Flatten a MeasureSpec's (nunits × nparts) observable layout into the flat
-# `npos` layout consumed by the correlation sampler, packed unit-fastest to match
-# `flatten_measure_positions`:
-#   - observables[μ, cell, i] = measure.observables[μ, cell, u, p]
-#   - unit_idcs[i]            = u  (which sampled coherent state feeds position i)
-#   - ffs[i]                  = measure.formfactors[μ, u, p]  (uniform over μ)
-# For an ordinary system (nparts=1) this is the identity map: npos = nunits and
-# unit_idcs[i] = i.
-function flatten_measure(measure::MeasureSpec, dims::NTuple{3, Int})
-    nobs   = size(measure.observables, 1)
-    nunits = size(measure.observables, 5)
-    nparts = size(measure.observables, 6)
-    npos   = nparts * nunits
-
-    Op = eltype(measure.observables)
-    observables = Array{Op, 5}(undef, nobs, dims..., npos)
-    unit_idcs   = zeros(Int64, npos)
-    ffs         = Vector{FormFactor}(undef, npos)
-
-    for p in 1:nparts, u in 1:nunits
-        i = u + (p - 1) * nunits
-        allequal(@view measure.formfactors[:, u, p]) || error("Observable-dependent form factors not yet supported.")
-        ffs[i] = measure.formfactors[1, u, p]
-        unit_idcs[i] = u
-        for cell in CartesianIndices(dims)
-            for μ in 1:nobs
-                observables[μ, cell, i] = measure.observables[μ, cell, u, p]
-            end
-        end
-    end
-
-    return (; observables, unit_idcs, ffs)
-end
-
 """
     SampledCorrelations(sys::System; measure, energies, dt)
 
@@ -267,12 +221,10 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     integrator.dt = dt
 
     measure = isnothing(measure) ? ssf_trace(sys) : measure
+    validate_formfactors(measure)
 
-    # Flatten the (units, part) indexing of MeasureSpec to the `npos` layout
-    # used by the sampler. For an ordinary system, each unit maps 1-to-1 with an
-    # atom position, and the MeasureSpec data can be used directly.
-    positions = flatten_measure_positions(measure, sys.crystal.positions)
-    (; observables, unit_idcs, ffs) = flatten_measure(measure, sys.dims)
+    # Flatten the "bare" observable positions of the cell
+    positions = vec(sys.crystal.positions .+ measure.offsets)
     npos = length(positions)
 
     samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., npos, n_all_ω)
@@ -297,10 +249,9 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     # without making struct mutable.
     nsamples = 0 
 
-    sc = SampledCorrelations(data, M, recipvecs, origin_crystal, Δω,
-                             measure, observables, positions, unit_idcs, ffs, copy(measure.corr_pairs),
-                             integrator, measperiod, nsamples,
-                             samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
+    sc = SampledCorrelations(data, M, recipvecs, origin_crystal, Δω, measure,
+                             positions, integrator, measperiod, nsamples, samplebuf,
+                             corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
     return sc
 end

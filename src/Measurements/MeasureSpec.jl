@@ -3,8 +3,8 @@
 # (:SUN mode). The "parts" index is needed for entangled units.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     observables :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × nunits × nparts)
-    offsets     :: Array{Vec3, 2}         # (nunits × nparts)
     formfactors :: Array{FormFactor, 3}   # (nobs × nunits × nparts)
+    offsets     :: Array{Vec3, 2}         # (nunits × nparts)
     corr_pairs  :: Vector{NTuple{2, Int}} # (ncorr)
     combiner    :: F                      # (q::Vec3, obs) -> Ret
 
@@ -19,7 +19,7 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
         end
         @assert (nunits, nparts) == size(offsets) "offsets must have shape (nunits, nparts)"
         @assert (nobs, nunits, nparts) == size(formfactors) "formfactors must have shape (nobs, nunits, nparts)"
-        return new{Op, F, Ret}(observables, offsets, formfactors, corr_pairs, combiner)
+        return new{Op, F, Ret}(observables, formfactors, offsets, corr_pairs, combiner)
     end
 end
 
