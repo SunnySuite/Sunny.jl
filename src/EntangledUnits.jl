@@ -26,7 +26,7 @@ struct UnitMap
     unit_to_members :: Vector{Vector{MemberAtom}}
 end
 
-# Metadata for a System with entangled units.  Hilbert dimension N of the
+# Metadata for a System with entangled units. Hilbert dimension N of the
 # uncontracted system is intentionally omitted to avoid dynamic lookup.
 struct Entanglement <: AbstractEntanglement
     uncontracted          :: System                          # System prior to entanglement
@@ -115,8 +115,8 @@ end
 
 # Returns the Hilbert-space dimension N for each part of an entangled unit. The
 # order is consistent with the `unit_to_members` field of a `UnitMap`.
-function Ns_at_unit(sys, unit_map, u)
-    return [sys.Ns[member.atom] for member in unit_map.unit_to_members[u]]
+function Ns_at_unit(uncontracted, unit_map, u)
+    return [uncontracted.Ns[member.atom] for member in unit_map.unit_to_members[u]]
 end
 
 # Pull out atom indices comprising a unit
@@ -207,15 +207,15 @@ end
 # Converts what was a pair coupling between two different sites of a single unit
 # in the original system into an on-bond operator (an onsite operator in terms
 # of the "units"). Accumulates into `op` in place.
-function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, sys, contracted_site, unit_map)
+function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, uncontracted, contracted_site, unit_map)
     pc.isculled && return
 
-    Ns_unit = Ns_at_unit(sys, unit_map, contracted_site)
+    Ns_unit = Ns_at_unit(uncontracted, unit_map, contracted_site)
     i, j = pc.bond.i, pc.bond.j
     ui = unit_map.atom_to_unit[i]
     uj = unit_map.atom_to_unit[j]
-    Ni = sys.Ns[1, 1, 1, i]
-    Nj = sys.Ns[1, 1, 1, j]
+    Ni = uncontracted.Ns[1, 1, 1, i]
+    Nj = uncontracted.Ns[1, 1, 1, j]
 
     # Both sites lie in the same unit, so both embed into the same product space.
     embed_i = A -> local_op_to_product_space(A, ui.part, Ns_unit)
@@ -226,15 +226,15 @@ end
 
 # Converts a pair coupling between two distinct units in the original system into
 # a pair coupling between the corresponding units of the contracted system.
-function pair_coupling_into_bond_operator_between_units(pc, sys, unit_map)
+function pair_coupling_into_bond_operator_between_units(pc, uncontracted, unit_map)
     (; i, j) = pc.bond
     ui = unit_map.atom_to_unit[i]
     uj = unit_map.atom_to_unit[j]
 
-    Ns1 = Ns_at_unit(sys, unit_map, ui.unit)
-    Ns2 = Ns_at_unit(sys, unit_map, uj.unit)
-    N1 = sys.Ns[1, 1, 1, i]
-    N2 = sys.Ns[1, 1, 1, j]
+    Ns1 = Ns_at_unit(uncontracted, unit_map, ui.unit)
+    Ns2 = Ns_at_unit(uncontracted, unit_map, uj.unit)
+    N1 = uncontracted.Ns[1, 1, 1, i]
+    N2 = uncontracted.Ns[1, 1, 1, j]
     dim1 = prod(Ns1)
     dim2 = prod(Ns2)
     N = dim1 * dim2
@@ -253,8 +253,8 @@ end
 # for the contracted system. Contraction is linear in the coupling strength, so
 # each labeled parameter is contracted independently at unit strength; the
 # ordinary `repopulate_couplings_from_params!` then rescales by `param.val`. The
-# `bare` system supplies only Hilbert-space dimensions (value-independent).
-function contract_param(param::ModelParam, bare::System, unit_map, Ns_units)
+# `uncontracted` system supplies only Hilbert-space dimensions (value-independent).
+function contract_param(param::ModelParam, uncontracted::System, unit_map, Ns_units)
     nunits = length(unit_map.unit_to_members)
 
     # Intra-unit terms become onsite (on-bond) operators, one per touched unit.
@@ -274,7 +274,7 @@ function contract_param(param::ModelParam, bare::System, unit_map, Ns_units)
         # Intra-unit pair couplings fold into the same onsite operator.
         for pc in param.pairs
             if bond_is_in_unit(pc.bond, unit_map) && unit_map.atom_to_unit[pc.bond.i].unit == u
-                accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, bare, u, unit_map)
+                accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, uncontracted, u, unit_map)
             end
         end
 
@@ -287,7 +287,7 @@ function contract_param(param::ModelParam, bare::System, unit_map, Ns_units)
     pairs = PairCoupling[]
     for pc in param.pairs
         bond_is_in_unit(pc.bond, unit_map) && continue
-        (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, bare, unit_map)
+        (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, uncontracted, unit_map)
         Ni = prod(Ns_units[newbond.i])
         Nj = prod(Ns_units[newbond.j])
         # `extract_parts=false` because dipoles are NaN for entangled systems.
@@ -316,12 +316,12 @@ local quantum entanglement. This feature currently requires a single unit type
 For example, `[(1, [0, 0, 0]), (2, [1, 0, 0])]` defines a dimer whose second
 atom is taken from the neighboring +a1 cell.
 
-The input `sys` should be in `:SUN` mode and have 1×1×1 dimensions. All
-interactions in `sys` will be transferred to the entangled system. Subsequent
-reshapings of this entangled system are then allowed.
+The input system should be in `:SUN` mode and have 1×1×1 dimensions. All its
+interactions will be transferred to the entangled system. Subsequent reshapings
+of this entangled system are then allowed.
 """
-function entangle_system(sys::System{M}, groupings) where M
-    isnothing(sys.origin) || error("Entangle a single-cell system first, then reshape")
+function entangle_system(uncontracted::System{M}, groupings) where M
+    isnothing(uncontracted.origin) || error("Entangle a single-cell system first, then reshape")
 
     if eltype(eltype(groupings)) <: Integer
         groupings = [[(x, SA[0, 0, 0]) for x in g] for g in groupings]
@@ -330,15 +330,15 @@ function entangle_system(sys::System{M}, groupings) where M
     groupings = [[(x, SVector{3, Int}(y)) for (x, y) in g] for g in groupings]
 
     # Construct contracted (P1) crystal and the atom ↔ unit mapping
-    contracted_crystal, unit_map = contract_crystal(sys.crystal, groupings)
+    contracted_crystal, unit_map = contract_crystal(uncontracted.crystal, groupings)
 
     # The (uniform) external field couples to each unit's total moment
-    @assert allequal(@view sys.extfield[:,:,:,:]) "Entangled units require a uniform applied field."
-    B = sys.extfield[1,1,1,1]
+    @assert allequal(@view uncontracted.extfield[:,:,:,:]) "Entangled units require a uniform applied field."
+    B = uncontracted.extfield[1,1,1,1]
 
     # Local Hilbert space dimensions per unit (all must be equal). (TODO:
     # Determine if alternative behavior preferable in mixed case.)
-    Ns_units = [Ns_at_unit(sys, unit_map, u) for u in eachindex(groupings)]
+    Ns_units = [Ns_at_unit(uncontracted, unit_map, u) for u in eachindex(groupings)]
     Ns_contracted = map(prod, Ns_units)
     @assert allequal(Ns_contracted) "After contraction, the dimensions of the local Hilbert spaces on each generalized site must all be equal."
     N = first(Ns_contracted)
@@ -348,8 +348,8 @@ function entangle_system(sys::System{M}, groupings) where M
     # entanglement metadata: unit g-factors are the identity, κ = 1, and dipoles
     # are undefined (NaN) because a unit's moment is a derived quantity. The
     # couplings are installed below through the ordinary params backbone.
-    nunits = natoms(contracted_crystal)
-    dims = sys.dims
+    nunits    = natoms(contracted_crystal)
+    dims      = uncontracted.dims
     Ns        = reshape(collect(Ns_contracted), 1, 1, 1, :)
     κs        = ones(Float64, dims..., nunits)
     gs        = fill(Mat3(I), dims..., nunits)
@@ -360,18 +360,18 @@ function entangle_system(sys::System{M}, groupings) where M
     sys_entangled = System(nothing, :SUN, contracted_crystal, dims, Ns, κs, gs,
                            ModelParam[], Symbol[], ints, nothing, extfield,
                            dipoles, coherents, Array{Vec3, 4}[], Array{CVec{N}, 4}[],
-                           copy(sys.rng), nothing)
+                           copy(uncontracted.rng), nothing)
 
     # Contract each labeled parameter independently (contraction is linear in
     # coupling strength), then let the ordinary machinery fill the interactions.
-    sys_entangled.params = [contract_param(p, sys, unit_map, Ns_units) for p in sys.params]
+    sys_entangled.params = [contract_param(p, uncontracted, unit_map, Ns_units) for p in uncontracted.params]
     repopulate_couplings_from_params!(sys_entangled)
 
-    # Clone the physical (bare) system and derive all entanglement metadata from
-    # the immutable `groupings` truth. Both `sys_entangled` and the physical
+    # Clone the physical system and derive all entanglement metadata from the
+    # immutable `groupings` truth. Both `sys_entangled` and the physical
     # `uncontracted` start as single chemical cells (`origin = nothing`) and
     # reshape in tandem through the ordinary backbone.
-    uncontracted = clone_system(sys)
+    uncontracted = clone_system(uncontracted)
     rebuild_entanglement!(sys_entangled, uncontracted, groupings)
 
     # Initialize coherent states of each entangled unit to the tensor product of
