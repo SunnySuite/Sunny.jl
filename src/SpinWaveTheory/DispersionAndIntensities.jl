@@ -173,6 +173,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
     u = zeros(ComplexF64, 2L, Nobs)
+    Avec = zeros(ComplexF64, Nobs)
     disp = zeros(Float64, L, Nq)
     intensity = zeros(eltype(measure), L, Nq)
 
@@ -181,41 +182,17 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
         q_global = cryst.recipvecs * q
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
-        # Represent each local observable A(q) = Σᵢ exp(+i q⋅rᵢ) Aᵢ as a
-        # complex vector u(q) in the [b_q, b_-q†] basis, matching KPM.
-        if sys.mode == :SUN
-            data = swt.data::SWTDataSUN
-            N = sys.Ns[1]
-            for μ in 1:Nobs, i in 1:Na
-                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-                O = data.observables_localized[μ, i]
-                for α in 1:N-1
-                    u[α + (i-1)*(N-1), μ]     = pref * O[α, N]
-                    u[α + (i-1)*(N-1) + L, μ] = pref * O[N, α]
-                end
-            end
-        else
-            @assert sys.mode in (:dipole, :dipole_uncorrected)
-            data = swt.data::SWTDataDipole
-            for μ in 1:Nobs, i in 1:Na
-                pref = swt_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-                O = data.observables_localized[μ, i]
-                u[i, μ]   = pref * (data.sqrtS[i] / √2) * (O[1] + im*O[2])
-                u[i+L, μ] = pref * (data.sqrtS[i] / √2) * (O[1] - im*O[2])
-            end
-        end
-
-        Avec = zeros(ComplexF64, Nobs)
+        # Linearized observables Â_μ(q) in Holstein-Primakoff bosons
+        set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
 
         # Fill `intensity` array
         for band in 1:L
             for μ in 1:Nobs
-                # dot() conjugates the first argument, yielding the left
-                # matrix element ⟨0|A_q†|n⟩ from the operator coefficients u(q).
+                # Left matrix amplitude ⟨0|Â_μ(q)†|n⟩
                 Avec[μ] = dot(view(u, :, μ), view(T, :, band))
             end
-
             map!(corrbuf, measure.corr_pairs) do (μ, ν)
+                # Pair correlations ⟨0|Â_μ(q)†|n⟩⟨n|Â_ν(q)|0⟩
                 Avec[μ] * conj(Avec[ν]) / Ncells
             end
             intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corrbuf)

@@ -182,7 +182,7 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
             r_reshaped = sys.crystal.positions[i]
             for (subsite, inverse_info) in enumerate(inverse_infos)
                 site_original, offset = inverse_info.site, inverse_info.offset
-                ff = get_swt_formfactor(measure, 1, site_original)
+                ff = formfactor_for_flattened_sys(measure, 1, site_original)
                 pref = cis(2π * dot(q_reshaped, r_reshaped + offset)) * compute_form_factor(ff, norm2(q_global))
                 O .+= pref * data.observables_localized[subsite, μ, i]
             end
