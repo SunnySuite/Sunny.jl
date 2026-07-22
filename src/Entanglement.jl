@@ -243,8 +243,14 @@ function contract_crystal(crystal, unit_atoms, unit_Δcells)
         push!(unit_to_parts, parts)
     end
 
-    # Space group = 1 allows "invalid" anisotropies from pair → onsite conversions
-    new_crystal = Crystal(crystal.latvecs, new_positions, 1)
+    # Reuse the spacegroup data, but drop the symops to mark unavailability of
+    # symmetry analysis (in analogy to `reshape_crystal`).
+    new_types = fill("", length(new_positions))
+    new_classes = 1:length(unit_atoms)
+    new_sg = Spacegroup(SymOp[], crystal.sg.label, crystal.sg.number, crystal.sg.setting)
+    new_crystal = Crystal(nothing, crystal.latvecs, crystal.recipvecs, new_positions,
+                          new_types, new_classes, new_sg)
+
     layout = UnitLayout(atom_to_unit, unit_to_parts)
 
     return new_crystal, layout

@@ -275,14 +275,14 @@ function label_atoms(cryst; ismagnetic, sys)
         typstr = isempty(typ) ? "" : "'$typ', "
         push!(ret, typstr * "Wyckoff $wyckstr, $rstr")
 
-        if ismagnetic && !isempty(cryst.sg.symops) && !Sunny.is_entangled(sys)
+        if ismagnetic && !isempty(cryst.sg.symops)
             if isnothing(sys)
                 # See similar logic in print_site()
                 refatoms = [b.i for b in Sunny.reference_bonds(cryst, 0.0)]
                 i_ref = Sunny.findfirstval(i_ref -> Sunny.is_related_by_symmetry(cryst, i, i_ref), refatoms)
                 R_site = Sunny.rotation_between_sites(cryst, i, i_ref)
                 push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, prefix="Aniso: ", digits=8))
-            else
+            elseif !Sunny.is_entangled(sys)
                 site = Sunny.map_atom_to_other_system(cryst, i, sys)
                 stvexp = Sunny.get_stevens_expansion_at(sys, site)
                 aniso = Sunny.unrenormalize_quadratic_anisotropy(stvexp, sys, site)
