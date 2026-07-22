@@ -87,16 +87,22 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         Aq = precompute_dipole_ewald_at_wavevector(msys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
         Aq = reshape(Aq, Nmom, Nmom)
 
-        # For an entangled system, each bare atom `a` maps to the unit site `ua`
-        # that contains it; otherwise the two indices coincide.
-        if is_entangled(sys)
+        # `bare_dipoles` is indexed by (unit site, part); the Ewald matrices and
+        # g-tensors are indexed by bare crystal-atom `a`. The permutation `p[k,u]`
+        # bridges the two: (part k, unit u) → bare atom `a`. For an ordinary
+        # system nparts=1 and p is the identity.
+        Na = natoms(sys.crystal)
+        nparts = size(bare_dipoles, 3)
+        p = if is_entangled(sys)
             (; unit_map) = get_entanglement(sys)
-            bare_atoms = ((a, u.unit) for (a, u) in enumerate(unit_map.atom_to_unit))
+            [unit_map.unit_to_members[u][k].atom for k in 1:nparts, u in 1:Na]
         else
-            bare_atoms = ((a, a) for a in 1:natoms(sys.crystal))
+            reshape(1:Na, 1, Na)
         end
 
-        for (a, ua) in bare_atoms, (b, ub) in bare_atoms
+        for u1 in 1:Na, k1 in 1:nparts, u2 in 1:Na, k2 in 1:nparts
+            a = p[k1, u1]
+            b = p[k2, u2]
             # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
             # energy, where μ = - g S. A symmetric contribution will appear for
             # the bond reversal (a, b) → (b, a).
@@ -104,31 +110,31 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             J0 = gs[a]' * A0[a, b] * gs[b] / 2
 
             for α in 1:3, β in 1:3
-                Ai = bare_dipoles[α, a]
-                Bj = bare_dipoles[β, b]
+                Ai = bare_dipoles[α, u1, k1]
+                Bj = bare_dipoles[β, u2, k2]
 
                 for m in 1:N-1, n in 1:N-1
                     c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
-                    H11[m, ua, n, ua] += c * J0[α, β]
-                    H22[n, ua, m, ua] += c * J0[α, β]
+                    H11[m, u1, n, u1] += c * J0[α, β]
+                    H22[n, u1, m, u1] += c * J0[α, β]
 
                     c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
-                    H11[m, ub, n, ub] += c * J0[α, β]
-                    H22[n, ub, m, ub] += c * J0[α, β]
+                    H11[m, u2, n, u2] += c * J0[α, β]
+                    H22[n, u2, m, u2] += c * J0[α, β]
 
                     c = Ai[m,N] * Bj[N,n]
-                    H11[m, ua, n, ub] += c * J[α, β]
-                    H22[n, ub, m, ua] += c * conj(J[α, β])
+                    H11[m, u1, n, u2] += c * J[α, β]
+                    H22[n, u2, m, u1] += c * conj(J[α, β])
 
                     c = Ai[N,m] * Bj[n,N]
-                    H11[n, ub, m, ua] += c * conj(J[α, β])
-                    H22[m, ua, n, ub] += c * J[α, β]
+                    H11[n, u2, m, u1] += c * conj(J[α, β])
+                    H22[m, u1, n, u2] += c * J[α, β]
 
                     c = Ai[m,N] * Bj[n,N]
-                    H12[m, ua, n, ub] += c * J[α, β]
-                    H12[n, ub, m, ua] += c * conj(J[α, β])
-                    H21[n, ub, m, ua] += conj(c) * conj(J[α, β])
-                    H21[m, ua, n, ub] += conj(c) * J[α, β]
+                    H12[m, u1, n, u2] += c * J[α, β]
+                    H12[n, u2, m, u1] += c * conj(J[α, β])
+                    H21[n, u2, m, u1] += conj(c) * conj(J[α, β])
+                    H21[m, u1, n, u2] += conj(c) * J[α, β]
                 end
             end
         end

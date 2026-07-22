@@ -163,6 +163,40 @@ end
     @test res.data ≈ [0.6963636938867421; 4.833911994098928; 28.719089468355055; 52.61793172686838; 42.62520819431053;;]
 end
 
+@testitem "Entangled dipole-dipole SWT" begin
+    # Long-range dipole-dipole is stored on the bare (uncontracted) system and
+    # enters SWT through the per-part `bare_dipoles` and the Ewald matrix indexed
+    # by bare crystal-atom. With *no* intra-unit exchange, an entangled system is
+    # just a product-space rewriting of two independent atoms, so its low
+    # spin-wave bands must coincide with the bare SU(N) result. This exercises the
+    # (unit, part) Ewald loop with nparts=2.
+    latvecs = [1.0 0 0; 0 1 0; 0 0 2]
+    positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
+    cryst = Crystal(latvecs, positions, 1; types=["A", "B"])
+
+    function build(; entangled)
+        sys = System(cryst, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
+        set_exchange!(sys, 0.3, Bond(1, 1, [1, 0, 0]))
+        set_exchange!(sys, 0.3, Bond(2, 2, [1, 0, 0]))
+        enable_dipole_dipole!(sys, Units(:meV, :angstrom).vacuum_permeability)
+        set_field!(sys, [0, 0, -5])
+        entangled && (sys = entangle_system(sys, [[1, 2]]))
+        randomize_spins!(sys); minimize_energy!(sys)
+        return sys
+    end
+
+    qs = [[0, 0, 0], [0.2, 0.1, 0], [0.5, 0, 0]]
+    sys_b = build(entangled=false); swt_b = SpinWaveTheory(sys_b; measure=nothing)
+    sys_e = build(entangled=true);  swt_e = SpinWaveTheory(sys_e; measure=nothing)
+
+    @test energy_per_site(sys_b) ≈ energy_per_site(sys_e)
+    # Entangled dispersion carries an extra high-energy product-space band; its
+    # two lowest bands must match the bare two-band dispersion.
+    disp_b = sort(dispersion(swt_b, qs); dims=1)
+    disp_e = sort(dispersion(swt_e, qs); dims=1)
+    @test disp_e[1:2, :] ≈ disp_b atol=1e-10
+end
+
 @testitem "General inter-unit coupling" begin
     import LinearAlgebra: I
 
@@ -401,16 +435,16 @@ end
 
     # Check measure offsets reflect the different orientations
     measure = ssf_trace(esys)
-    @test size(measure.offsets) == (2, 2)  # 2 members × 2 unit types
+    @test size(measure.offsets) == (2, 2)  # 2 unit types × 2 members
 
-    # x-oriented dimer: offsets should be along x
+    # x-oriented dimer (unit 1): offsets should be along x
     offset_x1 = esys.crystal.latvecs * measure.offsets[1, 1]
-    offset_x2 = esys.crystal.latvecs * measure.offsets[2, 1]
+    offset_x2 = esys.crystal.latvecs * measure.offsets[1, 2]
     @test abs(offset_x1[1]) > 0.1 && abs(offset_x1[2]) < 0.01
     @test abs(offset_x2[1]) > 0.1 && abs(offset_x2[2]) < 0.01
 
-    # y-oriented dimer: offsets should be along y
-    offset_y1 = esys.crystal.latvecs * measure.offsets[1, 2]
+    # y-oriented dimer (unit 2): offsets should be along y
+    offset_y1 = esys.crystal.latvecs * measure.offsets[2, 1]
     offset_y2 = esys.crystal.latvecs * measure.offsets[2, 2]
     @test abs(offset_y1[1]) < 0.01 && abs(offset_y1[2]) > 0.1
     @test abs(offset_y2[1]) < 0.01 && abs(offset_y2[2]) > 0.1

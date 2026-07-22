@@ -470,32 +470,32 @@ end
 # and form factors come from `unit_map`.
 function entangled_measure(measure, sys::System)
     @assert is_entangled(sys)               # System is entangled
-    @assert size(measure.operators, 1) == 1 # Measure is for uncontracted system
+    @assert size(measure.operators, 6) == 1 # Measure is for uncontracted system
 
     (; uncontracted, unit_map) = get_entanglement(sys)
 
     nobs = num_observables(measure)
     dims = sys.dims
     nunits = length(unit_map.unit_to_members)
-    atoms_per_unit = length(unit_map.unit_to_members[1])  # uniform by construction
+    nparts = length(unit_map.unit_to_members[1])  # uniform by construction
 
     Op = eltype(measure.operators)
-    new_ops     = Array{Op, 6}(undef, atoms_per_unit, nobs, dims..., nunits)
-    new_offsets = zeros(Vec3, atoms_per_unit, nunits)
-    new_ff      = Array{FormFactor, 3}(undef, atoms_per_unit, nobs, nunits)
+    new_ops     = Array{Op, 6}(undef, nobs, dims..., nunits, nparts)
+    new_offsets = zeros(Vec3, nunits, nparts)
+    new_ff      = Array{FormFactor, 3}(undef, nobs, nunits, nparts)
 
     for u in 1:nunits
         Ns_unit = uncontracted.Ns[atoms_in_unit(unit_map, u)]
         for (k, member) in enumerate(unit_map.unit_to_members[u])
             (; atom, Δpos, Δcell) = member
-            new_offsets[k, u] = Δpos
+            new_offsets[u, k] = Δpos
             for μ in 1:nobs
-                new_ff[k, μ, u] = measure.formfactors[1, μ, atom]
+                new_ff[μ, u, k] = measure.formfactors[μ, atom, 1]
                 for c in CartesianIndices(dims)
                     c′ = altmod1.(Tuple(c) .+ Δcell, dims)
-                    A = measure.operators[1, μ, c′..., atom]
+                    A = measure.operators[μ, c′..., atom, 1]
                     A_product = local_op_to_product_space(A, k, Ns_unit)
-                    new_ops[k, μ, c, u] = Hermitian(A_product)
+                    new_ops[μ, c, u, k] = Hermitian(A_product)
                 end
             end
         end

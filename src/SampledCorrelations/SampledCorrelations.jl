@@ -186,20 +186,21 @@ end
 # `npos` layout consumed by the correlation sampler. Each (part k, sampled site
 # a) of the measure becomes one physical position p:
 #
-#   - observables[μ, cell, p] = measure.operators[k, μ, cell, a]  (the operator)
+#   - observables[μ, cell, p] = measure.operators[μ, cell, a, k]  (the operator)
 #   - atom_idcs[cell, p]      = a  (which sampled coherent state feeds position p)
-#   - positions[cell, p]      = sampled_crystal.positions[a] + measure.offsets[k, a]
-#   - ffs[p]                  = measure.formfactors[k, μ, a]  (uniform over μ)
+#   - positions[cell, p]      = sampled_crystal.positions[a] + measure.offsets[a, k]
+#   - ffs[p]                  = measure.formfactors[μ, a, k]  (uniform over μ)
 #
 # `sampled_crystal` is the crystal of the system whose coherents are sampled
 # (the contracted crystal for entangled units). Adding the part offset recovers
-# the physical observable position. For an ordinary system (nparts=1, zero
-# offsets) this is the identity map: npos = natoms, atom_idcs[…,p] = p, and
-# positions are the atom positions.
+# the physical observable position. Positions are packed unit-fastest (`p = a +
+# (k-1)*natoms`), so the first part (k=1) reproduces the sampled sites `1:natoms`
+# in order. For an ordinary system (nparts=1, zero offsets) this is the identity
+# map: npos = natoms, atom_idcs[…,p] = p, and positions are the atom positions.
 function flatten_measure_positions(measure::MeasureSpec, sampled_crystal::Crystal, dims::NTuple{3, Int})
-    nparts = size(measure.operators, 1)
-    nobs   = size(measure.operators, 2)
-    natoms = size(measure.operators, 6)
+    nobs   = size(measure.operators, 1)
+    natoms = size(measure.operators, 5)
+    nparts = size(measure.operators, 6)
     npos   = nparts * natoms
 
     Op = eltype(measure.operators)
@@ -208,18 +209,18 @@ function flatten_measure_positions(measure::MeasureSpec, sampled_crystal::Crysta
     atom_idcs   = zeros(Int64, dims..., npos)
     ffs         = Vector{FormFactor}(undef, npos)
 
-    for a in 1:natoms, k in 1:nparts
-        p = (a - 1) * nparts + k
+    for k in 1:nparts, a in 1:natoms
+        p = a + (k - 1) * natoms
         # Form factors must be uniform across observables for a given position;
         # retrieval applies a single form factor per position.
-        allequal(@view measure.formfactors[k, :, a]) || error("Observable-dependent form factors not yet supported.")
-        ffs[p] = measure.formfactors[k, 1, a]
-        pos = sampled_crystal.positions[a] + measure.offsets[k, a]
+        allequal(@view measure.formfactors[:, a, k]) || error("Observable-dependent form factors not yet supported.")
+        ffs[p] = measure.formfactors[1, a, k]
+        pos = sampled_crystal.positions[a] + measure.offsets[a, k]
         for cell in CartesianIndices(dims)
             positions[cell, p] = pos
             atom_idcs[cell, p] = a
             for μ in 1:nobs
-                observables[μ, cell, p] = measure.operators[k, μ, cell, a]
+                observables[μ, cell, p] = measure.operators[μ, cell, a, k]
             end
         end
     end

@@ -7,9 +7,9 @@ end
 
 struct SWTDataSUN
     local_unitaries  :: Vector{Matrix{ComplexF64}}    # Transformations from global to quantization frame
-    observables      :: Array{HermitianC64, 3}        # Rotated observables (nparts × nobs × nsites)
+    observables      :: Array{HermitianC64, 3}        # Rotated observables (nobs × nsites × nparts)
     observable_buf   :: Matrix{ComplexF64}            # Scratch buffer (N × N)
-    bare_dipoles     :: Array{HermitianC64, 2}        # Bare spin dipoles in local frame (3 × natoms)
+    bare_dipoles     :: Array{HermitianC64, 3}        # Bare spin dipoles in local frame (3 × nsites × nparts)
 end
 
 # To facilitate sharing some code with SpinWaveTheorySpiral
@@ -48,7 +48,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     measure = @something measure empty_measurespec(sys)
-    if size(eachsite(sys)) != size(measure.operators)[3:6]
+    if size(eachsite(sys)) != size(measure.operators)[2:5]
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
@@ -129,23 +129,25 @@ end
 function swt_data(sys::System{N}, measure) where N
     # Calculate transformation matrices into local reference frames
     Na = nsites(sys)
-    nparts = size(measure.operators, 1)
+    nparts = size(measure.operators, 6)
     Nobs = num_observables(measure)
-    flat_ops = reshape(measure.operators, nparts, Nobs, Na)
+    flat_ops = reshape(measure.operators, Nobs, Na, nparts)
 
     # Global-frame spin dipole "parts" for each site: the physical magnetic atoms
     # contributing to it, as `(spin_ops::NTuple{3, HermitianC64}, g::Mat3,
     # B::Vec3)`. For an ordinary system each site has one part (its bare spin S);
     # for an entangled unit the parts are the unit's bare atoms, each embedded into
     # the product space, with per-atom g-factor and field from the bare system.
+    # This part count is a property of the system, independent of the measure's
+    # `nparts` (which is 1 for an empty measure).
     site_parts = swt_spin_parts(sys)
-    nbareatoms = sum(length, site_parts)
+    nparts_sys = maximum(length, site_parts)
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
-    observables = Array{HermitianC64}(undef, nparts, Nobs, Na)
+    observables = Array{HermitianC64}(undef, Nobs, Na, nparts)
     observable_buf = zeros(ComplexF64, N, N)
-    bare_dipoles = fill(Hermitian(zeros(ComplexF64, N, N)), 3, nbareatoms)
+    bare_dipoles = fill(Hermitian(zeros(ComplexF64, N, N)), 3, Na, nparts_sys)
 
     for i in 1:Na
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
@@ -163,13 +165,13 @@ function swt_data(sys::System{N}, measure) where N
 
         # Rotate observables into local reference frames
         for k in 1:nparts, μ in 1:Nobs
-            observables[k, μ, i] = Hermitian(U' * flat_ops[k, μ, i] * U)
+            observables[μ, i, k] = Hermitian(U' * flat_ops[μ, i, k] * U)
         end
 
-        # Spin dipole operators per bare atom in the local frame (dipole-dipole).
-        for (a, spin_ops, _, _) in site_parts[i]
+        # Spin dipole operators per part in the local frame (dipole-dipole).
+        for (k, (spin_ops, _, _)) in enumerate(site_parts[i])
             for α in 1:3
-                bare_dipoles[α, a] = Hermitian(U' * spin_ops[α] * U)
+                bare_dipoles[α, i, k] = Hermitian(U' * spin_ops[α] * U)
             end
         end
     end
@@ -182,7 +184,7 @@ function swt_data(sys::System{N}, measure) where N
         # Zeeman coupling Σ_parts Σ_α (gₐ'Bₐ)_α Sₐᵅ, accumulated into the onsite
         # coupling in the global frame so it rotates with the anisotropy below.
         onsite = Matrix{ComplexF64}(int.onsite)
-        for (_, spin_ops, g, B) in site_parts[i]
+        for (spin_ops, g, B) in site_parts[i]
             gB = g' * B
             for α in 1:3
                 onsite += gB[α] * spin_ops[α]
@@ -221,16 +223,17 @@ function swt_data(sys::System{N}, measure) where N
 end
 
 # The physical magnetic-atom "parts" contributing to each SU(N) site, as a list
-# per site of `(a, spin_ops, g, B)` in the global frame, where `a` is the bare
-# atom index. For an entangled system, `a` runs over all sites of the bare
-# system; otherwise `a` coincides with the site index.
+# per site of `(spin_ops, g, B)` in the global frame. For an ordinary system
+# each site has a single part (its bare spin S); for an entangled unit the parts
+# are the unit's bare atoms, each embedded into the product space, with per-atom
+# g-factor and field from the bare system. The per-site part order matches the
+# `nparts` axis of `measure.operators` (both derive from `unit_to_members`).
 function swt_spin_parts(sys::System{N}) where N
     if is_entangled(sys)
         (; uncontracted, unit_map, bare_dipole_operators) = get_entanglement(sys)
         return map(unit_map.unit_to_members) do members
             map(members) do member
-                (member.atom,
-                 bare_dipole_operators[member.atom],
+                (bare_dipole_operators[member.atom],
                  uncontracted.gs[1, 1, 1, member.atom],
                  uncontracted.extfield[1, 1, 1, member.atom])
             end
@@ -238,7 +241,7 @@ function swt_spin_parts(sys::System{N}) where N
     else
         return map(1:nsites(sys)) do i
             S = spin_matrices_of_dim(; N)
-            [(i, ntuple(α -> S[α], 3), sys.gs[i], sys.extfield[i])]
+            [(ntuple(α -> S[α], 3), sys.gs[i], sys.extfield[i])]
         end
     end
 end
@@ -277,8 +280,8 @@ function swt_data(sys::System{0}, measure)
     # Observable is semantically a 1x3 row vector but stored in transpose
     # (column) form. To achieve effective right-multiplication by R, we should
     # in practice left-multiply column vector by R'.
-    obs = reshape(measure.operators, 1, Nobs, Na)
-    obs_localized = [Rs[i]' * obs[1, μ, i] for μ in 1:Nobs, i in 1:Na]
+    obs = reshape(measure.operators, Nobs, Na)
+    obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
 
     # Precompute transformed exchange matrices and store in sys.interactions_union.
     for (i, int) in enumerate(sys.interactions_union)
@@ -320,8 +323,8 @@ end
 # constructed for a system with nontrivial lattice dims. Use fld1(i, prod(dims))
 # to get an atom index for one cell of the unflattened sys.
 function formfactor_for_flattened_sys(measure, μ, i)
-    sys_dims = size(measure.operators)[3:5]
-    measure.formfactors[1, μ, fld1(i, prod(sys_dims))]
+    sys_dims = size(measure.operators)[2:4]
+    measure.formfactors[μ, fld1(i, prod(sys_dims)), 1]
 end
 
 function observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
@@ -347,18 +350,18 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
     if sys.mode == :SUN
         (; observables, observable_buf) = data::SWTDataSUN
         N = sys.Ns[1]
-        natoms_orig = size(measure.operators, 6)
+        natoms_orig = size(measure.operators, 5)
         ncells = div(Na, natoms_orig)
         for μ in 1:Nobs, i in 1:Na
             atom_idx = fld1(i, ncells)
             r = sys.crystal.positions[i]
             fill!(observable_buf, 0)
-            for k in axes(observables, 1)
-                offset = measure.offsets[k, atom_idx]
-                ff = measure.formfactors[k, μ, atom_idx]
+            for k in axes(observables, 3)
+                offset = measure.offsets[atom_idx, k]
+                ff = measure.formfactors[μ, atom_idx, k]
                 pref = cis(2π * dot(q_reshaped, r + offset)) *
                        compute_form_factor(ff, norm2(q_global))
-                observable_buf .+= pref .* observables[k, μ, i]
+                observable_buf .+= pref .* observables[μ, i, k]
             end
             for f in 1:Nf
                 u[f + (i-1)*Nf,     μ] = observable_buf[f, N]
