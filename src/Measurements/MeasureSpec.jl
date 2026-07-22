@@ -65,13 +65,11 @@ function all_dipole_observables(sys::System{0}; apply_g)
 end
 
 function all_dipole_observables(sys::System{N}; apply_g) where {N}
-    # `sys.dipole_operators` holds the per-atom bare spin matrices S (SU(N) mode).
-    # This method is only reached for ordinary or physical (bare) systems; an
-    # entangled system routes through `ssf_custom_entangled`, which builds the
-    # measure on `bare_system` at the atom level.
+    @assert isnothing(sys.entanglement)
+
+    S = SVector{3}(spin_matrices_of_dim(; N))
     observables = Array{HermitianC64, 6}(undef, 1, 3, size(eachsite(sys))...)
     for site in eachsite(sys)
-        S = SVector{3}(sys.dipole_operators[to_atom(site)])
         op = apply_g ? sys.gs[site]*S : S
         for α in 1:3
             observables[1, α, site] = Hermitian(op[α])

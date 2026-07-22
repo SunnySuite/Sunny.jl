@@ -139,10 +139,6 @@ mutable struct System{N}
     # spin operators. Defined so that the expected dipoles S = Z† Ŝ Z yield
     # magnetic moments, μ = - g S.
     #
-    # FIXME: hot path sometimes uses `expected_spin` for speed. This is not
-    # correct.
-    dipole_operators       :: Vector{NTuple{3, HermitianC64}}
-
     # Dynamical variables and buffers (dims × natoms)
     const extfield         :: Array{Vec3, 4}            # External B field
     const dipoles          :: Array{Vec3, 4}            # Expected dipoles

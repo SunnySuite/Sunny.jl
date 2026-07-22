@@ -77,10 +77,6 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     active_labels = Symbol[]
     ewald = nothing
 
-    # Product-space dipole operators (SU(N) mode only). For an ordinary system
-    # these are just the bare spin matrices S per atom. Empty in dipole mode.
-    dipole_operators = build_dipole_operators_ordinary(mode, Ns)
-
     extfield = zeros(Vec3, 1, 1, 1, na)
     dipoles = fill(zero(Vec3), 1, 1, 1, na)
     coherents = fill(zero(CVec{N}), 1, 1, 1, na)
@@ -90,22 +86,10 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     rng = isnothing(seed) ? Random.Xoshiro(rand(UInt64, 4)...) : Random.Xoshiro(seed)
 
     ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, params, active_labels,
-                 interactions, ewald, dipole_operators, extfield, dipoles, coherents,
+                 interactions, ewald, extfield, dipoles, coherents,
                  dipole_buffers, coherent_buffers, rng, nothing)
     polarize_spins!(ret, (0,0,1))
     return dims == (1, 1, 1) ? ret : repeat_periodically(ret, dims)
-end
-
-# Build the per-atom product-space dipole operators for an ordinary system: just
-# the bare spin matrices S for each atom. Returns an empty vector in dipole mode,
-# where dipoles are tracked directly rather than via coherent states. `Ns` is the
-# reshaped `(1,1,1,na)` array of local Hilbert space dimensions.
-function build_dipole_operators_ordinary(mode::Symbol, Ns)
-    mode == :SUN || return NTuple{3, HermitianC64}[]
-    return map(axes(Ns, 4)) do i
-        S = spin_matrices_of_dim(; N=Ns[1, 1, 1, i])
-        ntuple(α -> S[α], 3)
-    end
 end
 
 function mode_to_str(sys::System{N}) where N
@@ -159,7 +143,7 @@ not affect the other, and thread safety is guaranteed.
 """
 function clone_system(sys::System{N}) where N
     (; origin, mode, crystal, dims, Ns, gs, κs, extfield, interactions_union,
-       params, active_labels, ewald, dipole_operators, dipoles, coherents, rng,
+       params, active_labels, ewald, dipoles, coherents, rng,
        entanglement) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
@@ -177,11 +161,9 @@ function clone_system(sys::System{N}) where N
 
     entanglement_clone = clone_entanglement(entanglement)
 
-    # `dipole_operators` is an immutable build-time table (never mutated in
-    # place), so the reference can be shared with the clone.
     ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
                  params_clone, copy(active_labels), interactions_clone, nothing,
-                 dipole_operators, copy(extfield), copy(dipoles), copy(coherents),
+                 copy(extfield), copy(dipoles), copy(coherents),
                  empty_dipole_buffers, empty_coherent_buffers, copy(rng), entanglement_clone)
 
     if !isnothing(ewald)

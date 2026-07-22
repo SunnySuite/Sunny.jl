@@ -3,7 +3,6 @@
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
     (; spins_localized) = data
-    (; gs) = sys
 
     N = sys.Ns[1]
     Na = natoms(sys.crystal)
@@ -71,28 +70,38 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         end
     end
 
-    if !isnothing(sys.ewald)
-        (; demag, μ0_μB², A) = sys.ewald
-        N = sys.Ns[1]
+    # Long-range dipole-dipole. Moments live on `sys` (ordinary) or its physical
+    # bare system (entangled); each moment-crystal atom `a` maps to a boson site
+    # `i` and an intra-site part `ka` (index into `spins_localized`). For an
+    # entangled unit, distinct bare atoms sharing a site accumulate into the same
+    # boson block, with the dipolar kernel resolving their true atomic positions.
+    msys, atom_to_site = dipole_dipole_moment_system(sys)
+    if !isnothing(msys.ewald)
+        (; demag, μ0_μB², A) = msys.ewald
+        gs = msys.gs
+        Nmom = natoms(msys.crystal)
 
         # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
-        # precompute_dipole_ewald(sys.crystal, (1,1,1), demag) * μ0_μB²
-        A0 = reshape(A, Na, Na)
+        # precompute_dipole_ewald(msys.crystal, (1,1,1), demag) * μ0_μB²
+        A0 = reshape(A, Nmom, Nmom)
 
         # Interaction matrix for wavevector q
-        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
-        Aq = reshape(Aq, Na, Na)
+        Aq = precompute_dipole_ewald_at_wavevector(msys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
+        Aq = reshape(Aq, Nmom, Nmom)
 
-        for i in 1:Na, j in 1:Na
-            # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
+        for a in 1:Nmom, b in 1:Nmom
+            # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
             # energy, where μ = - g S. A symmetric contribution will appear for
-            # the bond reversal (i, j) → (j, i).
-            J = gs[i]' * Aq[i, j] * gs[j] / 2
-            J0 = gs[i]' * A0[i, j] * gs[j] / 2
+            # the bond reversal (a, b) → (b, a).
+            J = gs[a]' * Aq[a, b] * gs[b] / 2
+            J0 = gs[a]' * A0[a, b] * gs[b] / 2
+
+            (i, ka) = atom_to_site[a]
+            (j, kb) = atom_to_site[b]
 
             for α in 1:3, β in 1:3
-                Ai = spins_localized[α, i]
-                Bj = spins_localized[β, j]
+                Ai = spins_localized[α, ka, i]
+                Bj = spins_localized[β, kb, j]
 
                 for m in 1:N-1, n in 1:N-1
                     c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])

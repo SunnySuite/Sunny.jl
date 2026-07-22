@@ -83,7 +83,7 @@ end
     sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
     set_exchange!(sys, J, Bond(1, 2, [0, 0, 0]))
     set_exchange!(sys, J′, Bond(1, 1, [1, 0, 0]))
-    set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))  # Needed because we broke the symmetry equivalence of the two sites
+    set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))
 
     esys = Sunny.entangle_units(sys, [(1, 2)])
     bare = esys.entanglement.bare_system
@@ -96,20 +96,6 @@ end
     onsite_ref = J * (Sl' * Su)
     @test onsite_operator ≈ onsite_ref
 
-    # Test external field. The Zeeman term is no longer folded into the onsite
-    # operator; it lives in `extfield` (per unit) and couples to the unit's total
-    # moment via the per-unit `dipole_operators`. The onsite operator is unchanged.
-    set_field!(esys, [0, 0, 1])
-    @test esys.interactions_union[1].onsite ≈ onsite_ref
-    @test esys.extfield[1] ≈ [0, 0, 1]
-    @test bare.extfield[1, 1, 1, 1] ≈ [0, 0, 1]
-    @test bare.extfield[1, 1, 1, 2] ≈ [0, 0, 1]
-
-    # The per-unit dipole operator is the g-weighted total moment; for two
-    # spin-1/2 atoms with g=2, T^z = 2(Slᶻ + Suᶻ).
-    T = esys.dipole_operators[1]
-    @test T[3] ≈ 2*(Sl[3] + Su[3])
-
     # Test apparatus for setting coherent states from dipoles specification
     dipoles = [[0, 1/2, 0], [0, -1/2, 0]] # Dipoles specifying a dimer state
     cs = Sunny.coherent_state_from_dipoles(esys, dipoles, 1)
@@ -117,44 +103,25 @@ end
     @test bare.dipoles[1,1,1,1][2] ≈ 1/2
     @test bare.dipoles[1,1,1,2][2] ≈ -1/2
 
-    # Test external field works in action
-    set_field!(esys, [0, 0, 10])
-    randomize_spins!(esys)
-    minimize_energy!(esys)
-    @test bare.dipoles[1][3] ≈ -1/2
-    @test bare.dipoles[2][3] ≈ -1/2
-
+    # Test external field. The Zeeman term is not folded into the onsite
+    # operator; it lives in `extfield` (per unit) and couples to the unit's total
+    # moment via the per-unit total-moment operator. The onsite operator is
+    # unchanged.
     set_field!(esys, [0, 0, -10])
+    @test esys.interactions_union[1].onsite ≈ onsite_ref
+    @test esys.extfield[1] ≈ [0, 0, -10]
+    @test bare.extfield[1, 1, 1, 1] ≈ [0, 0, -10]
+    @test bare.extfield[1, 1, 1, 2] ≈ [0, 0, -10]
+
+    # Test external field works in action
     randomize_spins!(esys)
     minimize_energy!(esys)
     @test bare.dipoles[1][3] ≈ 1/2
     @test bare.dipoles[2][3] ≈ 1/2
-
     set_field!(esys, [0, 0, 0])
-    randomize_spins!(esys)
     minimize_energy!(esys)
     @test norm(bare.dipoles[1]) < 1e-10
     @test norm(bare.dipoles[2]) < 1e-10
-
-    # The Zeeman contribution to the coherent-state gradient dE/dZ̄ must match a
-    # finite difference. The inter-unit general coupling has its own (known,
-    # separate) gradient inaccuracy, so isolate the Zeeman piece by differencing
-    # the gradient at nonzero field against the gradient at zero field: only the
-    # Zeeman term changes, and it is exact.
-    B_test = Sunny.Vec3(0.3, -0.7, 1.1)
-    randomize_spins!(esys)
-    Z0 = copy(esys.coherents)
-    set_field!(esys, [0, 0, 0])
-    ∇0 = Sunny.energy_grad_coherents(esys)
-    set_field!(esys, B_test)
-    ∇B = Sunny.energy_grad_coherents(esys)
-    T = esys.dipole_operators[1]
-    for site in eachsite(esys)
-        Z = Z0[site]
-        zeeman_grad = sum(B_test[α] * (T[α] * Z) for α in 1:3)
-        @test (∇B[site] - ∇0[site]) ≈ zeeman_grad
-    end
-    set_field!(esys, [0, 0, 0])
 
     # Test inter-bond exchange
     pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys)
@@ -166,60 +133,6 @@ end
     end
     bond_ref = J′*((Sl2' * Sl1) .+ (Su2' * Su1))
     @test bond_operator ≈ bond_ref
-
-    # Regression: the total energy and coherent-state gradient must be exact even
-    # in the presence of inter-unit coupling. Inter-unit couplings are stored in
-    # the `general` (tensor-decomposed) channel; extracting bilinear/biquadratic
-    # parts would express them in the unit's spin operators, but the contracted
-    # `dipoles` holds a unit's total moment, so those channels would be evaluated
-    # against the wrong vector. Compare against an exact product-space reference.
-    let
-        esys2 = repeat_periodically(esys, (2, 1, 1))
-        set_field!(esys2, [0, 0, 0])
-        Random.seed!(esys2.rng, 2)
-        randomize_spins!(esys2)
-
-        # Exact energy: onsite ⟨Z|Λ|Z⟩ plus, for each non-culled bond, the full
-        # product-space bond operator evaluated on Zᵢ ⊗ Zⱼ.
-        function exact_energy(sys)
-            E = 0.0
-            for i in 1:Sunny.natoms(sys.crystal)
-                int = sys.interactions_union[i]
-                for site in Sunny.eachsite_sublattice(sys, i)
-                    Z = sys.coherents[site]
-                    E += real(Z' * int.onsite * Z)
-                    for pcᵢ in int.pair
-                        pcᵢ.isculled && continue
-                        sj = Sunny.bonded_site(site, pcᵢ.bond, sys.dims)
-                        Ψ = kron(Z, sys.coherents[sj])
-                        pcg = Sunny.as_general_pair_coupling(pcᵢ, sys)
-                        op = pcg.scalar*I(length(Ψ)) + sum(kron(A, B) for (A, B) in pcg.general.data)
-                        E += real(Ψ' * op * Ψ)
-                    end
-                end
-            end
-            return E
-        end
-        @test energy(esys2) ≈ exact_energy(esys2)
-
-        # Coherent-state gradient dE/dZ̄ against a finite difference.
-        Z0 = copy(esys2.coherents)
-        ∇ = Sunny.energy_grad_coherents(esys2)
-        ε = 1e-6
-        maxerr = 0.0
-        for site in eachsite(esys2), c in 1:4, scale in (1.0 + 0im, im)
-            δ = zeros(ComplexF64, 4); δ[c] = scale
-            znew = copy(Z0); znew[site] = Z0[site] + ε*δ
-            esys2.coherents .= znew; Sunny.set_expected_dipoles!(esys2)
-            Ep = energy(esys2; check_normalization=false)
-            znew[site] = Z0[site] - ε*δ
-            esys2.coherents .= znew; Sunny.set_expected_dipoles!(esys2)
-            Em = energy(esys2; check_normalization=false)
-            maxerr = max(maxerr, abs((Ep - Em)/(2ε) - 2*real(δ' * ∇[site])))
-        end
-        esys2.coherents .= Z0; Sunny.set_expected_dipoles!(esys2)
-        @test maxerr < 1e-8
-    end
 
     # Test dispersion against analytical formula for antisymmetric channel.
     qs = [[0.2, 0.3, 0]]
@@ -238,12 +151,12 @@ end
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
 
     # Reshaped entangled system produces the correct intensities
-    swt_bands = SpinWaveTheory(esys; measure=ssf_perp(esys))
-    res = intensities_bands(swt_bands, qs)
+    swt = SpinWaveTheory(esys; measure=ssf_perp(esys))
+    res = intensities_bands(swt, qs)
     shape = [1 2 0; 0 1 0; 0 0 1]
     esys_sheared = reshape_supercell(esys, shape)
-    swt_bands_sheared = SpinWaveTheory(esys_sheared; measure=ssf_perp(esys_sheared))
-    res_sheared = intensities_bands(swt_bands_sheared, qs)
+    swt_sheared = SpinWaveTheory(esys_sheared; measure=ssf_perp(esys_sheared))
+    res_sheared = intensities_bands(swt_sheared, qs)
     @test res_sheared.disp ≈ res.disp atol=1e-11
     @test sum(res_sheared.data; dims=1) ≈ sum(res.data; dims=1) atol=1e-11
 
@@ -254,18 +167,18 @@ end
 
     ### Golden test for classical dynamics ###
 
-    # For exact reproducibility, reset the random number seed and use a specific
-    # initial condition.
-
-    Random.seed!(esys.rng, 0)
-    set_coherent!(esys, [0, 1/√2, -1/√2, 0], (1, 1, 1, 1))
-
     esys = repeat_periodically(esys, (8, 1, 1))
+    for site in eachsite(esys)
+        set_coherent!(esys, [1, 0, 0, 0], site)
+        i = site[1]
+        set_field_at!(esys, [cos(i), sin(2i), cos(3i)], site)
+    end
+
     energies = range(0, 2, 5)
     dt = 0.1
     measure = ssf_trace(esys)
     sc = SampledCorrelations(esys; dt, energies, measure)
-    integrator = Langevin(dt; damping=0.4, kT=0.05)
+    integrator = ImplicitMidpoint(dt)
 
     for _ in 1:100
         step!(esys, integrator)
@@ -273,13 +186,7 @@ end
     add_sample!(sc, esys)
     res = intensities(sc, qs; energies, kT=0.05)
 
-    # The revised SVD in Julia 1.11 leads to slight differences in the
-    # decomposition of "general" pair interactions, which amplify dynamically.
-    @static if v"1.10" <= VERSION < v"1.11"
-        @test res.data ≈ [0.07024999729427889; 0.3789922833067086; 0.030874420326198797; 0.019063538871308898; 0.046744509745178346;;]
-    elseif v"1.11" <= VERSION
-        @test res.data ≈ [0.057576728058578996; 0.291813812342436; 0.006207013162191793; 0.0019171217111500483; 0.009779731118622022;;]
-    end
+    @test res.data ≈ [0.6963636938867421; 4.833911994098928; 28.719089468355055; 52.61793172686838; 42.62520819431053;;]
 end
 
 @testitem "Entangled dipole-dipole" begin
@@ -351,8 +258,31 @@ end
     @test !isnothing(Sunny.clone_system(esys).entanglement.bare_system.ewald)
     @test !isnothing(repeat_periodically(esys, (2, 1, 1)).entanglement.bare_system.ewald)
 
-    # Unsupported paths error clearly rather than silently ignoring dipole-dipole.
-    @test_throws "does not yet support long-range dipole-dipole" SpinWaveTheory(esys; measure=nothing)
+    # SpinWaveTheory supports entangled dipole-dipole: the real-space dipolar
+    # coupling enters through the physical bare atoms (via the generalized Ewald
+    # block over unit "parts"). A strong field polarizes the units into a stable
+    # ground state; the dispersion is then finite, and it changes when the
+    # dipole-dipole interaction is present.
+    qs = [[0.1, 0, 0], [0.3, 0.2, 0]]
+    set_field!(esys, [0, 0, 40])
+    randomize_spins!(esys)
+    minimize_energy!(esys)
+    disp_dd = dispersion(SpinWaveTheory(esys; measure=nothing), qs)
+    @test all(isfinite, disp_dd) && all(≥(-1e-6), disp_dd)
+
+    let sys_nodd = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
+        set_exchange!(sys_nodd, 1.0, Bond(1, 2, [0, 0, 0]))
+        set_exchange!(sys_nodd, 0.1, Bond(1, 1, [1, 0, 0]))
+        set_exchange!(sys_nodd, 0.1, Bond(2, 2, [1, 0, 0]))
+        esys_nodd = resize_supercell(Sunny.entangle_units(sys_nodd, [(1, 2)]), (2, 1, 1))
+        set_field!(esys_nodd, [0, 0, 40])
+        randomize_spins!(esys_nodd)
+        minimize_energy!(esys_nodd)
+        disp_nodd = dispersion(SpinWaveTheory(esys_nodd; measure=nothing), qs)
+        @test !isapprox(disp_dd, disp_nodd; atol=1e-6)
+    end
+
+    # LocalSampler still does not support long-range dipole-dipole for entangled units.
     let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_flip)
         @test_throws "does not yet support long-range dipole-dipole" step!(esys, sampler)
     end

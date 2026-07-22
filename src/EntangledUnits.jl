@@ -44,7 +44,7 @@ end
 # carries a `cell_offset` so a unit may straddle cell boundaries of a reshaped
 # system.
 struct Entanglement <: AbstractEntanglement
-    bare_system           :: System                                    # Physical (reshaped) system
+    bare_system           :: System                                    # Physical system
     units                 :: Vector{Vector{Int}}                       # TRUTH: chemical-cell atom grouping
     contraction_info      :: CrystalContractionInfo                    # Forward/inverse mapping (matches bare_system)
     bare_dipole_operators :: Vector{NTuple{3, HermitianC64}}           # Product-space spin ops per physical atom (no g)
@@ -395,9 +395,8 @@ end
 # Build the product-space spin operators for each atom of the physical
 # `bare_system`, embedded into the local Hilbert space of the containing
 # entangled unit. No g-tensor is applied. An entangled system is homogeneous, so
-# these depend only on the atom index. These per-atom operators feed
-# `sync_unit_dipoles!` (populating `bare_system.dipoles`) and are summed with
-# g-weights to form the per-unit `sys.dipole_operators` below.
+# these depend only on the atom index. These per-atom operators are used to
+# populate `bare_system.dipoles`.
 function build_bare_dipole_operators(bare_system, contraction_info)
     Ns_unit = Ns_in_units(bare_system, contraction_info)
     natoms = length(contraction_info.forward)
@@ -405,35 +404,6 @@ function build_bare_dipole_operators(bare_system, contraction_info)
         S_local = spin_matrices_of_dim(; N=bare_system.Ns[1, 1, 1, atom])
         unit, k = contraction_info.forward[atom]
         ntuple(α -> local_op_to_product_space(S_local[α], k, Ns_unit[unit]), 3)
-    end
-end
-
-# Build the per-unit product-space operators `sys.dipole_operators[u]` for an
-# entangled system: the g-weighted total magnetic moment of each unit,
-#
-#   T^α = Σ_{k ∈ u} Σ_β (g_k)_{αβ} embed(Sₖ^β),
-#
-# so that ⟨Z|T^α|Z⟩ is the α-component of the unit's total moment M = Σ_k g_k Sₖ.
-# Derived from the per-atom `bare_dipole_operators` (one source of truth). The
-# unit g-factor `sys.gs[u]` is the identity, so the per-atom g_k live *inside*
-# these operators. Used by the Zeeman energy/gradient and SWT (see
-# `set_energy_grad_coherents!` and `swt_data`).
-function build_unit_dipole_operators(bare_system, contraction_info, bare_dipole_operators)
-    Ns_unit = Ns_in_units(bare_system, contraction_info)
-    nunits = length(contraction_info.inverse)
-    return map(1:nunits) do unit
-        Nprod = prod(Ns_unit[unit])
-        T = ntuple(_ -> zeros(ComplexF64, Nprod, Nprod), 3)
-        for id in contraction_info.inverse[unit]
-            atom = id.site
-            g = bare_system.gs[1, 1, 1, atom]
-            S_embed = bare_dipole_operators[atom]
-            for α in 1:3, β in 1:3
-                T[α] .+= g[α, β] .* S_embed[β]
-            end
-        end
-        # Real g-weighted sum of Hermitian embedded spins ⇒ Hermitian.
-        return ntuple(α -> Hermitian(T[α]), 3)
     end
 end
 
@@ -486,7 +456,6 @@ function rebuild_entanglement!(sys::System, bare_system, units)
     contraction_info = CrystalContractionInfo(forward, inverse)
 
     bare_dipole_operators = build_bare_dipole_operators(bare_system, contraction_info)
-    sys.dipole_operators = build_unit_dipole_operators(bare_system, contraction_info, bare_dipole_operators)
     sys.entanglement = Entanglement(bare_system, units, contraction_info, bare_dipole_operators)
     return sys
 end
@@ -514,13 +483,6 @@ entangled units.
 """
 function entangle_units(sys::System{N}, units) where {N}
     isnothing(sys.origin) || error("Entangle a single-cell system first, then reshape")
-
-    # External field is folded into the onsite interactions of the contracted
-    # system, which is homogeneous (indexed by unit, not site). So g-factors must
-    # be uniform across unit cells.
-    for atom in axes(sys.coherents, 4)
-        @assert allequal(@view sys.gs[:,:,:,atom]) "Entangled units require g-factors be uniform across unit cells"
-    end
 
     # Generate the contracted system and the physical (bare) system. The
     # contracted system carries `origin` = its chemical cell (set by the `System`
@@ -577,18 +539,6 @@ end
 ################################################################################
 # Dynamics: syncing physical dipoles with coherent states
 ################################################################################
-# An entangled `System` *is* the contracted system: `eachsite`, `sys.dipoles`,
-# `sys.crystal` are unit-level, while physical data lives in
-# `sys.entanglement.bare_system`. Dynamics (`step!`, `randomize_spins!`,
-# `minimize_energy!`, `set_coherent!`, `suggest_timestep`, `clone_system`) work
-# on the contracted system directly and self-sync physical dipoles (see
-# `setspin!`/`set_expected_dipoles!`), so no entangled-specific overrides are
-# needed for them. The methods below cover the cases that need physical data or
-# entangled-specific behavior.
-#
-# NB: for a unified entangled `System`, `eachsite(sys)` iterates the entangled
-# *units* (the native sites of the contracted system). To iterate the physical
-# atoms, iterate `eachsite(sys.entanglement.bare_system)`.
 
 # Dipole-dipole energy for an entangled system, evaluated on the physical bare
 # system (whose dipoles are synced with the coherent states).
@@ -654,51 +604,14 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
     return
 end
 
-# Sync the physical dipoles of the unit at contracted site `unit_site` from its
-# coherent state `Zu`, writing into `bare_system.dipoles`, and return the unit's
-# total magnetic moment M = Σₖ gₖ Sₖ over its physical atoms.
-function sync_unit_dipoles!(ent::Entanglement, unit_site, Zu)
-    (; bare_system, contraction_info, bare_dipole_operators) = ent
-    M = zero(Vec3)
-    for id in contraction_info.inverse[to_atom(unit_site)]
-        bs = member_site(unit_site, id, bare_system.dims)
-        S = bare_dipole_operators[id.site]  # per-atom product-space spin operators (no g)
-        d = Vec3(real(dot(Zu, S[1], Zu)), real(dot(Zu, S[2], Zu)), real(dot(Zu, S[3], Zu)))
-        bare_system.dipoles[bs] = d
-        M += bare_system.gs[bs] * d
-    end
-    return M
-end
-
-# Keep the cached dipoles of a single unit coherent with its coherent state,
-# given a unit `site` of the contracted `sys`. Two things are updated:
-#
-#   1. The physical dipoles of every atom in the unit (`bare_system.dipoles`).
-#   2. The contracted `sys.dipoles[site]`, redefined to carry a meaningful value:
-#      the unit's *total physical magnetic moment* expressed in the unit's own
-#      g-convention. `expected_spin` is nonsense here (it would assume the
-#      product-space dimension N=∏Nₖ is a single spin-(N-1)/2 irrep), so instead
-#      we form M = Σₖ gₖ Sₖ over the physical atoms and store `sys.gs[site] \ M`.
-#      With the conventional `sys.gs[site] = I`, this is just M. Then
-#      `sys.gs[site] * sys.dipoles[site] = M` recovers the total moment, which
-#      will facilitate a Zeeman coupling on the entangled unit.
-#
-# Called after a targeted coherent-state update (`set_coherent!`/`setspin!`).
-function sync_entangled_unit!(sys::System, site)
-    ent = get_entanglement(sys)
-    site = to_cartesian(site)
-    M = sync_unit_dipoles!(ent, site, sys.coherents[site])
-    sys.dipoles[site] = sys.gs[site] \ M
-    return
-end
-
-# Entangled path of `set_expected_dipoles!`: refresh every unit's cached dipoles
-# (physical + contracted total moment) from the coherent states.
-function set_expected_dipoles_entangled!(sys::System)
-    ent = get_entanglement(sys)
-    for site in eachsite(sys)
-        M = sync_unit_dipoles!(ent, site, sys.coherents[site])
-        sys.dipoles[site] = sys.gs[site] \ M
+# Sync the bare dipoles with the coherent state of an unit at `site`
+function sync_bare_dipoles_at!(sys::System, site)
+    Z = sys.coherents[site]
+    (; bare_system, contraction_info, bare_dipole_operators) = get_entanglement(sys)
+    for id in contraction_info.inverse[to_atom(site)]
+        bs = member_site(site, id, bare_system.dims)
+        S = bare_dipole_operators[id.site]
+        bare_system.dipoles[bs] = Vec3(real(dot(Z, S[1], Z)), real(dot(Z, S[2], Z)), real(dot(Z, S[3], Z)))
     end
     return
 end

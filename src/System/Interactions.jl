@@ -429,9 +429,19 @@ function energy(sys::System{N}; check_normalization=true) where N
     end
     E = 0.0
 
-    # Zeeman coupling to external field
-    for site in eachsite(sys)
-        E += sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
+    # Zeeman coupling to external field. For an entangled system, the physical
+    # moments live on the bare system (a unit's atoms feel independent fields, and
+    # the contracted `dipoles` are not maintained), so evaluate the Zeeman energy
+    # there — mirroring the gradient path `accum_bare_field_grad_coherents!`.
+    if isnothing(sys.entanglement)
+        for site in eachsite(sys)
+            E += sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
+        end
+    else
+        bare = get_entanglement(sys).bare_system
+        for site in eachsite(bare)
+            E += bare.extfield[site] ⋅ (bare.gs[site] * bare.dipoles[site])
+        end
     end
 
     # Anisotropies and exchange interactions
@@ -484,8 +494,6 @@ function energy_aux(int::Interactions, sys::System{N}, sites) where N
         for siteᵢ in sites
             @assert to_atom(siteᵢ) == bond.i
             siteⱼ = bonded_site(siteᵢ, bond, sys.dims)
-            Sᵢ = sys.dipoles[siteᵢ]
-            Sⱼ = sys.dipoles[siteⱼ]
 
             # Scalar
             if sys.mode == :SUN
@@ -496,25 +504,32 @@ function energy_aux(int::Interactions, sys::System{N}, sites) where N
                 E += pc.scalar
             end
 
-            # Bilinear
-            J = pc.bilin :: Union{Float64, Mat3}
-            E += dot(Sᵢ, J, Sⱼ)
+            # Bilinear and biquadratic dipole couplings. Skip for entangled
+            # systems, which populate "general" couplings instead.
+            if isnothing(sys.entanglement)
+                Sᵢ = sys.dipoles[siteᵢ]
+                Sⱼ = sys.dipoles[siteⱼ]
 
-            # Biquadratic
-            if !iszero(pc.biquad)
-                if sys.mode in (:dipole, :dipole_uncorrected)
-                    Qᵢ = quadrupole(Sᵢ)
-                    Qⱼ = quadrupole(Sⱼ)
-                else
-                    Zᵢ = sys.coherents[siteᵢ]
-                    Zⱼ = sys.coherents[siteⱼ]
-                    Qᵢ = expected_quadrupole(Zᵢ)
-                    Qⱼ = expected_quadrupole(Zⱼ)
-                end
-                if pc.biquad isa Float64
-                    E += pc.biquad::Float64 * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
-                else
-                    E += dot(Qᵢ, pc.biquad::Mat5, Qⱼ)
+                # Bilinear
+                J = pc.bilin :: Union{Float64, Mat3}
+                E += dot(Sᵢ, J, Sⱼ)
+
+                # Biquadratic
+                if !iszero(pc.biquad)
+                    if sys.mode in (:dipole, :dipole_uncorrected)
+                        Qᵢ = quadrupole(Sᵢ)
+                        Qⱼ = quadrupole(Sⱼ)
+                    else
+                        Zᵢ = sys.coherents[siteᵢ]
+                        Zⱼ = sys.coherents[siteⱼ]
+                        Qᵢ = expected_quadrupole(Zᵢ)
+                        Qⱼ = expected_quadrupole(Zⱼ)
+                    end
+                    if pc.biquad isa Float64
+                        E += pc.biquad::Float64 * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
+                    else
+                        E += dot(Qᵢ, pc.biquad::Mat5, Qⱼ)
+                    end
                 end
             end
 

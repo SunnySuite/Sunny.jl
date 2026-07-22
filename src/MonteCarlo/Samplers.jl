@@ -30,7 +30,7 @@ spin state. In `:dipole` mode, the procedure is to first introduce a random
 three-vector perturbation ``𝐒' = 𝐒 + |𝐒| ξ`` and then return the properly
 normalized spin ``|𝐒| (𝐒'/|𝐒'|)``. Each component of the random vector ``ξ``
 is Gaussian distributed with a standard deviation of `magnitude`; the latter is
-dimensionless and typically smaller than one. 
+dimensionless and typically smaller than one.
 
 In `:SUN` mode, the procedure is analogous, but now involving Gaussian
 perturbations to each of the ``N`` complex components of an SU(_N_) coherent
@@ -96,7 +96,7 @@ a provided [`System`](@ref). The default value of `1.0` means that `step!`
 performs, on average, one trial update per spin.
 
 Assuming ergodicity, the `LocalSampler` will sample from thermal equilibrium for
-the target temperature `kT`. 
+the target temperature `kT`.
 
 The trial spin updates are sampled using the `propose` function. Options include
 [`propose_uniform`](@ref), [`propose_flip`](@ref), and [`propose_delta`](@ref).
@@ -143,7 +143,7 @@ function step!(sys::System{N}, sampler::LocalSampler) where N
         else
             accept = rand(sys.rng) <= exp(-ΔE/sampler.kT)
         end
-        
+
         if accept
             sampler.ΔE += ΔE
             sampler.ΔS += state.S - sys.dipoles[site]

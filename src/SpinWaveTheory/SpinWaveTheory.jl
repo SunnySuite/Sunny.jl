@@ -8,8 +8,8 @@ end
 struct SWTDataSUN
     local_unitaries  :: Vector{Matrix{ComplexF64}}   # Transformations from global to quantization frame
     obs_parts        :: Array{HermitianC64, 3}       # Rotated observable parts (ncontribs × nobs × nsites)
-    observable_buf   :: Matrix{ComplexF64}           # Scratch buffer of size N × N
-    spins_localized  :: Array{HermitianC64, 2}       # Spins in local frame (3 × nsites), needed for Ewald
+    observable_buf   :: Matrix{ComplexF64}           # Scratch buffer (N × N)
+    spins_localized  :: Array{HermitianC64, 3}       # Spins in local frame (3 × nparts × nsites)
 end
 
 # To facilitate sharing some code with SpinWaveTheorySpiral
@@ -59,15 +59,10 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     if is_entangled(sys)
-        # Entangled dipole-dipole is q-dependent and pairwise, so it cannot be
-        # folded into an onsite term the way Zeeman is; promoting it into
-        # inter-unit product-space couplings is not yet implemented.
-        isnothing(get_entanglement(sys).bare_system.ewald) ||
-            error("SpinWaveTheory does not yet support long-range dipole-dipole interactions for entangled units.")
-
-        #  Preserve entanglement metadata (currently only needed for
-        #  dipole_operators that enter the Zeeman term, and to count the number
-        #  of bare sites in energy_per_site_lswt_correction)
+        # Flatten both the contracted and physical (bare) systems, then rebuild
+        # the entanglement mapping. `swt_data` reads the bare system for the
+        # per-atom spin operators (Zeeman and long-range dipole-dipole), so its
+        # metadata must survive here.
         (; bare_system, units) = get_entanglement(sys)
         sys = rebuild_entanglement!(flatten_system(sys), flatten_system(bare_system), units)
     else
@@ -194,11 +189,19 @@ function swt_data(sys::System{N}, measure) where N
     Nobs = num_observables(measure)
     flat_ops = reshape(measure.operators, nparts, Nobs, Na)
 
+    # Global-frame spin dipole "parts" for each site: the physical magnetic atoms
+    # contributing to it, as `(spin_ops::NTuple{3, HermitianC64}, g::Mat3,
+    # B::Vec3)`. For an ordinary system each site has one part (its bare spin S);
+    # for an entangled unit the parts are the unit's bare atoms, each embedded into
+    # the product space, with per-atom g-factor and field from the bare system.
+    site_parts = swt_spin_parts(sys)
+    nparts_spin = maximum(length, site_parts)
+
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
     obs_parts = Array{HermitianC64}(undef, nparts, Nobs, Na)
     observable_buf = zeros(ComplexF64, N, N)
-    spins_localized = Array{HermitianC64}(undef, 3, Na)
+    spins_localized = fill(Hermitian(zeros(ComplexF64, N, N)), 3, nparts_spin, Na)
 
     for i in 1:Na
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
@@ -219,10 +222,11 @@ function swt_data(sys::System{N}, measure) where N
             obs_parts[k, μ, i] = Hermitian(U' * flat_ops[k, μ, i] * U)
         end
 
-        # Spin dipole operators S in the local frame
-        S = sys.dipole_operators[i]
-        for μ in 1:3
-            spins_localized[μ, i] = Hermitian(U' * S[μ] * U)
+        # Spin dipole operators per part in the local frame (for dipole-dipole).
+        for (k, (spin_ops, _, _)) in enumerate(site_parts[i])
+            for α in 1:3
+                spins_localized[α, k, i] = Hermitian(U' * spin_ops[α] * U)
+            end
         end
     end
 
@@ -231,13 +235,16 @@ function swt_data(sys::System{N}, measure) where N
         Ui = local_unitaries[i]
         int = sys.interactions_union[i]
 
-        # Zeeman coupling operator, Σ_α (g'B)_α Sᵅ.
-        B = sys.gs[i]' * sys.extfield[i]
-        S = sys.dipole_operators[i]
-        zeeman = sum(B[α] * S[α] for α in 1:3)
-
-        # Merge and rotate all onsite couplings
-        int.onsite = Hermitian(Ui' * (zeeman + int.onsite) * Ui)
+        # Zeeman coupling Σ_parts Σ_α (gₐ'Bₐ)_α Sₐᵅ, accumulated into the onsite
+        # coupling in the global frame so it rotates with the anisotropy below.
+        onsite = Matrix{ComplexF64}(int.onsite)
+        for (spin_ops, g, B) in site_parts[i]
+            gB = g' * B
+            for α in 1:3
+                onsite += gB[α] * spin_ops[α]
+            end
+        end
+        int.onsite = Hermitian(Ui' * onsite * Ui)
 
         # Transform pair couplings into tensor decomposition and rotate.
         pair_new = PairCoupling[]
@@ -262,6 +269,46 @@ function swt_data(sys::System{N}, measure) where N
         observable_buf,
         spins_localized,
     )
+end
+
+# The physical magnetic-atom "parts" contributing to each SU(N) site, as a list
+# per site of `(spin_ops::NTuple{3, HermitianC64}, g::Mat3, B::Vec3)` in the
+# global frame. For an ordinary system each site is one atom: its bare spin
+# matrices `S`, g-tensor, and field. For an entangled unit the parts are the
+# unit's bare atoms, each spin operator embedded into the product-space Hilbert
+# space (no g), with per-atom g-tensor and field read from the bare system.
+function swt_spin_parts(sys::System{N}) where N
+    if is_entangled(sys)
+        (; bare_system, contraction_info, bare_dipole_operators) = get_entanglement(sys)
+        return map(contraction_info.inverse) do members
+            map(members) do id
+                (bare_dipole_operators[id.site],
+                 bare_system.gs[1, 1, 1, id.site],
+                 bare_system.extfield[1, 1, 1, id.site])
+            end
+        end
+    else
+        return map(1:nsites(sys)) do i
+            S = spin_matrices_of_dim(; N)
+            [(ntuple(α -> S[α], 3), sys.gs[i], sys.extfield[i])]
+        end
+    end
+end
+
+# The system carrying physical magnetic moments for the long-range dipole-dipole
+# term, and a map from each of its atoms to a `(site, part)` pair indexing
+# `spins_localized`. For an ordinary system this is `sys` itself with the trivial
+# map `a -> (a, 1)`. For an entangled system it is the physical bare system, with
+# `contraction_info.forward[a] = (unit, part)` mapping each bare atom to its unit
+# and intra-unit slot. Both share `sys.crystal.latvecs`, so the Ewald wavevector
+# is consistent.
+function dipole_dipole_moment_system(sys::System)
+    if is_entangled(sys)
+        (; bare_system, contraction_info) = get_entanglement(sys)
+        return (bare_system, contraction_info.forward)
+    else
+        return (sys, [(i, 1) for i in 1:natoms(sys.crystal)])
+    end
 end
 
 # Compute Stevens coefficients in the local reference frame

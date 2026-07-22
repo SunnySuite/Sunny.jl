@@ -350,7 +350,7 @@ function step!(sys::System{N}, integrator::Langevin) where N
     rhs_sun!(ΔZ₂, Z′, ζ, HZ, integrator)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
-    # Coordinate dipole data (unit-level, and physical dipoles if entangled)
+    # Coordinate dipole data
     set_expected_dipoles!(sys)
 
     return
