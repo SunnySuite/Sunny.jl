@@ -51,7 +51,7 @@ end
 
 function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
     if sym == :measure
-        @assert sc.measure.obs_operators ≈ val.obs_operators "New MeasureSpec must contain identical observables."
+        @assert sc.measure.operators ≈ val.operators "New MeasureSpec must contain identical observables."
         @assert all(x -> x == 1, sc.measure.corr_pairs .== val.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
         setfield!(sc, :measure, val)
     else
@@ -261,7 +261,7 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
     sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω,
-                             measure, copy(selectdim(measure.obs_operators, 1, 1)), positions, atom_idcs, copy(measure.corr_pairs),
+                             measure, copy(selectdim(measure.operators, 1, 1)), positions, atom_idcs, copy(measure.corr_pairs),
                              integrator, measperiod, nsamples,
                              samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 

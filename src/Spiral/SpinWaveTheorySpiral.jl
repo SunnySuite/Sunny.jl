@@ -229,7 +229,7 @@ end
 # Observables must be dipole moments, with some choice of apply_g. Extract and
 # return this parameter.
 function is_apply_g(sys::System, measure::MeasureSpec)
-    obs1 = measure.obs_operators
+    obs1 = measure.operators
     for apply_g in (true, false)
         obs2 = all_dipole_observables(sys; apply_g)
         vec(obs1) ≈ vec(obs2) && return apply_g

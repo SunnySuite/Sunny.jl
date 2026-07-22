@@ -79,7 +79,7 @@ function entangled_sc_data(measure, esys::EntangledSystem)
     dims = sys_origin.dims
     natoms_origin = natoms(sys_origin.crystal)
 
-    Op = eltype(measure.obs_operators)
+    Op = eltype(measure.operators)
     observables = Array{Op, 5}(undef, nobs, dims..., natoms_origin)
     positions   = zeros(Vec3, dims..., natoms_origin)
     source_idcs = zeros(Int64, dims..., natoms_origin)
@@ -96,10 +96,10 @@ function entangled_sc_data(measure, esys::EntangledSystem)
         positions[site] = sys_origin.crystal.positions[atom]
         source_idcs[site] = unit
         for μ in 1:nobs
-            op = measure.obs_operators[k, μ, cell, unit]
+            op = measure.operators[k, μ, cell, unit]
             observables[μ, site] = op
             atom_ops[1, μ, site] = op
-            atom_ff[1, μ, atom] = measure.obs_formfactors[k, μ, unit]
+            atom_ff[1, μ, atom] = measure.formfactors[k, μ, unit]
         end
     end
 

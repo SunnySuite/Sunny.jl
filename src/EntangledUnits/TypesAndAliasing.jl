@@ -275,7 +275,7 @@ function entangled_measure(measure, esys::EntangledSystem)
     nunits = length(contraction_info.inverse)
     atoms_per_unit = length(contraction_info.inverse[1])  # uniform by construction
 
-    Op = eltype(measure.obs_operators)
+    Op = eltype(measure.operators)
     new_ops     = Array{Op, 6}(undef, atoms_per_unit, nobs, dims..., nunits)
     new_offsets = zeros(Vec3, atoms_per_unit, nunits)
     new_ff      = Array{FormFactor, 3}(undef, atoms_per_unit, nobs, nunits)
@@ -285,8 +285,8 @@ function entangled_measure(measure, esys::EntangledSystem)
             atom = inverse_info.site  # atom index within a chemical cell of sys_origin
             new_offsets[k, i] = inverse_info.offset
             for μ in 1:nobs
-                new_ff[k, μ, i] = measure.obs_formfactors[1, μ, atom]
-                A = measure.obs_operators[1, μ, 1, 1, 1, atom]
+                new_ff[k, μ, i] = measure.formfactors[1, μ, atom]
+                A = measure.operators[1, μ, 1, 1, 1, atom]
                 A_product = local_op_to_product_space(convert(Matrix, A), k, Ns_unit[i])
                 A_embedded = A isa Hermitian ? Hermitian(A_product) : A_product
                 for c in CartesianIndices(dims)
@@ -296,7 +296,7 @@ function entangled_measure(measure, esys::EntangledSystem)
         end
     end
 
-    return MeasureSpec(new_ops, measure.corr_pairs, measure.combiner, new_ff; obs_offsets=new_offsets)
+    return MeasureSpec(new_ops, measure.corr_pairs, measure.combiner, new_ff; offsets=new_offsets)
 end
 
 # TODO: Note this simple wrapper makes everything work, but is not the most

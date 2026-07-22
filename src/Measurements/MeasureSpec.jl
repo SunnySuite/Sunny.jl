@@ -2,43 +2,43 @@
 # mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
 # mode, in which case op is an N×N matrix).
 #
-# obs_operators has shape (nparts × nobs × d1 × d2 × d3 × natoms). For a
-# standard system, nparts=1 with zero obs_offsets. For an entangled-unit
-# system, nparts=atoms_per_unit with intra-unit position offsets in obs_offsets
-# and per-subsite operators (in product space) in obs_operators.
+# operators has shape (nparts × nobs × d1 × d2 × d3 × natoms). For a
+# standard system, nparts=1 with zero offsets. For an entangled-unit
+# system, nparts=atoms_per_unit with intra-unit position offsets in offsets
+# and per-subsite operators (in product space) in operators.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
-    obs_operators   :: Array{Op, 6}           # (nparts × nobs × d1 × d2 × d3 × natoms)
-    obs_offsets     :: Array{Vec3, 2}         # (nparts × natoms)
-    obs_formfactors :: Array{FormFactor, 3}   # (nparts × nobs × natoms)
-    corr_pairs :: Vector{NTuple{2, Int}}      # (ncorr)
-    combiner :: F                             # (q::Vec3, obs) -> Ret
+    operators   :: Array{Op, 6}           # (nparts × nobs × d1 × d2 × d3 × natoms)
+    offsets     :: Array{Vec3, 2}         # (nparts × natoms)
+    formfactors :: Array{FormFactor, 3}   # (nparts × nobs × natoms)
+    corr_pairs  :: Vector{NTuple{2, Int}} # (ncorr)
+    combiner    :: F                      # (q::Vec3, obs) -> Ret
 
-    function MeasureSpec(obs_operators::Array{Op, 6}, corr_pairs, combiner::F, obs_formfactors::Array{FormFactor, 3}; obs_offsets=nothing) where {Op, F}
+    function MeasureSpec(operators::Array{Op, 6}, corr_pairs, combiner::F, formfactors::Array{FormFactor, 3}; offsets=nothing) where {Op, F}
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
-        nparts  = size(obs_operators, 1)
-        natoms  = size(obs_operators, 6)
-        nobs    = size(obs_operators, 2)
-        if isnothing(obs_offsets)
-            obs_offsets = zeros(Vec3, nparts, natoms)
+        nparts  = size(operators, 1)
+        natoms  = size(operators, 6)
+        nobs    = size(operators, 2)
+        if isnothing(offsets)
+            offsets = zeros(Vec3, nparts, natoms)
         end
-        @assert (nparts, natoms) == size(obs_offsets) "obs_offsets must have shape (nparts, natoms)"
-        @assert (nparts, nobs, natoms) == size(obs_formfactors) "obs_formfactors must have shape (nparts, nobs, natoms)"
-        return new{Op, F, Ret}(obs_operators, obs_offsets, obs_formfactors, corr_pairs, combiner)
+        @assert (nparts, natoms) == size(offsets) "offsets must have shape (nparts, natoms)"
+        @assert (nparts, nobs, natoms) == size(formfactors) "formfactors must have shape (nparts, nobs, natoms)"
+        return new{Op, F, Ret}(operators, offsets, formfactors, corr_pairs, combiner)
     end
 
     # Backward-compatible constructor: accepts old 5D observables + 1D/2D formfactors.
     function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors) where {Op, F}
-        obs_operators = reshape(observables, 1, size(observables)...)
+        operators = reshape(observables, 1, size(observables)...)
         nobs   = size(observables, 1)
         natoms = size(observables, 5)
-        obs_ff = if ndims(formfactors) == 1
+        ff = if ndims(formfactors) == 1
             Array{FormFactor, 3}([formfactors[a] for _ in 1:1, _ in 1:nobs, a in eachindex(formfactors)])
         else
             @assert size(formfactors) == (nobs, natoms)
             reshape(Array(formfactors), 1, nobs, natoms)
         end
-        return MeasureSpec(obs_operators, corr_pairs, combiner, obs_ff)
+        return MeasureSpec(operators, corr_pairs, combiner, ff)
     end
 end
 
@@ -55,15 +55,15 @@ end
 
 Base.eltype(::MeasureSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
-num_observables(measure::MeasureSpec) = size(measure.obs_operators, 2)
+num_observables(measure::MeasureSpec) = size(measure.operators, 2)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs)
 
 function empty_measurespec(sys)
-    obs_operators = zeros(Vec3, 1, 0, size(eachsite(sys))...)
+    operators = zeros(Vec3, 1, 0, size(eachsite(sys))...)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
-    obs_formfactors = zeros(FormFactor, 1, 0, natoms(sys.crystal))
-    return MeasureSpec(obs_operators, corr_pairs, combiner, obs_formfactors)
+    formfactors = zeros(FormFactor, 1, 0, natoms(sys.crystal))
+    return MeasureSpec(operators, corr_pairs, combiner, formfactors)
 end
 
 function all_dipole_observables(sys::System{0}; apply_g)
@@ -129,8 +129,8 @@ measure = ssf_custom((q, ssf) -> real(ssf[1, 1] + ssf[2, 2] + ssf[3, 3]), sys)
 See also the Sunny documentation on [Structure Factor Conventions](@ref).
 """
 function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
-    obs_operators = all_dipole_observables(sys; apply_g)  # (1 × 3 × sys_dims × natoms)
-    nobs = size(obs_operators, 2)
+    operators = all_dipole_observables(sys; apply_g)  # (1 × 3 × sys_dims × natoms)
+    nobs = size(operators, 2)
     natoms_orig = natoms(sys.crystal)
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     combiner(q, corr) = f(q, SA[
@@ -144,11 +144,11 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
         formfactors isa Vector{Pair{Int, FormFactor}} || error("Pass formfactors as [i1 => FormFactor(...), i2 => ...]")
         propagate_atom_data(orig_crystal(sys), sys.crystal, formfactors)
     end
-    obs_formfactors = Array{FormFactor, 3}([ffs_1d[a] for _ in 1:1, _ in 1:nobs, a in 1:natoms_orig])
-    return MeasureSpec(obs_operators, corr_pairs, combiner, obs_formfactors)
+    ffs = Array{FormFactor, 3}([ffs_1d[a] for _ in 1:1, _ in 1:nobs, a in 1:natoms_orig])
+    return MeasureSpec(operators, corr_pairs, combiner, ffs)
 end
 
-CRC.@non_differentiable MeasureSpec(obs_operators, corr_pairs, combiner, obs_formfactors)
+CRC.@non_differentiable MeasureSpec(operators, corr_pairs, combiner, formfactors)
 CRC.@non_differentiable ssf_custom(f, sys)
 
 """
