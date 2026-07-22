@@ -558,6 +558,49 @@ end
 
 
 ################################################################################
+# Reshaping
+################################################################################
+# Reshaping of an entangled `System` (dispatched from the ordinary
+# `reshape_supercell`/`repeat_periodically`/`resize_supercell` in Reshaping.jl,
+# and used by the `SpinWaveTheory` flatten). Both the contracted `sys` and its
+# physical `bare_system` are reshaped by the ordinary (non-entangled) backbone,
+# then the entanglement mapping is rebuilt geometrically from the immutable
+# `units` truth. Because the rebuild starts from the single-cell truth rather
+# than transforming the previous mapping, units may straddle cell boundaries.
+
+# Apply an ordinary reshaping `op` (a closure of one system) to the *contracted*
+# `sys`, treating it as a plain system. The `entanglement` field is temporarily
+# detached so `op` (which dispatches on `is_entangled`) takes the ordinary path
+# and does not recurse. `op` returns a system with `entanglement = nothing`; the
+# caller re-attaches fresh metadata.
+function reshape_contracted(sys::System, op)
+    ent = sys.entanglement
+    sys.entanglement = nothing
+    try
+        return op(sys)
+    finally
+        sys.entanglement = ent
+    end
+end
+
+# Apply `op` to both the contracted `sys` and its physical `bare_system`, then
+# rebuild the mapping from the `units` truth. This is the shared implementation
+# behind the entangled paths of `reshape_supercell`/`repeat_periodically`.
+function reshape_entangled(sys::System, op)
+    (; bare_system, units) = get_entanglement(sys)
+    sys_new = reshape_contracted(sys, op)
+    bare_new = op(bare_system)
+    return rebuild_entanglement!(sys_new, bare_new, units)
+end
+
+# Flatten an entangled `sys` into a single `(1,1,1)` supercell (used by the
+# `SpinWaveTheory` constructor). Mirrors the plain flatten (`reshape_supercell_aux`
+# onto `resize_and_flatten_crystal`), applied to both systems.
+flatten_supercell_entangled(sys::System) =
+    reshape_entangled(sys, s -> reshape_supercell_aux(s, resize_and_flatten_crystal(s.crystal, s.dims), (1, 1, 1)))
+
+
+################################################################################
 # Dynamics: syncing physical dipoles with coherent states
 ################################################################################
 # An entangled `System` *is* the contracted system: `eachsite`, `sys.dipoles`,

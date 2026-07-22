@@ -13,7 +13,7 @@ with [`resize_supercell`](@ref).
 See also [`repeat_periodically`](@ref).
 """
 function reshape_supercell(sys::System, shape)
-    isnothing(sys.entanglement) || return reshape_supercell_entangled(sys, shape)
+    isnothing(sys.entanglement) || return reshape_entangled(sys, s -> reshape_supercell(s, shape))
     is_homogeneous(sys) || error("Cannot reshape inhomogeneous system.")
 
     orig = orig_crystal(sys)
@@ -148,8 +148,8 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     end
 
     # Rebuild the per-atom dipole operators now that `new_Ns` is populated. For an
-    # entangled system, `attach_entanglement!` overwrites this with the per-unit
-    # (g-weighted) operators; see EntangledReshaping.jl.
+    # entangled system, `rebuild_entanglement!` later overwrites this with the
+    # per-unit (g-weighted) operators; see EntangledUnits.jl.
     new_sys.dipole_operators = build_dipole_operators_ordinary(sys.mode, new_sys.Ns)
 
     # Restore dipole-dipole interactions if present. This involves pre-computing
@@ -184,8 +184,8 @@ reshape_supercell(sys, [dims[1] 0 0; 0 dims[2] 0; 0 0 dims[3]])
 See also [`reshape_supercell`](@ref) and [`repeat_periodically`](@ref).
 """
 function resize_supercell(sys::System, dims::NTuple{3,Int})
-    isnothing(sys.entanglement) || return resize_supercell_entangled(sys, dims)
-    is_homogeneous(sys) || error("Cannot resize inhomogeneous system.")
+    # For an entangled system, `reshape_supercell` dispatches to the entangled path.
+    isnothing(sys.entanglement) && !is_homogeneous(sys) && error("Cannot resize inhomogeneous system.")
     return reshape_supercell(sys, diagm(Vec3(dims)))
 end
 
@@ -200,9 +200,9 @@ See also [`repeat_periodically_as_spiral`](@ref), which rotates the spins
 between periodic copies.
 """
 function repeat_periodically(sys::System, counts::NTuple{3,Int})
-    isnothing(sys.entanglement) || return repeat_periodically_entangled(sys, counts)
-    is_homogeneous(sys) || error("Cannot repeat inhomogeneous system.")
     all(>=(1), counts) || error("Require at least one count in each direction.")
+    isnothing(sys.entanglement) || return reshape_entangled(sys, s -> repeat_periodically(s, counts))
+    is_homogeneous(sys) || error("Cannot repeat inhomogeneous system.")
     return reshape_supercell_aux(sys, sys.crystal, counts .* sys.dims)
 end
 
