@@ -106,24 +106,23 @@ end
 # inter-unit conversions below, which differ only in that embedding.
 function accum_bond_operator!(op, pc::PairCoupling, embed_i, embed_j, Ni, Nj)
     (; scalar, bilin, biquad, general) = pc
-    Ntot = size(op, 1)
 
-    # Scalar part
-    op .+= scalar * I(Ntot)
+    # Add scalar part
+    op .+= scalar * I(size(op, 1))
 
-    # Bilinear part
+    # Add bilinear part
+    S1 = embed_i.(spin_matrices((Ni-1)/2))
+    S2 = embed_j.(spin_matrices((Nj-1)/2))
     J = bilin isa Float64 ? bilin*I(3) : bilin
-    Si = [embed_i(Sa) for Sa in spin_matrices((Ni-1)/2)]
-    Sj = [embed_j(Sb) for Sb in spin_matrices((Nj-1)/2)]
-    op .+= Si' * J * Sj
+    op .+= S1' * J * S2
 
-    # Biquadratic part
+    # Add biquadratic part
+    O1 = embed_i.(stevens_matrices_of_dim(2; N=Ni))
+    O2 = embed_j.(stevens_matrices_of_dim(2; N=Nj))
     K = biquad isa Float64 ? diagm(biquad * scalar_biquad_metric) : biquad
-    Oi = [embed_i(Oa) for Oa in stevens_matrices_of_dim(2; N=Ni)]
-    Oj = [embed_j(Ob) for Ob in stevens_matrices_of_dim(2; N=Nj)]
-    op .+= Oi' * K * Oj
+    op .+= O1' * K * O2
 
-    # General part
+    # Add general part
     for (A, B) in general.data
         op .+= embed_i(A) * embed_j(B)
     end

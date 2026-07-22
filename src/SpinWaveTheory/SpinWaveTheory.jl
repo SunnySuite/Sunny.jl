@@ -125,37 +125,25 @@ end
 
 
 # Take PairCoupling `pc` and use it to make a new, equivalent PairCoupling that
-# contains all information about the interaction in the `general` (tensor
-# decomposition) field.
+# contains all information about the interaction in the `general` field (a
+# recompressed tensor decomposition).
 function as_general_pair_coupling(pc, sys)
-    (; bond, scalar, bilin, biquad, general) = pc
-    N1 = sys.Ns[bond.i]
-    N2 = sys.Ns[bond.j]
+    # Avoid a possibly expensive SVD if bilin and biquad are zero, as will be
+    # the case for couplings between entangled units.
+    (iszero(pc.bilin) && iszero(pc.biquad)) && return pc
 
+    N1 = sys.Ns[pc.bond.i]
+    N2 = sys.Ns[pc.bond.j]
+
+    # Assemble the full bond operator, with site 1 as the first tensor factor and
+    # site 2 as the second.
     accum = zeros(ComplexF64, N1*N2, N1*N2)
+    accum_bond_operator!(accum, pc, A -> kron(A, I(N2)), B -> kron(I(N1), B), N1, N2)
 
-    # Add scalar part
-    accum += scalar * I
-
-    # Add bilinear part
-    S1, S2 = to_product_space(spin_matrices((N1-1)/2), spin_matrices((N2-1)/2))
-    J = bilin isa Float64 ? bilin*I(3) : bilin
-    accum += S1' * J * S2
-
-    # Add biquadratic part
-    K = biquad isa Float64 ? diagm(biquad * Sunny.scalar_biquad_metric) : biquad
-    O1, O2 = to_product_space(stevens_matrices_of_dim(2; N=N1), stevens_matrices_of_dim(2; N=N2))
-    accum += O1' * K * O2
-
-    # Add general part
-    for (A, B) in general.data
-        accum += kron(A, B) 
-    end
-
-    # Generate new interaction with extract_parts=false 
+    # Generate new interaction with extract_parts=false
     scalar, bilin, biquad, general = decompose_general_coupling(accum, N1, N2; extract_parts=false)
 
-    return PairCoupling(bond, scalar, bilin, biquad, general)
+    return PairCoupling(pc.bond, scalar, bilin, biquad, general)
 end
 
 function rotate_general_coupling_into_local_frame(pc, U1, U2)
