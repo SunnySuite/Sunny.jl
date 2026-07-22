@@ -567,11 +567,7 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
 
     fill!(∇E, zero(Vec3))
 
-    # Zeeman coupling, dE/dS = g' B. For an entangled system this is produced
-    # instead per physical atom on the bare system (together with long-range
-    # dipole-dipole) and translated in `set_energy_grad_coherents!`: a unit's
-    # atoms feel independent fields, which cannot collapse into one per-unit
-    # dE/dS vector. See `accum_bare_field_grad_coherents!`.
+    # Zeeman coupling, dE/dS = g' B
     for site in eachsite(sys)
         ∇E[site] += sys.gs[site]' * sys.extfield[site]
     end
@@ -646,51 +642,46 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, int::Intera
     end
 end
 
-# Updates `HZ` in-place to hold `dE/dZ̄`, which is the Schrödinger analog to the
-# quantity `dE/dS`. **Overwrites the first two dipole buffers in `sys`.** The
-# ordinary and entangled systems differ only in how the local effective field is
-# produced (`set_energy_grad_coherents_ordinary!` vs. `..._entangled!`); both
-# then run the same onsite/biquadratic/general pair-coupling accumulation.
-function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) where N
+# Updates ∇E in-place to hold dE/dZ̄, which is used to drive SU(N) dynamics.
+function set_energy_grad_coherents!(∇E, Z::Array{CVec{N}, 4}, sys::System{N}) where N
     @assert N > 0
-    fill!(HZ, zero(CVec{N}))
+    fill!(∇E, zero(CVec{N}))
 
     if isnothing(sys.entanglement)
         # Calculate the local effective field dE/dS for Zeeman, dipole-dipole,
-        # and spin-bilinear exchange. Accumulate HZ += (dE/dS ⋅ S) Z.
+        # and spin-bilinear exchange. Accumulate ∇E += (dE/dS ⋅ S) Z.
         dE_dS, dipoles = get_dipole_buffers(sys, 2)
         @. dipoles = expected_spin(Z)
         set_energy_grad_dipoles!(dE_dS, dipoles, sys)
         for site in eachsite(sys)
-            HZ[site] += mul_spin_matrices(dE_dS[site], Z[site])
+            ∇E[site] += mul_spin_matrices(dE_dS[site], Z[site])
         end
     else
-        # Calculate the local effective field dE/dS for Zeeman and dipole-dipole
-        # for each part of an entangled unit on the bare system. Accumulate into
-        # HZ via the per-atom embedded spin operators.
-        accum_bare_field_grad_coherents!(HZ, Z, get_entanglement(sys))
+        # For entangled units, handle Zeeman and dipole-dipole interactions via
+        # the uncontracted magnetic moment dipoles.
+        accum_bare_field_grad_coherents!(∇E, Z, get_entanglement(sys))
     end
 
     # Onsite, biquadratic, and general pair couplings.
     if is_homogeneous(sys)
         for i in 1:natoms(sys.crystal)
             interactions = sys.interactions_union[i]
-            set_energy_grad_coherents_aux!(HZ, Z, interactions, sys, eachsite_sublattice(sys, i))
+            set_energy_grad_coherents_aux!(∇E, Z, interactions, sys, eachsite_sublattice(sys, i))
         end
     else
         for site in eachsite(sys)
             interactions = sys.interactions_union[site]
-            set_energy_grad_coherents_aux!(HZ, Z, interactions, sys, (site,))
+            set_energy_grad_coherents_aux!(∇E, Z, interactions, sys, (site,))
         end
     end
 end
 
 
-function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, int::Interactions, sys::System{N}, sites) where N
-    # Onsite coupling, HZ += Λ Z.
+function set_energy_grad_coherents_aux!(∇E, Z::Array{CVec{N}, 4}, int::Interactions, sys::System{N}, sites) where N
+    # Onsite coupling, ∇E += Λ Z.
     Λ = int.onsite :: HermitianC64
     for site in sites
-        HZ[site] += mul_svec(Λ, Z[site])
+        ∇E[site] += mul_svec(Λ, Z[site])
     end
 
     for pc in int.pair
@@ -715,15 +706,15 @@ function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, int::Interacti
                     dE_dQᵢ = pc.biquad * Qⱼ
                     dE_dQⱼ = pc.biquad' * Qᵢ
                 end
-                HZ[siteᵢ] += mul_quadrupole_matrices(dE_dQᵢ, Zᵢ)
-                HZ[siteⱼ] += mul_quadrupole_matrices(dE_dQⱼ, Zⱼ)
+                ∇E[siteᵢ] += mul_quadrupole_matrices(dE_dQᵢ, Zᵢ)
+                ∇E[siteⱼ] += mul_quadrupole_matrices(dE_dQⱼ, Zⱼ)
             end
 
             for (A, B) in pc.general.data
                 Ā = real(dot(Zᵢ, A, Zᵢ))
                 B̄ = real(dot(Zⱼ, B, Zⱼ))
-                HZ[siteᵢ] += mul_svec(A, Zᵢ) * B̄
-                HZ[siteⱼ] += Ā * mul_svec(B, Zⱼ)
+                ∇E[siteᵢ] += mul_svec(A, Zᵢ) * B̄
+                ∇E[siteⱼ] += Ā * mul_svec(B, Zⱼ)
             end
         end
     end
