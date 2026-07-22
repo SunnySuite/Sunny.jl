@@ -6,9 +6,12 @@ struct SWTDataDipole
 end
 
 struct SWTDataSUN
-    local_unitaries       :: Vector{Matrix{ComplexF64}} # Transformations from global to quantization frame
-    observables_localized :: Array{HermitianC64, 2}     # Observables rotated to local frame (nobs × nsites)
-    spins_localized       :: Array{HermitianC64, 2}     # Spins rotated to local frame (3 × nsites)
+    local_unitaries  :: Vector{Matrix{ComplexF64}}   # Transformations from global to quantization frame
+    obs_parts        :: Array{HermitianC64, 3}       # Observable parts in local frame (ncontribs × nobs × nsites)
+    obs_offsets      :: Array{Vec3, 3}               # Position offsets per part (ncontribs × nobs × nsites)
+    obs_ff_atoms     :: Array{Int, 3}                # Atom index for form factor lookup (ncontribs × nobs × nsites)
+    observable_buf   :: Matrix{ComplexF64}           # Scratch buffer of size N × N
+    spins_localized  :: Array{HermitianC64, 2}       # Spins in local frame (3 × nsites), needed for Ewald
 end
 
 # To facilitate sharing some code with SpinWaveTheorySpiral
@@ -179,8 +182,13 @@ function swt_data(sys::System{N}, measure) where N
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
-    observables_localized = Array{HermitianC64}(undef, Nobs, Na)
+    obs_parts    = Array{HermitianC64}(undef, 1, Nobs, Na)
+    obs_offsets  = zeros(Vec3, 1, Nobs, Na)
+    obs_ff_atoms = zeros(Int, 1, Nobs, Na)
+    observable_buf = zeros(ComplexF64, N, N)
     spins_localized = Array{HermitianC64}(undef, 3, Na)
+
+    ff_dims = size(measure.observables)[2:4]  # original sys dims for form factor mapping
 
     for i in 1:Na
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
@@ -197,8 +205,10 @@ function swt_data(sys::System{N}, measure) where N
         local_unitaries[i] = U
 
         # Rotate observables into local reference frames
+        ff_atom = fld1(i, prod(ff_dims))
         for μ in 1:Nobs
-            observables_localized[μ, i] = Hermitian(U' * observables[μ, i] * U)
+            obs_parts[1, μ, i] = Hermitian(U' * observables[μ, i] * U)
+            obs_ff_atoms[1, μ, i] = ff_atom
         end
 
         S = spin_matrices_of_dim(; N)
@@ -239,7 +249,10 @@ function swt_data(sys::System{N}, measure) where N
 
     return SWTDataSUN(
         local_unitaries,
-        observables_localized,
+        obs_parts,
+        obs_offsets,
+        obs_ff_atoms,
+        observable_buf,
         spins_localized,
     )
 end
@@ -330,24 +343,35 @@ function observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
     cis(2π * dot(q_reshaped, r_reshaped)) * compute_form_factor(ff, norm2(q_global))
 end
 
-# Linearize each Fourier observable Â(q) = Σᵢ exp(+i q⋅rᵢ) Âᵢ as a coefficient
+# Linearize each Fourier observable Â(q) = Σᵢ exp(+i q⋅rᵢ) Âᵢ as a coefficient
 # vector u in the Nambu basis of Holstein-Primakoff bosons [a_q, a_-q†].
+#
+# For standard SWT each site has one contribution (ncontribs=1) with zero
+# offset. For entangled-unit SWT, SWTDataSUN is populated with ncontribs =
+# atoms_per_unit parts that carry distinct position offsets (relative to the
+# unit center) and distinct form factor atom indices.
 function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_global)
     (; sys, measure, data) = swt
     Na = nsites(sys)
-    Nobs = size(measure.observables, 1)
+    Nobs = num_observables(measure)
     Nf = nflavors(swt)
     L = Nf * Na
 
     if sys.mode == :SUN
-        (; observables_localized) = data::SWTDataSUN
+        (; obs_parts, obs_offsets, obs_ff_atoms, observable_buf) = data::SWTDataSUN
         N = sys.Ns[1]
         for μ in 1:Nobs, i in 1:Na
-            pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-            O = observables_localized[μ, i]
+            r = sys.crystal.positions[i]
+            fill!(observable_buf, 0)
+            for k in axes(obs_parts, 1)
+                ff = measure.formfactors[μ, obs_ff_atoms[k, μ, i]]
+                pref = cis(2π * dot(q_reshaped, r + obs_offsets[k, μ, i])) *
+                       compute_form_factor(ff, norm2(q_global))
+                observable_buf .+= pref .* obs_parts[k, μ, i]
+            end
             for f in 1:Nf
-                u[f + (i-1)*Nf, μ]     = pref * O[f, N]
-                u[f + (i-1)*Nf + L, μ] = pref * O[N, f]
+                u[f + (i-1)*Nf,     μ] = observable_buf[f, N]
+                u[f + (i-1)*Nf + L, μ] = observable_buf[N, f]
             end
         end
     else

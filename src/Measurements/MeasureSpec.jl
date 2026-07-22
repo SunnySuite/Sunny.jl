@@ -7,10 +7,9 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
     combiner :: F                        # (q::Vec3, obs) -> Ret
     formfactors :: Array{FormFactor, 2}  # (nobs × natoms)
-    offsets :: Array{Vec3, 2}            # (nobs × natoms)
 
     # TODO: Default combiner will be SVector?
-    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors; offsets=nothing) where {Op, F}
+    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors) where {Op, F}
         # Lift return type of combiner function to type-level
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
@@ -18,11 +17,8 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
         if isone(ndims(formfactors))
             formfactors = [ff for _ in axes(observables, 1), ff in formfactors]
         end
-        if isnothing(offsets)
-            offsets = zeros(Vec3, size(observables)[[1,5]]...)
-        end
-        @assert size(observables)[[1,5]] == size(formfactors) == size(offsets)
-        return new{Op, F, Ret}(observables, corr_pairs, combiner, formfactors, offsets)
+        @assert size(observables)[[1,5]] == size(formfactors)
+        return new{Op, F, Ret}(observables, corr_pairs, combiner, formfactors)
     end
 end
 
