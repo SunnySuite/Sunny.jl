@@ -35,6 +35,17 @@ function repopulate_couplings_from_params!(sys::System)
         end
     end
 
+    # The net coupling on each bond may arise from multiple source couplings
+    # (this occurs naturally for entangled units). Compress "general"
+    # interactions ∑ₖ aₖ⊗bₖ so that the sum has a minimal set of terms.
+    for int in ints
+        for (k, pc) in enumerate(int.pair)
+            (; gen1, gen2, data) = pc.general
+            tensordec = TensorDecomposition(gen1, gen2, compress_tensor_product_expansion(data))
+            int.pair[k] = PairCoupling(pc.bond, pc.scalar, pc.bilin, pc.biquad, tensordec)
+        end
+    end
+
     # Non-culled couplings must come first to enable early `break`
     for (; pair) in ints
         sort!(pair, by = pc -> pc.isculled)

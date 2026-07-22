@@ -97,6 +97,13 @@ function ql(A)
     return (; Q=QF, L=FRF)
 end
 
+# Perform the SVD decomposition A = U Σ Vᵀ and return an iterator over the
+# principal triples (σₖ, U[:,k], V[:,k]), dropping components where σₖ < atol.
+function svd_iterator(A; atol)
+    F = svd(A)
+    return ((σ, u, v) for (σ, u, v) in zip(F.S, eachcol(F.U), eachcol(F.V)) if σ > atol)
+end
+
 # flatten_to_vec([1, ([2, 3], 4, [5, 6])]) == [1, 2, 3, 4, 5, 6]
 flatten_to_vec(x::Number) = [x]
 flatten_to_vec(x::AbstractArray{<: Number}) = vec(x)

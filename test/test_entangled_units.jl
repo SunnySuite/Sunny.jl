@@ -99,11 +99,12 @@ end
 
     ### Test inter-bond exchange
 
-    bond_operator = Sunny.bond_operator(interactions.pair[1], 4, 4)
+    pc = interactions.pair[1]
+    op = Sunny.bond_operator_in_tensor_space(pc, 4, 4)
     Sl1, Sl2 = to_product_space(Sl, Sl)
     Su1, Su2 = to_product_space(Su, Su)
-    bond_ref = J′*((Sl2' * Sl1) .+ (Su2' * Su1))
-    @test bond_operator ≈ bond_ref
+    op_ref = J′*((Sl2' * Sl1) .+ (Su2' * Su1))
+    @test op ≈ op_ref
 
     ### Test dispersion against analytical formula for antisymmetric channel.
 
@@ -163,6 +164,7 @@ end
 end
 
 @testitem "General inter-unit coupling" begin
+    import LinearAlgebra: I
 
     # Spin-1 dimers with a *biquadratic* inter-unit coupling. This exercises the
     # general (non-dipole) contraction path: each bare coupling is compressed via
@@ -179,7 +181,8 @@ end
     set_pair_coupling!(sys, f, Bond(2, 2, [1, 0, 0]))
 
     esys = entangle_system(sys, [(1, 2)])
-    bond_operator = Sunny.bond_operator(esys.interactions_union[1].pair[1], 9, 9)
+    pc = esys.interactions_union[1].pair[1]
+    op = Sunny.bond_operator_in_tensor_space(pc, 9, 9)
 
     # Analytic reference: the two bare couplings (part1↔part1 and part2↔part2),
     # each embedded into the 81-dimensional two-unit product space.
@@ -187,8 +190,40 @@ end
     Sl, Su = to_product_space(S, S)         # the two atoms within a 9-dim unit
     Sl1, Sl2 = to_product_space(Sl, Sl)     # part1-of-A ↔ part1-of-B
     Su1, Su2 = to_product_space(Su, Su)     # part2-of-A ↔ part2-of-B
-    bond_ref = f(Sl1, Sl2) + f(Su1, Su2)
-    @test bond_operator ≈ bond_ref
+    opref = f(Sl1, Sl2) + f(Su1, Su2)
+
+    @test op ≈ opref
+end
+
+@testitem "Inter-unit coupling recompression" begin
+    # Two exchange couplings that land on the *same* inter-unit bond have their
+    # tensor expansions concatenated during `repopulate_couplings_from_params!`.
+    # Recompression must collapse them to minimal Schmidt rank while preserving
+    # the bond operator (hence energy and gradient) exactly.
+    latvecs = [1 0 0; 0 1 0; 0 0 2]
+    positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
+    crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
+
+    sys = System(crystal, [1 => Moment(s=1, g=2), 2 => Moment(s=1, g=2)], :SUN)
+    set_pair_coupling!(sys, (Si, Sj) -> (Si' * Sj), Bond(1, 2, [0, 0, 0]))
+    # Both couplings share part 1 of unit A, so they overlap on the A-side and
+    # recompress from 6 concatenated terms down to Schmidt rank 3.
+    set_pair_coupling!(sys, (Si, Sj) -> 0.3(Si' * Sj), Bond(1, 1, [1, 0, 0]))
+    set_pair_coupling!(sys, (Si, Sj) -> 0.5(Si' * Sj), Bond(1, 2, [1, 0, 0]))
+
+    esys = entangle_system(sys, [(1, 2)])
+
+    # The stored expansion on the shared bond is minimal rank (3), not the 6
+    # terms that naive concatenation would produce.
+    pc = only(pc for pc in esys.interactions_union[1].pair if !pc.isculled && !isempty(pc.general.data))
+    @test length(pc.general.data) == 3
+
+    # Recompression is exact: energy matches the unentangled reference.
+    randomize_spins!(sys)
+    minimize_energy!(sys)
+    esys = entangle_system(sys, [(1, 2)])
+    Sunny.transfer_uncontracted_state!(esys, sys)
+    @test energy_per_site(esys) ≈ energy_per_site(sys) atol=1e-10
 end
 
 @testitem "Entangled units with dipole-dipole" begin

@@ -71,10 +71,10 @@ function hermitian_matrix_from_coords(x::AbstractVector{<:Real}, N::Integer)
     return Hermitian(A, :U)
 end
 
-# Given a Hermitian operator D living in tensor-product space, use SVD to find
-# the decomposition D = ∑ₖ Aₖ ⊗ Bₖ, where Aₖ is N₁×N₁ and Bₖ is N₂×N₂. Returns
-# the list of Hermitian matrix pairs [(A₁, B₁), (A₂, B₂), ...].
-function svd_tensor_expansion(D::Matrix{T}, N1, N2; tol=1e-12) where T
+# Given a Hermitian operator D living in tensor-product space, find a compressed
+# decomposition D = ∑ₖ Aₖ ⊗ Bₖ, where Aₖ is N₁×N₁ and Bₖ is N₂×N₂. Returns the
+# list of Hermitian matrix pairs [(A₁, B₁), (A₂, B₂), ...].
+function factorize_tensor_space_operator(D::Matrix{T}, N1, N2; atol=1e-12) where T
     maxdiff(D, D') < 1e-12 || error("Detected non-Hermitian operator")
     @assert size(D, 1) == size(D, 2) == N1*N2
 
@@ -101,7 +101,7 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2; tol=1e-12) where T
     ret = Tuple{HermitianC64, HermitianC64}[]
 
     for (k, σ) in enumerate(F.S)
-        σ < tol && break
+        σ <= atol && break
 
         A = hermitian_matrix_from_coords(view(F.U, :, k), N1)
         B = hermitian_matrix_from_coords(view(F.V, :, k), N2)
@@ -109,6 +109,45 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2; tol=1e-12) where T
         push!(ret, (Hermitian(σ * Matrix(A), :U), B))
     end
 
+    return ret
+end
+
+# Compress a list of Hermitian tensor pairs [(A₁, B₁), ...] (interpreted as ∑ₖ
+# Aₖ ⊗ Bₖ) into a minimal-rank list with the same sum.
+#
+# Unlike `factorize_tensor_space_operator`, this implementation avoids forming
+# the N₁N₂ × N₁N₂ product-space operator. Instead, it performs an SVD of a small
+# coefficient matrix involving inner products ⟨Aᵢ, Aⱼ⟩ and ⟨Bᵢ, Bⱼ⟩.
+function compress_tensor_product_expansion(data::Vector{Tuple{HermitianC64, HermitianC64}}; tol=1e-12)
+    length(data) <= 1 && return data
+
+    # Build an orthonormal operator basis {êᵢ} for the span of `ops`, and the
+    # coefficients C[k,i] such that opₖ = ∑ᵢ C[k,i] êᵢ (in Hilbert-Schmidt inner
+    # product). Uses the eigendecomposition of the Gram matrix G[k,l] = ⟨opₖ, opₗ⟩.
+    function orthonormalize(ops)
+        G = [real(dot(P, Q)) for P in ops, Q in ops]
+        λ, U = eigen(Symmetric(G))
+        keep = findall(>(tol * maximum(λ)), λ)
+        C = U[:, keep] * Diagonal(sqrt.(λ[keep]))
+        basis = map(keep) do i
+            Hermitian(sum((U[k, i] / sqrt(λ[i])) * Matrix(ops[k]) for k in eachindex(ops)))
+        end
+        return C, basis
+    end
+
+    CA, eA = orthonormalize(first.(data))
+    CB, eB = orthonormalize(last.(data))
+
+    # In the orthonormal bases, the operator is ∑ᵢⱼ Mᵢⱼ êᴬᵢ ⊗ êᴮⱼ with M = CA' CB.
+    # Its SVD gives the minimal-rank decomposition.
+    F = svd(CA' * CB)
+    ret = Tuple{HermitianC64, HermitianC64}[]
+    for (m, σ) in enumerate(F.S)
+        σ < tol * F.S[1] && break
+        A = sum(F.U[i, m] * Matrix(eA[i]) for i in eachindex(eA))
+        B = sum(F.V[j, m] * Matrix(eB[j]) for j in eachindex(eB))
+        push!(ret, (Hermitian(σ * A), Hermitian(B)))
+    end
     return ret
 end
 

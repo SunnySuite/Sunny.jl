@@ -53,18 +53,15 @@ function Base.:*(pc::PairCoupling, x::Real)
     return PairCoupling(pc.bond, pc.scalar * x, pc.bilin * x, pc.biquad * x, pc.general * x)
 end
 
-# If A ≈ α B, then return the scalar α. Otherwise, return A.
-function proportionality_factor(A, B; atol=1e-12)
-    norm(A) < atol && return 0.0
-    maxA = maximum(abs.(A))
-    maxB = maximum(abs.(B))
-    if isapprox(A / maxA, B / maxB; atol)
-        return maxA/maxB
-    elseif isapprox(A / maxA, -B / maxB; atol)
-        return -maxA/maxB
-    else
-        return A
-    end
+# If J ≈ j I₀, then return the scalar j. Otherwise, return the input matrix J.
+# The parameter `atol` sets the magnitude below which J is treated as zero.
+function scalar_if_proportional(J, I₀; atol)
+    norm(J) < atol && return 0.0
+    max_J = maximum(abs.(J))
+    max_I₀ = maximum(abs.(I₀))
+    isapprox(J / max_J,  I₀ / max_I₀; rtol=1e-12) && return  max_J / max_I₀
+    isapprox(J / max_J, -I₀ / max_I₀; rtol=1e-12) && return -max_J / max_I₀
+    return J
 end
 
 function decompose_general_coupling(op, N1, N2; extract_parts)
@@ -72,6 +69,9 @@ function decompose_general_coupling(op, N1, N2; extract_parts)
 
     gen1 = spin_matrices_of_dim(; N=N1)
     gen2 = spin_matrices_of_dim(; N=N2)
+
+    # Absolute cutoff for dropping negligible singular values
+    atol = 1e-12 * norm(op) / size(op, 1)
 
     # Remove scalar part
     scalar = real(tr(op) / size(op, 1))
@@ -87,7 +87,7 @@ function decompose_general_coupling(op, N1, N2; extract_parts)
             bilin[α, β] = real(J)
             op = op - v * bilin[α, β]
         end
-        bilin = proportionality_factor(Mat3(bilin), Mat3(I))
+        bilin = scalar_if_proportional(Mat3(bilin), Mat3(I); atol)
 
         # Remove biquadratic part
         biquad = zeros(5, 5)
@@ -102,12 +102,67 @@ function decompose_general_coupling(op, N1, N2; extract_parts)
                 op = op - v * biquad[α, β]
             end
         end
-        biquad = proportionality_factor(Mat5(biquad), diagm(scalar_biquad_metric))
+        biquad = scalar_if_proportional(Mat5(biquad), diagm(scalar_biquad_metric); atol)
     else
         bilin = biquad = 0.0
     end
 
-    return scalar, bilin, biquad, TensorDecomposition(gen1, gen2, svd_tensor_expansion(op, N1, N2))
+    tensordec = TensorDecomposition(gen1, gen2, factorize_tensor_space_operator(op, N1, N2; atol))
+    return (; scalar, bilin, biquad, tensordec)
+end
+
+# A rough cutoff scale below which components of the pair coupling operator can
+# be discarded.
+function coupling_cutoff_scale(pc::PairCoupling; tol)
+    scale = max(norm(pc.bilin), norm(pc.biquad))
+    for (A, B) in pc.general.data
+        scale = max(scale, norm(A) * norm(B) / (size(A, 1) * size(B, 1)))
+    end
+    return scale * tol
+end
+
+# Factorize `pc` operator into a compressed tensor product representation. The
+# return value [(A₁, B₁), ...] should be interpreted as a sum of tensor product
+# pairs that matches the total bond operator up to a shift by pc.scalar.
+function pair_coupling_tensor_data(pc::PairCoupling, Ni, Nj)
+    # A pure general coupling is already stored in compressed form.
+    iszero(pc.bilin) && iszero(pc.biquad) && return pc.general.data
+
+    # Absolute cutoff for dropping negligible singular values
+    atol = coupling_cutoff_scale(pc; tol=1e-12)
+
+    data = copy(pc.general.data)
+
+    # Bilinear part ∑_αβ J[α,β] S1ᵅ ⊗ S2ᵝ
+    if !iszero(pc.bilin)
+        S1 = spin_matrices((Ni-1)/2)
+        S2 = spin_matrices((Nj-1)/2)
+        J = pc.bilin isa Float64 ? pc.bilin*I(3) : pc.bilin
+        for (σ, u, v) in svd_iterator(J; atol)
+            push!(data, (Hermitian(σ * sum(u .* S1)), Hermitian(sum(v .* S2))))
+        end
+    end
+
+    # Biquadratic part ∑_αβ K[α,β] O1ᵅ ⊗ O2ᵝ
+    if !iszero(pc.biquad)
+        O1 = stevens_matrices_of_dim(2; N=Ni)
+        O2 = stevens_matrices_of_dim(2; N=Nj)
+        K = pc.biquad isa Float64 ? diagm(pc.biquad * scalar_biquad_metric) : pc.biquad
+        for (σ, u, v) in svd_iterator(K; atol)
+            push!(data, (Hermitian(σ * sum(u .* O1)), Hermitian(sum(v .* O2))))
+        end
+    end
+
+    # The bilin/biquad blocks are individually minimal and mutually orthogonal.
+    # Compression is useful only in the special case that the initial `general`
+    # data was nonempty.
+    return isempty(pc.general.data) ? data : compress_tensor_product_expansion(data)
+end
+
+# Helper function for testing
+function bond_operator_in_tensor_space(pc::PairCoupling, Ni, Nj)
+    data = pair_coupling_tensor_data(pc, Ni, Nj)
+    return pc.scalar*I + sum(kron(A, B) for (A, B) in data)
 end
 
 function Base.zero(::Type{TensorDecomposition})
@@ -121,16 +176,9 @@ function Base.:+(op1::TensorDecomposition, op2::TensorDecomposition)
     @assert op1.gen1 ≈ op2.gen1
     @assert op1.gen2 ≈ op2.gen2
 
-    # We could re-optimize the SVD decomposition as below, but doing this
-    # unnecessarily would cost some floating point precision.
+    # Just concatenate for now. After all interactions have accumulated, use
+    # `compress_tensor_product_expansion` to get the most compact form.
     return TensorDecomposition(op1.gen1, op1.gen2, vcat(op1.data, op2.data))
-
-    #=
-    total = sum(kron(A, B) for (A, B) in vcat(op1.data, op2.data))
-    N1 = size(op1.gen1, 1)
-    N2 = size(op1.gen2, 1)
-    return TensorDecomposition(op1.gen1, op1.gen2, svd_tensor_expansion(total, N1, N2))
-    =#
 end
 
 function Base.:*(op::TensorDecomposition, x::Real)
@@ -292,7 +340,7 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond, paramspec=
         end
     end
 
-    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, Ni, Nj; extract_parts)
+    (; scalar, bilin, biquad, tensordec) = decompose_general_coupling(op, Ni, Nj; extract_parts)
 
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond, paramspec)
     return
@@ -525,7 +573,7 @@ function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, 
         end
     end
 
-    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts=true)
+    (; scalar, bilin, biquad, tensordec) = decompose_general_coupling(op, N1, N2; extract_parts=true)
 
     set_pair_coupling_at_aux!(sys, scalar, bilin, biquad, tensordec, site1, site2, offset)
     return

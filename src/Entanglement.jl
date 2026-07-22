@@ -99,20 +99,31 @@ function bond_is_in_unit(bond::Bond, unit_map::UnitMap)
     return newbond.i == newbond.j && all(iszero, newbond.n)
 end
 
-# Accumulate the operator form of a `PairCoupling` into `op`. The two sites'
-# local operators are lifted into `op`'s Hilbert space by the caller-supplied
-# closures `embed_i`/`embed_j`; `Ni`/`Nj` are the local Hilbert space dimensions
-# of the two original sites. This is the shared kernel of the intra-unit and
-# inter-unit conversions below, which differ only in that embedding.
-function accum_bond_operator!(op, pc::PairCoupling, embed_i, embed_j, Ni, Nj)
-    (; scalar, bilin, biquad, general) = pc
+# Converts what was a pair coupling between two different sites of a single unit
+# in the original system into an "onsite coupling" for the entangled unit.
+# Accumulates to `op` in place.
+function accum_intra_unit_pair_coupling!(op, pc, uncontracted_Ns, unit_map::UnitMap)
+    pc.isculled && return
+
+    (; bond, scalar, bilin, biquad, general) = pc
+
+    i, j = bond.i, bond.j
+    ui = unit_map.atom_to_unit[i]
+    uj = unit_map.atom_to_unit[j]
+    Ns_unit = uncontracted_Ns[atoms_in_unit(unit_map, ui.unit)]
+    Ni = uncontracted_Ns[1, 1, 1, i]
+    Nj = uncontracted_Ns[1, 1, 1, j]
+
+    # Both sites lie in the same unit, so both embed into the same product space.
+    embed_i = A -> local_op_to_product_space(A, ui.part, Ns_unit)
+    embed_j = B -> local_op_to_product_space(B, uj.part, Ns_unit)
 
     # Add scalar part
     op .+= scalar * I(size(op, 1))
 
     # Add bilinear part
-    S1 = embed_i.(spin_matrices((Ni-1)/2))
-    S2 = embed_j.(spin_matrices((Nj-1)/2))
+    S1 = embed_i.(spin_matrices_of_dim(; N=Ni))
+    S2 = embed_j.(spin_matrices_of_dim(; N=Nj))
     J = bilin isa Float64 ? bilin*I(3) : bilin
     op .+= S1' * J * S2
 
@@ -127,51 +138,12 @@ function accum_bond_operator!(op, pc::PairCoupling, embed_i, embed_j, Ni, Nj)
         op .+= embed_i(A) * embed_j(B)
     end
 
-    return op
-end
-
-# Build the full bond operator for a `PairCoupling` `pc` between two sites of
-# Hilbert space dimensions `Ni` and `Nj`, with site i as the first tensor factor
-# and site j as the second.
-function bond_operator(pc::PairCoupling, Ni, Nj)
-    op = zeros(ComplexF64, Ni*Nj, Ni*Nj)
-    accum_bond_operator!(op, pc, A -> kron(A, I(Nj)), B -> kron(I(Ni), B), Ni, Nj)
-    return op
-end
-
-# Converts what was a pair coupling between two different sites of a single unit
-# in the original system into an on-bond operator (an onsite operator in terms
-# of the "units"). Accumulates into `op` in place.
-function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, uncontracted_Ns, unit_map::UnitMap)
-    pc.isculled && return
-
-    i, j = pc.bond.i, pc.bond.j
-    ui = unit_map.atom_to_unit[i]
-    uj = unit_map.atom_to_unit[j]
-    Ns_unit = uncontracted_Ns[atoms_in_unit(unit_map, ui.unit)]
-    Ni = uncontracted_Ns[1, 1, 1, i]
-    Nj = uncontracted_Ns[1, 1, 1, j]
-
-    # Both sites lie in the same unit, so both embed into the same product space.
-    embed_i = A -> local_op_to_product_space(A, ui.part, Ns_unit)
-    embed_j = B -> local_op_to_product_space(B, uj.part, Ns_unit)
-    accum_bond_operator!(op, pc, embed_i, embed_j, Ni, Nj)
     return
 end
 
-# Converts a pair coupling between two distinct units in the original system into
-# a pair coupling between the corresponding units of the contracted system.
-#
-# The bare coupling between atoms i and j lives entirely in the (small) operator
-# space of those two atoms. So rather than lifting it into the full product space
-# of both units (dimension `prod(Ns1) * prod(Ns2)`, which may be huge) and then
-# SVD-compressing there, we build and SVD-decompose the bare two-atom operator
-# (dimension `Ni * Nj`) directly. This is exactly equivalent: the SVD is taken in
-# an orthonormal Hermitian basis of each atom's operator space, and embedding the
-# resulting factors `aₖ ⊗ bₖ` into their units preserves the decomposition. The
-# small-space SVD also has the same Schmidt rank as the full-space one, since the
-# coupling never occupies the other atoms' operator dimensions.
-function pair_coupling_between_units(pc, uncontracted_Ns, unit_map::UnitMap)
+# Promote an atomistic-level pair coupling to an inter-unit pair coupling on the
+# contracted system.
+function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, unit_map::UnitMap)
     (; i, j) = pc.bond
     ui = unit_map.atom_to_unit[i]
     uj = unit_map.atom_to_unit[j]
@@ -181,27 +153,18 @@ function pair_coupling_between_units(pc, uncontracted_Ns, unit_map::UnitMap)
     Ni = uncontracted_Ns[1, 1, 1, i]
     Nj = uncontracted_Ns[1, 1, 1, j]
 
-    # Build the bare two-atom coupling operator, with atom i as the first tensor
-    # factor and atom j as the second.
-    bare_op = bond_operator(pc, Ni, Nj)
-
-    # Split off the scalar shift, then SVD-decompose the traceless remainder into
-    # atomic factors aₖ ⊗ bₖ (a small `Ni*Nj`-dimensional SVD).
-    scalar = real(tr(bare_op) / (Ni*Nj))
-    bare_op -= scalar*I
-    atomic_data = svd_tensor_expansion(bare_op, Ni, Nj)
-
-    # Embed each atomic factor into its unit's product space.
-    data = map(atomic_data) do (a, b)
+    # Decompose the pair operator as ∑ₖ aₖ ⊗ bₖ. Then promote each factor to the
+    # tensor product space, aₖ → Aₖ.
+    data = map(pair_coupling_tensor_data(pc, Ni, Nj)) do (a, b)
         A = Hermitian(local_op_to_product_space(Matrix(a), ui.part, Ns1))
         B = Hermitian(local_op_to_product_space(Matrix(b), uj.part, Ns2))
         (A, B)
     end
-    gen1 = spin_matrices_of_dim(; N=prod(Ns1))
-    gen2 = spin_matrices_of_dim(; N=prod(Ns2))
 
     newbond = contracted_bond(pc.bond, unit_map)
-    return (; newbond, scalar, tensordec=TensorDecomposition(gen1, gen2, data))
+    gen1 = spin_matrices_of_dim(; N=prod(Ns1))
+    gen2 = spin_matrices_of_dim(; N=prod(Ns2))
+    return (; newbond, pc.scalar, tensordec=TensorDecomposition(gen1, gen2, data))
 end
 
 # Contract ModelParam data. Contraction is linear in the coupling strength, so
@@ -227,7 +190,7 @@ function contract_param(param::ModelParam, uncontracted_Ns, unit_map::UnitMap, N
         # Intra-unit pair couplings fold into the same onsite operator.
         for pc in param.pairs
             if bond_is_in_unit(pc.bond, unit_map) && unit_map.atom_to_unit[pc.bond.i].unit == u
-                accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, uncontracted_Ns, unit_map)
+                accum_intra_unit_pair_coupling!(unit_operator, pc, uncontracted_Ns, unit_map)
             end
         end
 
@@ -235,12 +198,10 @@ function contract_param(param::ModelParam, uncontracted_Ns, unit_map::UnitMap, N
     end
 
     # Inter-unit pair couplings become pair couplings between contracted units.
-    # Both bond directions are present in `param.pairs` (from symmetry
-    # propagation on the bare system), so no re-propagation is needed here.
     pairs = PairCoupling[]
     for pc in param.pairs
         bond_is_in_unit(pc.bond, unit_map) && continue
-        (; newbond, scalar, tensordec) = pair_coupling_between_units(pc, uncontracted_Ns, unit_map)
+        (; newbond, scalar, tensordec) = promote_inter_unit_pair_coupling(pc, uncontracted_Ns, unit_map)
         bilin = biquad = 0.0 # Dipoles are NaN for entangled systems
         push!(pairs, PairCoupling(newbond, scalar, bilin, biquad, tensordec))
     end

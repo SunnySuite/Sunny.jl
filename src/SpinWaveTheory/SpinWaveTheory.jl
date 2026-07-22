@@ -197,26 +197,16 @@ function swt_data(sys::System{N}, measure) where N
             (; bond) = pc
             @assert bond.i == i
 
-            general = if iszero(pc.bilin) && iszero(pc.biquad)
-                # If bilin and biquad are zero, then pc.general is already the
-                # compressed tensor decomposition. This short-circuit avoids a
-                # possibly-expensive SVD, e.g., for entangled systems.
-                pc.general
-            else
-                # Otherwise, recompress bilin/biquad into a general tensor
-                # decomposition, ignoring any scalar part.
-                N1, N2 = sys.Ns[bond.i], sys.Ns[bond.j]
-                gen1 = spin_matrices_of_dim(; N=N1)
-                gen2 = spin_matrices_of_dim(; N=N2)
-                TensorDecomposition(gen1, gen2, svd_tensor_expansion(bond_operator(pc, N1, N2), N1, N2))
-            end
-
+            N1, N2 = sys.Ns[bond.i], sys.Ns[bond.j]
             Uj = local_unitaries[bond.j]
-            data_rotated = map(general.data) do (A, B)
+            data_rotated = map(pair_coupling_tensor_data(pc, N1, N2)) do (A, B)
                 (Hermitian(Ui'*A*Ui), Hermitian(Uj'*B*Uj))
             end
 
-            general_rotated = TensorDecomposition(general.gen1, general.gen2, data_rotated)
+            gen1 = spin_matrices_of_dim(; N=N1)
+            gen2 = spin_matrices_of_dim(; N=N2)
+            general_rotated = TensorDecomposition(gen1, gen2, data_rotated)
+
             push!(pair_new, PairCoupling(bond, 0.0, 0.0, 0.0, general_rotated))
         end
         int.pair = pair_new
