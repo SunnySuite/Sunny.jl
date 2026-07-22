@@ -201,9 +201,12 @@ between periodic copies.
 """
 function repeat_periodically(sys::System, counts::NTuple{3,Int})
     all(>=(1), counts) || error("Require at least one count in each direction.")
-    isnothing(sys.entanglement) || return reshape_entangled(sys, s -> repeat_periodically(s, counts))
-    is_homogeneous(sys) || error("Cannot repeat inhomogeneous system.")
-    return reshape_supercell_aux(sys, sys.crystal, counts .* sys.dims)
+    # Global supercell that tiles the current cell `counts` times along each
+    # system axis, expressed in units of the original crystal. This routes
+    # through `reshape_supercell` (which handles inhomogeneous/entangled cases),
+    # rather than duplicating the supercell construction.
+    shape = cell_shape(sys) * diagm(Vec3(sys.dims .* counts))
+    return reshape_supercell(sys, shape)
 end
 
 """

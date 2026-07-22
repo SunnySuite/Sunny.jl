@@ -42,7 +42,7 @@ function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
     end
 
     Jq = reshape(Jq, 3Na, 3Na)
-    @assert diffnorm2(Jq, Jq') < 1e-15
+    @assert maxdiff(Jq, Jq') < 1e-12
     return hermitianpart!(Jq)
 end
 
@@ -80,7 +80,7 @@ function fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
     end
 
     Jq = reshape(Jq, 3Na, 3Na)
-    @assert diffnorm2(Jq, Jq') < 1e-15
+    @assert maxdiff(Jq, Jq') < 1e-12
     return hermitianpart!(Jq)
 end
 
