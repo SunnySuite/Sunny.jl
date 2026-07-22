@@ -153,27 +153,50 @@ end
 
 # Converts a pair coupling between two distinct units in the original system into
 # a pair coupling between the corresponding units of the contracted system.
-function pair_coupling_into_bond_operator_between_units(pc, uncontracted_Ns, unit_map::UnitMap)
+#
+# The bare coupling between atoms i and j lives entirely in the (small) operator
+# space of those two atoms. So rather than lifting it into the full product space
+# of both units (dimension `prod(Ns1) * prod(Ns2)`, which may be huge) and then
+# SVD-compressing there, we build and SVD-decompose the bare two-atom operator
+# (dimension `Ni * Nj`) directly. This is exactly equivalent: the SVD is taken in
+# an orthonormal Hermitian basis of each atom's operator space, and embedding the
+# resulting factors `aₖ ⊗ bₖ` into their units preserves the decomposition. The
+# small-space SVD also has the same Schmidt rank as the full-space one, since the
+# coupling never occupies the other atoms' operator dimensions.
+function pair_coupling_between_units(pc, uncontracted_Ns, unit_map::UnitMap)
     (; i, j) = pc.bond
     ui = unit_map.atom_to_unit[i]
     uj = unit_map.atom_to_unit[j]
 
     Ns1 = uncontracted_Ns[atoms_in_unit(unit_map, ui.unit)]
     Ns2 = uncontracted_Ns[atoms_in_unit(unit_map, uj.unit)]
-    N1 = uncontracted_Ns[1, 1, 1, i]
-    N2 = uncontracted_Ns[1, 1, 1, j]
-    dim1 = prod(Ns1)
-    dim2 = prod(Ns2)
-    N = dim1 * dim2
+    Ni = uncontracted_Ns[1, 1, 1, i]
+    Nj = uncontracted_Ns[1, 1, 1, j]
 
-    # Site i acts on unit1 (first tensor factor), site j on unit2 (second).
-    embed_i = A -> kron(local_op_to_product_space(A, ui.part, Ns1), I(dim2))
-    embed_j = B -> kron(I(dim1), local_op_to_product_space(B, uj.part, Ns2))
+    # Build the bare two-atom coupling operator, with atom i as the first tensor
+    # factor and atom j as the second.
+    embed_i = A -> kron(A, I(Nj))
+    embed_j = B -> kron(I(Ni), B)
+    bare_op = zeros(ComplexF64, Ni*Nj, Ni*Nj)
+    accum_bond_operator!(bare_op, pc, embed_i, embed_j, Ni, Nj)
 
-    bond_operator = zeros(ComplexF64, N, N)
-    accum_bond_operator!(bond_operator, pc, embed_i, embed_j, N1, N2)
+    # Split off the scalar shift, then SVD-decompose the traceless remainder into
+    # atomic factors aₖ ⊗ bₖ (a small `Ni*Nj`-dimensional SVD).
+    scalar = real(tr(bare_op) / (Ni*Nj))
+    bare_op -= scalar*I
+    atomic_data = svd_tensor_expansion(bare_op, Ni, Nj)
+
+    # Embed each atomic factor into its unit's product space.
+    data = map(atomic_data) do (a, b)
+        A = Hermitian(local_op_to_product_space(Matrix(a), ui.part, Ns1))
+        B = Hermitian(local_op_to_product_space(Matrix(b), uj.part, Ns2))
+        (A, B)
+    end
+    gen1 = spin_matrices_of_dim(; N=prod(Ns1))
+    gen2 = spin_matrices_of_dim(; N=prod(Ns2))
+
     newbond = contracted_bond(pc.bond, unit_map)
-    return (; newbond, bond_operator)
+    return (; newbond, scalar, tensordec=TensorDecomposition(gen1, gen2, data))
 end
 
 # Contract ModelParam data. Contraction is linear in the coupling strength, so
@@ -212,11 +235,8 @@ function contract_param(param::ModelParam, uncontracted_Ns, unit_map::UnitMap, N
     pairs = PairCoupling[]
     for pc in param.pairs
         bond_is_in_unit(pc.bond, unit_map) && continue
-        (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, uncontracted_Ns, unit_map)
-        Ni = prod(Ns_units[newbond.i])
-        Nj = prod(Ns_units[newbond.j])
-        # `extract_parts=false` because dipoles are NaN for entangled systems.
-        scalar, bilin, biquad, tensordec = decompose_general_coupling(bond_operator, Ni, Nj; extract_parts=false)
+        (; newbond, scalar, tensordec) = pair_coupling_between_units(pc, uncontracted_Ns, unit_map)
+        bilin = biquad = 0.0 # Dipoles are NaN for entangled systems
         push!(pairs, PairCoupling(newbond, scalar, bilin, biquad, tensordec))
     end
 
