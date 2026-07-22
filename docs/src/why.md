@@ -1,9 +1,7 @@
 
-# Why Choose Sunny?
+# Feature Highlights
 
 ## Powerful and easy to use
-
-Feature highlights include:
 
 - Ability to [specify a crystal](@ref Crystal) from a CIF file, from its
   spacegroup number and Wyckoffs, or from a full chemical cell with
@@ -30,19 +28,19 @@ Feature highlights include:
 - Classical dynamics of spin dipoles and its generalization to spin multipoles
   via the theory of SU(_N_) coherent states. One can [sample dynamical
   correlations](@ref SampledCorrelations) at finite temperature. The [CP²
-  skyrmion example](@ref "6. Dynamical quench into CP² skyrmion liquid")
+  skyrmion tutorial](@ref "6. Dynamical quench into CP² skyrmion liquid")
   illustrates a highly non-equilibrium quench process that depends crucially on
   spin quadrupole degrees of freedom.
 - [Spin wave theory](@ref SpinWaveTheory) (SWT) for low-temperature spin
   dynamics. Special support is provided for efficient calculations on
   [incommensurate spiral phases](@ref SpinWaveTheorySpiral) and on [very large
-  magnetic cells](@ref SpinWaveTheoryKPM). The [disordered system example](@ref
+  magnetic cells](@ref SpinWaveTheoryKPM). The [disordered system tutorial](@ref
   "9. Disordered systems") demonstrates acceleration for large system sizes. The
   quantization of SU(N) coherent states yields a generalization of SWT to
-  multi-flavor bosons. See the [FeI₂ example](@ref "3. Multi-flavor spin wave
+  multi-flavor bosons. See the [FeI₂ tutorial](@ref "3. Multi-flavor spin wave
   simulations of FeI₂") as a showcase.
 - [Dipole-dipole interactions](@ref enable_dipole_dipole!) with full Ewald
-  summation, as illustrated in the [pyrochlore SWT example](@ref "7. Long-range
+  summation, as illustrated in the [pyrochlore SWT tutorial](@ref "7. Long-range
   dipole interactions"). Dipole-dipole interactions in classical dynamics are
   accelerated with the fast Fourier transform (FFT).
 - Self-consistent Gaussian Approximation ([SCGA](@ref)) for calculating static
@@ -54,12 +52,12 @@ Feature highlights include:
 - Powerful functionality for fitting effective spin models. See tutorials for
   [fitting to diffuse scattering](@ref "10. Fitting to diffuse scattering data")
   and [fitting to spin wave bands](@ref "SW35 - LuVO₃ fitting").
+- [Entangled units](@ref entangle_system) describe local groups of strongly
+  entangled spins. See the [Ba₃Mn₂O₈ tutorial](@ref "12. Fitting to the
+  dispersion of a dimerized magnet").
 - Programmatic interface in the [Julia language](https://julialang.org/) for
   full flexibility and performance.
-
-But still evolving:
-
-- GPU acceleration is a work in progress. The [MAIQMag
+- GPU acceleration is in progress. The [MAIQMag
   fork](https://github.com/MAIQMag/Sunny.jl) supports CUDA solvers for batched
   spin wave calculations. GPU acceleration of classical spin dynamics is on the
   long-term wish list.
@@ -81,8 +79,9 @@ understanding](https://arxiv.org/abs/2304.03874) of existing renormalization
 schemes for traditional spin wave theory, and suggests an enlarged space to
 search for [novel topological
 states](https://doi.org/10.1038/s41467-023-39232-8). Ongoing Sunny research aims
-to incorporate more quantum entanglement into the classical picture. Local units
-of strongly entangled spins are in development and show great promise for cases
-like [dimerized ladders](https://doi.org/10.1103/PhysRevB.110.104403). Longer
-term, Sunny also aims to include perturbative corrections beyond linear spin
-wave theory, as well as a non-perturbative treatment of quantum bound states.
+to incorporate more quantum effects into the classical picture. Local units of
+strongly entangled spins achieve remarkable accuracy for
+cases like [dimerized ladders](https://doi.org/10.1103/PhysRevB.110.104403).
+Longer term, Sunny also aims to include perturbative corrections beyond linear
+spin wave theory, as well as a non-perturbative treatment of quantum bound
+states.
