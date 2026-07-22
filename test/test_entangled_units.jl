@@ -33,11 +33,11 @@ end
         return Sunny.entangle_units(sys, [(1, 2)])
     end
 
-    # True when some unit has a member physical site in a different cell (a unit
-    # that straddles the cell boundary of the reshaped system).
+    # True when some unit has a member atom in a neighboring cell (a unit that
+    # straddles the cell boundary of the reshaped system).
     function straddles(r)
-        um = r.entanglement.unit_members
-        any(u -> any(bs -> Sunny.to_cell(bs) != Sunny.to_cell(u), um[u]), eachsite(r))
+        inv = r.entanglement.contraction_info.inverse
+        any(unit -> any(id -> !iszero(id.cell_offset), unit), inv)
     end
 
     set_q0(r) = for u in eachsite(r); set_coherent!(r, [0, 1/√2, -1/√2, 0], u); end
