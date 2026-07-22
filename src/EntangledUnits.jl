@@ -160,7 +160,7 @@ end
 # crystal. Each list element is itself a list of integers, each of which
 # corresponds to the N of the corresponding site of the original system. The
 # order is consistent with that given by the `inverse` field of a
-# `CyrstalContractionInfo`.
+# `CrystalContractionInfo`.
 function Ns_in_units(sys_original, contraction_info)
     Ns = [Int64[] for _ in 1:length(contraction_info.inverse)]
     for (n, contracted_sites) in enumerate(contraction_info.inverse)
@@ -283,27 +283,22 @@ end
 # Public API
 ################################################################################
 """
-    entangle_units(sys::System{N}, units)
+    entangle_system(sys::System{N}, groups::Vector{Vector{Int}})
 
-Create a new [`System`](@ref) of "entangled units" from an existing `System`.
-`units` is a list of tuples specifying the atoms inside each unit cell that will
-be grouped into a single "entangled unit." This feature is only supported for
-systems that can be viewed as a regular lattice of a single unit type (all
-dimers, all trimers, etc). Sunny will use the SU(_N_) formalism to model each
-one of these units as a distinct Hilbert space in which the full quantum
-mechanical structure is locally preserved.
+Create a new [`System`](@ref), where `groups` of atom indices are collected into
+"entangled units". Sunny will model each such unit within a tensor-product
+Hilbert space to allow for local quantum entanglement. This feature currently
+requires a single unit type (all dimers, all trimers, etc).
 
-Interactions must be specified for the original `System`. Sunny will
-automatically reconstruct the appropriate interactions for the entangled system.
-The returned `System` reports physical geometry (positions, dipoles) against the
-original crystal, while its dynamical variables are the coherent states of the
-entangled units.
+The input `sys` should be in `:SUN` mode and have 1×1×1 dimensions. All
+interactions in `sys` will be transferred to the entangled system. Subsequent
+reshapings of this entangled system are then allowed.
 """
-function entangle_units(sys::System{M}, units) where M
+function entangle_system(sys::System{M}, groups) where M
     isnothing(sys.origin) || error("Entangle a single-cell system first, then reshape")
 
     # Construct contracted crystal
-    contracted_crystal, contraction_info = contract_crystal(sys.crystal, units)
+    contracted_crystal, contraction_info = contract_crystal(sys.crystal, groups)
 
     # Make sure we have a uniform external field
     @assert allequal(@view sys.extfield[:,:,:,:]) "Entangled units require a uniform applied field."
@@ -396,7 +391,7 @@ function entangle_units(sys::System{M}, units) where M
     # = its chemical cell (set by the `System` constructor), matching the physical
     # `bare_system`, so both reshape in tandem through the ordinary backbone.
     bare_system = clone_system(sys)
-    units_truth = [collect(Int, u) for u in units]
+    units_truth = [collect(Int, u) for u in groups]
     rebuild_entanglement!(sys_entangled, bare_system, units_truth)
 
     # Initialize coherent states of each entangled unit to the tensor product of
@@ -410,7 +405,7 @@ function entangle_units(sys::System{M}, units) where M
     return sys_entangled
 end
 
-function entangle_units(::System{0}, _)
+function entangle_system(::System{0}, _)
     error("Cannot entangle units of a `:dipole`-mode `System`. Use `:SUN` mode.")
 end
 
@@ -438,7 +433,7 @@ end
 # the immutable `units` truth (a grouping of chemical-cell atoms of the
 # *unreshaped* physical crystal). The derived `contraction_info` and the cached
 # operator tables are rebuilt here geometrically. This is the single entry point
-# used by both `entangle_units` and every reshaping variant.
+# used by both `entangle_system` and every reshaping variant.
 #
 # The mapping is derived from positions in the shared lattice frame (contracted
 # and physical crystals share `latvecs`); each member's `cell_offset` records the
@@ -505,7 +500,7 @@ function set_params_entangled!(sys::System, labels, vals)
     #    contracted chemical cell (`something(sys.origin, sys)`); only coupling
     #    values differ.
     bare_origin = something(bare_system.origin, bare_system)
-    sys_chem = entangle_units(bare_origin, units)
+    sys_chem = entangle_system(bare_origin, units)
 
     # 3. Install the regenerated contracted couplings. For an unreshaped `sys`,
     #    write directly; for a reshaped `sys`, update its chemical-cell `origin`

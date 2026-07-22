@@ -130,7 +130,7 @@ include("SCGA/SCGA.jl")
 export SCGA, magnetic_susceptibility_per_site
 
 include("EntangledUnits.jl")
-# export entangle_units
+export entangle_system
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")

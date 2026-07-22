@@ -12,10 +12,10 @@
 
     # Cannot reshape then entangle
     sys_sheared = resize_supercell(sys, (2, 1, 1))
-    @test_throws "Entangle a single-cell system first, then reshape" Sunny.entangle_units(sys_sheared, [(1, 2)])
+    @test_throws "Entangle a single-cell system first, then reshape" entangle_system(sys_sheared, [(1, 2)])
 
     # Entangle the original cell
-    esys = Sunny.entangle_units(sys, [(1, 2)])
+    esys = entangle_system(sys, [(1, 2)])
     for u in eachsite(esys)
         set_coherent!(esys, [0, 1/√2, -1/√2, 0], u)
     end
@@ -50,7 +50,7 @@ end
     set_exchange!(sys, J′, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))
 
-    esys = Sunny.entangle_units(sys, [(1, 2)])
+    esys = entangle_system(sys, [(1, 2)])
     bare = esys.entanglement.bare_system
     interactions = esys.interactions_union[1]
 
@@ -175,7 +175,7 @@ end
     enable_dipole_dipole!(sys, units.vacuum_permeability)
     minimize_energy!(sys)
 
-    esys = Sunny.entangle_units(sys, [(1, 2)])
+    esys = entangle_system(sys, [(1, 2)])
     @test energy_per_site(esys) ≈ energy_per_site(sys)
 
     sys = resize_supercell(sys, (2, 1, 1))
@@ -212,7 +212,7 @@ end
     sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
     set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J => 1.0)
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :Jp => 0.2)
-    esys = Sunny.entangle_units(sys, [(1, 2)])
+    esys = entangle_system(sys, [(1, 2)])
     for u in eachsite(esys)
         set_coherent!(esys, [0, 1/√2, -1/√2, 0], u)
     end
@@ -263,7 +263,7 @@ end
 
     set_field!(sys, [0., 0., 10])
 
-    esys = Sunny.entangle_units(sys, [(1, 2)])
+    esys = entangle_system(sys, [(1, 2)])
 
     for s in (sys, esys)
         minimize_energy!(s)
