@@ -2,10 +2,6 @@
 # Types
 ################################################################################
 
-# Base definition of the entangled units. Each unit is a list of atoms (for the
-# original chemical cell) and their corresponding cell offsets.
-const Groupings = Vector{Tuple{Int, SVector{3,Int}}}
-
 # Index to a part of an entangled
 struct UnitPart
     unit :: Int                   # Unit index in contracted crystal
@@ -14,16 +10,16 @@ end
 
 # A member atom within an entangled unit. Both fields are expressed in the basis
 # of the crystal of the containing `UnitMap`, and record this atom's position
-# relative to the unit center: `relpos` is the fractional position offset (in
-# the same fractional coordinates as `crystal.positions`), and `cell_offset` is
+# relative to the unit center: `Δpos` is the fractional position offset (in
+# the same fractional coordinates as `crystal.positions`), and `Δcell` is
 # the integer cell (nonzero ⇒ the unit straddles a cell boundary). Because they
 # are basis-relative, the same physical member has different values in a
 # `UnitMap` keyed to the chemical origin crystal versus one keyed to a reshaped
 # crystal.
 struct MemberAtom
-    atom        :: Int            # Atom index in the associated crystal
-    relpos      :: Vec3           # Fractional position relative to unit center
-    cell_offset :: SVector{3,Int} # Cell of this atom relative to the unit's cell (for straddling)
+    atom  :: Int            # Atom index in the associated crystal
+    Δpos  :: Vec3           # Fractional position relative to unit center
+    Δcell :: SVector{3,Int} # Cell of this atom relative to the unit's cell (for straddling)
 end
 
 # Bidirectional mapping between atoms and entangled unit indices, keyed to a
@@ -48,6 +44,10 @@ end
 # True if the system carries entanglement metadata.
 is_entangled(sys::System) = !isnothing(sys.entanglement)
 
+# Concrete-typed view of the entanglement metadata. The explicit type ascription
+# avoids JET warnings.
+@inline get_entanglement(sys::System) = sys.entanglement :: Entanglement
+
 # Needed because uncontracted.dipoles and related state are mutably updated
 function clone_entanglement(ent::Entanglement)
     return Entanglement(clone_system(ent.uncontracted), ent.unit_map,
@@ -57,32 +57,24 @@ end
 clone_entanglement(::Nothing) = nothing
 
 
-
-# Concrete-typed view of the entanglement metadata. The explicit type ascription
-# avoids JET warnings.
-@inline get_entanglement(sys::System) = sys.entanglement :: Entanglement
-
-
 ################################################################################
 # Crystal contraction
 ################################################################################
-# Takes a crystal and a list of entangled units. Each member of each unit is
-# `(atom, cell_offset)`, where `atom` is a chemical-cell atom index and
-# `cell_offset` chooses the periodic image of that atom in the unwrapped unit
-# definition. Nonzero offsets allow a unit to straddle a periodic boundary.
-function contract_crystal(crystal, groupings::Vector{Groupings})
-    @assert sum(length, groupings; init=0) == natoms(crystal) "Invalid entangled unit specification."
+# Takes a crystal and a list of entangled units, one per unit as parallel lists:
+# `unit_atoms[u]` are the chemical-cell atom indices and `unit_offsets[u]` are
+# the corresponding cell offsets, choosing the periodic image of each atom in
+# the unwrapped unit definition. Nonzero offsets allow a unit to straddle a
+# periodic boundary.
+function contract_crystal(crystal, unit_atoms, unit_offsets)
+    @assert sum(length, unit_atoms; init=0) == natoms(crystal) "Invalid entangled unit specification."
 
     atom_to_unit = Vector{UnitPart}(undef, natoms(crystal))
     unit_to_members = Vector{MemberAtom}[]
     new_positions = Vec3[]
 
-    for unit_spec in groupings
+    for (unit_idx, (atoms, offsets)) in enumerate(zip(unit_atoms, unit_offsets))
         # Compute unwrapped positions (applying user-specified cell offsets)
-        unwrapped_positions = [
-            crystal.positions[atom] + Vec3(cell_offset...)
-            for (atom, cell_offset) in unit_spec
-        ]
+        unwrapped_positions = [crystal.positions[atom] + offset for (atom, offset) in zip(atoms, offsets)]
         center_unwrapped = sum(unwrapped_positions) / length(unwrapped_positions)
         # Integer cell of the center, computed tolerantly (-ϵ maps to 0)
         center_cell = round.(Int, center_unwrapped - wrap_to_unit_cell(center_unwrapped))
@@ -92,10 +84,9 @@ function contract_crystal(crystal, groupings::Vector{Groupings})
 
         # Record each atom's part, its cell relative to the unit center, and its
         # cartesian displacement from the center.
-        unit_idx = length(unit_to_members) + 1
-        members = map(enumerate(zip(unit_spec, unwrapped_positions))) do (part, ((atom, cell_offset), pos))
+        members = map(enumerate(zip(atoms, offsets, unwrapped_positions))) do (part, (atom, offset, pos))
             atom_to_unit[atom] = UnitPart(unit_idx, part)
-            MemberAtom(atom, pos - center_unwrapped, cell_offset - center_cell)
+            MemberAtom(atom, pos - center_unwrapped, offset - center_cell)
         end
         push!(unit_to_members, members)
     end
@@ -125,11 +116,11 @@ function member_for_atom(unit_map::UnitMap, atom)
 end
 
 # Physical (bare-system) site of a unit member, given the containing unit's site
-# and the member's `MemberAtom`. The member atom sits in cell `cell_offset`
+# and the member's `MemberAtom`. The member atom sits in cell `Δcell`
 # relative to the unit's cell (periodically wrapped), so a unit may straddle
 # cell boundaries. Mirrors `bonded_site`.
 @inline function member_site(unit_site, member::MemberAtom, dims)
-    CartesianIndex(altmod1.(to_cell(unit_site) .+ Tuple(member.cell_offset), dims)..., member.atom)
+    CartesianIndex(altmod1.(to_cell(unit_site) .+ Tuple(member.Δcell), dims)..., member.atom)
 end
 
 # Physical (bare-system) sites comprising the entangled unit at contracted
@@ -157,7 +148,7 @@ function contracted_bond(bond::Bond, unit_map::UnitMap)
     ui = unit_map.atom_to_unit[bond.i]
     uj = unit_map.atom_to_unit[bond.j]
     n = SVector{3,Int}(bond.n)
-    n_new = n + member_for_atom(unit_map, bond.i).cell_offset - member_for_atom(unit_map, bond.j).cell_offset
+    n_new = n + member_for_atom(unit_map, bond.i).Δcell - member_for_atom(unit_map, bond.j).Δcell
     return Bond(ui.unit, uj.unit, collect(n_new))
 end
 
@@ -298,6 +289,7 @@ end
 ################################################################################
 # Public API
 ################################################################################
+
 """
     entangle_system(sys::System{N}, groupings)
 
@@ -319,14 +311,18 @@ of this entangled system are then allowed.
 function entangle_system(uncontracted::System{M}, groupings) where M
     isnothing(uncontracted.origin) || error("Entangle a single-cell system first, then reshape")
 
+    # Preprocess `groupings` into parallel per-unit lists of atom indices and
+    # cell offsets. A bare integer atom index is shorthand for a zero offset.
     if eltype(eltype(groupings)) <: Integer
-        groupings = [[(x, SA[0, 0, 0]) for x in g] for g in groupings]
+        unit_atoms = [collect(g) for g in groupings]
+        unit_offsets = [[zero(SVector{3,Int}) for _ in g] for g in groupings]
+    else
+        unit_atoms = [[Int(x) for (x, _) in g] for g in groupings]
+        unit_offsets = [[SVector{3,Int}(y) for (_, y) in g] for g in groupings]
     end
 
-    groupings = [[(x, SVector{3, Int}(y)) for (x, y) in g] for g in groupings]
-
     # Construct contracted (P1) crystal and the chemical-cell map
-    contracted_crystal, unit_map = contract_crystal(uncontracted.crystal, groupings)
+    contracted_crystal, unit_map = contract_crystal(uncontracted.crystal, unit_atoms, unit_offsets)
 
     # The (uniform) external field couples to each unit's total moment
     @assert allequal(@view uncontracted.extfield[:,:,:,:]) "Entangled units require a uniform applied field."
@@ -396,7 +392,7 @@ end
 # entry point used by both `entangle_system` and every reshaping variant.
 #
 # The mapping is derived from positions in the shared lattice frame (contracted
-# and physical crystals share `latvecs`); each member's `cell_offset` records
+# and physical crystals share `latvecs`); each member's `Δcell` records
 # the cell of its atom relative to the unit's cell, so a unit's atoms may lie in
 # different cells of the reshaped system (a "straddling" unit).
 function rebuild_entanglement!(sys::System, uncontracted, orig_unit_map::UnitMap)
@@ -416,29 +412,19 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_unit_map::UnitMap
     atom_to_unit = UnitPart[]
     unit_to_members = [Vector{MemberAtom}(undef, atoms_per_unit) for _ in 1:nunits]
     for a in 1:natoms_bare
-        a_chem = map_atom_to_other_crystal(uncontracted.crystal, a, bare_origin.crystal)
-        chem_member = member_for_atom(orig_unit_map, a_chem)
-        part = orig_unit_map.atom_to_unit[a_chem].part
-        # The physical displacement from the unit center is reshape-invariant, so
-        # convert the chem-frame relative position to Cartesian to locate the unit
-        # center, then re-express it in the reshaped (uncontracted) frame.
-        cart_disp = bare_origin.crystal.latvecs * chem_member.relpos
-        center = global_position_at(uncontracted, CartesianIndex(1, 1, 1, a)) - cart_disp
-        # Locate the unit at this center. Take the *unwrapped* cell (rather than
-        # `position_to_site`, which wraps modulo `dims`) so that `cell_offset`
-        # records the genuine straddle even on the 1×1×1 origin, where every
-        # wrapped cell collapses to (1,1,1). Periodicity is reapplied at use in
-        # `member_site`.
-        u, unit_cell = position_to_atom_and_offset(sys.crystal, sys.crystal.latvecs \ center)
+        orig_a = map_atom_to_other_crystal(uncontracted.crystal, a, bare_origin.crystal)
+        orig_member = member_for_atom(orig_unit_map, orig_a)
+        part = orig_unit_map.atom_to_unit[orig_a].part
+        # Displacement from the unit center to member atom in global coordinates
+        global_disp = bare_origin.crystal.latvecs * orig_member.Δpos
+        unit_center = global_position_at(uncontracted, (1, 1, 1, a)) - global_disp
+        # Locate the unit at this center
+        u, unit_cell = position_to_atom_and_offset(sys.crystal, sys.crystal.latvecs \ unit_center)
         push!(atom_to_unit, UnitPart(u, part))
-        # Fractional position relative to the unit center (in the reshaped frame;
-        # used by `entangled_measure`) and the integer cell of atom `a` relative
-        # to the unit's cell (nonzero ⇒ straddling; used by `member_site`). Atom
-        # `a` sits in cell (1,1,1)==0 (0-based), so its cell relative to the
-        # unit's is `-unit_cell`.
-        relpos = uncontracted.crystal.latvecs \ cart_disp
-        cell_offset = -SVector(unit_cell)
-        unit_to_members[u][part] = MemberAtom(a, relpos, cell_offset)
+        # Reshaped fractional position relative to the unit center
+        Δpos = uncontracted.crystal.latvecs \ global_disp
+        Δcell = -SVector(unit_cell) # Cell offset from unit center to member atom
+        unit_to_members[u][part] = MemberAtom(a, Δpos, Δcell)
     end
     unit_map = UnitMap(atom_to_unit, unit_to_members)
 
@@ -556,9 +542,7 @@ function entangled_measure(measure, sys::System)
         Ns_unit = Ns_at_unit(uncontracted, unit_map, u)
         for (k, member) in enumerate(unit_map.unit_to_members[u])
             atom = member.atom  # atom index within a chemical cell of uncontracted
-            # `MeasureSpec.offsets` is added to reshaped-fractional positions `r`
-            # in the SWT phase factor; `relpos` is already in that frame.
-            new_offsets[k, u] = member.relpos
+            new_offsets[k, u] = member.Δpos
             for μ in 1:nobs
                 new_ff[k, μ, u] = measure.formfactors[1, μ, atom]
                 for c in CartesianIndices(dims)
