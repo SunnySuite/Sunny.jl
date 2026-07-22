@@ -57,7 +57,7 @@
 
     # A doubly-specified Heisenberg scale is very likely a mistake and triggers
     # a warning.
-    msg = "Heisenberg coupling may be double-applied; if a labeled scale is provided, set J to 1.0 (or a dimensionless matrix shape)"
+    msg = "Set J to 1.0 (or a dimensionless matrix shape) when using a scale parameter"
     @test_logs (:warn, msg) set_exchange!(sys, 1.8, Bond(1, 1, [1, 0, 0]), :J => 1.8)
 end
 

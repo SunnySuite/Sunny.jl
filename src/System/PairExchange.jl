@@ -431,8 +431,8 @@ function set_exchange!(sys::System{N}, J, bond::Bond, paramspec=nothing; biquad=
     sys_orig = something(sys.origin, sys)
 
     # Detect a common mistake and warn
-    if !isnothing(paramspec) && iszero(biquad) && J isa Number && !isone(J)
-        @warn "Heisenberg coupling may be double-applied; if a labeled scale is provided, set J to 1.0 (or a dimensionless matrix shape)"
+    if !isnothing(paramspec) && iszero(biquad) && J isa Number && !isone(abs(J))
+        @warn "Set J to 1.0 (or a dimensionless matrix shape) when using a scale parameter"
     end
 
     scalar, bilin, biquad = adapt_for_biquad(0.0, J, biquad, sys_orig, (1, 1, 1, bond.i), (1, 1, 1, bond.j))
