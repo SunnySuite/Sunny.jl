@@ -57,6 +57,11 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     # the Zeeman term); otherwise flatten onto a single enlarged chemical cell
     # that matches the full system size while preserving linear site order.
     if is_entangled(sys)
+        # Entangled dipole-dipole is q-dependent and pairwise, so it cannot be
+        # folded into an onsite term the way Zeeman is; promoting it into
+        # inter-unit product-space couplings is not yet implemented.
+        isnothing(get_entanglement(sys).bare_system.ewald) ||
+            error("SpinWaveTheory does not yet support long-range dipole-dipole interactions for entangled units.")
         sys = flatten_supercell_entangled(sys)
     else
         new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)

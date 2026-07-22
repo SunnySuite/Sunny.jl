@@ -224,5 +224,80 @@ end
     end
 end
 
+@testitem "Entangled dipole-dipole" begin
+    import LinearAlgebra: norm, I
+    import Random
+
+    units = Units(:meV, :angstrom)
+
+    # Two spin-1/2 atoms per cell, well separated so the moments are physical
+    # point dipoles. Intra-cell exchange makes them one entangled unit; a weak
+    # inter-cell exchange gives a nontrivial ground state.
+    latvecs = [3.0 0 0; 0 3 0; 0 0 6]
+    positions = [[0, 0, 0], [0, 0.15, 0]]
+    crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
+
+    function make_entangled(; seed)
+        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; dims=(2, 1, 1), seed)
+        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+        set_exchange!(sys, 0.1, Bond(1, 1, [1, 0, 0]))
+        set_exchange!(sys, 0.1, Bond(2, 2, [1, 0, 0]))
+        esys = Sunny.entangle_units(sys, [(1, 2)])
+        enable_dipole_dipole!(esys, units.vacuum_permeability)
+        return esys
+    end
+
+    # `enable_dipole_dipole!` builds Ewald on the physical bare system, not the
+    # contracted system.
+    esys = make_entangled(seed=1)
+    @test isnothing(esys.ewald)
+    @test !isnothing(esys.entanglement.bare_system.ewald)
+
+    # The dipole-dipole energy (evaluated on the physical bare system) must equal
+    # that of an equivalent ordinary SU(N) system with the same physical spins,
+    # for a matching polarized state. Compare the Ewald term in isolation, since
+    # `ord` carries no exchange couplings.
+    ord = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; dims=(2, 1, 1), seed=1)
+    enable_dipole_dipole!(ord, units.vacuum_permeability)
+    polarize_spins!(ord, [0, 0, 1])
+    for u in eachsite(esys)
+        cs = Sunny.coherent_state_from_dipoles(esys, [[0, 0, 1/2], [0, 0, 1/2]], Sunny.to_atom(u))
+        set_coherent!(esys, cs, u)
+    end
+    @test Sunny.ewald_energy(esys.entanglement.bare_system) ≈ Sunny.ewald_energy(ord)
+
+    # The coherent-state gradient dE/dZ̄ (which includes the promoted Ewald term)
+    # must match a finite difference.
+    set_field!(esys, [0.3, -0.7, 1.1])
+    randomize_spins!(esys)
+    Z0 = copy(esys.coherents)
+    ∇ = Sunny.energy_grad_coherents(esys)
+    maxerr = let ε = 1e-6, acc = 0.0
+        for site in eachsite(esys), c in 1:4, scale in (1.0 + 0im, im)
+            δ = zeros(ComplexF64, 4); δ[c] = scale
+            znew = copy(Z0); znew[site] = Z0[site] + ε*δ
+            esys.coherents .= znew; Sunny.set_expected_dipoles!(esys)
+            Ep = energy(esys; check_normalization=false)
+            znew[site] = Z0[site] - ε*δ
+            esys.coherents .= znew; Sunny.set_expected_dipoles!(esys)
+            Em = energy(esys; check_normalization=false)
+            acc = max(acc, abs((Ep - Em)/(2ε) - 2*real(δ' * ∇[site])))
+        end
+        acc
+    end
+    esys.coherents .= Z0; Sunny.set_expected_dipoles!(esys)
+    @test maxerr < 1e-8
+
+    # Ewald survives cloning and periodic repetition.
+    @test !isnothing(Sunny.clone_system(esys).entanglement.bare_system.ewald)
+    @test !isnothing(repeat_periodically(esys, (2, 1, 1)).entanglement.bare_system.ewald)
+
+    # Unsupported paths error clearly rather than silently ignoring dipole-dipole.
+    @test_throws "does not yet support long-range dipole-dipole" SpinWaveTheory(esys; measure=nothing)
+    let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_flip)
+        @test_throws "does not yet support long-range dipole-dipole" step!(esys, sampler)
+    end
+end
+
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
 # end

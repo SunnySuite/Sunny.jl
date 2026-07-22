@@ -348,8 +348,74 @@ end
 # breaks a recursive type dependency), so accessing it directly poisons
 # inference with an abstract type. Mirroring the `interactions_union ::
 # Vector{Interactions}` pattern, assert the concrete `Entanglement` here so JET
-# and downstream inference stay clean. Only call when `sys` is entangled.
+# and downstream inference stay clean. The `Entanglement{N}` parameter is the
+# bare system's local dimension (generally distinct from the contracted `sys`'s
+# N), so it is left free here; asserting the UnionAll still concretizes the
+# `bare_system::System{N}` field per instance. Only call when `sys` is entangled.
 @inline get_entanglement(sys::System) = sys.entanglement :: Entanglement
+
+# Dipole-dipole energy for an entangled system, evaluated on the physical bare
+# system (whose dipoles are synced with the coherent states).
+function entangled_ewald_energy(ent::Entanglement)
+    bare = ent.bare_system
+    return isnothing(bare.ewald) ? 0.0 : ewald_energy(bare)
+end
+
+# Translate the physical (bare-system) dipole-level fields into the entangled
+# unit coherent gradient:
+#
+#   dE/dZ̄_u += Σ_{a ∈ u} Σ_β (dE/dSₐ)_β Sₐ^{β,embed} Z_u,
+#
+# where dE/dSₐ = gₐ' B (Zeeman) + (long-range dipole-dipole field), both
+# produced per physical atom on the bare system. A unit's atoms feel independent
+# fields, so this cannot be represented by a single per-unit dE/dS vector —
+# hence the bare-atom granularity here rather than the contracted
+# `set_energy_grad_dipoles!` path. `N` is the local dimension of entangled units
+# (not of the `bare_system`).
+function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entanglement) where N
+    (; bare_system, source_idcs, bare_dipole_operators) = ent
+
+    # Reuse the bare system's persistent scratch buffers.
+    S_bare, dE_dS_bare = get_dipole_buffers(bare_system, 2)
+    fill!(dE_dS_bare, zero(Vec3))
+
+    # Physical dipoles ⟨Sₐ⟩ evaluated from the *passed* `Z` (which may be a trial
+    # state not yet synced into `bare_system.dipoles`), so the dipole-dependent
+    # Ewald field is consistent with the state whose gradient is requested.
+    for bare_site in eachsite(bare_system)
+        cell = to_cell(bare_site)
+        atom = to_atom(bare_site)
+        Zu = Z[cell..., source_idcs[bare_site]]
+        S = bare_dipole_operators[atom]
+        S_bare[bare_site] = Vec3(real(dot(Zu, S[1], Zu)), real(dot(Zu, S[2], Zu)), real(dot(Zu, S[3], Zu)))
+    end
+
+    # Per-atom dE/dSₐ on the bare system: Zeeman gₐ' B plus, if enabled, the
+    # long-range dipole-dipole field (which itself includes the g-tensor).
+    for bare_site in eachsite(bare_system)
+        dE_dS_bare[bare_site] += bare_system.gs[bare_site]' * bare_system.extfield[bare_site]
+    end
+    if !isnothing(bare_system.ewald)
+        accum_ewald_grad!(dE_dS_bare, S_bare, bare_system)
+    end
+
+    # Sum each physical atom's contribution into its containing unit. Iterating
+    # bare sites naturally accumulates the several atoms of a unit into the same
+    # coherent-state gradient.
+    for bare_site in eachsite(bare_system)
+        cell = to_cell(bare_site)
+        atom = to_atom(bare_site)
+        u = source_idcs[bare_site]
+        S = bare_dipole_operators[atom]
+        h = dE_dS_bare[bare_site]
+        Zu = Z[cell..., u]
+        for β in 1:3
+            Sβ = SMatrix{N, N}(S[β])
+            HZ[cell..., u] += h[β] * (Sβ * Zu)
+        end
+    end
+    return
+end
 
 # Recompute the physical dipole at one physical `site` (a site of `bare_system`)
 # from the coherent state of its containing unit.

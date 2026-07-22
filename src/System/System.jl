@@ -705,7 +705,9 @@ function set_spin_rescaling_for_static_sum_rule!(sys::System{N}) where N
 end
 
 
-function get_dipole_buffers(sys::System{N}, numrequested) where N
+# The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known
+# statically.
+function get_dipole_buffers(@nospecialize(sys::System), numrequested)
     numexisting = length(sys.dipole_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)
