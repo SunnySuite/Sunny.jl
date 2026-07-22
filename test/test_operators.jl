@@ -22,7 +22,7 @@
 
         # Test dipole -> ket -> dipole round trip
         n = s * normalize(randn(Sunny.Vec3))
-        Z = Sunny.ket_from_dipole(n, Val(N))
+        Z = Sunny.ket_from_dipole(n, Val{N}())
         @test Sunny.expected_spin(Z) ≈ n
 
         # Test time reversal operator

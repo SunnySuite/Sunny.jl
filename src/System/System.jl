@@ -445,7 +445,7 @@ end
 end
 @inline function dipolar_state(sys::System{N}, site, dir) where N
     @assert !is_entangled(sys)
-    return coherent_state(sys, site, ket_from_dipole(Vec3(dir), Val(N)))
+    return coherent_state(sys, site, ket_from_dipole(Vec3(dir), Val{N}()))
 end
 
 @inline function flip(spin::SpinState{N}) where N
@@ -581,9 +581,16 @@ Polarize the spin dipole at one [`Site`](@ref) in the direction `dir`.
 See also [`polarize_spins!`](@ref).
 """
 function set_dipole!(sys::System{N}, dir, site) where N
-    isnothing(sys.entanglement) || error("`set_dipole!` is not well defined for an entangled system. Use `set_coherent!` to set the state of each entangled unit.")
+    dir = Vec3(dir)
     site = to_cartesian(site)
-    setspin!(sys, dipolar_state(sys, site, dir), site)
+    if is_entangled(sys)
+        (; uncontracted, unit_map) = get_entanglement(sys)
+        Ns = Ns_in_units(uncontracted, unit_map)[to_atom(site)]
+        Z = kron((ket_from_dipole(dir, Val{N}()) for N in Ns)...)
+        setspin!(sys, coherent_state(sys, site, Z), site)
+    else
+        setspin!(sys, dipolar_state(sys, site, dir), site)
+    end
 end
 
 """

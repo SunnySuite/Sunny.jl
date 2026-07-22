@@ -533,30 +533,6 @@ end
 ################################################################################
 # Coherent states and measurements
 ################################################################################
-# Find the unique coherent state corresponding to a set of fully-polarized
-# dipoles on each site inside a specified entangled unit. FIXME: This function
-# is dead. Fix `set_dipole!` instead.
-function coherent_state_from_dipoles(sys::System, dipoles, unit)
-    (; uncontracted, unit_map) = get_entanglement(sys)
-
-    # Atom indices (of the physical system) that lie in the specified unit.
-    atoms = [member.atom for member in unit_map.unit_to_members[unit]]
-    @assert length(dipoles) == length(atoms) "Invalid number of dipoles for specified unit."
-
-    # Local Hilbert space dimensions for those atoms.
-    Ns = Ns_in_units(uncontracted, unit_map)[unit]
-
-    # Coherent state per atom, in each local Hilbert space.
-    coherents = []
-    for (dipole, N) in zip(dipoles, Ns)
-        S = spin_matrices((N-1)/2)
-        coherent = eigvecs(S' * dipole)[:,N] # Highest-weight eigenvector
-        push!(coherents, coherent)
-    end
-
-    # Tensor product gives the unit's coherent state.
-    return kron(coherents...)
-end
 
 # Build a unit-level MeasureSpec for an entangled `System`. The measure is first
 # constructed at the atom level on the physical `uncontracted` (reusing the

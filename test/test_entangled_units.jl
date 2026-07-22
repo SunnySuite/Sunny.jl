@@ -61,12 +61,11 @@ end
     onsite_ref = J * (Sl' * Su)
     @test onsite_operator ≈ onsite_ref
 
-    # Test apparatus for setting coherent states from dipoles specification
-    dipoles = [[0, 1/2, 0], [0, -1/2, 0]] # Dipoles specifying a dimer state
-    cs = Sunny.coherent_state_from_dipoles(esys, dipoles, 1)
-    set_coherent!(esys, cs, CartesianIndex(1,1,1,1))
+    # Setting a dipole polarizes every member of the entangled unit along the
+    # given direction (here ŷ, giving each s=1/2 member a dipole of 1/2).
+    set_dipole!(esys, [0, 1, 0], (1,1,1,1))
     @test bare.dipoles[1,1,1,1][2] ≈ 1/2
-    @test bare.dipoles[1,1,1,2][2] ≈ -1/2
+    @test bare.dipoles[1,1,1,2][2] ≈ 1/2
 
     # Test external field. The Zeeman term is not folded into the onsite
     # operator; it lives in `extfield` (per unit) and couples to the unit's total
