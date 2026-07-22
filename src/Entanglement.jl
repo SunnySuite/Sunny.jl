@@ -3,7 +3,7 @@
 ################################################################################
 
 # One part of an entangled unit.
-struct PartPlacement
+struct UnitPart
     atom  :: Int            # Atom index in the uncontracted crystal
     Δcell :: SVector{3,Int} # Cell of this atom relative to the unit's cell
 end
@@ -11,7 +11,7 @@ end
 # Metadata for a System with entangled units. Hilbert dimension N of the
 # uncontracted System{N} is intentionally omitted to avoid dynamic lookup.
 struct Entanglement <: AbstractEntanglement
-    units           :: Vector{Vector{PartPlacement}}    # Layout of each unit
+    units           :: Vector{Vector{UnitPart}}         # Grouping of units into parts
     uncontracted    :: System                           # System prior to entanglement
     lifted_spin_ops :: Vector{SVector{3, HermitianC64}} # Product-space spin ops for atoms
 end
@@ -79,6 +79,20 @@ function clone_entanglement(ent::Entanglement)
                         ent.lifted_spin_ops)
 end
 clone_entanglement(::Nothing) = nothing
+
+# Conversion between user-supplied `groupings` and regularized `units`
+function groupings_to_units(groupings)
+    map(groupings) do grouping
+        map(grouping) do elem
+            elem isa Integer ? UnitPart(elem, zero(Vec3)) : UnitPart(elem...)
+        end
+    end
+end
+function units_to_groupings(units)
+    map(units) do parts
+        [(atom, Vector(Δcell)) for (; atom, Δcell) in parts]
+    end
+end
 
 
 ################################################################################
@@ -221,7 +235,7 @@ end
 function transform_unit(cryst::Crystal, s::SymOp, parts)
     map(parts) do (; atom, Δcell)
         a, cell = position_to_atom_and_offset(cryst, transform(s, cryst.positions[atom] + Δcell))
-        PartPlacement(a, SVector{3,Int}(cell))
+        UnitPart(a, SVector{3,Int}(cell))
     end
 end
 
@@ -235,8 +249,20 @@ function are_units_symmetry_consistent(crystal, units)
     return true
 end
 
-# Determine cell offsets that greedily compactify a cluster of atoms.
-function compactify_cell_offsets(cryst::Crystal, atoms)
+# Shift each unit's cell offsets by a common cell so its centroid lands in
+# [0, 1) (tolerantly: -ϵ maps to 0).
+function center_units(cryst::Crystal, units)
+    map(units) do parts
+        centroid = sum(cryst.positions[atom] + Δcell for (; atom, Δcell) in parts) / length(parts)
+        cell = round.(Int, centroid - wrap_to_unit_cell(centroid))
+        [UnitPart(atom, Δcell - cell) for (; atom, Δcell) in parts]
+    end
+end
+
+# Reassign a unit's cell offsets to greedily compactify its atoms (existing
+# offsets are ignored and recomputed from scratch).
+function compactify_cell_offsets(cryst::Crystal, parts)
+    atoms = [atom for (; atom) in parts]
     # Place atoms one-by-one. The periodic image of each new atom is selected by
     # minimizing distance to an already-placed atom.
     n = length(atoms)
@@ -255,24 +281,20 @@ function compactify_cell_offsets(cryst::Crystal, atoms)
         Δcells[best.k] = best.Δ
         push!(placed, best.k)
     end
-    # Shift all offsets so the centroid of each group has coordinates in [0, 1)
-    centroid = sum(cryst.positions[a] + Δ for (a, Δ) in zip(atoms, Δcells)) / n
-    cell = round.(Int, centroid - wrap_to_unit_cell(centroid))
-    return [Δ - cell for Δ in Δcells]
+    return [UnitPart(a, Δ) for (a, Δ) in zip(atoms, Δcells)]
 end
 
 # Heuristic attempt to rescue a failed grouping by finding a new grouping with
 # compactified cell offsets. Returns `nothing` if the proposed grouping would be
 # symmetry-inconsistent.
 function compact_grouping_suggestion(crystal, units)
-    unit_atoms = [atoms_in_unit(units, u) for u in eachindex(units)]
-    unit_Δcells = [compactify_cell_offsets(crystal, atoms) for atoms in unit_atoms]
-    sort(collect(Iterators.flatten(unit_atoms))) == 1:natoms(crystal) || return nothing
-    compacted = [[PartPlacement(a, Δ) for (a, Δ) in zip(atoms, Δcells)]
-                 for (atoms, Δcells) in zip(unit_atoms, unit_Δcells)]
-    are_units_symmetry_consistent(crystal, compacted) || return nothing
-    return [[(a, Vector(Δ)) for (a, Δ) in zip(atoms, Δcells)]
-            for (atoms, Δcells) in zip(unit_atoms, unit_Δcells)]
+    compacted = [compactify_cell_offsets(crystal, parts) for parts in units]
+    # Reject if the recompactified offsets still break symmetry
+    if are_units_symmetry_consistent(crystal, compacted)
+        return units_to_groupings(center_units(crystal, compacted))
+    else
+        return nothing
+    end
 end
 
 # Validate the entangled units in stages for better error messages.
@@ -363,7 +385,7 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_units)
     @assert natoms_bare == nunits * nparts
 
     # Build the units (unit → parts) for the possibly reshaped sys.crystal
-    units = [Vector{PartPlacement}(undef, nparts) for _ in 1:nunits]
+    units = [Vector{UnitPart}(undef, nparts) for _ in 1:nunits]
     for a in 1:natoms_bare
         orig_a = map_atom_to_other_crystal(uncontracted.crystal, a, orig_crystal(uncontracted))
         orig_u, p = unit_and_part(orig_units, orig_a)
@@ -381,7 +403,7 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_units)
         # Cell displacement from this unit to an atom in cell (0, 0, 0)
         Δcell = -unit_cell
 
-        units[u][p] = PartPlacement(a, Δcell)
+        units[u][p] = UnitPart(a, Δcell)
     end
 
     lifted_spin_ops = map(1:natoms_bare) do atom
@@ -443,21 +465,14 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
         return sys
     end
 
-    positions = uncontracted.crystal.positions
-    units = map(groupings) do grouping
-        # If Δcell data are missing, default to zero.
-        parts = map(grouping) do part
-            part isa Integer ? PartPlacement(part, zero(SVector{3,Int})) : PartPlacement(part...)
-        end
-        # Shift all Δcell data so that centroid lives in [0, 1)
-        centroid = sum(positions[atom] + Δcell for (; atom, Δcell) in parts) / length(parts)
-        unit_cell = round.(Int, centroid - wrap_to_unit_cell(centroid))
-        [PartPlacement(atom, Δcell - unit_cell) for (; atom, Δcell) in parts]
-    end
+    # Convert to regularized format
+    units = groupings_to_units(groupings)
 
     # Check symmetry consistency
     validate_units(uncontracted.crystal, units, enforce_symmetry)
 
+    # Build contracted crystal with units centered on [0, 1)
+    units = center_units(uncontracted.crystal, units)
     contracted_crystal = contract_crystal(uncontracted.crystal, units)
 
     # Local Hilbert space dimension per unit. TODO: Relax uniformity constraint.
