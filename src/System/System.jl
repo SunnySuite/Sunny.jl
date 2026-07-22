@@ -101,7 +101,7 @@ function mode_to_str(sys::System{N}) where N
         "Dipole mode, large-s"
     end
     if is_entangled(sys)
-        nparts = maximum(length.(get_entanglement(sys).layout.unit_to_parts))
+        nparts = maximum(length, get_entanglement(sys).units)
         mode_str *= ", Entangled $nparts-mers"
     end
     return "[$mode_str]"
@@ -584,8 +584,8 @@ function set_dipole!(sys::System{N}, dir, site) where N
     dir = Vec3(dir)
     site = to_cartesian(site)
     if is_entangled(sys)
-        (; uncontracted, layout) = get_entanglement(sys)
-        Ns = uncontracted.Ns[atoms_in_unit(layout, to_atom(site))]
+        (; uncontracted, units) = get_entanglement(sys)
+        Ns = uncontracted.Ns[atoms_in_unit(units, to_atom(site))]
         Z = kron((ket_from_dipole(dir, Val{N}()) for N in Ns)...)
         setspin!(sys, coherent_state(sys, site, Z), site)
     else

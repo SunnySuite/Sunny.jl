@@ -155,7 +155,7 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
         new_shape = Mat3(orig_crystal(sys).latvecs \ new_cryst.latvecs)
         new_uncontracted_cryst = reshape_crystal(orig_crystal(uncontracted), new_shape)
         new_uncontracted_sys = reshape_supercell_aux(uncontracted, new_uncontracted_cryst, new_dims)
-        rebuild_entanglement!(new_sys, new_uncontracted_sys, get_entanglement(orig_sys).layout)
+        rebuild_entanglement!(new_sys, new_uncontracted_sys, get_entanglement(orig_sys).units)
     end
 
     return new_sys

@@ -2,30 +2,17 @@
 # Types
 ################################################################################
 
-struct UnitAndPartIndex
-    unit :: Int             # Unit index in contracted crystal
-    part :: Int             # Part index within unit
-end
-
-# One part of an entangled unit. In principle, Δcell is redundant -- it could be
-# recalculated from Δpos and the unit centers.
-struct UnitPart
-    atom  :: Int            # Atom index in the uncontracted (bare) crystal
-    Δpos  :: Vec3           # Fractional position relative to unit center
+# One part of an entangled unit.
+struct PartPlacement
+    atom  :: Int            # Atom index in the uncontracted crystal
     Δcell :: SVector{3,Int} # Cell of this atom relative to the unit's cell
-end
-
-# Bidirectional mapping between entangled units and their constituent parts
-struct UnitLayout
-    atom_to_unit  :: Vector{UnitAndPartIndex} # bare atom → (unit, part)
-    unit_to_parts :: Vector{Vector{UnitPart}} # unit → bare atom data
 end
 
 # Metadata for a System with entangled units. Hilbert dimension N of the
 # uncontracted System{N} is intentionally omitted to avoid dynamic lookup.
 struct Entanglement <: AbstractEntanglement
+    units           :: Vector{Vector{PartPlacement}}    # Layout of each unit
     uncontracted    :: System                           # System prior to entanglement
-    layout          :: UnitLayout                       # Membership of atoms within units
     lifted_spin_ops :: Vector{SVector{3, HermitianC64}} # Product-space spin ops for atoms
 end
 
@@ -49,21 +36,29 @@ function nbaresites(sys::System)
     length(eachsite(uncontracted_system(sys)))
 end
 
-# Bare atom indices comprising a unit, ordered to match the unit_to_parts
-# field of a UnitLayout.
-function atoms_in_unit(layout::UnitLayout, u)
-    [atom for (; atom) in layout.unit_to_parts[u]]
+# Returns the (u, p) indices inverse to units[u][p].atom
+function unit_and_part(units, atom)
+    for (u, parts) in enumerate(units)
+        p = findfirst(part -> part.atom == atom, parts)
+        isnothing(p) || return (u, p)
+    end
+    error("Atom $atom is not assigned to any unit")
+end
+
+# Bare atom indices comprising a unit, ordered to match the units entries.
+function atoms_in_unit(units, u)
+    [atom for (; atom) in units[u]]
 end
 function atoms_in_unit(sys::System, u)
-    is_entangled(sys) ? atoms_in_unit(get_entanglement(sys).layout, u) : [u]
+    is_entangled(sys) ? atoms_in_unit(get_entanglement(sys).units, u) : [u]
 end
 
 # Given a site representing an entangled unit, return an iterator over the
 # corresponding "bare sites" of the uncontracted system.
 function bare_sites_for_unit(ent::Entanglement, unit_site)
-    (; uncontracted, layout) = ent
+    (; uncontracted, units) = ent
     (; dims) = uncontracted
-    parts = layout.unit_to_parts[to_atom(unit_site)]
+    parts = units[to_atom(unit_site)]
     return Iterators.map(parts) do (; atom, Δcell)
         # Mirrors `bonded_site`
         CartesianIndex(altmod1.(to_cell(unit_site) .+ Δcell, dims)..., atom)
@@ -80,7 +75,7 @@ end
 
 # Needed because uncontracted.dipoles and related state are mutably updated
 function clone_entanglement(ent::Entanglement)
-    return Entanglement(clone_system(ent.uncontracted), ent.layout,
+    return Entanglement(ent.units, clone_system(ent.uncontracted),
                         ent.lifted_spin_ops)
 end
 clone_entanglement(::Nothing) = nothing
@@ -90,43 +85,39 @@ clone_entanglement(::Nothing) = nothing
 # Pair-coupling contraction
 ################################################################################
 
-# UnitPart data (Δpos and Δcell) for a bare atom.
-function unit_offsets_for_atom(layout::UnitLayout, atom)
-    (; unit, part) = layout.atom_to_unit[atom]
-    return layout.unit_to_parts[unit][part]
-end
-
 # Convert a bond between physical atoms into the corresponding bond between
 # contracted units. If `bond.n` points from atom i in one cell to atom j in a
 # neighboring cell, then the unit-to-unit cell displacement must be corrected by
 # the two atoms' cell offsets inside their units.
-function contracted_bond(bond::Bond, layout::UnitLayout)
-    ui = layout.atom_to_unit[bond.i]
-    uj = layout.atom_to_unit[bond.j]
+function contracted_bond(bond::Bond, units)
+    ui, pi = unit_and_part(units, bond.i)
+    uj, pj = unit_and_part(units, bond.j)
     n = SVector{3,Int}(bond.n)
-    Δcell_i = unit_offsets_for_atom(layout, bond.i).Δcell
-    Δcell_j = unit_offsets_for_atom(layout, bond.j).Δcell
+    Δcell_i = units[ui][pi].Δcell
+    Δcell_j = units[uj][pj].Δcell
     n_new = n + Δcell_i - Δcell_j
-    return Bond(ui.unit, uj.unit, n_new)
+    return Bond(ui, uj, n_new)
 end
 
 # Checks whether a bond given in terms of the original crystal lies inside a
 # single unit of the contracted system.
-function bond_is_in_unit(bond::Bond, layout::UnitLayout)
-    newbond = contracted_bond(bond, layout)
+function bond_is_in_unit(bond::Bond, units)
+    newbond = contracted_bond(bond, units)
     return newbond.i == newbond.j && all(iszero, newbond.n)
 end
 
 # Converts what was a pair coupling between two different sites of a single unit
 # in the original system into an "onsite coupling" for the entangled unit.
 # Accumulates to `op` in place.
-function accum_intra_unit_pair_coupling!(op, pc, uncontracted_Ns, layout::UnitLayout)
+function accum_intra_unit_pair_coupling!(op, pc, uncontracted_Ns, units)
     pc.isculled && return
 
-    ui = layout.atom_to_unit[pc.bond.i]
-    uj = layout.atom_to_unit[pc.bond.j]
-    Ns_unit = uncontracted_Ns[atoms_in_unit(layout, ui.unit)]
-    Ni, Nj = Ns_unit[[ui.part, uj.part]]
+    ui, pi = unit_and_part(units, pc.bond.i)
+    uj, pj = unit_and_part(units, pc.bond.j)
+    @assert ui == uj
+
+    Ns_unit = uncontracted_Ns[atoms_in_unit(units, ui)]
+    Ni, Nj = Ns_unit[[pi, pj]]
 
     # Add scalar part
     op .+= pc.scalar * I(size(op, 1))
@@ -135,8 +126,8 @@ function accum_intra_unit_pair_coupling!(op, pc, uncontracted_Ns, layout::UnitLa
     # sum of tensor product pairs a ⊗ b. Both sites lie in the same unit, so both
     # factors embed into the same product space.
     for (a, b) in pair_coupling_tensor_data(pc, Ni, Nj)
-        A = local_op_to_product_space(a, ui.part, Ns_unit)
-        B = local_op_to_product_space(b, uj.part, Ns_unit)
+        A = local_op_to_product_space(a, pi, Ns_unit)
+        B = local_op_to_product_space(b, pj, Ns_unit)
         op .+= A * B
     end
 
@@ -145,52 +136,53 @@ end
 
 # Promote an atomistic-level pair coupling to an inter-unit pair coupling on the
 # contracted system.
-function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, layout::UnitLayout)
+function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
     (; i, j) = pc.bond
-    ui = layout.atom_to_unit[i]
-    uj = layout.atom_to_unit[j]
+    ui, pi = unit_and_part(units, i)
+    uj, pj = unit_and_part(units, j)
 
-    Ns1 = uncontracted_Ns[atoms_in_unit(layout, ui.unit)]
-    Ns2 = uncontracted_Ns[atoms_in_unit(layout, uj.unit)]
+    Ns1 = uncontracted_Ns[atoms_in_unit(units, ui)]
+    Ns2 = uncontracted_Ns[atoms_in_unit(units, uj)]
     Ni = uncontracted_Ns[1, 1, 1, i]
     Nj = uncontracted_Ns[1, 1, 1, j]
 
     # Decompose the pair operator as ∑ₖ aₖ ⊗ bₖ. Then promote each factor to the
     # tensor product space, aₖ → Aₖ.
     data = map(pair_coupling_tensor_data(pc, Ni, Nj)) do (a, b)
-        A = Hermitian(local_op_to_product_space(Matrix(a), ui.part, Ns1))
-        B = Hermitian(local_op_to_product_space(Matrix(b), uj.part, Ns2))
+        A = Hermitian(local_op_to_product_space(Matrix(a), pi, Ns1))
+        B = Hermitian(local_op_to_product_space(Matrix(b), pj, Ns2))
         (A, B)
     end
 
-    newbond = contracted_bond(pc.bond, layout)
+    newbond = contracted_bond(pc.bond, units)
     gen1 = spin_matrices_of_dim(; N=prod(Ns1))
     gen2 = spin_matrices_of_dim(; N=prod(Ns2))
     return (; newbond, pc.scalar, tensordec=TensorDecomposition(gen1, gen2, data))
 end
 
 # Map ModelParam of an uncontracted system to that of an entangled system.
-function contract_param(param::ModelParam, uncontracted_Ns, layout::UnitLayout)
-    nunits = length(layout.unit_to_parts)
+function contract_param(param::ModelParam, uncontracted_Ns, units)
+    nunits = length(units)
 
     # Intra-unit terms become onsite (on-bond) operators, one per touched unit.
     onsites = Tuple{Int, OnsiteCoupling}[]
     for u in 1:nunits
-        Ns = uncontracted_Ns[atoms_in_unit(layout, u)]
+        Ns = uncontracted_Ns[atoms_in_unit(units, u)]
         unit_operator = zeros(ComplexF64, prod(Ns), prod(Ns))
-        relevant = atoms_in_unit(layout, u)
+        relevant = atoms_in_unit(units, u)
 
         # Bare onsite couplings embedded into the unit's product space.
         for (atom, oc) in param.onsites
             atom in relevant || continue
-            (; part) = layout.atom_to_unit[atom]
-            unit_operator += local_op_to_product_space(oc, part, Ns)
+            _, p = unit_and_part(units, atom)
+            unit_operator += local_op_to_product_space(oc, p, Ns)
         end
 
         # Intra-unit pair couplings fold into the same onsite operator.
         for pc in param.pairs
-            if bond_is_in_unit(pc.bond, layout) && layout.atom_to_unit[pc.bond.i].unit == u
-                accum_intra_unit_pair_coupling!(unit_operator, pc, uncontracted_Ns, layout)
+            u′, _ = unit_and_part(units, pc.bond.i)
+            if bond_is_in_unit(pc.bond, units) && u′ == u
+                accum_intra_unit_pair_coupling!(unit_operator, pc, uncontracted_Ns, units)
             end
         end
 
@@ -200,8 +192,8 @@ function contract_param(param::ModelParam, uncontracted_Ns, layout::UnitLayout)
     # Inter-unit pair couplings become pair couplings between contracted units.
     pairs = PairCoupling[]
     for pc in param.pairs
-        bond_is_in_unit(pc.bond, layout) && continue
-        (; newbond, scalar, tensordec) = promote_inter_unit_pair_coupling(pc, uncontracted_Ns, layout)
+        bond_is_in_unit(pc.bond, units) && continue
+        (; newbond, scalar, tensordec) = promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
         bilin = biquad = 0.0 # Dipoles are NaN for entangled systems
         push!(pairs, PairCoupling(newbond, scalar, bilin, biquad, tensordec))
     end
@@ -216,34 +208,29 @@ end
 
 # A canonical key for a unit's parts. Two units share a key iff they are related
 # by lattice translation, independent of how their parts are permuted.
-function unit_position_key(atoms, Δcells)
-    parts = sort([(a, Δ[1], Δ[2], Δ[3]) for (a, Δ) in zip(atoms, Δcells)])
-    (_, o1, o2, o3) = parts[1]
-    return [(a, x-o1, y-o2, z-o3) for (a, x, y, z) in parts]
+function unit_position_key(parts)
+    sorted = sort([(atom, Δcell...) for (; atom, Δcell) in parts])
+    (_, o1, o2, o3) = sorted[1]
+    return [(a, x-o1, y-o2, z-o3) for (a, x, y, z) in sorted]
 end
 
 # The k-atom analog of `transform(cryst, s, bond)`. Applies symop `s` to each
-# part and reindexes to (atom, cell). The order of the returned `atoms` records
-# the permutation of parts induced by `s`. This ordering would be needed for
-# future functionality that transforms product-space operators.
-function transform_unit(cryst::Crystal, s::SymOp, atoms, Δcells)
-    atoms′  = Int[]
-    Δcells′ = SVector{3,Int}[]
-    for r in cryst.positions[atoms] + Δcells
-        a, cell = position_to_atom_and_offset(cryst, transform(s, r))
-        push!(atoms′, a)
-        push!(Δcells′, SVector{3,Int}(cell))
+# part and reindexes to (atom, cell). The order of the returned parts records
+# the permutation induced by `s`. This ordering would be needed for future
+# functionality that transforms product-space operators.
+function transform_unit(cryst::Crystal, s::SymOp, parts)
+    map(parts) do (; atom, Δcell)
+        a, cell = position_to_atom_and_offset(cryst, transform(s, cryst.positions[atom] + Δcell))
+        PartPlacement(a, SVector{3,Int}(cell))
     end
-    return atoms′, Δcells′
 end
 
 # True if every symop maps the set of units onto itself (each unit's image is
 # another unit in the set, up to lattice translation and part reordering).
-function are_units_symmetry_consistent(crystal, unit_atoms, unit_Δcells)
-    keys = Set(unit_position_key(a, Δ) for (a, Δ) in zip(unit_atoms, unit_Δcells))
-    for (a, Δ) in zip(unit_atoms, unit_Δcells), s in crystal.sg.symops
-        a′, Δ′ = transform_unit(crystal, s, a, Δ)
-        unit_position_key(a′, Δ′) in keys || return false
+function are_units_symmetry_consistent(crystal, units)
+    keys = Set(unit_position_key(parts) for parts in units)
+    for parts in units, s in crystal.sg.symops
+        unit_position_key(transform_unit(crystal, s, parts)) in keys || return false
     end
     return true
 end
@@ -277,17 +264,21 @@ end
 # Heuristic attempt to rescue a failed grouping by finding a new grouping with
 # compactified cell offsets. Returns `nothing` if the proposed grouping would be
 # symmetry-inconsistent.
-function compact_grouping_suggestion(crystal, unit_atoms)
+function compact_grouping_suggestion(crystal, units)
+    unit_atoms = [atoms_in_unit(units, u) for u in eachindex(units)]
     unit_Δcells = [compactify_cell_offsets(crystal, atoms) for atoms in unit_atoms]
     sort(collect(Iterators.flatten(unit_atoms))) == 1:natoms(crystal) || return nothing
-    are_units_symmetry_consistent(crystal, unit_atoms, unit_Δcells) || return nothing
+    compacted = [[PartPlacement(a, Δ) for (a, Δ) in zip(atoms, Δcells)]
+                 for (atoms, Δcells) in zip(unit_atoms, unit_Δcells)]
+    are_units_symmetry_consistent(crystal, compacted) || return nothing
     return [[(a, Vector(Δ)) for (a, Δ) in zip(atoms, Δcells)]
             for (atoms, Δcells) in zip(unit_atoms, unit_Δcells)]
-
 end
 
 # Validate the entangled units in stages for better error messages.
-function validate_units(crystal, unit_atoms, unit_Δcells, enforce_symmetry)
+function validate_units(crystal, units, enforce_symmetry)
+    unit_atoms = [atoms_in_unit(units, u) for u in eachindex(units)]
+
     # Every atom must be assigned to a unit
     atoms_flat = collect(Iterators.flatten(unit_atoms))
     atoms_missing = setdiff(1:natoms(crystal), atoms_flat)
@@ -301,16 +292,16 @@ function validate_units(crystal, unit_atoms, unit_Δcells, enforce_symmetry)
     # The partition must be consistent with the crystal symmetry
     if enforce_symmetry
         # Atom indices within each unit must be invariant under symops
-        units = Set(sort(atoms) for atoms in unit_atoms)
+        unit_sets = Set(sort(atoms) for atoms in unit_atoms)
         for s in crystal.sg.symops, atoms in unit_atoms
             image = sort([position_to_atom_and_offset(crystal, transform(s, crystal.positions[a]))[1] for a in atoms])
-            image in units || error("Groupings would be split by spacegroup symmetries; pass `enforce_symmetry=false` to override")
+            image in unit_sets || error("Groupings would be split by spacegroup symmetries; pass `enforce_symmetry=false` to override")
         end
 
         # Every unit must transform into another unit under symops. This is a
         # more stringent check, because it also depends on cell offsets.
-        if !are_units_symmetry_consistent(crystal, unit_atoms, unit_Δcells)
-            suggestion = compact_grouping_suggestion(crystal, unit_atoms)
+        if !are_units_symmetry_consistent(crystal, units)
+            suggestion = compact_grouping_suggestion(crystal, units)
             if isnothing(suggestion)
                 error("Symmetry-inconsistency detected; consider different cell offsets or pass `enforce_symmetry=false` to override")
             else
@@ -320,38 +311,17 @@ function validate_units(crystal, unit_atoms, unit_Δcells, enforce_symmetry)
     end
 end
 
-# Maps the provided crystal to a new "contracted" one. `unit_atoms[u]` and
-# `unit_Δcells[u]` are atom indices and cell offsets for entangled unit `u`,
-# indexed for the original chemical cell.
-function contract_crystal(crystal, unit_atoms, unit_Δcells)
-    @assert sum(length, unit_atoms; init=0) == natoms(crystal) "Invalid entangled unit specification."
-
-    atom_to_unit = Vector{UnitAndPartIndex}(undef, natoms(crystal))
-    unit_to_parts = Vector{UnitPart}[]
-    new_positions = Vec3[]
-
-    for (unit_idx, (atoms, Δcells)) in enumerate(zip(unit_atoms, unit_Δcells))
-        # Position of the atomic parts
-        parts_pos = [crystal.positions[atom] + Δcell for (atom, Δcell) in zip(atoms, Δcells)]
-        # Unit position is the centroid of parts positions
-        unit_pos = sum(parts_pos) / length(parts_pos)
-        # Cell of the unit, computed tolerantly (-ϵ maps to 0)
-        unit_cell = round.(Int, unit_pos - wrap_to_unit_cell(unit_pos))
-        # Unit position wrapped to [0, 1]
-        wrapped_unit_pos = unit_pos - Vec3(unit_cell...)
-        push!(new_positions, wrapped_unit_pos)
-
-        # Record each atom's part, its cell offset, and its position offset
-        parts = map(enumerate(zip(atoms, Δcells, parts_pos))) do (part, (atom, Δcell, pos))
-            atom_to_unit[atom] = UnitAndPartIndex(unit_idx, part)
-            UnitPart(atom, pos - unit_pos, Δcell - unit_cell)
-        end
-        push!(unit_to_parts, parts)
+# Maps the provided crystal to a new "contracted" one with a site per entangled
+# unit, positioned at each unit's centroid.
+function contract_crystal(crystal, units)
+    # Unit centroids (coordinates in [0, 1) by construction)
+    new_positions = map(units) do parts
+        sum(crystal.positions[atom] + Δcell for (; atom, Δcell) in parts) / length(parts)
     end
 
     # Build the contracted spacegroup, dropping the symops to mark unavailability
     # of symmetry analysis (in analogy to `reshape_crystal`).
-    if are_units_symmetry_consistent(crystal, unit_atoms, unit_Δcells)
+    if are_units_symmetry_consistent(crystal, units)
         # Determine equivalence classes from unit centroids
         new_classes = zeros(Int, length(new_positions))
         for u in eachindex(new_positions)
@@ -369,17 +339,13 @@ function contract_crystal(crystal, unit_atoms, unit_Δcells)
         new_sg = Spacegroup(SymOp[], crystal.sg.label, crystal.sg.number, crystal.sg.setting)
     else
         # For broken symmetries, revert to P1 with no symops.
-        new_classes = collect(1:length(unit_atoms))
+        new_classes = collect(eachindex(new_positions))
         new_sg = Spacegroup(SymOp[], spacegroup_label(1), 1, one(SymOp))
     end
 
     new_types = fill("", length(new_positions))
-    new_crystal = Crystal(nothing, crystal.latvecs, crystal.recipvecs, new_positions,
-                          new_types, new_classes, new_sg)
-
-    layout = UnitLayout(atom_to_unit, unit_to_parts)
-
-    return new_crystal, layout
+    return Crystal(nothing, crystal.latvecs, crystal.recipvecs, new_positions,
+                   new_types, new_classes, new_sg)
 end
 
 
@@ -388,47 +354,44 @@ end
 ################################################################################
 
 # Populate the entanglement metadata of a (possibly reshaped) contracted `sys`,
-# given the corresponding `uncontracted` system. The `orig_layout` defines the
+# given the corresponding `uncontracted` system. The `orig_units` defines the
 # entanged units in the context of the "original" chemical crystal.
-function rebuild_entanglement!(sys::System, uncontracted, orig_layout::UnitLayout)
+function rebuild_entanglement!(sys::System, uncontracted, orig_units)
     nunits = natoms(sys.crystal)
-    nparts = length(first(orig_layout.unit_to_parts))
+    nparts = length(first(orig_units))
     natoms_bare = natoms(uncontracted.crystal)
     @assert natoms_bare == nunits * nparts
 
-    # Build a UnitLayout for the possibly reshaped sys.crystal
-    atom_to_unit = UnitAndPartIndex[]
-    unit_to_parts = [Vector{UnitPart}(undef, nparts) for _ in 1:nunits]
+    # Build the units (unit → parts) for the possibly reshaped sys.crystal
+    units = [Vector{PartPlacement}(undef, nparts) for _ in 1:nunits]
     for a in 1:natoms_bare
         orig_a = map_atom_to_other_crystal(uncontracted.crystal, a, orig_crystal(uncontracted))
-        p = orig_layout.atom_to_unit[orig_a].part
+        orig_u, p = unit_and_part(orig_units, orig_a)
 
-        # Fractional displacement from the unit center to the part's atom
-        orig_Δpos = unit_offsets_for_atom(orig_layout, orig_a).Δpos
-        global_Δpos = orig_crystal(sys).latvecs * orig_Δpos
-        Δpos = uncontracted.crystal.latvecs \ global_Δpos
+        # Global displacement from the unit centroid to the part's atom
+        orig_cryst = orig_crystal(sys)
+        orig_Δpos = orig_crystal(uncontracted).positions[orig_a] +
+                    orig_units[orig_u][p].Δcell - orig_cryst.positions[orig_u]
+        global_Δpos = orig_cryst.latvecs * orig_Δpos
 
-        # Cell offset from the unit center to the part's atom at cell [0, 0, 0]
-        unit_center = global_position_at(uncontracted, (1, 1, 1, a)) - global_Δpos
-        u, unit_cell = position_to_atom_and_offset(sys.crystal, sys.crystal.latvecs \ unit_center)
-        Δcell =  Vec3(0, 0, 0) - unit_cell
+        # Global position of the unit centroid
+        global_pos = global_position_at(uncontracted, (1, 1, 1, a)) - global_Δpos
+        # New unit index and the cell hosting it
+        u, unit_cell = position_to_atom_and_offset(sys.crystal, sys.crystal.latvecs \ global_pos)
+        # Cell displacement from this unit to an atom in cell (0, 0, 0)
+        Δcell = -unit_cell
 
-        # Store offset data
-        unit_to_parts[u][p] = UnitPart(a, Δpos, Δcell)
-
-        # Store unit part data
-        push!(atom_to_unit, UnitAndPartIndex(u, p))
+        units[u][p] = PartPlacement(a, Δcell)
     end
-    layout = UnitLayout(atom_to_unit, unit_to_parts)
 
     lifted_spin_ops = map(1:natoms_bare) do atom
         S_local = spin_matrices_of_dim(; N=uncontracted.Ns[1, 1, 1, atom])
-        (; unit, part) = layout.atom_to_unit[atom]
-        Ns_unit = uncontracted.Ns[atoms_in_unit(layout, unit)]
-        ntuple(α -> local_op_to_product_space(S_local[α], part, Ns_unit), 3)
+        u, p = unit_and_part(units, atom)
+        Ns_unit = uncontracted.Ns[atoms_in_unit(units, u)]
+        ntuple(α -> local_op_to_product_space(S_local[α], p, Ns_unit), 3)
     end
 
-    sys.entanglement = Entanglement(uncontracted, layout, lifted_spin_ops)
+    sys.entanglement = Entanglement(units, uncontracted, lifted_spin_ops)
     return nothing
 end
 
@@ -480,27 +443,26 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
         return sys
     end
 
-    # Preprocess `groupings` into parallel per-unit lists of atom indices and
-    # cell offsets. If omitted, cell offsets default to zero.
-    grouping_type = eltype(eltype(groupings))
-    if grouping_type <: Integer
-        unit_atoms = [collect(g) for g in groupings]
-        unit_Δcells = [[zero(SVector{3,Int}) for _ in g] for g in groupings]
-    else
-        @assert grouping_type <: Tuple{Integer, Vector{<: Integer}}
-        unit_atoms = [[Int(x) for (x, _) in g] for g in groupings]
-        unit_Δcells = [[SVector{3,Int}(y) for (_, y) in g] for g in groupings]
+    positions = uncontracted.crystal.positions
+    units = map(groupings) do grouping
+        # If Δcell data are missing, default to zero.
+        parts = map(grouping) do part
+            part isa Integer ? PartPlacement(part, zero(SVector{3,Int})) : PartPlacement(part...)
+        end
+        # Shift all Δcell data so that centroid lives in [0, 1)
+        centroid = sum(positions[atom] + Δcell for (; atom, Δcell) in parts) / length(parts)
+        unit_cell = round.(Int, centroid - wrap_to_unit_cell(centroid))
+        [PartPlacement(atom, Δcell - unit_cell) for (; atom, Δcell) in parts]
     end
 
-    # Validate the units (used verbatim; not propagated by symmetry)
-    validate_units(uncontracted.crystal, unit_atoms, unit_Δcells, enforce_symmetry)
+    # Check symmetry consistency
+    validate_units(uncontracted.crystal, units, enforce_symmetry)
 
-    # Construct contracted crystal and the chemical-cell map
-    contracted_crystal, layout = contract_crystal(uncontracted.crystal, unit_atoms, unit_Δcells)
+    contracted_crystal = contract_crystal(uncontracted.crystal, units)
 
     # Local Hilbert space dimension per unit. TODO: Relax uniformity constraint.
     nunits = natoms(contracted_crystal)
-    Ns_contracted = [prod(uncontracted.Ns[atoms_in_unit(layout, u)]) for u in 1:nunits]
+    Ns_contracted = [prod(uncontracted.Ns[atoms_in_unit(units, u)]) for u in 1:nunits]
     @assert allequal(Ns_contracted) "The dimensions of the local contracted Hilbert spaces must be uniform"
     N = first(Ns_contracted)
 
@@ -521,13 +483,13 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
 
     # Contract each labeled parameter independently (contraction is linear in
     # coupling strength), then let the ordinary machinery fill the interactions.
-    sys.params = [contract_param(p, uncontracted.Ns, layout) for p in uncontracted.params]
+    sys.params = [contract_param(p, uncontracted.Ns, units) for p in uncontracted.params]
     repopulate_couplings_from_params!(sys)
 
     # Set entanglement metadata in sys. Keep a clone of the uncontracted system,
     # e.g., as a helper for dipole-level physics.
     uncontracted = clone_system(uncontracted)
-    rebuild_entanglement!(sys, uncontracted, layout)
+    rebuild_entanglement!(sys, uncontracted, units)
 
     # Map uncontracted spin states to the product-space representations in sys
     transfer_uncontracted_state!(sys, uncontracted)
@@ -609,12 +571,12 @@ function entangled_measure(measure, sys::System)
     @assert is_entangled(sys)                 # System is entangled
     @assert num_parts_per_unit(measure) == 1  # Measure is for uncontracted system
 
-    (; uncontracted, layout) = get_entanglement(sys)
+    (; uncontracted, units) = get_entanglement(sys)
 
     nobs = num_observables(measure)
     dims = sys.dims
-    nunits = length(layout.unit_to_parts)
-    nparts = length(layout.unit_to_parts[1])  # uniform by construction
+    nunits = length(units)
+    nparts = length(units[1])  # uniform by construction
 
     Op = eltype(measure.observables)
     new_obs     = Array{Op, 6}(undef, nobs, dims..., nunits, nparts)
@@ -622,9 +584,10 @@ function entangled_measure(measure, sys::System)
     new_ff      = Array{FormFactor, 3}(undef, nobs, nunits, nparts)
 
     for u in 1:nunits
-        Ns_unit = uncontracted.Ns[atoms_in_unit(layout, u)]
-        for (p, (; atom, Δpos, Δcell)) in enumerate(layout.unit_to_parts[u])
-            new_offsets[u, p] = Δpos
+        Ns_unit = uncontracted.Ns[atoms_in_unit(units, u)]
+        for (p, (; atom, Δcell)) in enumerate(units[u])
+            # Displacement from the unit centroid to the part's atom
+            new_offsets[u, p] = uncontracted.crystal.positions[atom] + Δcell - sys.crystal.positions[u]
             for μ in 1:nobs
                 new_ff[μ, u, p] = measure.formfactors[μ, atom, 1]
                 for c in CartesianIndices(dims)
