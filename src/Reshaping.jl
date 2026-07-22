@@ -13,7 +13,25 @@ with [`resize_supercell`](@ref).
 See also [`repeat_periodically`](@ref).
 """
 function reshape_supercell(sys::System, shape)
-    isnothing(sys.entanglement) || return reshape_entangled(sys, s -> reshape_supercell(s, shape))
+    if is_entangled(sys)
+        # Reshape the contracted and physical (bare) systems to the same geometry
+        # as ordinary systems, then rebuild the entanglement mapping from the
+        # immutable `units` truth (which may leave units straddling cell
+        # boundaries). `reshape_supercell_plain` ignores entanglement metadata, so
+        # no recursion guard is needed.
+        (; bare_system, units) = get_entanglement(sys)
+        sys_new = reshape_supercell_plain(sys, shape)
+        bare_new = reshape_supercell_plain(bare_system, shape)
+        return rebuild_entanglement!(sys_new, bare_new, units)
+    end
+    return reshape_supercell_plain(sys, shape)
+end
+
+# Reshape `sys` treating it as an ordinary system, ignoring any entanglement
+# metadata (the result carries `entanglement = nothing`). Maps the requested
+# `shape` to a `(new_cryst, new_dims)` pair that factors out periodicity, then
+# defers to `reshape_supercell_aux`.
+function reshape_supercell_plain(sys::System, shape)
     is_homogeneous(sys) || error("Cannot reshape inhomogeneous system.")
 
     orig = orig_crystal(sys)
@@ -201,10 +219,6 @@ between periodic copies.
 """
 function repeat_periodically(sys::System, counts::NTuple{3,Int})
     all(>=(1), counts) || error("Require at least one count in each direction.")
-    # Global supercell that tiles the current cell `counts` times along each
-    # system axis, expressed in units of the original crystal. This routes
-    # through `reshape_supercell` (which handles inhomogeneous/entangled cases),
-    # rather than duplicating the supercell construction.
     shape = cell_shape(sys) * diagm(Vec3(sys.dims .* counts))
     return reshape_supercell(sys, shape)
 end

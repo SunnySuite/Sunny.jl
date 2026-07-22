@@ -52,20 +52,26 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    # Create a new system with dims (1,1,1). A clone happens in all cases. For an
-    # entangled system, the flatten preserves entanglement metadata (needed for
-    # the Zeeman term); otherwise flatten onto a single enlarged chemical cell
-    # that matches the full system size while preserving linear site order.
+    # Create a new system with dims (1,1,1). A clone happens in all cases.
+    function flatten_system(sys)
+        new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
+        reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
+    end
+
     if is_entangled(sys)
         # Entangled dipole-dipole is q-dependent and pairwise, so it cannot be
         # folded into an onsite term the way Zeeman is; promoting it into
         # inter-unit product-space couplings is not yet implemented.
         isnothing(get_entanglement(sys).bare_system.ewald) ||
             error("SpinWaveTheory does not yet support long-range dipole-dipole interactions for entangled units.")
-        sys = flatten_supercell_entangled(sys)
+
+        #  Preserve entanglement metadata (currently only needed for
+        #  dipole_operators that enter the Zeeman term, and to count the number
+        #  of bare sites in energy_per_site_lswt_correction)
+        (; bare_system, units) = get_entanglement(sys)
+        sys = rebuild_entanglement!(flatten_system(sys), flatten_system(bare_system), units)
     else
-        new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
-        sys = reshape_supercell_aux(sys, new_cryst, (1,1,1))
+        sys = flatten_system(sys)
     end
 
     # Rotate local operators to quantization axis
