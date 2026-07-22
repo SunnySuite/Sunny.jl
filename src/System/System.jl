@@ -462,9 +462,7 @@ end
     return SpinState(S, CVec{0}())
 end
 @inline function randspin(sys::System{N}, site) where N
-    Z = normalize_ket(randn(sys.rng, CVec{N}), sys.κs[site])
-    S = expected_spin(Z)
-    return SpinState(S, Z)
+    return coherent_state(sys, site, randn(sys.rng, CVec{N}))
 end
 
 @inline function perturbed_spin(sys::System{0}, site, magnitude)
@@ -478,9 +476,7 @@ end
     isinf(magnitude) && return randspin(sys, site)
     κ = sys.κs[site]
     Z = sys.coherents[site] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
-    Z = normalize_ket(Z, κ)
-    S = expected_spin(Z)
-    return SpinState(S, Z)
+    return coherent_state(sys, site, Z)
 end
 
 @inline function getspin(sys::System{N}, site) where N
