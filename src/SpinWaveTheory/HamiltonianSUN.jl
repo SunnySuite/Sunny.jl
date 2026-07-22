@@ -75,7 +75,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # `i` and an intra-site part `ka` (index into `spins_localized`). For an
     # entangled unit, distinct bare atoms sharing a site accumulate into the same
     # boson block, with the dipolar kernel resolving their true atomic positions.
-    msys, atom_to_site = dipole_dipole_moment_system(sys)
+    msys, atom_to_unit = dipole_dipole_moment_system(sys)
     if !isnothing(msys.ewald)
         (; demag, μ0_μB², A) = msys.ewald
         gs = msys.gs
@@ -96,8 +96,10 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             J = gs[a]' * Aq[a, b] * gs[b] / 2
             J0 = gs[a]' * A0[a, b] * gs[b] / 2
 
-            (i, ka) = atom_to_site[a]
-            (j, kb) = atom_to_site[b]
+            ua = atom_to_unit[a]
+            ub = atom_to_unit[b]
+            i, ka = ua.unit, ua.part
+            j, kb = ub.unit, ub.part
 
             for α in 1:3, β in 1:3
                 Ai = spins_localized[α, ka, i]
