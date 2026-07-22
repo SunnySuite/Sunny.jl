@@ -30,13 +30,10 @@ function Base.copy(cci::CrystalContractionInfo)
     return CrystalContractionInfo(copy(cci.forward), copy(cci.inverse))
 end
 
-# Metadata marking a `System` whose sites are "entangled units". Subtype of the
-# `AbstractEntanglement` placeholder declared in System/Types.jl (which breaks
-# the recursive System <-> Entanglement type dependency). Holds the physical
-# (uncontracted) `bare_system` plus the contraction/dynamics mapping. Populated
-# by `attach_entanglement!` (see `entangle_units`).
-struct Entanglement{N} <: AbstractEntanglement
-    bare_system           :: System{N}                        # Physical (uncontracted) system
+# Metadata for a System with entangled units. Hilbert dimension N is _not_
+# carried in the bare system's type. This avoids unecessary dynamic lookups.
+struct Entanglement <: AbstractEntanglement
+    bare_system           :: System                           # Physical (uncontracted) system
     contraction_info      :: CrystalContractionInfo           # Forward/inverse mapping data
     source_idcs           :: Array{Int64, 4}                  # Coherent (unit) index feeding each physical site
     bare_dipole_operators :: Vector{NTuple{3, HermitianC64}}  # Product-space spin ops per physical atom (no g)

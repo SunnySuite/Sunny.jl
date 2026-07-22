@@ -183,11 +183,11 @@ function ewald_energy(@nospecialize(sys::System))
 end
 
 # Use FFT to accumulate the entire field dE/dS for long-range dipole-dipole
-# interactions. The @nospecialize(sys) hint satisfies JET when when Hilbert size
-# N is not known statically.
+# interactions. The @nospecialize(sys) hint satisfies JET when Hilbert size N is
+# not known statically.
 function accum_ewald_grad!(∇E, dipoles, @nospecialize(sys::System))
-    gs = sys.gs
-    (; μ, FA, Fμ, Fϕ, ϕ, plan, ift_plan) = sys.ewald
+    (; gs, ewald) = sys
+    (; μ, FA, Fμ, Fϕ, ϕ, plan, ift_plan) = ewald
 
     # Fourier transformed magnetic moments for the provided trial dipoles
     @. μ = - gs * dipoles
@@ -206,7 +206,7 @@ function accum_ewald_grad!(∇E, dipoles, @nospecialize(sys::System))
     ϕr = reinterpret(reshape, Float64, ϕ)
     mul!(ϕr, ift_plan, Fϕ)
 
-    for site in CartesianIndices(ϕ)
+    for site in eachsite(sys)
         ∇E[site] -= gs[site]' * ϕ[site]
     end
 end
