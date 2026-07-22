@@ -300,7 +300,7 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_unit_map::UnitMap
     end
     unit_map = UnitMap(atom_to_unit, unit_to_members)
 
-    bare_dipole_operators =  map(1:natoms_bare) do atom
+    bare_dipole_operators = map(1:natoms_bare) do atom
         S_local = spin_matrices_of_dim(; N=uncontracted.Ns[1, 1, 1, atom])
         (; unit, part) = unit_map.atom_to_unit[atom]
         Ns_unit = uncontracted.Ns[atoms_in_unit(unit_map, unit)]
@@ -309,6 +309,20 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_unit_map::UnitMap
 
     sys.entanglement = Entanglement(uncontracted, unit_map, bare_dipole_operators)
     return nothing
+end
+
+# Copy per-site state from an uncontracted system into the entangled system.
+function transfer_uncontracted_state!(sys::System, uncontracted::System)
+    dst = get_entanglement(sys).uncontracted
+    @. dst.dipoles   = uncontracted.dipoles
+    @. dst.coherents = uncontracted.coherents
+    @. dst.extfield  = uncontracted.extfield
+    @. dst.κs        = uncontracted.κs
+    @. dst.gs        = uncontracted.gs
+    for unit in eachsite(sys)
+        members = entangled_unit_members(sys, unit)
+        sys.coherents[unit] = kron((uncontracted.coherents[m] for m in members)...)
+    end
 end
 
 """
@@ -323,14 +337,22 @@ local quantum entanglement. This feature currently requires a single unit type
 (all dimers, all trimers, etc).
 
 For example, `[(1, [0, 0, 0]), (2, [1, 0, 0])]` defines a dimer whose second
-atom is taken from the neighboring +a1 cell.
+atom is taken from the neighboring cell along a₁.
 
-The input system should be in `:SUN` mode and have 1×1×1 dimensions. All its
-interactions will be transferred to the entangled system. Subsequent reshapings
-of this entangled system are then allowed.
+The input system should be in `:SUN` mode. All its interactions will be
+transferred to the entangled system.
 """
 function entangle_system(uncontracted::System{M}, groupings) where M
-    isnothing(uncontracted.origin) || error("Entangle a single-cell system first, then reshape")
+    is_homogeneous(uncontracted) || error("Entanglement not supported on inhomogeneous systems")
+
+    # If `uncontracted` has already been reshaped, then entangle on the original
+    # (unreshaped) system, and then re-perform the reshaping. 
+    if !isnothing(uncontracted.origin)
+        shape = cell_shape(uncontracted) * diagm(Vec3(uncontracted.dims))
+        sys = reshape_supercell(entangle_system(uncontracted.origin, groupings), shape)
+        transfer_uncontracted_state!(sys, uncontracted)
+        return sys
+    end
 
     # Preprocess `groupings` into parallel per-unit lists of atom indices and
     # cell offsets. A bare integer atom index is shorthand for a zero offset.
@@ -357,39 +379,31 @@ function entangle_system(uncontracted::System{M}, groupings) where M
     # derived from the associated uncontracted system.
     nunits    = natoms(contracted_crystal)
     dims      = uncontracted.dims
-    Ns        = reshape(collect(Ns_contracted), 1, 1, 1, :)
+    Ns        = fill(N, dims..., nunits)
     κs        = ones(Float64, dims..., nunits)
     gs        = fill(Mat3(I), dims..., nunits)
     ints      = empty_interactions(:SUN, nunits, N)
     extfield  = fill(Vec3(NaN, NaN, NaN), dims..., nunits)
     dipoles   = fill(Vec3(NaN, NaN, NaN), dims..., nunits)
     coherents = zeros(CVec{N}, dims..., nunits)
-    sys_entangled = System(nothing, :SUN, contracted_crystal, dims, Ns, κs, gs,
-                           ModelParam[], Symbol[], ints, nothing, extfield,
-                           dipoles, coherents, Array{Vec3, 4}[], Array{CVec{N}, 4}[],
-                           copy(uncontracted.rng), nothing)
+    sys = System(nothing, :SUN, contracted_crystal, dims, Ns, κs, gs, ModelParam[],
+                 Symbol[], ints, nothing, extfield, dipoles, coherents, Array{Vec3, 4}[],
+                 Array{CVec{N}, 4}[], copy(uncontracted.rng), nothing)
 
     # Contract each labeled parameter independently (contraction is linear in
     # coupling strength), then let the ordinary machinery fill the interactions.
-    sys_entangled.params = [contract_param(p, uncontracted.Ns, unit_map, Ns_units) for p in uncontracted.params]
-    repopulate_couplings_from_params!(sys_entangled)
+    sys.params = [contract_param(p, uncontracted.Ns, unit_map, Ns_units) for p in uncontracted.params]
+    repopulate_couplings_from_params!(sys)
 
-    # Clone the physical system and derive all entanglement metadata from the
-    # immutable `groupings` truth. Both `sys_entangled` and the physical
-    # `uncontracted` start as single chemical cells (`origin = nothing`) and
-    # reshape in tandem through the ordinary backbone.
+    # Set entanglement metadata in sys. Keep a clone of the uncontracted system,
+    # e.g., as a helper for dipole-level physics.
     uncontracted = clone_system(uncontracted)
-    rebuild_entanglement!(sys_entangled, uncontracted, unit_map)
+    rebuild_entanglement!(sys, uncontracted, unit_map)
 
-    # Initialize coherent states of each entangled unit to the tensor product of
-    # bare coherent states.
-    for unit in eachsite(sys_entangled)
-        members = entangled_unit_members(sys_entangled, unit)
-        Z = kron((uncontracted.coherents[bs] for bs in members)...)
-        set_coherent!(sys_entangled, Z, unit)
-    end
+    # Map uncontracted spin states to the product-space representations in sys
+    transfer_uncontracted_state!(sys, uncontracted)
 
-    return sys_entangled
+    return sys
 end
 
 function entangle_system(::System{0}, _)

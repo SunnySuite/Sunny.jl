@@ -10,10 +10,6 @@
     set_exchange!(sys, 0.1, Bond(1, 1, [0, 1, 0]))
     set_exchange!(sys, 0.1, Bond(2, 2, [0, 1, 0]))
 
-    # Cannot reshape then entangle
-    sys_sheared = resize_supercell(sys, (2, 1, 1))
-    @test_throws "Entangle a single-cell system first, then reshape" entangle_system(sys_sheared, [(1, 2)])
-
     # Entangle the original cell
     esys = entangle_system(sys, [(1, 2)])
     for u in eachsite(esys)
@@ -24,12 +20,35 @@
     # Check that energy per site of a q=0 state is invariant under various
     # reshapings reshape. The [-2 0 0; …] shape flips the dimer's orientation so
     # that a unit straddles the cell boundary.
-    for shape in ([-2 0 0; 0 1 0; 0 0 1],       # straddling
-                  [1 1 0; -1 1 0; 0 0 1],       # shear
-                  [3 0 0; 0 1 0; 0 0 1])        # resize ×3
+    shapes = ([-2 0 0; 0 1 0; 0 0 1],       # straddling
+              [1 1 0; -1 1 0; 0 0 1],       # shear
+              [3 0 0; 0 1 0; 0 0 1])        # resize ×3
+    for shape in shapes
         r = reshape_supercell(esys, shape)
         @test energy_per_site(r) ≈ E0
     end
+
+    # A system may also be reshaped prior to entangling
+    for shape in shapes
+        esys2 = entangle_system(reshape_supercell(sys, shape), [(1, 2)])
+        for u in eachsite(esys2)
+            set_coherent!(esys2, [0, 1/√2, -1/√2, 0], u)
+        end
+        @test energy_per_site(esys2) ≈ E0
+    end
+
+    # State set on the (reshaped) bare system prior to entangling — external
+    # field and spin dipoles, including per-site overrides — is transferred to
+    # the entangled system rather than reverting to the original chemical cell.
+    bare = resize_supercell(sys, (3, 1, 1))
+    set_field!(bare, [0, 0, 5])
+    set_field_at!(bare, [0, 0, 7], (2, 1, 1, 1))
+    set_dipole!(bare, [1, 0, 0], (1, 1, 1, 1))
+    esys3 = entangle_system(bare, [(1, 2)])
+    unc = esys3.entanglement.uncontracted
+    @test unc.extfield[2, 1, 1, 1] ≈ [0, 0, 7]
+    @test unc.extfield[1, 1, 1, 2] ≈ [0, 0, 5]
+    @test unc.dipoles[1, 1, 1, 1] ≈ [1/2, 0, 0]
 end
 
 # TODO: Add test with magnetic unit cell larger than a single unit (i.e. not q=0
