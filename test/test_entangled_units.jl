@@ -410,6 +410,61 @@ end
     end
 end
 
+@testitem "Symmetry validation of entangled units" begin
+    # A Cmmm cell (spacegroup 47) with a single orbit of 4 atoms forming two
+    # dimers related by the mirror x → -x.
+    latvecs = lattice_vectors(6, 4, 8, 90, 90, 90)
+    positions = [[0.2, 0.3, 0], [0.2, 0.5, 0], [0.8, 0.3, 0], [0.8, 0.5, 0]]
+    crystal = Crystal(latvecs, positions)
+    @test crystal.classes == [1, 1, 1, 1]
+
+    sys = System(crystal, [1 => Moment(s=1/2, g=2)], :SUN)
+    set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+
+    # Units are used verbatim (no symmetry propagation), so every unit must be
+    # listed. This symmetry-consistent partition entangles.
+    esys = entangle_system(sys, [[1, 2], [3, 4]])
+    @test length(esys.crystal.positions) == 2
+
+    # Listing only one of the two units leaves atoms uncovered.
+    @test_throws "Atoms [3, 4] have not been assigned" entangle_system(sys, [[1, 2]])
+
+    # A P4/n cell where naive (zero-offset) units straddle the cell so their
+    # symmetry images collide. This tiles but breaks symmetry: rejected by
+    # default (with a compact, symmetry-consistent suggestion), yet accepted with
+    # `enforce_symmetry=false`.
+    p4 = Crystal(lattice_vectors(8.333, 8.333, 5.008, 90, 90, 90),
+                 [[0.1584, 0.5366, 0.6256]], "P 4/n"; choice="2")
+    p4_sys = System(p4, [1 => Moment(s=1/2, g=2)], :SUN)
+    set_exchange!(p4_sys, 1.0, Bond(1, 2, [0, 0, 0]))
+    zero_offset = [[1, 2, 3, 4], [5, 6, 7, 8]]
+    @test length(entangle_system(p4_sys, zero_offset; enforce_symmetry=false).crystal.positions) == 2
+
+    # The default rejection reports a compacted grouping (from
+    # `compactify_cell_offsets`) as a copy-pasteable suggestion.
+    compact_offset = [[(1, [0, 1, 0]), (2, [0, 0, 0]), (3, [0, 0, 0]), (4, [1, 0, 0])],
+                      [(5, [-1, 0, 0]), (6, [0, 0, 0]), (7, [0, 0, 0]), (8, [0, -1, 0])]]
+    @test_throws "consider groupings $compact_offset" entangle_system(p4_sys, zero_offset)
+
+    # That compacted grouping is symmetry-consistent and entangles. The two units
+    # are symmetry-equivalent, so they share one class in the contracted crystal.
+    ecryst = entangle_system(p4_sys, compact_offset).crystal
+    @test length(ecryst.positions) == 2
+    @test ecryst.classes == [1, 1]
+    @test ecryst.sg.number == 85  # inherits the parent P4/n spacegroup
+
+    # A partition whose atom sets themselves break symmetry: the fourfold axis maps
+    # {1,2,3,5} onto atoms that are not a unit. No offsets can fix this, so it is
+    # rejected up front with a distinct message (still overridable).
+    @test_throws "split by spacegroup symmetries" entangle_system(p4_sys, [[1, 2, 3, 5], [4, 6, 7, 8]])
+    # With the override the units carry no symmetry, so the contracted crystal is P1
+    # with every unit in its own class.
+    ebroken = entangle_system(p4_sys, [[1, 2, 3, 5], [4, 6, 7, 8]]; enforce_symmetry=false).crystal
+    @test length(ebroken.positions) == 2
+    @test ebroken.sg.number == 1
+    @test ebroken.classes == [1, 2]
+end
+
 @testitem "Offsets for different unit orientations" begin
     # A measure on an entangled system records each member's position offset from
     # its unit center. With two dimers of different orientation (one along x, one

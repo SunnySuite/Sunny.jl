@@ -211,8 +211,114 @@ end
 
 
 ################################################################################
-# Entanglement construction
+# Symmetry analysis
 ################################################################################
+
+# A canonical key for a unit's parts. Two units share a key iff they are related
+# by lattice translation, independent of how their parts are permuted.
+function unit_position_key(atoms, Δcells)
+    parts = sort([(a, Δ[1], Δ[2], Δ[3]) for (a, Δ) in zip(atoms, Δcells)])
+    (_, o1, o2, o3) = parts[1]
+    return [(a, x-o1, y-o2, z-o3) for (a, x, y, z) in parts]
+end
+
+# The k-atom analog of `transform(cryst, s, bond)`. Applies symop `s` to each
+# part and reindexes to (atom, cell). The order of the returned `atoms` records
+# the permutation of parts induced by `s`. This ordering would be needed for
+# future functionality that transforms product-space operators.
+function transform_unit(cryst::Crystal, s::SymOp, atoms, Δcells)
+    atoms′  = Int[]
+    Δcells′ = SVector{3,Int}[]
+    for r in cryst.positions[atoms] + Δcells
+        a, cell = position_to_atom_and_offset(cryst, transform(s, r))
+        push!(atoms′, a)
+        push!(Δcells′, SVector{3,Int}(cell))
+    end
+    return atoms′, Δcells′
+end
+
+# True if every symop maps the set of units onto itself (each unit's image is
+# another unit in the set, up to lattice translation and part reordering).
+function are_units_symmetry_consistent(crystal, unit_atoms, unit_Δcells)
+    keys = Set(unit_position_key(a, Δ) for (a, Δ) in zip(unit_atoms, unit_Δcells))
+    for (a, Δ) in zip(unit_atoms, unit_Δcells), s in crystal.sg.symops
+        a′, Δ′ = transform_unit(crystal, s, a, Δ)
+        unit_position_key(a′, Δ′) in keys || return false
+    end
+    return true
+end
+
+# Determine cell offsets that greedily compactify a cluster of atoms.
+function compactify_cell_offsets(cryst::Crystal, atoms)
+    # Place atoms one-by-one. The periodic image of each new atom is selected by
+    # minimizing distance to an already-placed atom.
+    n = length(atoms)
+    Δcells = Vector{SVector{3,Int}}(undef, n)
+    Δcells[1] = zero(SVector{3,Int})
+    placed = [1]
+    for _ in 2:n
+        best = (dist=Inf, k=0, Δ=zero(SVector{3,Int}))
+        for i in placed, k in 1:n
+            k in placed && continue
+            ri = cryst.positions[atoms[i]] + Δcells[i]
+            Δ = round.(Int, ri - cryst.positions[atoms[k]])
+            d = norm(cryst.latvecs * (cryst.positions[atoms[k]] + Δ - ri))
+            d < best.dist - 1e-10 && (best = (dist=d, k=k, Δ=SVector{3,Int}(Δ)))
+        end
+        Δcells[best.k] = best.Δ
+        push!(placed, best.k)
+    end
+    # Shift all offsets so the centroid of each group has coordinates in [0, 1)
+    centroid = sum(cryst.positions[a] + Δ for (a, Δ) in zip(atoms, Δcells)) / n
+    cell = round.(Int, centroid - wrap_to_unit_cell(centroid))
+    return [Δ - cell for Δ in Δcells]
+end
+
+# Heuristic attempt to rescue a failed grouping by finding a new grouping with
+# compactified cell offsets. Returns `nothing` if the proposed grouping would be
+# symmetry-inconsistent.
+function compact_grouping_suggestion(crystal, unit_atoms)
+    unit_Δcells = [compactify_cell_offsets(crystal, atoms) for atoms in unit_atoms]
+    sort(collect(Iterators.flatten(unit_atoms))) == 1:natoms(crystal) || return nothing
+    are_units_symmetry_consistent(crystal, unit_atoms, unit_Δcells) || return nothing
+    return [[(a, Vector(Δ)) for (a, Δ) in zip(atoms, Δcells)]
+            for (atoms, Δcells) in zip(unit_atoms, unit_Δcells)]
+
+end
+
+# Validate the entangled units in stages for better error messages.
+function validate_units(crystal, unit_atoms, unit_Δcells, enforce_symmetry)
+    # Every atom must be assigned to a unit
+    atoms_flat = collect(Iterators.flatten(unit_atoms))
+    atoms_missing = setdiff(1:natoms(crystal), atoms_flat)
+    isempty(atoms_missing) || error("Atoms $atoms_missing have not been assigned to a unit")
+
+    # Atoms cannot be repeated
+    is_repeated(a) = count(==(a), atoms_flat) > 1
+    atoms_repeated = filter(is_repeated, unique(atoms_flat))
+    isempty(atoms_repeated) || error("Atoms $atoms_repeated are repeatedly assigned")
+
+    # The partition must be consistent with the crystal symmetry
+    if enforce_symmetry
+        # Atom indices within each unit must be invariant under symops
+        units = Set(sort(atoms) for atoms in unit_atoms)
+        for s in crystal.sg.symops, atoms in unit_atoms
+            image = sort([position_to_atom_and_offset(crystal, transform(s, crystal.positions[a]))[1] for a in atoms])
+            image in units || error("Groupings would be split by spacegroup symmetries; pass `enforce_symmetry=false` to override")
+        end
+
+        # Every unit must transform into another unit under symops. This is a
+        # more stringent check, because it also depends on cell offsets.
+        if !are_units_symmetry_consistent(crystal, unit_atoms, unit_Δcells)
+            suggestion = compact_grouping_suggestion(crystal, unit_atoms)
+            if isnothing(suggestion)
+                error("Symmetry-inconsistency detected; consider different cell offsets or pass `enforce_symmetry=false` to override")
+            else
+                error("Offsets are symmetry-inconsistent; consider groupings $suggestion")
+            end
+        end
+    end
+end
 
 # Maps the provided crystal to a new "contracted" one. `unit_atoms[u]` and
 # `unit_Δcells[u]` are atom indices and cell offsets for entangled unit `u`,
@@ -243,11 +349,31 @@ function contract_crystal(crystal, unit_atoms, unit_Δcells)
         push!(unit_to_parts, parts)
     end
 
-    # Reuse the spacegroup data, but drop the symops to mark unavailability of
-    # symmetry analysis (in analogy to `reshape_crystal`).
+    # Build the contracted spacegroup, dropping the symops to mark unavailability
+    # of symmetry analysis (in analogy to `reshape_crystal`).
+    if are_units_symmetry_consistent(crystal, unit_atoms, unit_Δcells)
+        # Determine equivalence classes from unit centroids
+        new_classes = zeros(Int, length(new_positions))
+        for u in eachindex(new_positions)
+            if iszero(new_classes[u])
+                c = maximum(new_classes) + 1
+                for s in crystal.sg.symops
+                    r = transform(s, new_positions[u])
+                    v = findfirst(p -> is_periodic_copy(r, p), new_positions)
+                    new_classes[v] = c
+                end
+            end
+        end
+        # Although symmetry is unbroken, we nonetheless empty the symops because
+        # symmetry analysis of entangled interactions is not yet implemented.
+        new_sg = Spacegroup(SymOp[], crystal.sg.label, crystal.sg.number, crystal.sg.setting)
+    else
+        # For broken symmetries, revert to P1 with no symops.
+        new_classes = collect(1:length(unit_atoms))
+        new_sg = Spacegroup(SymOp[], spacegroup_label(1), 1, one(SymOp))
+    end
+
     new_types = fill("", length(new_positions))
-    new_classes = 1:length(unit_atoms)
-    new_sg = Spacegroup(SymOp[], crystal.sg.label, crystal.sg.number, crystal.sg.setting)
     new_crystal = Crystal(nothing, crystal.latvecs, crystal.recipvecs, new_positions,
                           new_types, new_classes, new_sg)
 
@@ -255,6 +381,11 @@ function contract_crystal(crystal, unit_atoms, unit_Δcells)
 
     return new_crystal, layout
 end
+
+
+################################################################################
+# Entanglement construction
+################################################################################
 
 # Populate the entanglement metadata of a (possibly reshaped) contracted `sys`,
 # given the corresponding `uncontracted` system. The `orig_layout` defines the
@@ -317,34 +448,34 @@ function transfer_uncontracted_state!(sys::System, uncontracted::System)
 end
 
 """
-    entangle_system(sys::System{N}, groupings)
+    entangle_system(sys::System, groupings; enforce_symmetry=true)
 
 Create a new [`System`](@ref) with `groupings` of atoms contracted into
-"entangled units". This formalism becomes especially useful when the exchange
-interactions within a unit are relatively strong compared to the exchange
-between distinct units.
+"entangled units". The input `sys` should be in `:SUN` mode with interactions
+already populated. The returned system will contain these same interactions in
+tensor-product form. This formalism is most useful when the couplings within one
+unit are relatively strong compared to the couplings between different units.
 
-Often, `groupings` will include just atom indices for the chemical cell. For
-example, selecting `groupings = [[1, 2], [3, 4]]` would return a system in which
-atoms `[1, 2]` and atoms `[3, 4]` are dimerized. If any entangled unit straddles
-the cell boundary, however, then all atoms must be paired with cell offsets. For
-example, replacing `[1, 2]` with `[(1, [0, 0, 0]), (2, [-1, 0, 0])]` would
-indicate that atom `2` participates in the dimer via its periodic image in the
-neighboring cell ``-𝐚_1``.
+Each element of `groupings` contains a list of atomic parts. For example,
+`groupings = [[1, 2], [3, 4]]` would return a system in which atoms `[1, 2]` and
+atoms `[3, 4]` are dimerized. If any entangled unit straddles the cell boundary,
+then all atoms must be paired with cell offsets. For example, replacing `[1, 2]`
+with `[(1, [0, 0, 0]), (2, [-1, 0, 0])]` would indicate that atom `2`
+participates in the dimer via its periodic image in the neighboring cell
+``-𝐚_1``.
 
-The input system should be in `:SUN` mode with interactions already populated.
-These interactions will be transferred to the entangled system in tensor-product
-form.
+By default, the grouping of atoms into units must respect all spacegroup
+symmetries. Select `enforce_symmetry=false` to disable this symmetry check.
 """
-function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<: Union{Integer, Tuple{Integer, Vector{<: Integer}}}}}) where M
+function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<: Union{Integer, Tuple{Integer, Vector{<: Integer}}}}}; enforce_symmetry=true) where M
     is_homogeneous(uncontracted) || error("Entanglement not supported on inhomogeneous systems")
     is_entangled(uncontracted)  && error("Cannot entangle a system twice")
 
     # If `uncontracted` has already been reshaped, then entangle on the original
-    # (unreshaped) system, and then re-perform the reshaping. 
+    # unreshaped system and repeat the reshaping.
     if !isnothing(uncontracted.origin)
         shape = cell_shape(uncontracted) * diagm(Vec3(uncontracted.dims))
-        sys = reshape_supercell(entangle_system(uncontracted.origin, groupings), shape)
+        sys = reshape_supercell(entangle_system(uncontracted.origin, groupings; enforce_symmetry), shape)
         transfer_uncontracted_state!(sys, uncontracted)
         return sys
     end
@@ -361,7 +492,10 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
         unit_Δcells = [[SVector{3,Int}(y) for (_, y) in g] for g in groupings]
     end
 
-    # Construct contracted (P1) crystal and the chemical-cell map
+    # Validate the units (used verbatim; not propagated by symmetry)
+    validate_units(uncontracted.crystal, unit_atoms, unit_Δcells, enforce_symmetry)
+
+    # Construct contracted crystal and the chemical-cell map
     contracted_crystal, layout = contract_crystal(uncontracted.crystal, unit_atoms, unit_Δcells)
 
     # Local Hilbert space dimension per unit. TODO: Relax uniformity constraint.
