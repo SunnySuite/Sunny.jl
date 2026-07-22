@@ -556,6 +556,36 @@ function entangle_units(::System{0}, _)
     error("Cannot entangle units of a `:dipole`-mode `System`. Use `:SUN` mode.")
 end
 
+# Entangled path of `set_params!`. The labeled parameters live on the physical
+# (bare) system; the contracted couplings are a derived quantity that must be
+# regenerated. The entanglement *metadata* (contraction mapping, per-unit dipole
+# operators) is purely geometric and unaffected by coupling values, so only the
+# contracted interactions are rebuilt here.
+function set_params_entangled!(sys::System, labels, vals)
+    bare_system = get_entanglement(sys).bare_system
+    units = get_entanglement(sys).units
+
+    # 1. Update the labels on the bare system (the source of truth). This takes
+    #    the ordinary path and also syncs `bare_system.origin`.
+    set_params!(bare_system, labels, vals)
+
+    # 2. Regenerate the contracted chemical-cell couplings from the updated bare
+    #    chemical cell. `sys_chem` shares the crystal/structure of `sys`'s own
+    #    contracted chemical cell (`something(sys.origin, sys)`); only coupling
+    #    values differ.
+    bare_origin = something(bare_system.origin, bare_system)
+    sys_chem = entangle_system(bare_origin, units).sys_entangled
+
+    # 3. Install the regenerated contracted couplings. For an unreshaped `sys`,
+    #    write directly; for a reshaped `sys`, update its chemical-cell `origin`
+    #    and re-transfer to the reshaped geometry (the ordinary backbone).
+    target = something(sys.origin, sys)
+    target.params = sys_chem.params
+    target.interactions_union = sys_chem.interactions_union
+    isnothing(sys.origin) || transfer_params_from_origin!(sys)
+    return
+end
+
 
 ################################################################################
 # Reshaping

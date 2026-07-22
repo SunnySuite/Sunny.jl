@@ -95,7 +95,10 @@ const ParamSpec = Pair{Symbol, <: Real}
 Gets the value of the parameter `label`. See also [`set_param!`](@ref).
 """
 function get_param(sys::System, label::Symbol)
-    return lookup_param(sys, label).val
+    # For an entangled system the labeled parameters live on the physical
+    # (bare) system; the contracted couplings are derived from them.
+    src = isnothing(sys.entanglement) ? sys : get_entanglement(sys).bare_system
+    return lookup_param(src, label).val
 end
 
 """
@@ -139,6 +142,9 @@ set_params!(sys, [:J1, :J2], [2.0, 3.0])
 """
 function set_params!(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
     length(labels) == length(vals) || error("Mismatched lengths")
+    # For an entangled system, the labeled parameters live on the physical (bare)
+    # system, and the contracted couplings must be regenerated (see EntangledUnits.jl).
+    isnothing(sys.entanglement) || return set_params_entangled!(sys, labels, vals)
     foreach(labels, vals) do label, val
         lookup_param(sys, label).val = val
         if !isnothing(sys.origin)

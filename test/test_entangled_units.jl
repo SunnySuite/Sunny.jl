@@ -391,5 +391,62 @@ end
     end
 end
 
+@testitem "Model parameters for entangled units" begin
+    latvecs = [1 0 0; 0 1 0; 0 0 2]
+    positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
+    crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
+
+    function make_esys(J, Jp)
+        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
+        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J => J)
+        set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :Jp => Jp)
+        set_exchange!(sys, 1.0, Bond(2, 2, [1, 0, 0]), :Jp => Jp)
+        return Sunny.entangle_units(sys, [(1, 2)])
+    end
+    set_q0(s) = for u in eachsite(s); set_coherent!(s, [0, 1/√2, -1/√2, 0], u); end
+
+    # `get_param` reads the physical (bare-system) labels.
+    esys = make_esys(1.0, 0.1)
+    @test get_params(esys, [:J, :Jp]) == [1.0, 0.1]
+
+    # `set_params!` regenerates the contracted couplings. Energy must match a
+    # system entangled directly at the new parameters, for unreshaped, reshaped,
+    # and straddling geometries.
+    for op in (identity,
+               s -> repeat_periodically(s, (2, 1, 1)),
+               s -> resize_supercell(s, (3, 1, 1)),
+               s -> reshape_supercell(s, [1 1 0; -1 1 0; 0 0 1]))
+        ref = op(make_esys(2.0, 0.3)); set_q0(ref)
+        esys = op(make_esys(1.0, 0.1))
+        set_params!(esys, [:J, :Jp], [2.0, 0.3])
+        @test get_params(esys, [:J, :Jp]) == [2.0, 0.3]
+        set_q0(esys)
+        @test energy_per_site(esys) ≈ energy_per_site(ref)
+    end
+
+    # `make_loss_fn` end-to-end: correct values, and evaluation leaves the
+    # original system's parameters untouched (it operates on a clone).
+    esys = make_esys(1.0, 0.1)
+    loss = make_loss_fn(esys, [:J, :Jp]) do s
+        set_q0(s)
+        return energy_per_site(s)
+    end
+    for (J, Jp) in ((1.0, 0.1), (2.0, 0.3), (0.5, -0.2))
+        ref = make_esys(J, Jp); set_q0(ref)
+        @test loss([J, Jp]) ≈ energy_per_site(ref)
+    end
+    @test get_params(esys, [:J, :Jp]) == [1.0, 0.1]
+
+    # A loss through SpinWaveTheory (exercises the flatten path on regenerated
+    # contracted couplings) evaluates and varies with the parameter.
+    swt_loss = make_loss_fn(esys, [:J]) do s
+        for u in eachsite(s); set_coherent!(s, [0, 1/√2, -1/√2, 0], u); end
+        swt = SpinWaveTheory(s; measure=Sunny.empty_measurespec(s), regularization=0.0)
+        return sum(dispersion(swt, [[0.2, 0.3, 0]]))
+    end
+    d1 = swt_loss([1.0]); d2 = swt_loss([2.0])
+    @test isfinite(d1) && isfinite(d2) && !(d1 ≈ d2)
+end
+
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
 # end
