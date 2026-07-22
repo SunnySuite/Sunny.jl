@@ -88,11 +88,11 @@ Each branch will contribute ``L`` excitations, where ``L`` is the number of
 spins in the magnetic cell. This yields a total of ``3L`` excitations for a
 given momentum transfer ``𝐪``.
 """
-function excitations!(T, tmp, swt::AbstractDirectSpinWaveTheory, q)
+function excitations!(T, tmp, swt::SpinWaveTheory, q)
     L = nbands(swt)
     size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
 
-    q_reshaped = to_reshaped_rlu(swt, q)
+    q_reshaped = to_reshaped_rlu(swt.sys, q)
     dynamical_matrix!(tmp, swt, q_reshaped)
 
     try
@@ -114,7 +114,7 @@ Returns a pair `(energies, T)` providing the excitation energies and
 eigenvectors. Prefer [`excitations!`](@ref) for performance, which avoids matrix
 allocations. See the documentation of [`excitations!`](@ref) for more details.
 """
-function excitations(swt::AbstractDirectSpinWaveTheory, q)
+function excitations(swt::SpinWaveTheory, q)
     L = nbands(swt)
     T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
@@ -129,7 +129,7 @@ Given a list of wavevectors `qpts` in reciprocal lattice units (RLU), returns
 excitation energies for each band. The return value `ret` is 2D array, and
 should be indexed as `ret[band_index, q_index]`.
 """
-function dispersion(swt::AbstractDirectSpinWaveTheory, qpts)
+function dispersion(swt::SpinWaveTheory, qpts)
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
     disp = zeros(L, length(qpts.qs))

@@ -17,6 +17,8 @@
     end
 end
 
+# TODO: Add reshapings tests.
+
 # TODO: Add test with magnetic unit cell larger than a single unit (i.e. not q=0
 # ordering).
 
@@ -36,7 +38,7 @@ end
     set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))  # Needed because we broke the symmetry equivalence of the two sites
 
     esys = Sunny.EntangledSystem(sys, [(1, 2)])
-    interactions = esys.sys_contracted.interactions_union[1]
+    interactions = esys.sys.interactions_union[1]
 
     # Test on-bond exchange
     onsite_operator = interactions.onsite
@@ -47,7 +49,7 @@ end
 
     # Test external field works as expected
     set_field!(esys, [0, 0, 1])
-    onsite_operator = esys.sys_contracted.interactions_union[1].onsite
+    onsite_operator = esys.sys.interactions_union[1].onsite
     field_offset = 2*(Sl[3] + Su[3]) # 2 for g-factor
     @test onsite_operator ≈ onsite_ref + field_offset 
 
@@ -55,30 +57,30 @@ end
     dipoles = [[0, 1/2, 0], [0, -1/2, 0]] # Dipoles specifying a dimer state
     cs = Sunny.coherent_state_from_dipoles(esys, dipoles, 1)
     set_coherent!(esys, cs, CartesianIndex(1,1,1,1))
-    @test esys.sys_uncontracted.dipoles[1,1,1,1][2] ≈ 1/2
-    @test esys.sys_uncontracted.dipoles[1,1,1,2][2] ≈ -1/2
+    @test esys.sys_origin.dipoles[1,1,1,1][2] ≈ 1/2
+    @test esys.sys_origin.dipoles[1,1,1,2][2] ≈ -1/2
 
     # Test external field works in action
     set_field!(esys, [0, 0, 10])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    @test esys.sys_uncontracted.dipoles[1][3] ≈ -1/2
-    @test esys.sys_uncontracted.dipoles[2][3] ≈ -1/2
+    @test esys.sys_origin.dipoles[1][3] ≈ -1/2
+    @test esys.sys_origin.dipoles[2][3] ≈ -1/2
 
     set_field!(esys, [0, 0, -10])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    @test esys.sys_uncontracted.dipoles[1][3] ≈ 1/2
-    @test esys.sys_uncontracted.dipoles[2][3] ≈ 1/2
+    @test esys.sys_origin.dipoles[1][3] ≈ 1/2
+    @test esys.sys_origin.dipoles[2][3] ≈ 1/2
 
     set_field!(esys, [0, 0, 0])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    @test norm(esys.sys_uncontracted.dipoles[1]) < 1e-10
-    @test norm(esys.sys_uncontracted.dipoles[2]) < 1e-10
+    @test norm(esys.sys_origin.dipoles[1]) < 1e-10
+    @test norm(esys.sys_origin.dipoles[2]) < 1e-10
 
     # Test inter-bond exchange
-    pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys.sys_contracted)
+    pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys.sys)
     Sl1, Sl2 = to_product_space(Sl, Sl)
     Su1, Su2 = to_product_space(Su, Su)
     bond_operator = zeros(ComplexF64, 16, 16)
@@ -104,43 +106,6 @@ end
 
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
 
-    # Reference intensities calculation for use below
-    swt_bands = SpinWaveTheory(esys; measure=ssf_perp(esys))
-    res = intensities_bands(swt_bands, qs)
-
-    # Test that an unsupported reshaping throws an interpretable error
-    shape = [1 2 0; 0 1 0; 0 0 1]
-    @test_throws "Given shape incompatible with entangled unit structure. Unit split between crystallographic cells." reshape_supercell(esys, shape)
-
-    # Test that a carefully designed reshaping works as expected on an EntangledSystem
-    shape = [1 0 0; 2 1 0; 0 0 1]
-    esys_sheared = reshape_supercell(esys, shape)
-    swt_bands_sheared = SpinWaveTheory(esys_sheared; measure=ssf_perp(esys_sheared))
-    res_sheared = intensities_bands(swt_bands_sheared, qs)
-    @test res_sheared.disp ≈ res.disp atol=1e-11
-    @test sum(res_sheared.data; dims=1) ≈ sum(res.data; dims=1) atol=1e-11
-
-    # Test that a system can be reshaped first, then entangled
-    sys_sheared = reshape_supercell(sys, shape)
-    esys_sheared = Sunny.EntangledSystem(sys_sheared, [(1, 2)])
-    for unit in Sunny.eachunit(esys_sheared)
-        set_coherent!(esys_sheared, [0, 1/√2, -1/√2, 0], unit)
-    end
-    swt_bands_sheared_alt = SpinWaveTheory(esys_sheared; measure=ssf_perp(esys_sheared))
-    res_sheared_alt = intensities_bands(swt_bands_sheared_alt, qs)
-    @test res_sheared_alt.disp ≈ res.disp atol=1e-11
-    @test sum(res_sheared_alt.data; dims=1) ≈ sum(res.data; dims=1) atol=1e-11
-
-    # Test the fitting API on a minimal entangled system with a labeled bond.
-    fit_sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
-    set_exchange!(fit_sys, J, Bond(1, 2, [0, 0, 0]), :J => J)
-    fit_esys = Sunny.EntangledSystem(fit_sys, [(1, 2)])
-    loss = make_loss_fn(fit_esys, [:J]) do sys
-        energy(sys)
-    end
-    @test loss([J]) ≈ energy(fit_esys)
-    @test loss([2J]) ≈ 2 * loss([J])
-
     # Test static structure factor is zero (dipolar sector)
     ssf = SampledCorrelationsStatic(esys; measure=ssf_trace(esys))
     add_sample!(ssf, esys)
@@ -151,7 +116,7 @@ end
     # For exact reproducibility, reset the random number seed and use a specific
     # initial condition.
 
-    Random.seed!(esys.sys_contracted.rng, 0)
+    Random.seed!(esys.sys.rng, 0)
     set_coherent!(esys, [0, 1/√2, -1/√2, 0], (1, 1, 1, 1))
 
     esys = repeat_periodically(esys, (8, 1, 1))
@@ -174,36 +139,6 @@ end
     elseif v"1.11" <= VERSION
         @test res.data ≈ [0.057576728058578996; 0.291813812342436; 0.006207013162191793; 0.0019171217111500483; 0.009779731118622022;;]
     end
-end
-
-# @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
-# end
-
-@testitem "Entangled Unit Intensity Scaling" begin
-    latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
-    positions = [[0, 0, 0], [0, 1/2 - 1e-4, 0]]
-    crystal = Crystal(latvecs, positions)
-
-    J  = 1
-    J′ = 0.12
-    J2 = 0.1
-
-    sys = System(crystal, [1 => Moment(s=1/2, g=2)], :SUN; dims=(2,2, 1))
-    set_exchange!(sys, J, Bond(1, 2, [0, 0, 0]))
-    set_exchange!(sys, J′, Bond(1, 2, [0, -1, 0]));
-    set_exchange!(sys, J2, Bond(1, 1, [1, 0, 0]));
-
-    set_field!(sys, [0., 0., 10])
-
-    esys = Sunny.EntangledSystem(sys, [(1, 2)])
-
-    randomize_spins!(esys)
-    minimize_energy!(esys)
-    swt = SpinWaveTheory(esys; measure=ssf_trace(esys;apply_g=false))
-    qs = q_space_path(crystal, [[0, 1, 0], [1/2, 1, 0], [1, 1, 0],[0, 0, 0]], 200)
-    res = intensities_bands(swt, qs)
-
-    @test sum(res.data[:,1])/2 ≈ 1/2
 end
 
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin

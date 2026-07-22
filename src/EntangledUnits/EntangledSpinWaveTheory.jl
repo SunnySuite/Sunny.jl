@@ -4,7 +4,7 @@ struct SWTDataEntangled
     observable_buf            :: Array{ComplexF64, 2}   # Buffer for use while constructing boson rep of observables
 end
 
-struct EntangledSpinWaveTheory <: AbstractDirectSpinWaveTheory
+struct EntangledSpinWaveTheory <: AbstractSpinWaveTheory
     sys              :: System
     data             :: SWTDataEntangled
     measure          :: MeasureSpec
@@ -17,19 +17,19 @@ end
 
 
 function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
-    (; sys_contracted, sys_uncontracted) = esys
-    crystal_origin = orig_crystal(sys_uncontracted)
-    if !isnothing(sys_contracted.ewald)
+    (; sys, sys_origin) = esys
+    crystal_origin = orig_crystal(sys_origin)
+    if !isnothing(sys.ewald)
         error("EntangledSpinWaveTheory does not yet support long-range dipole-dipole interactions.")
     end
 
-    measure = @something measure empty_measurespec(sys_contracted)
-    if nsites(sys_uncontracted) != prod(size(measure.observables)[2:5])
+    measure = @something measure empty_measurespec(sys)
+    if nsites(sys_origin) != prod(size(measure.observables)[2:5])
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    # Reshape (flatten) both sys_contracted and sys_uncontracted in corresponding ways
-    sys_contracted, sys_uncontracted = map([sys_contracted, sys_uncontracted]) do sys
+    # Reshape (flatten) both sys and sys_origin in corresponding ways
+    sys, sys_origin = map([sys, sys_origin]) do sys
         new_shape = cell_shape(sys) * diagm(Vec3(sys.dims))
         new_cryst = reshape_crystal(orig_crystal(sys), new_shape)
 
@@ -39,13 +39,13 @@ function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
 
     # Construct the new contraction_info (i.e. reconstruct maps between
     # entangled and unentangled systems)
-    new_units = units_for_reshaped_system(sys_uncontracted, esys)
-    _, new_contraction_info = contract_crystal(sys_uncontracted.crystal, new_units)
-    new_Ns_unit = Ns_in_units(sys_uncontracted, new_contraction_info)
+    new_units = units_for_reshaped_system(sys_origin, esys)
+    _, new_contraction_info = contract_crystal(sys_origin.crystal, new_units)
+    new_Ns_unit = Ns_in_units(sys_origin, new_contraction_info)
 
-    data = swt_data_entangled(sys_contracted, sys_uncontracted, new_Ns_unit, new_contraction_info, measure)
+    data = swt_data_entangled(sys, sys_origin, new_Ns_unit, new_contraction_info, measure)
 
-    return EntangledSpinWaveTheory(sys_contracted, data, measure, regularization, crystal_origin, new_contraction_info, new_Ns_unit)
+    return EntangledSpinWaveTheory(sys, data, measure, regularization, crystal_origin, new_contraction_info, new_Ns_unit)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", swt::EntangledSpinWaveTheory)
@@ -57,22 +57,17 @@ end
 nbands(swt::EntangledSpinWaveTheory) = (swt.sys.Ns[1]-1)  * natoms(swt.sys.crystal)
 
 function to_reshaped_rlu(esys::EntangledSystem, q)
-    (; sys_contracted, sys_uncontracted) = esys
-    return sys_contracted.crystal.recipvecs \ (orig_crystal(sys_uncontracted).recipvecs * q)
-end
-
-function to_reshaped_rlu(eswt::EntangledSpinWaveTheory, q)
-    (; sys, crystal_origin) = eswt
-    return sys.crystal.recipvecs \ (crystal_origin.recipvecs * q)
+    (; sys, sys_origin) = esys
+    return sys.crystal.recipvecs \ (orig_crystal(sys_origin).recipvecs * q)
 end
 
 # obs are observables _given in terms of `sys_original`_
-function swt_data_entangled(sys_contracted, sys_uncontracted, Ns_unit, contraction_info, measure)
+function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
 
     # Calculate transformation matrices into local reference frames
-    N = sys_contracted.Ns[1] # Assume uniform contraction for now
-    nunits = nsites(sys_contracted)
-    natoms = nsites(sys_uncontracted)
+    N = sys.Ns[1] # Assume uniform contraction for now
+    nunits = nsites(sys)
+    natoms = nsites(sys_origin)
     nobs = size(measure.observables, 1)
     observables = reshape(measure.observables, nobs, natoms)
 
@@ -94,7 +89,7 @@ function swt_data_entangled(sys_contracted, sys_uncontracted, Ns_unit, contracti
     for i in 1:nunits
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
         # Z that defines quantization axis
-        Z = sys_contracted.coherents[i]
+        Z = sys.coherents[i]
         U = hcat(nullspace(Z'), Z)
         local_unitaries[i] = U
 
@@ -113,7 +108,7 @@ function swt_data_entangled(sys_contracted, sys_uncontracted, Ns_unit, contracti
         U = local_unitaries[unit]
 
         # Rotate interactions into local reference frames
-        int = sys_contracted.interactions_union[unit]
+        int = sys.interactions_union[unit]
 
         # Rotate onsite anisotropy (not that, for entangled units, onsite already includes Zeeman)
         int.onsite = Hermitian(U' * int.onsite * U)
@@ -122,7 +117,7 @@ function swt_data_entangled(sys_contracted, sys_uncontracted, Ns_unit, contracti
         pair_new = PairCoupling[]
         for pc in int.pair
             # Convert PairCoupling to a purely general (tensor decomposed) interaction.
-            pc_general = as_general_pair_coupling(pc, sys_contracted)
+            pc_general = as_general_pair_coupling(pc, sys)
 
             # Rotate tensor decomposition into local frame.
             bond = pc.bond
@@ -148,15 +143,15 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
 
     qpts = convert(AbstractQPoints, qpts)
+    cryst = orig_crystal(sys)
     rs_global = global_positions(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
-    nunits = nsites(sys)                                                # System "sites" are really entangled units
-    natoms_magcell = sum(length(el) for el in contraction_info.inverse) # Reconstruct number of atomic sites
-    natoms_crystcell = natoms(crystal_origin)                           # Number of atoms in defining crystal
+    nunits = nsites(sys)
     # Number of chemical cells in magnetic cell
-    Ncells = natoms_magcell / natoms_crystcell
+    # Ncells = Na / natoms(cryst)         # TODO: Pass information about natoms in unreshaped, uncontracted system
+    Ncells = 1
     # Number of quasiparticle modes
     L = nbands(swt)
     # Number of wavevectors
@@ -176,8 +171,8 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
     Nobs = size(measure.observables, 1)
 
     for (iq, q) in enumerate(qpts.qs)
-        q_global = crystal_origin.recipvecs * q
-        q_reshaped = sys.crystal.recipvecs \ (crystal_origin.recipvecs * q)
+        q_global = cryst.recipvecs * q
+        q_reshaped = cryst.recipvecs \ (crystal_origin.recipvecs * q)
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:nunits
@@ -217,12 +212,57 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
 
     disp = reshape(disp, L, size(qpts.qs)...)
     intensity = reshape(intensity, L, size(qpts.qs)...)
-    return BandIntensities(crystal_origin, qpts, disp, intensity)
+    return BandIntensities(cryst, qpts, disp, intensity)
 end
 
 ################################################################################
 # To be simplified, but requires editing existing code
 ################################################################################
+# No changes
+function dynamical_matrix!(H, swt::EntangledSpinWaveTheory, q_reshaped)
+    if swt.sys.mode == :SUN
+        swt_hamiltonian_SUN!(H, swt, q_reshaped)
+    else
+        @assert swt.sys.mode in (:dipole, :dipole_uncorrected)
+        swt_hamiltonian_dipole!(H, swt, q_reshaped)
+    end
+end
+
+# No changes
+function excitations!(T, tmp, swt::EntangledSpinWaveTheory, q)
+    L = nbands(swt)
+    size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
+
+    q_reshaped = to_reshaped_rlu(swt.sys, q)
+    dynamical_matrix!(tmp, swt, q_reshaped)
+
+    try
+        return bogoliubov!(T, tmp)
+    catch _
+        error("Instability at wavevector q = $q")
+    end
+end
+
+# No changes
+function excitations(swt::EntangledSpinWaveTheory, q)
+    L = nbands(swt)
+    T = zeros(ComplexF64, 2L, 2L)
+    H = zeros(ComplexF64, 2L, 2L)
+    energies = excitations!(T, H, swt, q)
+    return (energies, T)
+end
+
+# No changes
+function dispersion(swt::EntangledSpinWaveTheory, qpts)
+    L = nbands(swt)
+    qpts = convert(AbstractQPoints, qpts)
+    disp = zeros(L, length(qpts.qs))
+    for (iq, q) in enumerate(qpts.qs)
+        view(disp, :, iq) .= view(excitations(swt, q)[1], 1:L)
+    end
+    return reshape(disp, L, size(qpts.qs)...)
+end
+
 # No changes
 function energy_per_site_lswt_correction(swt::EntangledSpinWaveTheory; opts...)
     any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")
@@ -321,7 +361,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::EntangledSpinWaveTheor
     end
 
     # H must be hermitian up to round-off errors
-    @assert maxdiff(H, H') < 1e-12
+    @assert diffnorm2(H, H') < 1e-12
 
     # Make H exactly hermitian
     hermitianpart!(H)

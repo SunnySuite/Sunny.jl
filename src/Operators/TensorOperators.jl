@@ -1,114 +1,84 @@
-@inline vec_index(i, j, N) = i + (j - 1) * N
-
-# Converts an NxN Hermitian matrix X into a real vector of coordinates for a
-# standard Hermitian basis. This basis can be defined as follows. Given matrices
-# NxN matrices
+# Defined so that `reverse_kron(A⊗B) == B⊗A`.
 # 
-# (E_{ij})_{ab} = \delta_{ia}\delta{jb} 
-#
-# a basis of N^2 Hermitian matrices may be formed by with N real diagonal
-# elements H_i = E_{ii}, symmetric off-diagonal matrices H_{ij}^{R} = (E_{ij} +
-# E_{ji})/\sqrt{2}, and antisymmetric off-diagonal elements H_{ij}^{I} =
-# i(E_{ji} - E_{ij})/\sqrt{2}.
-function matrix_entries_to_hermitian_coords(X::AbstractMatrix{ComplexF64}, N::Integer, ::Val{dim}) where {dim}
-    @assert dim == 1 || dim == 2
-    @assert size(X, dim) == N*N
-
-    Y = similar(X)
-    isqrt2 = inv(sqrt(2.0))
-
-    p = 1
-
-    @views for i in 1:N
-        selectdim(Y, dim, p) .= selectdim(X, dim, vec_index(i, i, N))
-        p += 1
-    end
-
-    @views for i in 1:N-1, j in i+1:N
-        xij = selectdim(X, dim, vec_index(i, j, N))
-        xji = selectdim(X, dim, vec_index(j, i, N))
-
-        # Coordinate along (E_ij + E_ji)/sqrt(2)
-        y = selectdim(Y, dim, p)
-        @. y = isqrt2 * (xij + xji)
-        p += 1
-
-        # Coordinate along (-im E_ij + im E_ji)/sqrt(2)
-        y = selectdim(Y, dim, p)
-        @. y = im * isqrt2 * (xij - xji)
-        p += 1
-    end
-
-    @assert p == N*N + 1
-    return Y
+# To understand the implementation, note that:
+# - `A_ij B_kl = (A⊗B)_kilj`
+# - `(A⊗B)_ijkl = A_jl B_ik`
+function reverse_kron(C, N1, N2)
+    @assert length(C) == N2*N1*N2*N1
+    C = reshape(C, N2, N1, N2, N1)
+    C = permutedims(C, (2, 1, 4, 3))
+    return reshape(C, N1*N2, N1*N2)
 end
 
-# From a set of real coordinates in the basis described above, reconstruct the
-# Hermitian operator.
-function hermitian_matrix_from_coords(x::AbstractVector{<:Real}, N::Integer)
-    @assert length(x) == N*N
+# Return list of groups of indices. Within each group, the indexed values of `S`
+# are approximately equal. Assumes S is sorted.
+function degeneracy_groups(S, tol)
+    acc = UnitRange{Int}[]
+    isempty(S) && return acc
 
-    A = zeros(ComplexF64, N, N)
-    isqrt2 = inv(sqrt(2.0))
-
-    p = 1
-
-    for i in 1:N
-        A[i, i] = x[p]
-        p += 1
+    j0 = 1
+    for j = 2:lastindex(S)
+        if abs(S[j0] - S[j]) > tol
+            push!(acc, j0:(j-1))
+            j0 = j
+        end
     end
 
-    for i in 1:N-1, j in i+1:N
-        a = isqrt2 * x[p]
-        b = isqrt2 * x[p+1]
-        p += 2
-
-        A[i, j] = a - im*b
-    end
-
-    @assert p == N*N + 1
-
-    return Hermitian(A, :U)
+    push!(acc, j0:length(S))
+    return acc
 end
 
-# Given a Hermitian operator D living in tensor-product space, use SVD to find
-# the decomposition D = ∑ₖ Aₖ ⊗ Bₖ, where Aₖ is N₁×N₁ and Bₖ is N₂×N₂. Returns
-# the list of Hermitian matrix pairs [(A₁, B₁), (A₂, B₂), ...].
-function svd_tensor_expansion(D::Matrix{T}, N1, N2; tol=1e-12) where T
-    maxdiff(D, D') < 1e-12 || error("Detected non-Hermitian operator")
+# Use SVD to find the decomposition D = ∑ₖ Aₖ ⊗ Bₖ, where Aₖ is N₁×N₁ and Bₖ is
+# N₂×N₂. Returns the list of matrices [(A₁, B₁), (A₂, B₂), ...].
+function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
+    tol = 1e-12
+
     @assert size(D, 1) == size(D, 2) == N1*N2
-
-    # Reshuffle D_{(a,i),(b,j)} -> D̃_{(i,j),(a,b)} so that D̃ is an N1^2 × N2^2
-    # matrix.
-    D̃ = permutedims(reshape(ComplexF64.(D), N2, N1, N2, N1), (2, 4, 1, 3))
+    D̃ = permutedims(reshape(D, N2, N1, N2, N1), (2,4,1,3))
     D̃ = reshape(D̃, N1*N1, N2*N2)
-
-    # Convert each tensor leg from raw matrix-entry coordinates to coordinates
-    # in an orthonormal Hermitian matrix basis.
-    C = matrix_entries_to_hermitian_coords(D̃, N1, Val(1))
-    C = matrix_entries_to_hermitian_coords(C, N2, Val(2))
-
-    # Hermiticity of D is equivalent to real expansion coefficients in C
-    @assert all(x -> abs(imag(x)) < 1e-12, C)
-
-    # Work in exact Hermitian-product space.
-    C = real.(C)
-
-    # Real SVD. Components of the singular vectors live in the real vector space
-    # of Hermitian matrices.
-    F = svd!(C)
-
+    (; S, U, V) = svd(D̃)
     ret = Tuple{HermitianC64, HermitianC64}[]
 
-    for (k, σ) in enumerate(F.S)
-        σ < tol && break
+    # Rotate columns of U and V within each degenerate subspace so that all
+    # columns (when reshaped) are Hermitian matrices
+    for range in degeneracy_groups(S, tol)
+        abs(S[first(range)]) < tol && break
+        
+        U_sub = view(U, :, range)
+        n = length(range)
+        Q = zeros(ComplexF64, n, n)
+        for k in 1:n, k′ in 1:n
+            uk  = reshape(view(U_sub, :, k), N1, N1)
+            uk′ = reshape(view(U_sub, :, k′), N1, N1)
+            Q[k, k′] = conj(tr(uk * uk′))
+        end
+        
+        R = sqrt(Q)
+        @assert norm(R*R' - I) < 1e-12
 
-        A = hermitian_matrix_from_coords(view(F.U, :, k), N1)
-        B = hermitian_matrix_from_coords(view(F.V, :, k), N2)
-
-        push!(ret, (Hermitian(σ * Matrix(A), :U), B))
+        @views U[:, range] = U[:, range] * R
+        @views V[:, range] = V[:, range] * R
     end
 
+    # Check that rotation was valid
+    @assert U*diagm(S)*V' ≈ D̃
+
+    for (k, σ) in enumerate(S)
+        if abs(σ) > tol
+            u = reshape(U[:, k], N1, N1)
+            v = reshape(V[:, k], N2, N2)
+            # Check factors are really Hermitian up to empirical tolerance. It
+            # seems that numerical error can creep into the SVD when singular
+            # values are near each other.
+            hermit_dev = max(norm(u - u'), norm(v - v'))
+            if hermit_dev > 1e-9
+                @warn "Detected non-Hermiticity in SVD of order $hermit_dev"
+            end
+            u = hermitianpart(u)
+            v = hermitianpart(v)
+            push!(ret, (σ*u, conj(v)))
+        end
+    end
     return ret
 end
 
