@@ -30,25 +30,17 @@ struct Entanglement <: AbstractEntanglement
     bare_dipole_operators :: Vector{NTuple{3, HermitianC64}} # Product-space spin ops per physical atom
 end
 
+
+################################################################################
+# Helper functions
+################################################################################
+
 # True if the system carries entanglement metadata.
 is_entangled(sys::System) = !isnothing(sys.entanglement)
 
 # Concrete-typed view of the entanglement metadata. The explicit type ascription
 # avoids JET warnings.
 @inline get_entanglement(sys::System) = sys.entanglement :: Entanglement
-
-# Needed because uncontracted.dipoles and related state are mutably updated
-function clone_entanglement(ent::Entanglement)
-    return Entanglement(clone_system(ent.uncontracted), ent.unit_map,
-                        ent.bare_dipole_operators)
-end
-
-clone_entanglement(::Nothing) = nothing
-
-
-################################################################################
-# Helper functions
-################################################################################
 
 # Atom indices comprising a unit, ordered to match the unit_to_members field of
 # a UnitMap.
@@ -63,17 +55,24 @@ end
 # Uncontracted site of a unit member, given the containing unit's site and the
 # member's MemberAtom. The member atom is offset by `Δcell` (relative to the
 # unit's cell) so a unit may straddle cell boundaries. Mirrors `bonded_site`.
-@inline function member_site(unit_site, member::MemberAtom, dims)
+function member_site(unit_site, member::MemberAtom, dims)
     CartesianIndex(altmod1.(to_cell(unit_site) .+ Tuple(member.Δcell), dims)..., member.atom)
 end
 
 # Uncontracted sites comprising the entangled unit at contracted `unit_site` of
 # `sys`. Accepts CartesianIndex, tuple, or integer atom index.
-function entangled_unit_members(sys::System, unit_site::Site)
+function entangled_unit_members(sys::System, unit_site::CartesianIndex)
     (; uncontracted, unit_map) = get_entanglement(sys)
-    unit_site = to_cartesian(unit_site)
-    return [member_site(unit_site, member, uncontracted.dims) for member in unit_map.unit_to_members[to_atom(unit_site)]]
+    members = unit_map.unit_to_members[to_atom(unit_site)]
+    return [member_site(unit_site, m, uncontracted.dims) for m in members]
 end
+
+# Needed because uncontracted.dipoles and related state are mutably updated
+function clone_entanglement(ent::Entanglement)
+    return Entanglement(clone_system(ent.uncontracted), ent.unit_map,
+                        ent.bare_dipole_operators)
+end
+clone_entanglement(::Nothing) = nothing
 
 
 ################################################################################
@@ -134,15 +133,15 @@ end
 # Converts what was a pair coupling between two different sites of a single unit
 # in the original system into an on-bond operator (an onsite operator in terms
 # of the "units"). Accumulates into `op` in place.
-function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, uncontracted, unit_map::UnitMap)
+function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, uncontracted_Ns, unit_map::UnitMap)
     pc.isculled && return
 
     i, j = pc.bond.i, pc.bond.j
     ui = unit_map.atom_to_unit[i]
     uj = unit_map.atom_to_unit[j]
-    Ns_unit = uncontracted.Ns[atoms_in_unit(unit_map, ui.unit)]
-    Ni = uncontracted.Ns[1, 1, 1, i]
-    Nj = uncontracted.Ns[1, 1, 1, j]
+    Ns_unit = uncontracted_Ns[atoms_in_unit(unit_map, ui.unit)]
+    Ni = uncontracted_Ns[1, 1, 1, i]
+    Nj = uncontracted_Ns[1, 1, 1, j]
 
     # Both sites lie in the same unit, so both embed into the same product space.
     embed_i = A -> local_op_to_product_space(A, ui.part, Ns_unit)
@@ -153,15 +152,15 @@ end
 
 # Converts a pair coupling between two distinct units in the original system into
 # a pair coupling between the corresponding units of the contracted system.
-function pair_coupling_into_bond_operator_between_units(pc, uncontracted, unit_map::UnitMap)
+function pair_coupling_into_bond_operator_between_units(pc, uncontracted_Ns, unit_map::UnitMap)
     (; i, j) = pc.bond
     ui = unit_map.atom_to_unit[i]
     uj = unit_map.atom_to_unit[j]
 
-    Ns1 = uncontracted.Ns[atoms_in_unit(unit_map, ui.unit)]
-    Ns2 = uncontracted.Ns[atoms_in_unit(unit_map, uj.unit)]
-    N1 = uncontracted.Ns[1, 1, 1, i]
-    N2 = uncontracted.Ns[1, 1, 1, j]
+    Ns1 = uncontracted_Ns[atoms_in_unit(unit_map, ui.unit)]
+    Ns2 = uncontracted_Ns[atoms_in_unit(unit_map, uj.unit)]
+    N1 = uncontracted_Ns[1, 1, 1, i]
+    N2 = uncontracted_Ns[1, 1, 1, j]
     dim1 = prod(Ns1)
     dim2 = prod(Ns2)
     N = dim1 * dim2
@@ -178,9 +177,8 @@ end
 
 # Contract ModelParam data. Contraction is linear in the coupling strength, so
 # each labeled parameter is contracted independently at unit strength; the
-# ordinary `repopulate_couplings_from_params!` then rescales by `param.val`. The
-# `uncontracted` system supplies only Hilbert-space dimensions Ns.
-function contract_param(param::ModelParam, uncontracted::System, unit_map::UnitMap, Ns_units)
+# ordinary `repopulate_couplings_from_params!` then rescales by `param.val`.
+function contract_param(param::ModelParam, uncontracted_Ns, unit_map::UnitMap, Ns_units)
     nunits = length(unit_map.unit_to_members)
 
     # Intra-unit terms become onsite (on-bond) operators, one per touched unit.
@@ -200,7 +198,7 @@ function contract_param(param::ModelParam, uncontracted::System, unit_map::UnitM
         # Intra-unit pair couplings fold into the same onsite operator.
         for pc in param.pairs
             if bond_is_in_unit(pc.bond, unit_map) && unit_map.atom_to_unit[pc.bond.i].unit == u
-                accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, uncontracted, unit_map)
+                accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, uncontracted_Ns, unit_map)
             end
         end
 
@@ -213,7 +211,7 @@ function contract_param(param::ModelParam, uncontracted::System, unit_map::UnitM
     pairs = PairCoupling[]
     for pc in param.pairs
         bond_is_in_unit(pc.bond, unit_map) && continue
-        (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, uncontracted, unit_map)
+        (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, uncontracted_Ns, unit_map)
         Ni = prod(Ns_units[newbond.i])
         Nj = prod(Ns_units[newbond.j])
         # `extract_parts=false` because dipoles are NaN for entangled systems.
@@ -309,7 +307,7 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_unit_map::UnitMap
     end
 
     sys.entanglement = Entanglement(uncontracted, unit_map, bare_dipole_operators)
-    return sys
+    return nothing
 end
 
 """
@@ -378,7 +376,7 @@ function entangle_system(uncontracted::System{M}, groupings) where M
 
     # Contract each labeled parameter independently (contraction is linear in
     # coupling strength), then let the ordinary machinery fill the interactions.
-    sys_entangled.params = [contract_param(p, uncontracted, unit_map, Ns_units) for p in uncontracted.params]
+    sys_entangled.params = [contract_param(p, uncontracted.Ns, unit_map, Ns_units) for p in uncontracted.params]
     repopulate_couplings_from_params!(sys_entangled)
 
     # Clone the physical system and derive all entanglement metadata from the
