@@ -13,6 +13,7 @@ with [`resize_supercell`](@ref).
 See also [`repeat_periodically`](@ref).
 """
 function reshape_supercell(sys::System, shape)
+    isnothing(sys.entanglement) || return reshape_supercell_entangled(sys, shape)
     is_homogeneous(sys) || error("Cannot reshape inhomogeneous system.")
 
     orig = orig_crystal(sys)
@@ -175,6 +176,7 @@ reshape_supercell(sys, [dims[1] 0 0; 0 dims[2] 0; 0 0 dims[3]])
 See also [`reshape_supercell`](@ref) and [`repeat_periodically`](@ref).
 """
 function resize_supercell(sys::System, dims::NTuple{3,Int})
+    isnothing(sys.entanglement) || return resize_supercell_entangled(sys, dims)
     is_homogeneous(sys) || error("Cannot resize inhomogeneous system.")
     return reshape_supercell(sys, diagm(Vec3(dims)))
 end
@@ -190,6 +192,7 @@ See also [`repeat_periodically_as_spiral`](@ref), which rotates the spins
 between periodic copies.
 """
 function repeat_periodically(sys::System, counts::NTuple{3,Int})
+    isnothing(sys.entanglement) || return repeat_periodically_entangled(sys, counts)
     is_homogeneous(sys) || error("Cannot repeat inhomogeneous system.")
     all(>=(1), counts) || error("Require at least one count in each direction.")
     return reshape_supercell_aux(sys, sys.crystal, counts .* sys.dims)

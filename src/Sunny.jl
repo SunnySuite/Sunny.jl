@@ -132,10 +132,7 @@ export SCGA, magnetic_susceptibility_per_site
 include("EntangledUnits/TypesAndAliasing.jl")
 include("EntangledUnits/EntangledUnits.jl")
 include("EntangledUnits/EntangledReshaping.jl")
-include("EntangledUnits/EntangledSpinWaveTheory.jl")
-include("EntangledUnits/EntangledSampledCorrelations.jl")
-# export contract_crystal, EntangledSystem, set_expected_dipoles_of_entangled_system!
-# export EntangledSpinWaveTheory, EntangledSampledCorrelations
+# export entangle_units
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")

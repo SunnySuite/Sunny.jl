@@ -1,14 +1,14 @@
-#TODO: Test this rigorously -- this is key to reshaping EntangledSystems and
-# making EntangledSpinWaveTheorys. 
+#TODO: Test this rigorously -- this is key to reshaping entangled systems and
+# making spin wave theories from them.
 
 # An entangled system can be specified with a list of
 # tuples, e.g. [(1,2), (3,4)], which will group the original sites 1 and 2 into
-# one unit and 3 and 4 into another. Given an EntangledSystem constructed from a
-# sys_origin and and a reshaped sys_origin, this function returns a list of
-# tuples for specifying the corresponding entanglement of the reshaped system.
-function units_for_reshaped_system(reshaped_sys_origin, esys)
-    (; sys_origin) = esys                 
-    units = original_unit_spec(esys)
+# one unit and 3 and 4 into another. Given an entangled `System` and a reshaped
+# copy of its physical (bare) system, this function returns a list of tuples for
+# specifying the corresponding entanglement of the reshaped system.
+function units_for_reshaped_system(reshaped_sys_origin, sys)
+    sys_origin = get_entanglement(sys).bare_system
+    units = original_unit_spec(sys)
     new_crystal = reshaped_sys_origin.crystal
     new_atoms = collect(1:natoms(new_crystal))
     new_units = []
@@ -56,36 +56,53 @@ function units_for_reshaped_system(reshaped_sys_origin, esys)
     return new_units
 end
 
-function reshape_supercell(esys::EntangledSystem, shape)
-    (; sys, sys_origin) = esys
+# Reshaping of an entangled `System`. The contracted system and the physical
+# `bare_system` are reshaped together, and fresh entanglement metadata is
+# attached to the reshaped contracted system. These are called from the ordinary
+# `reshape_supercell`/`repeat_periodically`/`resize_supercell` (Reshaping.jl)
+# when `sys` is entangled.
+function reshape_supercell_entangled(sys::System, shape)
+    bare_system = get_entanglement(sys).bare_system
 
-    # Reshape the origin System.
-    sys_origin_new = reshape_supercell(sys_origin, shape)
+    # Reshape the physical (bare) system.
+    bare_system_new = reshape_supercell(bare_system, shape)
 
-    # Reshape the the underlying "entangled" System.
-    units_new = units_for_reshaped_system(sys_origin_new, esys)
-    _, contraction_info = contract_crystal(sys_origin_new.crystal, units_new)
-    sys_new = reshape_supercell(sys, shape)
+    # Determine the entangled units of the reshaped system, then reshape the
+    # contracted system and attach fresh entanglement metadata.
+    units_new = units_for_reshaped_system(bare_system_new, sys)
+    _, contraction_info = contract_crystal(bare_system_new.crystal, units_new)
+    sys_new = reshape_contracted(sys, s -> reshape_supercell(s, shape))
 
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info)
+    return attach_entanglement!(sys_new, bare_system_new, contraction_info)
 end
 
-function repeat_periodically(esys, counts)
-    (; sys, sys_origin, contraction_info) = esys
+function repeat_periodically_entangled(sys::System, counts)
+    (; bare_system, contraction_info) = get_entanglement(sys)
 
-    # Repeat both entangled and original system periodically
-    sys_new = repeat_periodically(sys, counts)
-    sys_origin_new = repeat_periodically(sys_origin, counts)
+    # Repeat both the contracted and physical systems periodically. The unit
+    # structure is unchanged, so reuse the contraction info (copied).
+    sys_new = reshape_contracted(sys, s -> repeat_periodically(s, counts))
+    bare_system_new = repeat_periodically(bare_system, counts)
 
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info)
+    return attach_entanglement!(sys_new, bare_system_new, copy(contraction_info))
 end
 
-function resize_supercell(esys::EntangledSystem, dims::NTuple{3,Int})
-    (; sys, sys_origin, contraction_info) = esys
+function resize_supercell_entangled(sys::System, dims::NTuple{3,Int})
+    return reshape_supercell_entangled(sys, diagm(Vec3(dims)))
+end
 
-    # Resize both entangled and original system periodically
-    sys_new = reshape_supercell(sys, diagm(Vec3(dims)))
-    sys_origin_new = reshape_supercell(sys_origin, diagm(Vec3(dims)))
-
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info)
+# Apply an ordinary reshaping operation `f` to the *contracted* part of an
+# entangled `sys`, treating it as a plain system. The `entanglement` field is
+# temporarily detached so `f` (which dispatches on `is_entangled`) takes the
+# ordinary path and does not recurse. The reshaped system returned by `f`
+# already carries `entanglement = nothing` (built via the positional `System`
+# constructor); the caller re-attaches fresh metadata.
+function reshape_contracted(sys::System, f)
+    ent = sys.entanglement
+    sys.entanglement = nothing
+    try
+        return f(sys)
+    finally
+        sys.entanglement = ent
+    end
 end

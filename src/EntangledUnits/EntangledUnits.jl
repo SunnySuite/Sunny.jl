@@ -123,9 +123,9 @@ end
 atoms_in_unit(contraction_info, i) = [inverse_data.site for inverse_data in contraction_info.inverse[i]] 
 
 # Get the list of tuples specifying the units in terms of the uncontracted
-# system.
-function original_unit_spec(esys::EntangledSystem)
-    (; sys, contraction_info) = esys
+# (physical) system, for an entangled `System`.
+function original_unit_spec(sys::System)
+    (; contraction_info) = get_entanglement(sys)
     return [Tuple(atoms_in_unit(contraction_info, unit)) for unit in axes(sys.dipoles, 4)]
 end
 
@@ -245,7 +245,7 @@ function entangle_system(sys::System{M}, units) where M
     contracted_crystal, contraction_info = contract_crystal(sys.crystal, units)
 
     # Make sure we have a uniform external field
-    @assert allequal(@view sys.extfield[:,:,:,:]) "`EntangledSystems` requires a uniform applied field." 
+    @assert allequal(@view sys.extfield[:,:,:,:]) "Entangled units require a uniform applied field."
     B = sys.extfield[1,1,1,1]
 
     # Determine Ns for local Hilbert spaces (all must be equal). (TODO: Determine if alternative behavior preferable in mixed case.)
@@ -390,23 +390,3 @@ function set_expected_dipoles_entangled!(sys::System)
     return
 end
 
-function set_expected_dipoles_of_entangled_system!(esys)
-    for site in eachsite(esys.sys_origin)
-        set_expected_dipole_of_entangled_system!(esys, site)
-    end
-end
-
-function set_expected_dipole_of_entangled_system!(esys, site)
-    (; sys, sys_origin, dipole_operators, source_idcs) = esys
-    (; dipoles) = sys_origin
-
-    a, b, c, atom = site.I
-    source_idx = source_idcs[site]
-    Z = sys.coherents[a, b, c, source_idx]
-
-    # Compute expectation value using cached product-space spin operators
-    S = dipole_operators[atom]
-    dipoles[site] = ntuple(i -> real(dot(Z, S[i], Z)), 3)
-
-    nothing
-end

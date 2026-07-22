@@ -246,8 +246,18 @@ can can then be extracted as pair-correlation [`intensities`](@ref) with
 appropriate classical-to-quantum correction factors. See also
 [`intensities_static`](@ref), which integrates over energy.
 """
-function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, integrator=ImplicitMidpoint(),
-                             crystal=sys.crystal, origin_crystal=(isnothing(sys.origin) ? nothing : sys.origin.crystal))
+function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, integrator=ImplicitMidpoint())
+    # Intensities are reported against the physical crystal. For an entangled
+    # system, coherents are sampled from the contracted `sys`, but positions
+    # (and hence `npos`) live on the physical `bare_system`.
+    if isnothing(sys.entanglement)
+        crystal = sys.crystal
+        origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
+    else
+        bare = get_entanglement(sys).bare_system
+        crystal = bare.crystal
+        origin_crystal = orig_crystal(bare)
+    end
     if isnothing(energies)
         n_all_ω = 1
         measperiod = 1

@@ -37,8 +37,9 @@ end
     set_exchange!(sys, J′, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))  # Needed because we broke the symmetry equivalence of the two sites
 
-    esys = Sunny.EntangledSystem(sys, [(1, 2)])
-    interactions = esys.sys.interactions_union[1]
+    esys = Sunny.entangle_units(sys, [(1, 2)])
+    bare = esys.entanglement.bare_system
+    interactions = esys.interactions_union[1]
 
     # Test on-bond exchange
     onsite_operator = interactions.onsite
@@ -49,38 +50,38 @@ end
 
     # Test external field works as expected
     set_field!(esys, [0, 0, 1])
-    onsite_operator = esys.sys.interactions_union[1].onsite
+    onsite_operator = esys.interactions_union[1].onsite
     field_offset = 2*(Sl[3] + Su[3]) # 2 for g-factor
-    @test onsite_operator ≈ onsite_ref + field_offset 
+    @test onsite_operator ≈ onsite_ref + field_offset
 
     # Test apparatus for setting coherent states from dipoles specification
     dipoles = [[0, 1/2, 0], [0, -1/2, 0]] # Dipoles specifying a dimer state
     cs = Sunny.coherent_state_from_dipoles(esys, dipoles, 1)
     set_coherent!(esys, cs, CartesianIndex(1,1,1,1))
-    @test esys.sys_origin.dipoles[1,1,1,1][2] ≈ 1/2
-    @test esys.sys_origin.dipoles[1,1,1,2][2] ≈ -1/2
+    @test bare.dipoles[1,1,1,1][2] ≈ 1/2
+    @test bare.dipoles[1,1,1,2][2] ≈ -1/2
 
     # Test external field works in action
     set_field!(esys, [0, 0, 10])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    @test esys.sys_origin.dipoles[1][3] ≈ -1/2
-    @test esys.sys_origin.dipoles[2][3] ≈ -1/2
+    @test bare.dipoles[1][3] ≈ -1/2
+    @test bare.dipoles[2][3] ≈ -1/2
 
     set_field!(esys, [0, 0, -10])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    @test esys.sys_origin.dipoles[1][3] ≈ 1/2
-    @test esys.sys_origin.dipoles[2][3] ≈ 1/2
+    @test bare.dipoles[1][3] ≈ 1/2
+    @test bare.dipoles[2][3] ≈ 1/2
 
     set_field!(esys, [0, 0, 0])
     randomize_spins!(esys)
     minimize_energy!(esys)
-    @test norm(esys.sys_origin.dipoles[1]) < 1e-10
-    @test norm(esys.sys_origin.dipoles[2]) < 1e-10
+    @test norm(bare.dipoles[1]) < 1e-10
+    @test norm(bare.dipoles[2]) < 1e-10
 
     # Test inter-bond exchange
-    pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys.sys)
+    pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys)
     Sl1, Sl2 = to_product_space(Sl, Sl)
     Su1, Su2 = to_product_space(Su, Su)
     bond_operator = zeros(ComplexF64, 16, 16)
@@ -97,10 +98,10 @@ end
     ωs_analytical = ω_ref.([q[1] for q in qs], J, J′)
 
     set_field!(esys, [0, 0, 0])
-    for unit in Sunny.eachunit(esys)
+    for unit in eachsite(esys)
         set_coherent!(esys, [0, 1/√2, -1/√2, 0], unit)
     end
-    swt = SpinWaveTheory(esys; measure=Sunny.empty_measurespec(sys), regularization=0.0)
+    swt = SpinWaveTheory(esys; measure=Sunny.empty_measurespec(esys), regularization=0.0)
     disp = dispersion(swt, qs)
     ωs_numerical = disp[1,:]
 
@@ -109,14 +110,14 @@ end
     # Test static structure factor is zero (dipolar sector)
     ssf = SampledCorrelationsStatic(esys; measure=ssf_trace(esys))
     add_sample!(ssf, esys)
-    @test all(x -> isapprox(x, 0.0; atol=1e-12), ssf.sc.parent.data)
+    @test all(x -> isapprox(x, 0.0; atol=1e-12), ssf.parent.data)
 
     ### Golden test for classical dynamics ###
 
     # For exact reproducibility, reset the random number seed and use a specific
     # initial condition.
 
-    Random.seed!(esys.sys.rng, 0)
+    Random.seed!(esys.rng, 0)
     set_coherent!(esys, [0, 1/√2, -1/√2, 0], (1, 1, 1, 1))
 
     esys = repeat_periodically(esys, (8, 1, 1))

@@ -208,6 +208,10 @@ set_field!(sys, [0, 0, 2] * units.T)
 ```
 """
 function set_field!(sys::System, B_μB)
+    # An entangled system folds the Zeeman term into each unit's onsite operator.
+    if !isnothing(sys.entanglement)
+        return set_field_entangled!(sys, B_μB)
+    end
     for site in eachsite(sys)
         set_field_at!(sys, B_μB, site)
     end
@@ -225,6 +229,7 @@ between field and energy dimensions.
 See the documentation of [`set_field!`](@ref) for more information.
 """
 function set_field_at!(sys::System, B_μB, site)
+    isnothing(sys.entanglement) || error("Entangled systems do not support inhomogeneous external fields. Use `set_field!(sys, B)` to set a uniform field.")
     sys.extfield[to_cartesian(site)] = Vec3(B_μB)
 end
 
@@ -390,7 +395,9 @@ end
 The total system [`energy`](@ref) divided by the number of sites.
 """
 function energy_per_site(sys::System{N}; check_normalization=true) where N
-    return energy(sys; check_normalization) / nsites(sys)
+    # For an entangled system, normalize by the number of physical sites.
+    n = isnothing(sys.entanglement) ? nsites(sys) : nsites(get_entanglement(sys).bare_system)
+    return energy(sys; check_normalization) / n
 end
 
 """

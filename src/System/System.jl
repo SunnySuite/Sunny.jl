@@ -288,7 +288,14 @@ for each site in the system.
 
 The [`SCGA`](@ref) calculator returns the thermodynamic average for each site.
 """
-magnetic_moments(sys::System) = magnetic_moments_aux(sys.gs, sys.dipoles)
+function magnetic_moments(sys::System)
+    # For an entangled system, physical moments live on the bare system.
+    if !isnothing(sys.entanglement)
+        bare = get_entanglement(sys).bare_system
+        return magnetic_moments_aux(bare.gs, bare.dipoles)
+    end
+    return magnetic_moments_aux(sys.gs, sys.dipoles)
+end
 
 function magnetic_moments_aux(gs, dipoles)
     mappedarray((g, S) -> -g * S, gs, dipoles)
@@ -583,6 +590,7 @@ Polarize the spin dipole at one [`Site`](@ref) in the direction `dir`.
 See also [`polarize_spins!`](@ref).
 """
 function set_dipole!(sys::System{N}, dir, site) where N
+    isnothing(sys.entanglement) || error("`set_dipole!` is not well defined for an entangled system. Use `set_coherent!` to set the state of each entangled unit.")
     site = to_cartesian(site)
     setspin!(sys, dipolar_state(sys, site, dir), site)
 end
