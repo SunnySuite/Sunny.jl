@@ -275,7 +275,7 @@ function label_atoms(cryst; ismagnetic, sys)
         typstr = isempty(typ) ? "" : "'$typ', "
         push!(ret, typstr * "Wyckoff $wyckstr, $rstr")
 
-        if ismagnetic && !isempty(cryst.sg.symops)
+        if ismagnetic && !isempty(cryst.sg.symops) && !Sunny.is_entangled(sys)
             if isnothing(sys)
                 # See similar logic in print_site()
                 refatoms = [b.i for b in Sunny.reference_bonds(cryst, 0.0)]
@@ -447,7 +447,11 @@ function Sunny.view_crystal(sys::System; refbonds=10, orthographic=false, ghost_
 end
 
 function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndims, compass, size)
-    interactions = isnothing(sys) ? nothing : Sunny.interactions_homog(something(sys.origin, sys))
+    interactions = if isnothing(sys) || Sunny.is_entangled(sys)
+        nothing
+    else
+        Sunny.interactions_homog(something(sys.origin, sys))
+    end
 
     # Dict that maps atom class to color
     class_colors = build_class_colors(cryst)
