@@ -1,14 +1,14 @@
 mutable struct SampledCorrelations
     # 𝒮^{αβ}(q,ω) data and metadata
-    const data           :: Array{ComplexF64, 7}              # Raw SF with position indices (ncorrs × npos × npos × sys_dims × nω)
+    const data           :: Array{ComplexF64, 7}              # Raw correlation data (ncorrs × natoms × natoms × qdims × nω)
     const M              :: Union{Nothing, Array{Float64, 7}} # Running estimate of (nsamples-1)*σ² (where σ² is the variance of intensities)
-    const recipvecs      :: Mat3                              # Reshaped recipvecs for interpretation of q indices in `data`
-    const origin_crystal :: Crystal                           # Original user-specified crystal (possibly reshaped)
+    const recipvecs      :: Mat3                              # Reshaped recipvecs, sys.crystal.recipvecs
+    const origin_crystal :: Crystal                           # Original chemical cell, orig_crystal(sys)
     const Δω             :: Float64                           # Energy step size 
 
     # Observables
-    measure            :: MeasureSpec                         # Only formfactors and combiner can be mutated
-    const positions    :: Vector{Vec3}                        # Fractional positions of bare atoms in cell (npos = nunits × nparts)
+    measure            :: MeasureSpec                         # Mutation must only change formfactors and combiner
+    const positions    :: Vector{Vec3}                        # Fractional positions in reshaped cell (natoms = nunits × nparts)
 
     # Trajectory specs
     const integrator   :: AbstractIntegrator                  # Integrator for calculating sample trajectories.
@@ -16,8 +16,8 @@ mutable struct SampledCorrelations
     nsamples           :: Int64                               # Number of accumulated samples (single number saved as array for mutability)
 
     # Buffers and precomputed data 
-    const samplebuf    :: Array{ComplexF64, 6}                # Buffer for observables (nobservables × sys_dims × npos × nsnapshots)
-    const corrbuf      :: Array{ComplexF64, 4}                # Buffer for correlations (sys_dims × nω)
+    const samplebuf    :: Array{ComplexF64, 6}                # Buffer for observables (nobservables × qdims × natoms × nsnapshots)
+    const corrbuf      :: Array{ComplexF64, 4}                # Buffer for correlations (qdims × nω)
     const space_fft!   :: FFTW.AbstractFFTs.Plan              # Pre-planned lattice FFT for samplebuf
     const time_fft!    :: FFTW.AbstractFFTs.Plan              # Pre-planned time FFT for samplebuf
     const corr_fft!    :: FFTW.AbstractFFTs.Plan              # Pre-planned time FFT for corrbuf 
@@ -31,14 +31,14 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
     nω = round(Int, size(sc.data)[7]/2)
-    sys_dims = size(sc.data[4:6])
+    qdims = size(sc.data[4:6])
     printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q,ω)"; bold=true)
     print(io," | nω = $nω, Δω = $(round(sc.Δω, digits=4))")
     println(io," | $(sc.nsamples) $(sc.nsamples > 1 ? "samples" : "sample")]")
-    println(io,"Lattice: $sys_dims × $(size(sc.data, 2))")
+    println(io,"Lattice: $qdims × $(size(sc.data, 2))")
 end
 
 function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
@@ -85,13 +85,13 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelationsStatic)
     nsamples = sc.parent.nsamples
-    sys_dims = size(sc.parent.data[4:6])
+    qdims = size(sc.parent.data[4:6])
     printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q)"; bold=true)
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io,"Lattice: $sys_dims × $(size(sc.parent.data, 2))")
+    println(io,"Lattice: $qdims × $(size(sc.parent.data, 2))")
 end
 
 """
@@ -219,15 +219,17 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     measure = isnothing(measure) ? ssf_trace(sys) : measure
     validate_formfactors(measure)
 
-    # Flatten the "bare" observable positions of the cell
-    positions = vec(sys.crystal.positions .+ measure.offsets)
-    npos = length(positions)
+    # Flatten the "bare" observable positions of the cell. Column-major order
+    # (atom index varies fastest) matches the layout of `measure.offsets`.
+    nunits, nparts = size(measure.offsets)
+    positions = [sys.crystal.positions[u] + measure.offsets[u, p] for p in 1:nparts for u in 1:nunits]
+    natoms = length(positions)
 
-    samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., npos, n_all_ω)
+    samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., natoms, n_all_ω)
     corrbuf = zeros(ComplexF64, sys.dims..., n_all_ω)
 
     # The output data has n_all_ω many (positive and negative and zero) frequencies
-    data = zeros(ComplexF64, num_correlations(measure), npos, npos, sys.dims..., n_all_ω)
+    data = zeros(ComplexF64, num_correlations(measure), natoms, natoms, sys.dims..., n_all_ω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
     # The normalization is defined so that the prod(sys.dims)-many estimates of

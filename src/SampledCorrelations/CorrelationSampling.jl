@@ -51,7 +51,7 @@ end
 function accum_sample!(sc::SampledCorrelations; window)
     (; data, M, samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!) = sc
     (; corr_pairs) = sc.measure
-    npos = size(samplebuf)[5]
+    natoms = size(samplebuf)[5]
     num_time_offsets = size(samplebuf, 6)
     T = (num_time_offsets÷2) + 1 # Duration that each signal was recorded for
 
@@ -84,7 +84,7 @@ function accum_sample!(sc::SampledCorrelations; window)
 
     count = sc.nsamples += 1
 
-    for j in 1:npos, i in 1:npos, (c, (α, β)) in enumerate(corr_pairs)
+    for j in 1:natoms, i in 1:natoms, (c, (α, β)) in enumerate(corr_pairs)
         # α, β = ci.I
 
         sample_α = @view samplebuf[α,:,:,:,i,:]

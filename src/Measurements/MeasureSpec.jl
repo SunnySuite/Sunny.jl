@@ -123,9 +123,8 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
         return entangled_measure(measure_atom, sys)
     end
 
-    observables = all_dipole_observables(sys; apply_g)  # (3 × sys_dims × natoms × 1)
-    @assert size(observables, 1) == 3
     Na = natoms(sys.crystal)
+    observables = all_dipole_observables(sys; apply_g)
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     combiner(q, corr) = f(q, SA[
         corr[6]       corr[5]       corr[3]

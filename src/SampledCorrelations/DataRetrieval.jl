@@ -104,10 +104,10 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic SWT
     q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
     NCorr  = Val{size(sc.data, 1)}()
-    NPos = Val{size(sc.data, 2)}()
+    NAtoms = Val{size(sc.data, 2)}()
 
     # Intensities calculation
-    intensities_aux!(intensities, sc.data, sc.recipvecs, sc.positions, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NPos)
+    intensities_aux!(intensities, sc.data, sc.recipvecs, sc.positions, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NAtoms)
 
     # Convert to a q-space density in original (not reshaped) RLU.
     intensities .*= det(sc.recipvecs) / det(sc.origin_crystal.recipvecs)
@@ -137,16 +137,16 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     end
 end
 
-function intensities_aux!(intensities, data, recipvecs, positions, combiner, ff_atoms, q_idx_info, ωidcs, ::Val{NCorr}, ::Val{NPos}) where {NCorr, NPos}
+function intensities_aux!(intensities, data, recipvecs, positions, combiner, ff_atoms, q_idx_info, ωidcs, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
     (; qabs, idcs, counts) = q_idx_info
     qidx = 1
     for (qabs, idx, count) in zip(qabs, idcs, counts)
-        prefactors = prefactors_for_phase_averaging(qabs, recipvecs, positions, ff_atoms, Val{NCorr}(), Val{NPos}())
+        prefactors = prefactors_for_phase_averaging(qabs, recipvecs, positions, ff_atoms, Val{NCorr}(), Val{NAtoms}())
 
         # Perform phase-averaging over all omega
         for (n, iω) in enumerate(ωidcs)
             elems = zero(SVector{NCorr, ComplexF64})
-            for j in 1:NPos, i in 1:NPos
+            for j in 1:NAtoms, i in 1:NAtoms
                 elems += (prefactors[i] * conj(prefactors[j])) * SVector{NCorr}(view(data, :, i, j, idx, iω))
             end
             val = combiner(qabs, elems)
