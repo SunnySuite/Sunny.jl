@@ -91,6 +91,29 @@ function resize_supercell_entangled(sys::System, dims::NTuple{3,Int})
     return reshape_supercell_entangled(sys, diagm(Vec3(dims)))
 end
 
+# Flatten an entangled `sys` into a single `(1,1,1)` supercell, preserving
+# entanglement metadata. This mirrors the plain flatten performed in the
+# `SpinWaveTheory` constructor (`reshape_supercell_aux` onto
+# `resize_and_flatten_crystal`), but reshapes the physical `bare_system` in
+# tandem and reattaches fresh metadata so that the flattened contracted system
+# still carries `moment_operators` (needed for the Zeeman term in `swt_data`).
+function flatten_supercell_entangled(sys::System)
+    bare = get_entanglement(sys).bare_system
+
+    # Flatten the contracted system via the ordinary (non-entangled) path.
+    new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
+    sys_flat = reshape_contracted(sys, s -> reshape_supercell_aux(s, new_cryst, (1, 1, 1)))
+
+    # Flatten the physical system the same way.
+    bare_cryst = resize_and_flatten_crystal(bare.crystal, bare.dims)
+    bare_flat = reshape_supercell_aux(bare, bare_cryst, (1, 1, 1))
+
+    # Recompute contraction info for the flattened system and reattach metadata.
+    units_new = units_for_reshaped_system(bare_flat, sys)
+    _, contraction_info = contract_crystal(bare_flat.crystal, units_new)
+    return attach_entanglement!(sys_flat, bare_flat, contraction_info)
+end
+
 # Apply an ordinary reshaping operation `f` to the *contracted* part of an
 # entangled `sys`, treating it as a plain system. The `entanglement` field is
 # temporarily detached so `f` (which dispatches on `is_entangled`) takes the

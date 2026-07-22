@@ -48,11 +48,19 @@ end
     onsite_ref = J * (Sl' * Su)
     @test onsite_operator ≈ onsite_ref
 
-    # Test external field works as expected
+    # Test external field. The Zeeman term is no longer folded into the onsite
+    # operator; it lives in `extfield` (per unit) and couples to the unit's total
+    # moment via the cached `moment_operators`. The onsite operator is unchanged.
     set_field!(esys, [0, 0, 1])
-    onsite_operator = esys.interactions_union[1].onsite
-    field_offset = 2*(Sl[3] + Su[3]) # 2 for g-factor
-    @test onsite_operator ≈ onsite_ref + field_offset
+    @test esys.interactions_union[1].onsite ≈ onsite_ref
+    @test esys.extfield[1] ≈ [0, 0, 1]
+    @test bare.extfield[1, 1, 1, 1] ≈ [0, 0, 1]
+    @test bare.extfield[1, 1, 1, 2] ≈ [0, 0, 1]
+
+    # The cached moment operator is the g-weighted total moment; for two spin-1/2
+    # atoms with g=2, T^z = 2(Slᶻ + Suᶻ). Check ⟨T^z⟩ and the Zeeman energy.
+    T = esys.entanglement.moment_operators[1]
+    @test T[3] ≈ 2*(Sl[3] + Su[3])
 
     # Test apparatus for setting coherent states from dipoles specification
     dipoles = [[0, 1/2, 0], [0, -1/2, 0]] # Dipoles specifying a dimer state
@@ -79,6 +87,26 @@ end
     minimize_energy!(esys)
     @test norm(bare.dipoles[1]) < 1e-10
     @test norm(bare.dipoles[2]) < 1e-10
+
+    # The Zeeman contribution to the coherent-state gradient dE/dZ̄ must match a
+    # finite difference. The inter-unit general coupling has its own (known,
+    # separate) gradient inaccuracy, so isolate the Zeeman piece by differencing
+    # the gradient at nonzero field against the gradient at zero field: only the
+    # Zeeman term changes, and it is exact.
+    B_test = Sunny.Vec3(0.3, -0.7, 1.1)
+    randomize_spins!(esys)
+    Z0 = copy(esys.coherents)
+    set_field!(esys, [0, 0, 0])
+    ∇0 = Sunny.energy_grad_coherents(esys)
+    set_field!(esys, B_test)
+    ∇B = Sunny.energy_grad_coherents(esys)
+    T = esys.entanglement.moment_operators[1]
+    for site in eachsite(esys)
+        Z = Z0[site]
+        zeeman_grad = sum(B_test[α] * (T[α] * Z) for α in 1:3)
+        @test (∇B[site] - ∇0[site]) ≈ zeeman_grad
+    end
+    set_field!(esys, [0, 0, 0])
 
     # Test inter-bond exchange
     pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys)

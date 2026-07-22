@@ -52,12 +52,16 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    # Create a single enlarged chemical cell that matches the full system size
-    # while preserving the system's linear site order.
-    new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
-
-    # Create a new system with dims (1,1,1). A clone happens in all cases.
-    sys = reshape_supercell_aux(sys, new_cryst, (1,1,1))
+    # Create a new system with dims (1,1,1). A clone happens in all cases. For an
+    # entangled system, the flatten preserves entanglement metadata (needed for
+    # the Zeeman term); otherwise flatten onto a single enlarged chemical cell
+    # that matches the full system size while preserving linear site order.
+    if is_entangled(sys)
+        sys = flatten_supercell_entangled(sys)
+    else
+        new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
+        sys = reshape_supercell_aux(sys, new_cryst, (1,1,1))
+    end
 
     # Rotate local operators to quantization axis
     data = swt_data(sys, measure)
@@ -210,15 +214,27 @@ function swt_data(sys::System{N}, measure) where N
         end
     end
 
+    # Cached g-weighted total-moment operators per unit, for the entangled Zeeman
+    # term (see below). Empty for an ordinary system.
+    moment_operators = is_entangled(sys) ? get_entanglement(sys).moment_operators : nothing
+
     # Rotate interactions into local reference frames
     for i in 1:Na
         Ui = local_unitaries[i]
         int = sys.interactions_union[i]
 
-        # Zeeman coupling operator
-        S = spin_matrices_of_dim(; N)
-        B = sys.gs[i]' * sys.extfield[i]
-        zeeman = B' * S
+        # Zeeman coupling operator. For an entangled system the local dimension is
+        # a product space, so the single-irrep spin matrices are meaningless;
+        # instead use Σ_α B_α T^α with the cached g-weighted moment operator T^α.
+        if isnothing(moment_operators)
+            S = spin_matrices_of_dim(; N)
+            B = sys.gs[i]' * sys.extfield[i]
+            zeeman = B' * S
+        else
+            T = moment_operators[i]
+            B = sys.extfield[i]
+            zeeman = sum(B[α] * T[α] for α in 1:3)
+        end
 
         # Merge and rotate all onsite couplings
         int.onsite = Hermitian(Ui' * (zeeman + int.onsite) * Ui)

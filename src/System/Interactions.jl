@@ -208,10 +208,6 @@ set_field!(sys, [0, 0, 2] * units.T)
 ```
 """
 function set_field!(sys::System, B_μB)
-    # An entangled system folds the Zeeman term into each unit's onsite operator.
-    if !isnothing(sys.entanglement)
-        return set_field_entangled!(sys, B_μB)
-    end
     for site in eachsite(sys)
         set_field_at!(sys, B_μB, site)
     end
@@ -229,8 +225,21 @@ between field and energy dimensions.
 See the documentation of [`set_field!`](@ref) for more information.
 """
 function set_field_at!(sys::System, B_μB, site)
-    isnothing(sys.entanglement) || error("Entangled systems do not support inhomogeneous external fields. Use `set_field!(sys, B)` to set a uniform field.")
-    sys.extfield[to_cartesian(site)] = Vec3(B_μB)
+    site = to_cartesian(site)
+    B = Vec3(B_μB)
+    sys.extfield[site] = B
+
+    # For an entangled system, `site` selects a unit; the same physical field is
+    # mirrored onto every bare atom of that unit. The unit's g-factor is the
+    # identity, so `sys.extfield` couples directly to the total moment (see
+    # `set_energy_grad_coherents!`); the bare field is kept in sync for observables.
+    if !isnothing(sys.entanglement)
+        (; bare_system, contraction_info) = get_entanglement(sys)
+        cell = to_cell(site)
+        for atom in atoms_in_unit(contraction_info, to_atom(site))
+            bare_system.extfield[cell..., atom] = B
+        end
+    end
 end
 
 """
@@ -523,9 +532,14 @@ end
 function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N}) where N
     fill!(∇E, zero(Vec3))
 
-    # Zeeman coupling
-    for site in eachsite(sys)
-        ∇E[site] += sys.gs[site]' * sys.extfield[site]
+    # Zeeman coupling. Skipped for an entangled system: there the contracted
+    # `dipoles` is a unit's total moment (not a physical spin in a single irrep),
+    # so the Zeeman gradient cannot be expressed as dE/dS. It is instead applied
+    # directly at the coherent-state level in `set_energy_grad_coherents!`.
+    if isnothing(sys.entanglement)
+        for site in eachsite(sys)
+            ∇E[site] += sys.gs[site]' * sys.extfield[site]
+        end
     end
 
     # Anisotropies and exchange interactions
@@ -612,6 +626,18 @@ function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) wh
     dE_dS, dipoles = get_dipole_buffers(sys, 2)
     @. dipoles = expected_spin(Z)
     set_energy_grad_dipoles!(dE_dS, dipoles, sys)
+
+    # Zeeman coupling for an entangled system. The unit energy is Σ_α B_α ⟨T^α⟩
+    # with the cached g-weighted moment operator T^α, so dE/dZ̄ = Σ_α B_α T^α Z.
+    # (The dipole-level Zeeman term was skipped in `set_energy_grad_dipoles!`.)
+    if !isnothing(sys.entanglement)
+        moment_operators = get_entanglement(sys).moment_operators
+        for site in eachsite(sys)
+            T = moment_operators[to_atom(site)]
+            B = sys.extfield[site]
+            HZ[site] += sum(B[α] * (SMatrix{N, N}(T[α]) * Z[site]) for α in 1:3)
+        end
+    end
 
     # Anisotropies and exchange interactions
     if is_homogeneous(sys)

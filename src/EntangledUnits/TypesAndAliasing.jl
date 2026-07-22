@@ -44,11 +44,12 @@ struct Entanglement <: AbstractEntanglement
     contraction_info :: CrystalContractionInfo          # Forward/inverse mapping data
     source_idcs      :: Array{Int64, 4}                 # Coherent (unit) index feeding each physical site
     dipole_operators :: Vector{NTuple{3, Matrix{ComplexF64}}}  # Cached product-space spin ops per physical atom
+    moment_operators :: Vector{NTuple{3, Matrix{ComplexF64}}}  # Cached g-weighted total-moment ops per unit
 end
 
 function clone_entanglement(ent::Entanglement)
     return Entanglement(clone_system(ent.bare_system), copy(ent.contraction_info),
-                        copy(ent.source_idcs), ent.dipole_operators)
+                        copy(ent.source_idcs), ent.dipole_operators, ent.moment_operators)
 end
 
 # Build the product-space spin operators for each atom of the physical
@@ -65,6 +66,35 @@ function build_dipole_operators(bare_system, contraction_info)
     end
 end
 
+# Build the g-weighted total magnetic-moment operators for each entangled unit,
+# embedded in the unit's product Hilbert space. For unit `u`,
+#
+#   T^α = Σ_{k ∈ u} Σ_β (g_k)_{αβ} embed(Sₖ^β),
+#
+# so that ⟨Z|T^α|Z⟩ is the α-component of the unit's total moment M = Σ_k g_k Sₖ.
+# The Zeeman energy of the unit is then Σ_α B_α ⟨T^α⟩, and its coherent-state
+# gradient is Σ_α B_α T^α Z (see `set_energy_grad_coherents!`). g-tensors are
+# uniform across cells, so these depend only on the unit index.
+function build_moment_operators(bare_system, contraction_info)
+    Ns_unit = Ns_in_units(bare_system, contraction_info)
+    nunits = length(contraction_info.inverse)
+    return map(1:nunits) do unit
+        Ns = Ns_unit[unit]
+        T = ntuple(_ -> zeros(ComplexF64, prod(Ns), prod(Ns)), 3)
+        for id in contraction_info.inverse[unit]
+            atom = id.site
+            g = bare_system.gs[1, 1, 1, atom]
+            k = contraction_info.forward[atom][2]
+            S_local = spin_matrices_of_dim(; N=bare_system.Ns[1, 1, 1, atom])
+            S_embed = ntuple(β -> local_op_to_product_space(S_local[β], k, Ns), 3)
+            for α in 1:3, β in 1:3
+                T[α] .+= g[α, β] .* S_embed[β]
+            end
+        end
+        return T
+    end
+end
+
 # Attach entanglement metadata to a contracted `sys`, deriving the dynamics
 # metadata (`source_idcs` and cached `dipole_operators`) from the physical
 # `bare_system` and the mapping. Returns `sys`. All entangled systems get their
@@ -76,7 +106,9 @@ function attach_entanglement!(sys::System, bare_system, contraction_info)
         source_idcs[site] = contraction_info.forward[atom][1]
     end
     dipole_operators = build_dipole_operators(bare_system, contraction_info)
-    sys.entanglement = Entanglement(bare_system, contraction_info, source_idcs, dipole_operators)
+    moment_operators = build_moment_operators(bare_system, contraction_info)
+    sys.entanglement = Entanglement(bare_system, contraction_info, source_idcs,
+                                    dipole_operators, moment_operators)
     return sys
 end
 
@@ -138,26 +170,6 @@ end
 # NB: for a unified entangled `System`, `eachsite(sys)` iterates the entangled
 # *units* (the native sites of the contracted system). To iterate the physical
 # atoms, iterate `eachsite(sys.entanglement.bare_system)`.
-
-# Set a uniform external field on an entangled system by folding the Zeeman term
-# into the onsite operator of each unit (the contracted `extfield` stays zero).
-# Called from the core `set_field!` when `sys` is entangled.
-function set_field_entangled!(sys::System, B)
-    (; bare_system, source_idcs, dipole_operators) = get_entanglement(sys)
-    B_old = bare_system.extfield[1,1,1,1]
-    set_field!(bare_system, B)
-
-    # Adjust the onsite operator of each unit to reflect the field change.
-    for atom in axes(bare_system.coherents, 4)
-        unit = source_idcs[1, 1, 1, atom]
-        S = dipole_operators[atom]  # cached product-space spin operators (no g-tensor)
-
-        # Apply field change (g-tensor applied separately via ΔB)
-        ΔB = bare_system.gs[1, 1, 1, atom]' * (B - B_old)
-        field_term = sum(ΔB[α] * S[α] for α in 1:3)
-        sys.interactions_union[unit].onsite += Hermitian(field_term)
-    end
-end
 
 # Find the unique coherent state corresponding to a set of fully-polarized
 # dipoles on each site inside a specified entangled unit.

@@ -255,8 +255,13 @@ function entangle_system(sys::System{M}, units) where M
 
     # Construct empty contracted system
     dims = size(sys.dipoles)[1:3]
-    spin_infos = [i => Moment(s=(N-1)/2, g=1.0) for (i, N) in enumerate(Ns_contracted)]  # TODO: Decisions about g-factor 
+    spin_infos = [i => Moment(s=(N-1)/2, g=1.0) for (i, N) in enumerate(Ns_contracted)]  # TODO: Decisions about g-factor
     sys_entangled = System(contracted_crystal, spin_infos, :SUN; dims)
+
+    # The (uniform) external field couples to the total moment of each unit. The
+    # unit g-factor is the identity, so the field is stored directly per unit.
+    # Non-uniform fields may be applied later via `set_field!`/`set_field_at!`.
+    fill!(sys_entangled.extfield, B)
 
     # Transfer rng from origin system to entangled system
     copy!(sys_entangled.rng, sys.rng)
@@ -274,14 +279,13 @@ function entangle_system(sys::System{M}, units) where M
         # Pair interactions that become within-unit interactions
         original_interactions = sys.interactions_union[relevant_sites] 
         for (site, interaction) in zip(relevant_sites, original_interactions)
-            # Onsite anisotropy portion
+            # Onsite anisotropy portion. The Zeeman term is *not* folded in here;
+            # it is handled as a first-class term on the contracted system via
+            # `sys.extfield` and the cached `moment_operators` (see
+            # `set_field_entangled!` and `set_energy_grad_coherents!`).
             onsite_original = interaction.onsite
             unit_index = contraction_info.forward[site][2]
             unit_operator += local_op_to_product_space(onsite_original, unit_index, Ns)
-
-            # Zeeman portion
-            S = [local_op_to_product_space(S, unit_index, Ns) for S in spin_matrices((Ns[unit_index]-1)/2)]
-            unit_operator += Hermitian((sys.gs[1, 1, 1, site] * B)' * S)
         end
 
         # Sort all PairCouplings in couplings that will be within a unit and couplings that will be between units
