@@ -130,6 +130,15 @@ function accum_bond_operator!(op, pc::PairCoupling, embed_i, embed_j, Ni, Nj)
     return op
 end
 
+# Build the full bond operator for a `PairCoupling` `pc` between two sites of
+# Hilbert space dimensions `Ni` and `Nj`, with site i as the first tensor factor
+# and site j as the second.
+function bond_operator(pc::PairCoupling, Ni, Nj)
+    op = zeros(ComplexF64, Ni*Nj, Ni*Nj)
+    accum_bond_operator!(op, pc, A -> kron(A, I(Nj)), B -> kron(I(Ni), B), Ni, Nj)
+    return op
+end
+
 # Converts what was a pair coupling between two different sites of a single unit
 # in the original system into an on-bond operator (an onsite operator in terms
 # of the "units"). Accumulates into `op` in place.
@@ -174,10 +183,7 @@ function pair_coupling_between_units(pc, uncontracted_Ns, unit_map::UnitMap)
 
     # Build the bare two-atom coupling operator, with atom i as the first tensor
     # factor and atom j as the second.
-    embed_i = A -> kron(A, I(Nj))
-    embed_j = B -> kron(I(Ni), B)
-    bare_op = zeros(ComplexF64, Ni*Nj, Ni*Nj)
-    accum_bond_operator!(bare_op, pc, embed_i, embed_j, Ni, Nj)
+    bare_op = bond_operator(pc, Ni, Nj)
 
     # Split off the scalar shift, then SVD-decompose the traceless remainder into
     # atomic factors aₖ ⊗ bₖ (a small `Ni*Nj`-dimensional SVD).

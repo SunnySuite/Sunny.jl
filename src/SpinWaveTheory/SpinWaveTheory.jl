@@ -124,37 +124,6 @@ function mul_dynamical_matrix!(swt, y, x, qs_reshaped)
 end
 
 
-# Take PairCoupling `pc` and use it to make a new, equivalent PairCoupling that
-# contains all information about the interaction in the `general` field (a
-# recompressed tensor decomposition).
-function as_general_pair_coupling(pc, sys)
-    # Avoid a possibly expensive SVD if bilin and biquad are zero, as will be
-    # the case for couplings between entangled units.
-    (iszero(pc.bilin) && iszero(pc.biquad)) && return pc
-
-    N1 = sys.Ns[pc.bond.i]
-    N2 = sys.Ns[pc.bond.j]
-
-    # Assemble the full bond operator, with site 1 as the first tensor factor and
-    # site 2 as the second.
-    accum = zeros(ComplexF64, N1*N2, N1*N2)
-    accum_bond_operator!(accum, pc, A -> kron(A, I(N2)), B -> kron(I(N1), B), N1, N2)
-
-    # Generate new interaction with extract_parts=false
-    scalar, bilin, biquad, general = decompose_general_coupling(accum, N1, N2; extract_parts=false)
-
-    return PairCoupling(pc.bond, scalar, bilin, biquad, general)
-end
-
-function rotate_general_coupling_into_local_frame(pc, U1, U2)
-    (; bond, scalar, bilin, biquad, general) = pc
-    data_new = map(general.data) do (A, B)
-        (Hermitian(U1'*A*U1), Hermitian(U2'*B*U2))
-    end
-    td = TensorDecomposition(general.gen1, general.gen2, data_new)
-    return PairCoupling(bond, scalar, bilin, biquad, td)
-end
-
 # Prepare local operators and observables for SU(N) spin wave calculation by
 # rotating these into the local reference frame determined by the ground state.
 function swt_data(sys::System{N}, measure) where N
@@ -221,19 +190,34 @@ function swt_data(sys::System{N}, measure) where N
         end
         int.onsite = Hermitian(Ui' * onsite * Ui)
 
-        # Transform pair couplings into tensor decomposition and rotate.
+        # Convert each pair coupling to a compressed tensor decomposed form and
+        # rotate it into the local reference frames of both sites.
         pair_new = PairCoupling[]
         for pc in int.pair
-            # Convert PairCoupling to a purely general (tensor decomposed) interaction.
-            pc_general = as_general_pair_coupling(pc, sys)
-
-            # Rotate tensor decomposition into local frame.
-            bond = pc.bond
+            (; bond) = pc
             @assert bond.i == i
-            Uj = local_unitaries[bond.j]
-            pc_rotated = rotate_general_coupling_into_local_frame(pc_general, Ui, Uj)
 
-            push!(pair_new, pc_rotated)
+            general = if iszero(pc.bilin) && iszero(pc.biquad)
+                # If bilin and biquad are zero, then pc.general is already the
+                # compressed tensor decomposition. This short-circuit avoids a
+                # possibly-expensive SVD, e.g., for entangled systems.
+                pc.general
+            else
+                # Otherwise, recompress bilin/biquad into a general tensor
+                # decomposition, ignoring any scalar part.
+                N1, N2 = sys.Ns[bond.i], sys.Ns[bond.j]
+                gen1 = spin_matrices_of_dim(; N=N1)
+                gen2 = spin_matrices_of_dim(; N=N2)
+                TensorDecomposition(gen1, gen2, svd_tensor_expansion(bond_operator(pc, N1, N2), N1, N2))
+            end
+
+            Uj = local_unitaries[bond.j]
+            data_rotated = map(general.data) do (A, B)
+                (Hermitian(Ui'*A*Ui), Hermitian(Uj'*B*Uj))
+            end
+
+            general_rotated = TensorDecomposition(general.gen1, general.gen2, data_rotated)
+            push!(pair_new, PairCoupling(bond, 0.0, 0.0, 0.0, general_rotated))
         end
         int.pair = pair_new
     end

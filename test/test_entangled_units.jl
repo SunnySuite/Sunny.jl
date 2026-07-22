@@ -99,13 +99,9 @@ end
 
     ### Test inter-bond exchange
 
-    pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys)
+    bond_operator = Sunny.bond_operator(interactions.pair[1], 4, 4)
     Sl1, Sl2 = to_product_space(Sl, Sl)
     Su1, Su2 = to_product_space(Su, Su)
-    bond_operator = zeros(ComplexF64, 16, 16)
-    for (A, B) in pc.general.data
-        bond_operator .+= kron(A, B)
-    end
     bond_ref = J′*((Sl2' * Sl1) .+ (Su2' * Su1))
     @test bond_operator ≈ bond_ref
 
@@ -167,7 +163,6 @@ end
 end
 
 @testitem "General inter-unit coupling" begin
-    import LinearAlgebra: I
 
     # Spin-1 dimers with a *biquadratic* inter-unit coupling. This exercises the
     # general (non-dipole) contraction path: each bare coupling is compressed via
@@ -184,13 +179,7 @@ end
     set_pair_coupling!(sys, f, Bond(2, 2, [1, 0, 0]))
 
     esys = entangle_system(sys, [(1, 2)])
-    pc = Sunny.as_general_pair_coupling(esys.interactions_union[1].pair[1], esys)
-
-    # Reconstruct the contracted inter-unit operator from its tensor decomposition.
-    bond_operator = Matrix{ComplexF64}(pc.scalar * I, 81, 81)
-    for (A, B) in pc.general.data
-        bond_operator .+= kron(A, B)
-    end
+    bond_operator = Sunny.bond_operator(esys.interactions_union[1].pair[1], 9, 9)
 
     # Analytic reference: the two bare couplings (part1↔part1 and part2↔part2),
     # each embedded into the 81-dimensional two-unit product space.
