@@ -454,7 +454,7 @@ end
 end
 
 @inline function flip(spin::SpinState{N}) where N
-    return SpinState(-spin.S, flip_ket(spin.Z))
+    return SpinState(-spin.S, time_reverse_irrep_ket(spin.Z))
 end
 
 @inline function randspin(sys::System{0}, site)

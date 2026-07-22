@@ -27,7 +27,7 @@
 
         # Test time reversal operator
         Z = randn(Sunny.CVec{N})
-        @test Sunny.flip_ket(Z) ≈ exp(-im*π*S[2]) * conj(Z)
+        @test Sunny.time_reverse_irrep_ket(Z) ≈ exp(-im*π*S[2]) * conj(Z)
     end
 
     # Test action of mul_spin_matrices(B, Z)

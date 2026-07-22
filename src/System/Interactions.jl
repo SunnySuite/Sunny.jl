@@ -341,11 +341,9 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     (; S, Z) = state
     (; dims, extfield, dipoles, coherents, ewald) = sys
 
-    # A single-site (unit) update moves several physical moments at once, so the
-    # bare Ewald `ewald_energy_delta` (which assumes one moment moves) does not
-    # apply. Not yet supported.
-    if !isnothing(sys.entanglement) && !isnothing(get_entanglement(sys).uncontracted.ewald)
-        error("LocalSampler does not yet support long-range dipole-dipole interactions for entangled units.")
+    # Could be implemented if a use case appears
+    if is_entangled(sys) && !isnothing(uncontracted_system(sys).ewald)
+        error("LocalSampler does not yet support entangled units with Ewald interactions")
     end
 
     if is_homogeneous(sys)

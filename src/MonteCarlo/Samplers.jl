@@ -20,7 +20,10 @@ Function to propose pure spin flip updates in the context of a
 [`LocalSampler`](@ref). Dipoles are flipped as ``𝐒 → -𝐒``. SU(_N_) coherent
 states are flipped using the time-reversal operator.
 """
-propose_flip(sys::System{N}, site) where N = flip(getspin(sys, site))
+function propose_flip(sys::System{N}, site) where N
+    is_entangled(sys) && error("propose_flip is not supported for general coherent states")
+    return flip(getspin(sys, site))
+end
 
 """
     propose_delta(magnitude)

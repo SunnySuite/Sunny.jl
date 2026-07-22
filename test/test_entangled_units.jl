@@ -298,9 +298,12 @@ end
     @test res1.disp ≈ res2.disp[3:end, :]
     @test vec(sum(res1.data; dims=1)) ≈ vec(sum(res2.data; dims=1))
 
-    # LocalSampler still does not support long-range dipole-dipole for entangled units.
+    let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_delta(0.1))
+        @test_throws "LocalSampler does not yet support entangled units with Ewald interactions" step!(esys, sampler)
+    end
+
     let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_flip)
-        @test_throws "does not yet support long-range dipole-dipole" step!(esys, sampler)
+        @test_throws "propose_flip is not supported for general coherent states" step!(esys, sampler)
     end
 end
 

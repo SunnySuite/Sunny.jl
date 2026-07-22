@@ -116,9 +116,10 @@ function ket_from_dipole(dip::Vec3, ::Val{N}) :: CVec{N} where N
 end
 
 # Applies the time-reversal operator to the coherent spin state |Z⟩, which
-# effectively negates the expected spin dipole, ⟨Z|Sᵅ|Z⟩ → -⟨Z|Sᵅ|Z⟩.
-flip_ket(_::CVec{0}) = CVec{0}()
-function flip_ket(Z::CVec{N}) where N
+# effectively negates the expected spin dipole, ⟨Z|Sᵅ|Z⟩ → -⟨Z|Sᵅ|Z⟩ for a
+# spin irrep Sᵅ.
+time_reverse_irrep_ket(_::CVec{0}) = CVec{0}()
+function time_reverse_irrep_ket(Z::CVec{N}) where N
     # Per Sakurai (3rd ed.), eq. 4.176, the time reversal operator has the
     # action T[Z] = exp(-i π Sʸ) conj(Z). In our selected basis, the operator
     # exp(-i π Sʸ) can be implemented by flipping the sign of half the
