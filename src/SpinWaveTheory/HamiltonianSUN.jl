@@ -2,7 +2,7 @@
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; bare_dipoles) = data
+    (; spin_ops) = data
 
     N = sys.Ns[1]
     Na = natoms(sys.crystal)
@@ -98,8 +98,8 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
                 J0 = gs[ai]' * A0[ai, aj] * gs[aj] / 2
 
                 for α in 1:3, β in 1:3
-                    Ai = bare_dipoles[α, ai]
-                    Bj = bare_dipoles[β, aj]
+                    Ai = spin_ops[α, ai]
+                    Bj = spin_ops[β, aj]
 
                     for m in 1:N-1, n in 1:N-1
                         c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])

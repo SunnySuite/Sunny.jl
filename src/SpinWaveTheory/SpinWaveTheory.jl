@@ -9,7 +9,7 @@ struct SWTDataSUN
     local_unitaries  :: Vector{Matrix{ComplexF64}}    # Transformations from global to quantization frame
     observables      :: Array{HermitianC64, 3}        # Rotated observables (nobs × nunits × nparts)
     observable_buf   :: Matrix{ComplexF64}            # Scratch buffer (N × N)
-    bare_dipoles     :: Array{HermitianC64, 2}        # Bare spin dipoles in local frame (3 × nbareatoms)
+    spin_ops         :: Array{HermitianC64, 2}        # Spin dipoles in local frame (3 × nbareatoms)
 end
 
 # To facilitate sharing some code with SpinWaveTheorySpiral
@@ -139,7 +139,7 @@ function swt_data!(sys::System{N}, measure) where N
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
     observables = Array{HermitianC64}(undef, Nobs, Na, nparts)
     observable_buf = zeros(ComplexF64, N, N)
-    bare_dipoles = fill(Hermitian(zeros(ComplexF64, N, N)), 3, Nb)
+    spin_ops = fill(Hermitian(zeros(ComplexF64, N, N)), 3, Nb)
 
     for i in 1:Na
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
@@ -164,13 +164,13 @@ function swt_data!(sys::System{N}, measure) where N
 
         for ai in atoms_in_unit(sys, i)
             # Incorporate Zeeman coupling into onsite
-            S = bare_dipole_operator(sys, ai)
+            S = lifted_spin_op(sys, ai)
             (; gs, extfield) = uncontracted_system(sys)
             int.onsite += (extfield[ai]' * gs[ai]) * S
 
             # Store spin dipoles in the local frame
             for α in 1:3
-                bare_dipoles[α, ai] = Hermitian(U' * S[α] * U)
+                spin_ops[α, ai] = Hermitian(U' * S[α] * U)
             end
         end
     end
@@ -208,7 +208,7 @@ function swt_data!(sys::System{N}, measure) where N
         local_unitaries,
         observables,
         observable_buf,
-        bare_dipoles,
+        spin_ops,
     )
 end
 

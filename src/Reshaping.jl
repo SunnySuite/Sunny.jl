@@ -150,8 +150,7 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     end
 
     if is_entangled(sys)
-        # If sys is entangled, then we must also reshape sys.entanglement. This
-        # regenerates the uncontracted system and the unit_mapping.
+        # Rebuild sys.entanglement for the reshaping
         (; uncontracted) = get_entanglement(sys)
         new_shape = Mat3(orig_crystal(sys).latvecs \ new_cryst.latvecs)
         new_uncontracted_cryst = reshape_crystal(orig_crystal(uncontracted), new_shape)

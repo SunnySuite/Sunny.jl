@@ -27,7 +27,7 @@ end
 struct Entanglement <: AbstractEntanglement
     uncontracted          :: System                           # System prior to entanglement
     unit_map              :: UnitMap                          # Map between units and atoms
-    bare_dipole_operators :: Vector{SVector{3, HermitianC64}} # Product-space spin ops per bare atom
+    lifted_spin_ops       :: Vector{SVector{3, HermitianC64}} # Product-space spin ops for atoms
 end
 
 
@@ -71,9 +71,9 @@ function bare_sites_for_unit(ent::Entanglement, unit_site)
     end
 end
 
-function bare_dipole_operator(sys::System, i)
+function lifted_spin_op(sys::System, i)
     if is_entangled(sys)
-        return get_entanglement(sys).bare_dipole_operators[i]
+        return get_entanglement(sys).lifted_spin_ops[i]
     else
         return spin_matrices_of_dim(; N=sys.Ns[i])
     end
@@ -82,7 +82,7 @@ end
 # Needed because uncontracted.dipoles and related state are mutably updated
 function clone_entanglement(ent::Entanglement)
     return Entanglement(clone_system(ent.uncontracted), ent.unit_map,
-                        ent.bare_dipole_operators)
+                        ent.lifted_spin_ops)
 end
 clone_entanglement(::Nothing) = nothing
 
@@ -285,14 +285,14 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_unit_map::UnitMap
     end
     unit_map = UnitMap(atom_to_unit, unit_to_members)
 
-    bare_dipole_operators = map(1:natoms_bare) do atom
+    lifted_spin_ops = map(1:natoms_bare) do atom
         S_local = spin_matrices_of_dim(; N=uncontracted.Ns[1, 1, 1, atom])
         (; unit, part) = unit_map.atom_to_unit[atom]
         Ns_unit = uncontracted.Ns[atoms_in_unit(unit_map, unit)]
         ntuple(α -> local_op_to_product_space(S_local[α], part, Ns_unit), 3)
     end
 
-    sys.entanglement = Entanglement(uncontracted, unit_map, bare_dipole_operators)
+    sys.entanglement = Entanglement(uncontracted, unit_map, lifted_spin_ops)
     return nothing
 end
 
@@ -405,40 +405,29 @@ end
 # Coherent states to bare dipoles
 ################################################################################
 
-# ⟨Z|S|Z⟩ for an embedded spin-operator triple S (an entry of `bare_dipole_operators`).
-@inline bare_expected_dipole(Z, S) = Vec3(real(dot(Z, S[1], Z)), real(dot(Z, S[2], Z)), real(dot(Z, S[3], Z)))
+# ⟨Z|S|Z⟩ for an embedded spin-operator triple S (an entry of
+# `lifted_spin_ops`).
+expected_dipole(Z, S) = Vec3(real(dot(Z, S[1], Z)), real(dot(Z, S[2], Z)), real(dot(Z, S[3], Z)))
 
-# Translate the physical (bare-system) dipole-level fields into the entangled
-# unit coherent gradient:
-#
-#   dE/dZ̄_u += Σ_{a ∈ u} Σ_β (dE/dSₐ)_β Sₐ^{β,embed} Z_u,
-#
-# where dE/dSₐ = gₐ' B (Zeeman) + (long-range dipole-dipole field), both
-# produced per physical atom on the bare system. A unit's atoms feel independent
-# fields, so this cannot be represented by a single per-unit dE/dS vector —
-# hence the bare-atom granularity here rather than the contracted
-# `set_energy_grad_dipoles!` path. `N` is the local dimension of entangled units
-# (not of the `uncontracted`).
+# Helper for set_energy_grad_coherents! that accumulates Zeeman and Ewald
+# interactions. These need special handling for entangled systems because they
+# refer to the uncontracted ("bare") dipoles.
 function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entanglement) where N
-    (; uncontracted, bare_dipole_operators) = ent
+    (; uncontracted, lifted_spin_ops) = ent
 
     # Reuse the bare system's persistent scratch buffers.
     S_bare, dE_dS_bare = get_dipole_buffers(uncontracted, 2)
     fill!(dE_dS_bare, zero(Vec3))
 
-    # Physical dipoles ⟨Sₐ⟩ evaluated from the *passed* `Z` (which may be a
-    # trial state not yet synced into `uncontracted.dipoles`), so the
-    # dipole-dependent Ewald field is consistent with the state whose gradient
-    # is requested.
+    # Expected dipoles of the uncontracted system for the provided coherents Z.
     for u in CartesianIndices(Z)
-        Zu = Z[u]
         for bs in bare_sites_for_unit(ent, u)
-            S_bare[bs] = bare_expected_dipole(Zu, bare_dipole_operators[to_atom(bs)])
+            S_bare[bs] = expected_dipole(Z[u], lifted_spin_ops[to_atom(bs)])
         end
     end
 
-    # Per-atom dE/dSₐ on the bare system: Zeeman gₐ' B plus, if enabled, the
-    # long-range dipole-dipole field (which itself includes the g-tensor).
+    # Energy gradient dE/dS associated with Zeeman and Ewald couplings, for each
+    # bare atom of the uncontracted system.
     for site in eachsite(uncontracted)
         dE_dS_bare[site] += uncontracted.gs[site]' * uncontracted.extfield[site]
     end
@@ -446,15 +435,13 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
         accum_ewald_grad!(dE_dS_bare, S_bare, uncontracted)
     end
 
-    # Sum each physical atom's contribution into its containing unit's coherent
-    # gradient.
+    # Accumulate gradients for entangled units u
     for u in CartesianIndices(Z)
-        Zu = Z[u]
         for bs in bare_sites_for_unit(ent, u)
-            S = bare_dipole_operators[to_atom(bs)]
+            S = lifted_spin_ops[to_atom(bs)]
             h = dE_dS_bare[bs]
             for β in 1:3
-                HZ[u] += h[β] * mul_svec(S[β], Zu)
+                HZ[u] += h[β] * mul_svec(S[β], Z[u])
             end
         end
     end
@@ -465,9 +452,9 @@ end
 function sync_bare_dipoles_at!(sys::System, site)
     Z = sys.coherents[site]
     ent = get_entanglement(sys)
-    (; uncontracted, bare_dipole_operators) = ent
+    (; uncontracted, lifted_spin_ops) = ent
     for bs in bare_sites_for_unit(ent, site)
-        uncontracted.dipoles[bs] = bare_expected_dipole(Z, bare_dipole_operators[to_atom(bs)])
+        uncontracted.dipoles[bs] = expected_dipole(Z, lifted_spin_ops[to_atom(bs)])
     end
     return
 end

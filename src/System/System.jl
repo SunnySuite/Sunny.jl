@@ -486,8 +486,7 @@ end
     sys.dipoles[site] = spin.S
     sys.coherents[site] = spin.Z
 
-    # For an entangled system, keep the physical dipoles of the affected unit
-    # coherent with the just-updated coherent state.
+    # For an entangled system, sync dipoles in the uncontracted system
     if !isnothing(sys.entanglement)
         sync_bare_dipoles_at!(sys, site)
     end

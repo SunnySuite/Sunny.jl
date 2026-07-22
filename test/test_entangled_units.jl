@@ -164,12 +164,8 @@ end
 end
 
 @testitem "Entangled dipole-dipole SWT" begin
-    # Long-range dipole-dipole is stored on the bare (uncontracted) system and
-    # enters SWT through the per-part `bare_dipoles` and the Ewald matrix indexed
-    # by bare crystal-atom. With *no* intra-unit exchange, an entangled system is
-    # just a product-space rewriting of two independent atoms, so its low
-    # spin-wave bands must coincide with the bare SU(N) result. This exercises the
-    # (unit, part) Ewald loop with nparts=2.
+    # Compare systems with and without entanglement. The result should match if
+    # there's no intra-unit exchange.
     latvecs = [1.0 0 0; 0 1 0; 0 0 2]
     positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
     cryst = Crystal(latvecs, positions, 1; types=["A", "B"])
