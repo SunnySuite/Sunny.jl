@@ -585,7 +585,7 @@ function set_dipole!(sys::System{N}, dir, site) where N
     site = to_cartesian(site)
     if is_entangled(sys)
         (; uncontracted, unit_map) = get_entanglement(sys)
-        Ns = Ns_in_units(uncontracted, unit_map)[to_atom(site)]
+        Ns = Ns_at_unit(uncontracted, unit_map, to_atom(site))
         Z = kron((ket_from_dipole(dir, Val{N}()) for N in Ns)...)
         setspin!(sys, coherent_state(sys, site, Z), site)
     else

@@ -113,14 +113,10 @@ function contract_crystal(crystal, groupings::Vector{Groupings})
 end
 
 
-# Returns a list of length equal to the number of "units" in the a contracted
-# crystal. Each list element is itself a list of integers, each of which
-# corresponds to the N of the corresponding site of the original system. The
-# order is consistent with that given by the `inverse` field of a
-# `UnitMap`.
-function Ns_in_units(sys_original, unit_map)
-    return [[sys_original.Ns[member.atom] for member in members]
-            for members in unit_map.unit_to_members]
+# Returns the Hilbert-space dimension N for each part of an entangled unit. The
+# order is consistent with the `unit_to_members` field of a `UnitMap`.
+function Ns_at_unit(sys, unit_map, u)
+    return [sys.Ns[member.atom] for member in unit_map.unit_to_members[u]]
 end
 
 # Pull out atom indices comprising a unit
@@ -214,7 +210,7 @@ end
 function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, sys, contracted_site, unit_map)
     pc.isculled && return
 
-    Ns_unit = Ns_in_units(sys, unit_map)[contracted_site]
+    Ns_unit = Ns_at_unit(sys, unit_map, contracted_site)
     i, j = pc.bond.i, pc.bond.j
     ui = unit_map.atom_to_unit[i]
     uj = unit_map.atom_to_unit[j]
@@ -235,9 +231,8 @@ function pair_coupling_into_bond_operator_between_units(pc, sys, unit_map)
     ui = unit_map.atom_to_unit[i]
     uj = unit_map.atom_to_unit[j]
 
-    Ns_local = Ns_in_units(sys, unit_map)
-    Ns1 = Ns_local[ui.unit]
-    Ns2 = Ns_local[uj.unit]
+    Ns1 = Ns_at_unit(sys, unit_map, ui.unit)
+    Ns2 = Ns_at_unit(sys, unit_map, uj.unit)
     N1 = sys.Ns[1, 1, 1, i]
     N2 = sys.Ns[1, 1, 1, j]
     dim1 = prod(Ns1)
@@ -259,13 +254,13 @@ end
 # each labeled parameter is contracted independently at unit strength; the
 # ordinary `repopulate_couplings_from_params!` then rescales by `param.val`. The
 # `bare` system supplies only Hilbert-space dimensions (value-independent).
-function contract_param(param::ModelParam, bare::System, unit_map, Ns_unit)
+function contract_param(param::ModelParam, bare::System, unit_map, Ns_units)
     nunits = length(unit_map.unit_to_members)
 
     # Intra-unit terms become onsite (on-bond) operators, one per touched unit.
     onsites = Tuple{Int, OnsiteCoupling}[]
     for u in 1:nunits
-        Ns = Ns_unit[u]
+        Ns = Ns_units[u]
         unit_operator = zeros(ComplexF64, prod(Ns), prod(Ns))
         relevant = atoms_in_unit(unit_map, u)
 
@@ -293,8 +288,8 @@ function contract_param(param::ModelParam, bare::System, unit_map, Ns_unit)
     for pc in param.pairs
         bond_is_in_unit(pc.bond, unit_map) && continue
         (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, bare, unit_map)
-        Ni = prod(Ns_unit[newbond.i])
-        Nj = prod(Ns_unit[newbond.j])
+        Ni = prod(Ns_units[newbond.i])
+        Nj = prod(Ns_units[newbond.j])
         # `extract_parts=false` because dipoles are NaN for entangled systems.
         scalar, bilin, biquad, tensordec = decompose_general_coupling(bond_operator, Ni, Nj; extract_parts=false)
         push!(pairs, PairCoupling(newbond, scalar, bilin, biquad, tensordec))
@@ -343,8 +338,8 @@ function entangle_system(sys::System{M}, groupings) where M
 
     # Local Hilbert space dimensions per unit (all must be equal). (TODO:
     # Determine if alternative behavior preferable in mixed case.)
-    Ns_unit = Ns_in_units(sys, unit_map)
-    Ns_contracted = map(prod, Ns_unit)
+    Ns_units = [Ns_at_unit(sys, unit_map, u) for u in eachindex(groupings)]
+    Ns_contracted = map(prod, Ns_units)
     @assert allequal(Ns_contracted) "After contraction, the dimensions of the local Hilbert spaces on each generalized site must all be equal."
     N = first(Ns_contracted)
 
@@ -369,7 +364,7 @@ function entangle_system(sys::System{M}, groupings) where M
 
     # Contract each labeled parameter independently (contraction is linear in
     # coupling strength), then let the ordinary machinery fill the interactions.
-    sys_entangled.params = [contract_param(p, sys, unit_map, Ns_unit) for p in sys.params]
+    sys_entangled.params = [contract_param(p, sys, unit_map, Ns_units) for p in sys.params]
     repopulate_couplings_from_params!(sys_entangled)
 
     # Clone the physical (bare) system and derive all entanglement metadata from
@@ -444,11 +439,10 @@ function rebuild_entanglement!(sys::System, uncontracted, groupings::Vector{Grou
     end
     unit_map = UnitMap(atom_to_unit, unit_to_members)
 
-    Ns_unit = Ns_in_units(uncontracted, unit_map)
     bare_dipole_operators =  map(1:natoms_bare) do atom
         S_local = spin_matrices_of_dim(; N=uncontracted.Ns[1, 1, 1, atom])
         (; unit, part) = unit_map.atom_to_unit[atom]
-        ntuple(α -> local_op_to_product_space(S_local[α], part, Ns_unit[unit]), 3)
+        ntuple(α -> local_op_to_product_space(S_local[α], part, Ns_at_unit(uncontracted, unit_map, unit)), 3)
     end
 
     sys.entanglement = Entanglement(uncontracted, groupings, unit_map, bare_dipole_operators)
@@ -553,7 +547,6 @@ end
 # cells (g-factors are uniform), so the per-cell operator is broadcast.
 function entangled_measure(measure, sys::System)
     (; uncontracted, unit_map) = get_entanglement(sys)
-    Ns_unit = Ns_in_units(uncontracted, unit_map)
 
     nobs = num_observables(measure)
     dims = sys.dims
@@ -566,16 +559,17 @@ function entangled_measure(measure, sys::System)
     new_offsets = zeros(Vec3, atoms_per_unit, nunits)
     new_ff      = Array{FormFactor, 3}(undef, atoms_per_unit, nobs, nunits)
 
-    for i in 1:nunits
-        for (k, member) in enumerate(unit_map.unit_to_members[i])
+    for u in 1:nunits
+        Ns_unit = Ns_at_unit(uncontracted, unit_map, u)
+        for (k, member) in enumerate(unit_map.unit_to_members[u])
             atom = member.atom  # atom index within a chemical cell of uncontracted
-            new_offsets[k, i] = member.offset
+            new_offsets[k, u] = member.offset
             for μ in 1:nobs
-                new_ff[k, μ, i] = measure.formfactors[1, μ, atom]
+                new_ff[k, μ, u] = measure.formfactors[1, μ, atom]
                 for c in CartesianIndices(dims)
                     A = measure.operators[1, μ, c, atom]
-                    A_product = local_op_to_product_space(A, k, Ns_unit[i])
-                    new_ops[k, μ, c, i] = Hermitian(A_product)
+                    A_product = local_op_to_product_space(A, k, Ns_unit)
+                    new_ops[k, μ, c, u] = Hermitian(A_product)
                 end
             end
         end
