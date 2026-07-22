@@ -279,12 +279,12 @@ end
 # space (no g), with per-atom g-tensor and field read from the bare system.
 function swt_spin_parts(sys::System{N}) where N
     if is_entangled(sys)
-        (; bare_system, contraction_info, bare_dipole_operators) = get_entanglement(sys)
-        return map(contraction_info.inverse) do members
-            map(members) do id
-                (bare_dipole_operators[id.site],
-                 bare_system.gs[1, 1, 1, id.site],
-                 bare_system.extfield[1, 1, 1, id.site])
+        (; bare_system, unit_map, bare_dipole_operators) = get_entanglement(sys)
+        return map(unit_map.unit_members) do members
+            map(members) do member
+                (bare_dipole_operators[member.atom],
+                 bare_system.gs[1, 1, 1, member.atom],
+                 bare_system.extfield[1, 1, 1, member.atom])
             end
         end
     else
@@ -299,13 +299,13 @@ end
 # term, and a map from each of its atoms to a `(site, part)` pair indexing
 # `spins_localized`. For an ordinary system this is `sys` itself with the trivial
 # map `a -> (a, 1)`. For an entangled system it is the physical bare system, with
-# `contraction_info.forward[a] = (unit, part)` mapping each bare atom to its unit
+# `unit_map.atom_to_unit[a] = (unit, part)` mapping each bare atom to its unit
 # and intra-unit slot. Both share `sys.crystal.latvecs`, so the Ewald wavevector
 # is consistent.
 function dipole_dipole_moment_system(sys::System)
     if is_entangled(sys)
-        (; bare_system, contraction_info) = get_entanglement(sys)
-        return (bare_system, contraction_info.forward)
+        (; bare_system, unit_map) = get_entanglement(sys)
+        return (bare_system, unit_map.atom_to_unit)
     else
         return (sys, [(i, 1) for i in 1:natoms(sys.crystal)])
     end

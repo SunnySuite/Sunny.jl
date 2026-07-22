@@ -1,12 +1,11 @@
 ################################################################################
 # Types
 ################################################################################
-# Data for mapping one site inside a unit back to the site of the original
-# system.
-struct InverseData
-    site        :: Int64          # Atom index of original, uncontracted crystal
-    offset      :: Vec3           # Position offset of original atom relative to center of unit
-    cell_offset :: SVector{3,Int} # Cell of this member relative to the unit's cell (nonzero for a straddling unit)
+# A member atom within an entangled unit.
+struct UnitMember
+    atom        :: Int            # Atom index in the physical crystal
+    offset      :: Vec3           # Position offset from unit center (fractional coords)
+    cell_offset :: SVector{3,Int} # Cell of this atom relative to the unit's cell (for straddling)
 end
 
 # User-facing specification of an entangled unit. The atom index identifies a
@@ -16,26 +15,16 @@ const UnitSpec = Vector{Tuple{Int, SVector{3,Int}}}
 
 @inline floor_cell(v) = SVector{3,Int}(floor(Int, v[1]), floor(Int, v[2]), floor(Int, v[3]))
 
-# `forward` contains a list from sites of the original crystal to a site of the
-# contracted crystal, including an extra index to keep track entangled units:
-# `(contracted_crystal_site_index, intra_unit_site_index)`. If the first index
-# refers to a site in the new crystal that does not contain multiple units, than
-# the second index will always be 1.
-#
-# `inverse` contains a list of length equal to the number of sites in the
-# contracted crystal (corresponding to `contracted_crystal_site_index` above).
-# Each element of this list is another list of tuples,
-# `(site_of_original_crystal, position_offset)`. The position offset is applied
-# to the position of the contracted crystal to recover the corresponding
-# location in the original crystal. The length of these sublists corresponds to
-# the number of sites within the entangled unit.
-struct CrystalContractionInfo
-    forward :: Vector{Tuple{Int64, Int64}}  # Original site index -> full unit index (contracted crystal site index and unit subindex)
-    inverse :: Vector{Vector{InverseData}}  # List ordered according to contracted crystal sites. Each element is itself a list containing original crystal site indices and corresponding offset information
+# Bidirectional mapping between physical atoms and entangled units.
+# - atom_to_unit[i] = (unit_index, slot_in_unit) for physical atom i
+# - unit_members[j] = ordered list of UnitMembers comprising unit j
+struct UnitMap
+    atom_to_unit :: Vector{Tuple{Int, Int}}
+    unit_members :: Vector{Vector{UnitMember}}
 end
 
-function Base.copy(cci::CrystalContractionInfo)
-    return CrystalContractionInfo(copy(cci.forward), copy(cci.inverse))
+function Base.copy(um::UnitMap)
+    return UnitMap(copy(um.atom_to_unit), copy(um.unit_members))
 end
 
 # Metadata for a System with entangled units. Hilbert dimension N is _not_
@@ -45,21 +34,20 @@ end
 # entangled units, expressed against the *unreshaped* physical crystal
 # (`something(bare_system.origin, bare_system)`). Everything else is derived and
 # rebuilt by `rebuild_entanglement!` whenever the system is reshaped —
-# `contraction_info` and the operator tables track the current (possibly
-# reshaped) `bare_system`. The physical sites comprising a unit are recovered by
-# integer arithmetic from `contraction_info` (see `member_site`); each member
-# carries a `cell_offset` so a unit may straddle cell boundaries of a reshaped
-# system.
+# `unit_map` and the operator tables track the current (possibly reshaped)
+# `bare_system`. The physical sites comprising a unit are recovered by integer
+# arithmetic from `unit_map` (see `member_site`); each member carries a
+# `cell_offset` so a unit may straddle cell boundaries of a reshaped system.
 struct Entanglement <: AbstractEntanglement
     bare_system           :: System                                    # Physical system
     units                 :: Vector{UnitSpec}                          # Unit specification for chemical cell
-    contraction_info      :: CrystalContractionInfo                    # Forward/inverse mapping (matches bare_system)
+    unit_map              :: UnitMap                                   # Bidirectional atom ↔ unit mapping
     bare_dipole_operators :: Vector{NTuple{3, HermitianC64}}           # Product-space spin ops per physical atom (no g)
 end
 
 function clone_entanglement(ent::Entanglement)
     return Entanglement(clone_system(ent.bare_system), deepcopy(ent.units),
-                        copy(ent.contraction_info), ent.bare_dipole_operators)
+                        copy(ent.unit_map), ent.bare_dipole_operators)
 end
 
 # Concrete-typed view of the entanglement metadata. The field is declared
@@ -82,96 +70,55 @@ end
 # `cell_offset` chooses the periodic image of that atom in the unwrapped unit
 # definition. Nonzero offsets allow a unit to straddle a periodic boundary.
 function contract_crystal(crystal, units::Vector{UnitSpec})
-    # Determine which sites are entangled and which are not.
-    unentangled_sites = 1:natoms(crystal)
-    entangled_sites = Int64[]
-    for unit in units, (site, _) in unit
-        push!(entangled_sites, site)
-        unentangled_sites = filter(!=(site), unentangled_sites)
-    end
+    # Identify which atoms are grouped into units vs. standalone
+    entangled_atoms = Set{Int}(atom for unit in units for (atom, _) in unit)
+    unentangled_atoms = filter(∉(entangled_atoms), 1:natoms(crystal))
 
-    # Check that unit definitions are valid.
-    @assert length(entangled_sites) + length(unentangled_sites) == natoms(crystal) "Invalid entangled unit specification."
-    @assert isempty(intersect(entangled_sites, unentangled_sites)) "Invalid entangled unit specification." # Sanity check. Should be true by construction. Remove later
+    @assert length(entangled_atoms) + length(unentangled_atoms) == natoms(crystal) "Invalid entangled unit specification."
 
-    # Prepare mapping dictionaries and initialize iteration variable.
-    forward_map = Dict{Int64, Tuple{Int64, Int64}}()
-    inverse_map = Dict{Tuple{Int64, Int64}, InverseData}()
-    new_site_current = 1
-
-    # Add sites that are *not* encapsulated in any unit as individual sites in
-    # the new crystal with no associated displacement.
+    # Build mapping structures directly (no intermediate dicts)
+    atom_to_unit = Vector{Tuple{Int, Int}}(undef, natoms(crystal))
+    unit_members = Vector{Vector{UnitMember}}()
     new_positions = Vec3[]
-    for site in unentangled_sites
-        push!(new_positions, crystal.positions[site])
-        new_pair = (new_site_current, 1)
-        forward_map[site] = new_pair
-        inverse_map[new_pair] = InverseData(site, Vec3(0, 0, 0), SVector(0, 0, 0))
-        new_site_current += 1
+
+    # Process unentangled atoms first (each becomes a singleton unit)
+    for atom in unentangled_atoms
+        unit_idx = length(unit_members) + 1
+        push!(unit_members, [UnitMember(atom, zero(Vec3), zero(SVector{3,Int}))])
+        push!(new_positions, crystal.positions[atom])
+        atom_to_unit[atom] = (unit_idx, 1)
     end
 
-    # Assign each entangled unit to a single site in the new crystal and record
-    # mapping information. Positions are averaged only after applying the input
-    # image-cell offsets, so units that cross periodic boundaries are centered
-    # geometrically rather than across the middle of the cell.
-    for unit in units
+    # Process multi-atom entangled units
+    for unit_spec in units
+        # Compute unwrapped positions (applying user-specified cell offsets)
         unwrapped_positions = [
-            crystal.positions[site] + Vec3(cell_offset...)
-            for (site, cell_offset) in unit
+            crystal.positions[atom] + Vec3(cell_offset...)
+            for (atom, cell_offset) in unit_spec
         ]
         center_unwrapped = sum(unwrapped_positions) / length(unwrapped_positions)
-
-        # Store the contracted crystal position in the chemical cell, while
-        # keeping track of which cell the unwrapped center came from.
         center_cell = floor_cell(center_unwrapped)
-        new_position = center_unwrapped - Vec3(center_cell...)
-        push!(new_positions, new_position)
 
-        # Record forward and inverse mapping information, including the
-        # displacement data from the unwrapped unit center. `cell_offset` in
-        # InverseData is relative to the wrapped unit center's cell, and is the
-        # quantity used later by `member_site` after reshaping.
-        for (j, ((site, cell_offset), position)) in enumerate(zip(unit, unwrapped_positions))
-            new_pair = (new_site_current, j)
-            offset = position - center_unwrapped
+        # Store wrapped unit center in the contracted crystal
+        push!(new_positions, center_unwrapped - Vec3(center_cell...))
+
+        # Build members list with offsets relative to the unit center
+        unit_idx = length(unit_members) + 1
+        members = map(enumerate(zip(unit_spec, unwrapped_positions))) do (k, ((atom, cell_offset), pos))
+            offset = pos - center_unwrapped
             relative_cell_offset = cell_offset - center_cell
-
-            forward_map[site] = new_pair
-            inverse_map[new_pair] = InverseData(site, offset, relative_cell_offset)
+            atom_to_unit[atom] = (unit_idx, k)
+            UnitMember(atom, offset, relative_cell_offset)
         end
-
-        new_site_current += 1
+        push!(unit_members, members)
     end
 
-    nsites_new = new_site_current - 1
-
-    # Sorted list version of forward map
-    forward_keys = collect(keys(forward_map))
-    forward_vals = collect(values(forward_map))
-    idcs = sortperm(forward_keys)
-    forward_list = [forward_vals[i] for i in idcs]
-
-    # Sorted list version of inverse map
-    inverse_keys = collect(keys(inverse_map))
-    inverse_vals = collect(values(inverse_map))
-    idcs = sortperm(inverse_keys)
-    inverse_keys = inverse_keys[idcs]
-    inverse_vals = inverse_vals[idcs]
-
-    inverse_list = [InverseData[] for _ in 1:nsites_new]
-    for (n, key) in enumerate(inverse_keys)
-        new_site, _ = key  # `key` is a tuple (global_site, local_site_in_unit)
-        push!(inverse_list[new_site], inverse_vals[n])
-    end
-
-    # Generate a new contracted crystal and information to invert contraction.
-    # Space group must be set to 1 to allow "invalid" anisotropies -- these are
-    # generated by PairCouplings that become onsite couplings. NB: Add option to
-    # override to unconventional cell warnings and errors? (Probably yes)
+    # Generate contracted crystal and mapping
+    # Space group = 1 allows "invalid" anisotropies from pair → onsite conversions
     new_crystal = Crystal(crystal.latvecs, new_positions, 1)
-    contraction_info = CrystalContractionInfo(forward_list, inverse_list)
+    unit_map = UnitMap(atom_to_unit, unit_members)
 
-    return new_crystal, contraction_info
+    return new_crystal, unit_map
 end
 
 
@@ -179,35 +126,33 @@ end
 # crystal. Each list element is itself a list of integers, each of which
 # corresponds to the N of the corresponding site of the original system. The
 # order is consistent with that given by the `inverse` field of a
-# `CrystalContractionInfo`.
-function Ns_in_units(sys_original, contraction_info)
-    Ns = [Int64[] for _ in 1:length(contraction_info.inverse)]
-    for (n, contracted_sites) in enumerate(contraction_info.inverse)
-        for (; site) in contracted_sites
-            push!(Ns[n], sys_original.Ns[site])
-        end
-    end
-    Ns
+# `UnitMap`.
+function Ns_in_units(sys_original, unit_map)
+    return [[sys_original.Ns[member.atom] for member in members]
+            for members in unit_map.unit_members]
 end
 
-
-# Pull out original indices of sites in entangled unit
-atoms_in_unit(contraction_info, i) = [inverse_data.site for inverse_data in contraction_info.inverse[i]]
+# Pull out atom indices comprising a unit
+atoms_in_unit(unit_map, i) = [member.atom for member in unit_map.unit_members[i]]
 
 # Physical (bare-system) site of a unit member, given the containing unit's site
-# and the member's `InverseData`. The member atom sits in cell `cell_offset`
+# and the member's `UnitMember`. The member atom sits in cell `cell_offset`
 # relative to the unit's cell (periodically wrapped), so a unit may straddle
 # cell boundaries. Mirrors `bonded_site`.
-@inline function member_site(unit_site, id::InverseData, dims)
-    CartesianIndex(altmod1.(to_cell(unit_site) .+ Tuple(id.cell_offset), dims)..., id.site)
+@inline function member_site(unit_site, member::UnitMember, dims)
+    CartesianIndex(altmod1.(to_cell(unit_site) .+ Tuple(member.cell_offset), dims)..., member.atom)
 end
 
 # Physical (bare-system) sites comprising the entangled unit at contracted
-# `unit_site` of `sys`.
-function entangled_unit_members(sys::System, unit_site)
-    (; bare_system, contraction_info) = get_entanglement(sys)
+# `unit_site` of `sys`. Accepts CartesianIndex, tuple, or integer atom index.
+function entangled_unit_members(sys::System, unit_site::Union{CartesianIndex,NTuple{4,Int}})
+    (; bare_system, unit_map) = get_entanglement(sys)
     unit_site = to_cartesian(unit_site)
-    return [member_site(unit_site, id, bare_system.dims) for id in contraction_info.inverse[to_atom(unit_site)]]
+    return [member_site(unit_site, member, bare_system.dims) for member in unit_map.unit_members[to_atom(unit_site)]]
+end
+
+function entangled_unit_members(sys::System, atom::Int)
+    return entangled_unit_members(sys, CartesianIndex(1, 1, 1, atom))
 end
 
 
@@ -216,27 +161,27 @@ end
 ################################################################################
 # Cell of a chemical atom relative to the cell of the contracted unit that
 # contains it.
-@inline function unit_member_cell_offset(ci::CrystalContractionInfo, atom::Int)
-    unit, k = ci.forward[atom]
-    return ci.inverse[unit][k].cell_offset
+@inline function unit_member_cell_offset(um::UnitMap, atom::Int)
+    unit, k = um.atom_to_unit[atom]
+    return um.unit_members[unit][k].cell_offset
 end
 
 # Convert a bond between physical atoms into the corresponding bond between
 # contracted units. If `bond.n` points from atom i in one cell to atom j in a
 # neighboring cell, then the unit-to-unit cell displacement must be corrected by
 # the two atoms' cell offsets inside their units.
-function contracted_bond(bond::Bond, ci::CrystalContractionInfo)
-    unit_i, _ = ci.forward[bond.i]
-    unit_j, _ = ci.forward[bond.j]
+function contracted_bond(bond::Bond, um::UnitMap)
+    unit_i, _ = um.atom_to_unit[bond.i]
+    unit_j, _ = um.atom_to_unit[bond.j]
     n = SVector{3,Int}(bond.n)
-    n_new = n + unit_member_cell_offset(ci, bond.i) - unit_member_cell_offset(ci, bond.j)
+    n_new = n + unit_member_cell_offset(um, bond.i) - unit_member_cell_offset(um, bond.j)
     return Bond(unit_i, unit_j, collect(n_new))
 end
 
 # Checks whether a bond given in terms of the original crystal lies inside a
 # single unit of the contracted system.
-function bond_is_in_unit(bond::Bond, ci::CrystalContractionInfo)
-    newbond = contracted_bond(bond, ci)
+function bond_is_in_unit(bond::Bond, um::UnitMap)
+    newbond = contracted_bond(bond, um)
     return newbond.i == newbond.j && all(iszero, newbond.n)
 end
 
@@ -275,13 +220,13 @@ end
 # Converts what was a pair coupling between two different sites of a single unit
 # in the original system into an on-bond operator (an onsite operator in terms
 # of the "units"). Accumulates into `op` in place.
-function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, sys, contracted_site, contraction_info)
+function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, sys, contracted_site, unit_map)
     pc.isculled && return
 
-    Ns_unit = Ns_in_units(sys, contraction_info)[contracted_site]
+    Ns_unit = Ns_in_units(sys, unit_map)[contracted_site]
     i, j = pc.bond.i, pc.bond.j
-    i_unit = contraction_info.forward[i][2]
-    j_unit = contraction_info.forward[j][2]
+    i_unit = unit_map.atom_to_unit[i][2]
+    j_unit = unit_map.atom_to_unit[j][2]
     Ni = sys.Ns[1, 1, 1, i]
     Nj = sys.Ns[1, 1, 1, j]
 
@@ -294,12 +239,12 @@ end
 
 # Converts a pair coupling between two distinct units in the original system into
 # a pair coupling between the corresponding units of the contracted system.
-function pair_coupling_into_bond_operator_between_units(pc, sys, contraction_info)
+function pair_coupling_into_bond_operator_between_units(pc, sys, unit_map)
     (; i, j) = pc.bond
-    unit1, unitsub1 = contraction_info.forward[i]
-    unit2, unitsub2 = contraction_info.forward[j]
+    unit1, slot1 = unit_map.atom_to_unit[i]
+    unit2, slot2 = unit_map.atom_to_unit[j]
 
-    Ns_local = Ns_in_units(sys, contraction_info)
+    Ns_local = Ns_in_units(sys, unit_map)
     Ns1 = Ns_local[unit1]
     Ns2 = Ns_local[unit2]
     N1 = sys.Ns[1, 1, 1, i]
@@ -309,12 +254,12 @@ function pair_coupling_into_bond_operator_between_units(pc, sys, contraction_inf
     N = dim1 * dim2
 
     # Site i acts on unit1 (first tensor factor), site j on unit2 (second).
-    embed_i = A -> kron(local_op_to_product_space(A, unitsub1, Ns1), I(dim2))
-    embed_j = B -> kron(I(dim1), local_op_to_product_space(B, unitsub2, Ns2))
+    embed_i = A -> kron(local_op_to_product_space(A, slot1, Ns1), I(dim2))
+    embed_j = B -> kron(I(dim1), local_op_to_product_space(B, slot2, Ns2))
 
     bond_operator = zeros(ComplexF64, N, N)
     accum_bond_operator!(bond_operator, pc, embed_i, embed_j, N1, N2)
-    newbond = contracted_bond(pc.bond, contraction_info)
+    newbond = contracted_bond(pc.bond, unit_map)
     return (; newbond, bond_operator)
 end
 
@@ -350,7 +295,7 @@ function entangle_system(sys::System{M}, units) where M
     units = [[(x, SVector{3, Int}(y)) for (x, y) in g] for g in units]
 
     # Construct contracted crystal
-    contracted_crystal, contraction_info = contract_crystal(sys.crystal, units)
+    contracted_crystal, unit_map = contract_crystal(sys.crystal, units)
 
     # Make sure we have a uniform external field
     @assert allequal(@view sys.extfield[:,:,:,:]) "Entangled units require a uniform applied field."
@@ -358,7 +303,7 @@ function entangle_system(sys::System{M}, units) where M
 
     # Determine Ns for local Hilbert spaces (all must be equal). (TODO:
     # Determine if alternative behavior preferable in mixed case.)
-    Ns_unit = Ns_in_units(sys, contraction_info)
+    Ns_unit = Ns_in_units(sys, unit_map)
     Ns_contracted = map(Ns -> prod(Ns), Ns_unit)
     @assert allequal(Ns_contracted) "After contraction, the dimensions of the local Hilbert spaces on each generalized site must all be equal."
 
@@ -382,14 +327,14 @@ function entangle_system(sys::System{M}, units) where M
         Ns = Ns_unit[contracted_site]
 
         ## Onsite portion of interaction
-        relevant_sites = atoms_in_unit(contraction_info, contracted_site)
+        relevant_sites = atoms_in_unit(unit_map, contracted_site)
         unit_operator = zeros(ComplexF64, N, N)
 
         # Pair couplings that become onsite (intra-unit) couplings
         original_interactions = sys.interactions_union[relevant_sites]
         for (site, interaction) in zip(relevant_sites, original_interactions)
             onsite_original = interaction.onsite
-            unit_index = contraction_info.forward[site][2]
+            unit_index = unit_map.atom_to_unit[site][2]
             unit_operator += local_op_to_product_space(onsite_original, unit_index, Ns)
         end
 
@@ -398,7 +343,7 @@ function entangle_system(sys::System{M}, units) where M
         pcs_inter = PairCoupling[]
         for interaction in original_interactions, pc in interaction.pair
             (; bond) = pc
-            if bond_is_in_unit(bond, contraction_info)
+            if bond_is_in_unit(bond, unit_map)
                 push!(pcs_intra, pc)
             else
                 push!(pcs_inter, pc)
@@ -407,13 +352,13 @@ function entangle_system(sys::System{M}, units) where M
 
         # Convert intra-unit PairCouplings to onsite couplings
         for pc in pcs_intra
-            accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, sys, contracted_site, contraction_info)
+            accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, sys, contracted_site, unit_map)
         end
         set_onsite_coupling!(sys_entangled, unit_operator, contracted_site)
 
         ## Convert inter-unit PairCouplings into new pair couplings
         for pc in pcs_inter
-            (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, sys, contraction_info)
+            (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, sys, unit_map)
             push!(new_pair_data, (newbond, bond_operator))
         end
     end
@@ -469,12 +414,12 @@ end
 # entangled unit. No g-tensor is applied. An entangled system is homogeneous, so
 # these depend only on the atom index. These per-atom operators are used to
 # populate `bare_system.dipoles`.
-function build_bare_dipole_operators(bare_system, contraction_info)
-    Ns_unit = Ns_in_units(bare_system, contraction_info)
-    natoms = length(contraction_info.forward)
+function build_bare_dipole_operators(bare_system, unit_map)
+    Ns_unit = Ns_in_units(bare_system, unit_map)
+    natoms = length(unit_map.atom_to_unit)
     return map(1:natoms) do atom
         S_local = spin_matrices_of_dim(; N=bare_system.Ns[1, 1, 1, atom])
-        unit, k = contraction_info.forward[atom]
+        unit, k = unit_map.atom_to_unit[atom]
         ntuple(α -> local_op_to_product_space(S_local[α], k, Ns_unit[unit]), 3)
     end
 end
@@ -482,7 +427,7 @@ end
 # Populate the entanglement metadata of a contracted `sys` (which may be
 # reshaped), given the physical `bare_system` reshaped to the same geometry and
 # the immutable `units` truth (a grouping of chemical-cell atoms of the
-# *unreshaped* physical crystal). The derived `contraction_info` and the cached
+# *unreshaped* physical crystal). The derived `unit_map` and the cached
 # operator tables are rebuilt here geometrically. This is the single entry point
 # used by both `entangle_system` and every reshaping variant.
 #
@@ -495,14 +440,14 @@ function rebuild_entanglement!(sys::System, bare_system, units::Vector{UnitSpec}
 
     # Chemical-cell contraction: per chemical atom, its within-unit slot `k` and
     # global displacement from the unit center. Reshape-invariant.
-    _, ci_chem = contract_crystal(bare_origin.crystal, units)
+    _, um_chem = contract_crystal(bare_origin.crystal, units)
     latvecs = bare_origin.crystal.latvecs
-    goff = map(ci_chem.forward) do (unit, k)
-        latvecs * ci_chem.inverse[unit][k].offset
+    goff = map(um_chem.atom_to_unit) do (unit, k)
+        latvecs * um_chem.unit_members[unit][k].offset
     end
-    slot = [k for (_, k) in ci_chem.forward]
+    slot = [k for (_, k) in um_chem.atom_to_unit]
 
-    # Build the reshaped, homogeneous `contraction_info` sized to the reshaped
+    # Build the reshaped, homogeneous `unit_map` sized to the reshaped
     # physical crystal. For each atom `a` of the reshaped chemical cell, locate
     # the contracted site sitting at its unit center (which may fall in a
     # neighboring cell ⇒ straddling). `inverse[u]` is ordered by slot to align
@@ -510,7 +455,7 @@ function rebuild_entanglement!(sys::System, bare_system, units::Vector{UnitSpec}
     nunits = natoms(sys.crystal)
     atoms_per_unit = length(first(units))
     forward = Vector{Tuple{Int, Int}}(undef, natoms(bare_system.crystal))
-    inverse = [Vector{InverseData}(undef, atoms_per_unit) for _ in 1:nunits]
+    inverse = [Vector{UnitMember}(undef, atoms_per_unit) for _ in 1:nunits]
     for a in 1:natoms(bare_system.crystal)
         a_chem = map_atom_to_other_crystal(bare_system.crystal, a, bare_origin.crystal)
         k = slot[a_chem]
@@ -523,12 +468,12 @@ function rebuild_entanglement!(sys::System, bare_system, units::Vector{UnitSpec}
         # the unit's cell (nonzero ⇒ straddling; used by `member_site`).
         offset = bare_system.crystal.latvecs \ goff[a_chem]
         cell_offset = SVector(1, 1, 1) .- SVector(to_cell(unit_site))
-        inverse[u][k] = InverseData(a, offset, cell_offset)
+        inverse[u][k] = UnitMember(a, offset, cell_offset)
     end
-    contraction_info = CrystalContractionInfo(forward, inverse)
+    unit_map = UnitMap(forward, inverse)
 
-    bare_dipole_operators = build_bare_dipole_operators(bare_system, contraction_info)
-    sys.entanglement = Entanglement(bare_system, units, contraction_info, bare_dipole_operators)
+    bare_dipole_operators = build_bare_dipole_operators(bare_system, unit_map)
+    sys.entanglement = Entanglement(bare_system, units, unit_map, bare_dipole_operators)
     return sys
 end
 
@@ -580,7 +525,7 @@ end
 # `set_energy_grad_dipoles!` path. `N` is the local dimension of entangled units
 # (not of the `bare_system`).
 function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entanglement) where N
-    (; bare_system, contraction_info, bare_dipole_operators) = ent
+    (; bare_system, unit_map, bare_dipole_operators) = ent
     dims = bare_system.dims
 
     # Reuse the bare system's persistent scratch buffers.
@@ -592,9 +537,9 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
     # Ewald field is consistent with the state whose gradient is requested.
     for u in CartesianIndices(Z)
         Zu = Z[u]
-        for id in contraction_info.inverse[to_atom(u)]
-            bs = member_site(u, id, dims)
-            S = bare_dipole_operators[id.site]
+        for member in unit_map.unit_members[to_atom(u)]
+            bs = member_site(u, member, dims)
+            S = bare_dipole_operators[member.atom]
             S_bare[bs] = Vec3(real(dot(Zu, S[1], Zu)), real(dot(Zu, S[2], Zu)), real(dot(Zu, S[3], Zu)))
         end
     end
@@ -612,9 +557,9 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
     # gradient. A unit's members may straddle cells; `member_site` routes them.
     for u in CartesianIndices(Z)
         Zu = Z[u]
-        for id in contraction_info.inverse[to_atom(u)]
-            bs = member_site(u, id, dims)
-            S = bare_dipole_operators[id.site]
+        for member in unit_map.unit_members[to_atom(u)]
+            bs = member_site(u, member, dims)
+            S = bare_dipole_operators[member.atom]
             h = dE_dS_bare[bs]
             for β in 1:3
                 Sβ = SMatrix{N, N}(S[β])
@@ -628,10 +573,10 @@ end
 # Sync the bare dipoles with the coherent state of an unit at `site`
 function sync_bare_dipoles_at!(sys::System, site)
     Z = sys.coherents[site]
-    (; bare_system, contraction_info, bare_dipole_operators) = get_entanglement(sys)
-    for id in contraction_info.inverse[to_atom(site)]
-        bs = member_site(site, id, bare_system.dims)
-        S = bare_dipole_operators[id.site]
+    (; bare_system, unit_map, bare_dipole_operators) = get_entanglement(sys)
+    for member in unit_map.unit_members[to_atom(site)]
+        bs = member_site(site, member, bare_system.dims)
+        S = bare_dipole_operators[member.atom]
         bare_system.dipoles[bs] = Vec3(real(dot(Z, S[1], Z)), real(dot(Z, S[2], Z)), real(dot(Z, S[3], Z)))
     end
     return
@@ -645,14 +590,14 @@ end
 # dipoles on each site inside a specified entangled unit. FIXME: This function
 # is dead. Fix `set_dipole!` instead.
 function coherent_state_from_dipoles(sys::System, dipoles, unit)
-    (; bare_system, contraction_info) = get_entanglement(sys)
+    (; bare_system, unit_map) = get_entanglement(sys)
 
     # Atom indices (of the physical system) that lie in the specified unit.
-    atoms = [id.site for id in contraction_info.inverse[unit]]
+    atoms = [member.atom for member in unit_map.unit_members[unit]]
     @assert length(dipoles) == length(atoms) "Invalid number of dipoles for specified unit."
 
     # Local Hilbert space dimensions for those atoms.
-    Ns = Ns_in_units(bare_system, contraction_info)[unit]
+    Ns = Ns_in_units(bare_system, unit_map)[unit]
 
     # Coherent state per atom, in each local Hilbert space.
     coherents = []
@@ -681,17 +626,17 @@ end
 # unit-level MeasureSpec indexed to the contracted `sys`. For each unit and each
 # of its `atoms_per_unit` subsites, the atom operator is embedded into the
 # product-space Hilbert space via `local_op_to_product_space`. Position offsets
-# and form factors come from `contraction_info`. Observables are uniform across
+# and form factors come from `unit_map`. Observables are uniform across
 # cells (g-factors are uniform), so the per-cell operator is broadcast.
 function entangled_measure(measure, sys::System)
-    (; bare_system, contraction_info) = get_entanglement(sys)
-    Ns_unit = Ns_in_units(bare_system, contraction_info)
+    (; bare_system, unit_map) = get_entanglement(sys)
+    Ns_unit = Ns_in_units(bare_system, unit_map)
 
     nobs = num_observables(measure)
     dims = sys.dims
 
-    nunits = length(contraction_info.inverse)
-    atoms_per_unit = length(contraction_info.inverse[1])  # uniform by construction
+    nunits = length(unit_map.unit_members)
+    atoms_per_unit = length(unit_map.unit_members[1])  # uniform by construction
 
     Op = eltype(measure.operators)
     new_ops     = Array{Op, 6}(undef, atoms_per_unit, nobs, dims..., nunits)
@@ -699,9 +644,9 @@ function entangled_measure(measure, sys::System)
     new_ff      = Array{FormFactor, 3}(undef, atoms_per_unit, nobs, nunits)
 
     for i in 1:nunits
-        for (k, inverse_info) in enumerate(contraction_info.inverse[i])
-            atom = inverse_info.site  # atom index within a chemical cell of bare_system
-            new_offsets[k, i] = inverse_info.offset
+        for (k, member) in enumerate(unit_map.unit_members[i])
+            atom = member.atom  # atom index within a chemical cell of bare_system
+            new_offsets[k, i] = member.offset
             for μ in 1:nobs
                 new_ff[k, μ, i] = measure.formfactors[1, μ, atom]
                 for c in CartesianIndices(dims)
