@@ -1,10 +1,7 @@
 # Op is the type of a local observable operator. Either a Vec3 representing
 # `op⋅S` (:dipole mode) or a HermitianC64 representing the N×N matrix directly
-# (:SUN mode).
-#
-# Typically `nparts` is 1 and `offsets` are zero. However, if the sites of a
-# system are entangled-units, then multiple parts with distinct offsets becomes
-# useful.
+# (:SUN mode). The `nparts` index and `offsets` field are needed for modeling
+# entangled units.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     operators   :: Array{Op, 6}           # (nparts × nobs × d1 × d2 × d3 × natoms)
     offsets     :: Array{Vec3, 2}         # (nparts × natoms)

@@ -56,7 +56,8 @@ end
 # member's MemberAtom. The member atom is offset by `Δcell` (relative to the
 # unit's cell) so a unit may straddle cell boundaries. Mirrors `bonded_site`.
 function member_site(unit_site, member::MemberAtom, dims)
-    CartesianIndex(altmod1.(to_cell(unit_site) .+ Tuple(member.Δcell), dims)..., member.atom)
+    (; atom, Δcell) = member
+    CartesianIndex(altmod1.(to_cell(unit_site) .+ Δcell, dims)..., atom)
 end
 
 # Uncontracted sites comprising the entangled unit at contracted `unit_site` of
@@ -482,17 +483,18 @@ end
 ################################################################################
 
 # Transform an atom-level MeasureSpec (indexed to `uncontracted`) into a
-# unit-level MeasureSpec indexed to the contracted `sys`. For each unit and each
-# of its `atoms_per_unit` subsites, the atom operator is embedded into the
+# unit-level MeasureSpec (indexed to the contracted `sys`). For each unit and
+# each of its `atoms_per_unit` subsites, the atom operator is embedded into the
 # product-space Hilbert space via `local_op_to_product_space`. Position offsets
-# and form factors come from `unit_map`. FIXME: Observables are uniform across
-# cells (g-factors are uniform), so the per-cell operator is broadcast.
+# and form factors come from `unit_map`.
 function entangled_measure(measure, sys::System)
+    @assert is_entangled(sys)               # System is entangled
+    @assert size(measure.operators, 1) == 1 # Measure is for uncontracted system
+
     (; uncontracted, unit_map) = get_entanglement(sys)
 
     nobs = num_observables(measure)
     dims = sys.dims
-
     nunits = length(unit_map.unit_to_members)
     atoms_per_unit = length(unit_map.unit_to_members[1])  # uniform by construction
 
@@ -504,12 +506,13 @@ function entangled_measure(measure, sys::System)
     for u in 1:nunits
         Ns_unit = uncontracted.Ns[atoms_in_unit(unit_map, u)]
         for (k, member) in enumerate(unit_map.unit_to_members[u])
-            atom = member.atom  # atom index within a chemical cell of uncontracted
-            new_offsets[k, u] = member.Δpos
+            (; atom, Δpos, Δcell) = member
+            new_offsets[k, u] = Δpos
             for μ in 1:nobs
                 new_ff[k, μ, u] = measure.formfactors[1, μ, atom]
                 for c in CartesianIndices(dims)
-                    A = measure.operators[1, μ, c, atom]
+                    c′ = altmod1.(Tuple(c) .+ Δcell, dims)
+                    A = measure.operators[1, μ, c′..., atom]
                     A_product = local_op_to_product_space(A, k, Ns_unit)
                     new_ops[k, μ, c, u] = Hermitian(A_product)
                 end

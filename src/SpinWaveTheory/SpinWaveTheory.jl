@@ -52,9 +52,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    # Create a new system with dims (1,1,1). A clone happens in all cases. For an
-    # entangled system, `reshape_supercell_aux` flattens the physical
-    # (uncontracted) system in tandem and rebuilds the entanglement metadata.
+    # Create a new system with dims (1,1,1). A clone happens in all cases.
     new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
     sys = reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
 
