@@ -11,6 +11,12 @@ const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
 # acts as multiplicative (0, 1).
 @inline δ(x, y) = (x==y)
 
+# Square matrix times SVector without allocating. This helper avoids the need to
+# wrap in an SMatrix{N, N}, which can be extremely slow when N is large.
+function mul_svec(H::AbstractMatrix, v::SVector{N}) where N
+    return SVector{N}(sum(H[i,j] * v[j] for j in 1:N) for i in 1:N)
+end
+
 # Calculates norm(a)^2 without allocating
 norm2(a::Number) = abs2(a)
 function norm2(a)

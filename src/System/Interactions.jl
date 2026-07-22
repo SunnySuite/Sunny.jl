@@ -677,9 +677,9 @@ end
 
 function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, int::Interactions, sys::System{N}, sites) where N
     # Onsite coupling, HZ += Λ Z.
+    Λ = int.onsite :: HermitianC64
     for site in sites
-        Λ = SMatrix{N, N}(int.onsite :: HermitianC64)
-        HZ[site] += Λ * Z[site]
+        HZ[site] += mul_svec(Λ, Z[site])
     end
 
     for pc in int.pair
@@ -709,12 +709,10 @@ function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, int::Interacti
             end
 
             for (A, B) in pc.general.data
-                A = SMatrix{N, N}(A)
-                B = SMatrix{N, N}(B)
                 Ā = real(dot(Zᵢ, A, Zᵢ))
                 B̄ = real(dot(Zⱼ, B, Zⱼ))
-                HZ[siteᵢ] += (A * Zᵢ) * B̄
-                HZ[siteⱼ] += Ā * (B * Zⱼ)
+                HZ[siteᵢ] += mul_svec(A, Zᵢ) * B̄
+                HZ[siteⱼ] += Ā * mul_svec(B, Zⱼ)
             end
         end
     end

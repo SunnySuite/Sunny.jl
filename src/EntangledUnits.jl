@@ -562,8 +562,7 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
             S = bare_dipole_operators[member.atom]
             h = dE_dS_bare[bs]
             for β in 1:3
-                Sβ = SMatrix{N, N}(S[β])
-                HZ[u] += h[β] * (Sβ * Zu)
+                HZ[u] += h[β] * mul_svec(S[β], Zu)
             end
         end
     end
