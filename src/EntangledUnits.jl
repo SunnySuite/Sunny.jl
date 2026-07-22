@@ -254,6 +254,55 @@ function pair_coupling_into_bond_operator_between_units(pc, sys, unit_map)
     return (; newbond, bond_operator)
 end
 
+# Contract a single bare-system `ModelParam` into the corresponding `ModelParam`
+# for the contracted system. Contraction is linear in the coupling strength, so
+# each labeled parameter is contracted independently at unit strength; the
+# ordinary `repopulate_couplings_from_params!` then rescales by `param.val`. The
+# `bare` system supplies only Hilbert-space dimensions (value-independent).
+function contract_param(param::ModelParam, bare::System, unit_map, Ns_unit)
+    nunits = length(unit_map.unit_to_members)
+
+    # Intra-unit terms become onsite (on-bond) operators, one per touched unit.
+    onsites = Tuple{Int, OnsiteCoupling}[]
+    for u in 1:nunits
+        Ns = Ns_unit[u]
+        unit_operator = zeros(ComplexF64, prod(Ns), prod(Ns))
+        relevant = atoms_in_unit(unit_map, u)
+
+        # Bare onsite couplings embedded into the unit's product space.
+        for (atom, oc) in param.onsites
+            atom in relevant || continue
+            (; part) = unit_map.atom_to_unit[atom]
+            unit_operator += local_op_to_product_space(oc, part, Ns)
+        end
+
+        # Intra-unit pair couplings fold into the same onsite operator.
+        for pc in param.pairs
+            if bond_is_in_unit(pc.bond, unit_map) && unit_map.atom_to_unit[pc.bond.i].unit == u
+                accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, bare, u, unit_map)
+            end
+        end
+
+        iszero(unit_operator) || push!(onsites, (u, Hermitian(unit_operator)))
+    end
+
+    # Inter-unit pair couplings become pair couplings between contracted units.
+    # Both bond directions are present in `param.pairs` (from symmetry
+    # propagation on the bare system), so no re-propagation is needed here.
+    pairs = PairCoupling[]
+    for pc in param.pairs
+        bond_is_in_unit(pc.bond, unit_map) && continue
+        (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, bare, unit_map)
+        Ni = prod(Ns_unit[newbond.i])
+        Nj = prod(Ns_unit[newbond.j])
+        # `extract_parts=false` because dipoles are NaN for entangled systems.
+        scalar, bilin, biquad, tensordec = decompose_general_coupling(bond_operator, Ni, Nj; extract_parts=false)
+        push!(pairs, PairCoupling(newbond, scalar, bilin, biquad, tensordec))
+    end
+
+    return ModelParam(param.label, param.val, onsites, pairs)
+end
+
 
 ################################################################################
 # Public API
@@ -285,100 +334,48 @@ function entangle_system(sys::System{M}, groupings) where M
 
     groupings = [[(x, SVector{3, Int}(y)) for (x, y) in g] for g in groupings]
 
-    # Construct contracted crystal
+    # Construct contracted (P1) crystal and the atom ↔ unit mapping
     contracted_crystal, unit_map = contract_crystal(sys.crystal, groupings)
 
-    # Make sure we have a uniform external field
+    # The (uniform) external field couples to each unit's total moment
     @assert allequal(@view sys.extfield[:,:,:,:]) "Entangled units require a uniform applied field."
     B = sys.extfield[1,1,1,1]
 
-    # Determine Ns for local Hilbert spaces (all must be equal). (TODO:
+    # Local Hilbert space dimensions per unit (all must be equal). (TODO:
     # Determine if alternative behavior preferable in mixed case.)
     Ns_unit = Ns_in_units(sys, unit_map)
-    Ns_contracted = map(Ns -> prod(Ns), Ns_unit)
+    Ns_contracted = map(prod, Ns_unit)
     @assert allequal(Ns_contracted) "After contraction, the dimensions of the local Hilbert spaces on each generalized site must all be equal."
+    N = first(Ns_contracted)
 
-    # Construct empty contracted system
-    dims = size(sys.dipoles)[1:3]
-    spin_infos = [i => Moment(s=(N-1)/2, g=1.0) for (i, N) in enumerate(Ns_contracted)]  # TODO: Decisions about g-factor
-    sys_entangled = System(contracted_crystal, spin_infos, :SUN; dims)
+    # Build the contracted `System{N}` fields directly (cf. `reshape_supercell_aux`).
+    # An entangled system is an ordinary single-cell system that carries
+    # entanglement metadata: unit g-factors are the identity, κ = 1, and dipoles
+    # are undefined (NaN) because a unit's moment is a derived quantity. The
+    # couplings are installed below through the ordinary params backbone.
+    nunits = natoms(contracted_crystal)
+    dims = sys.dims
+    Ns        = reshape(collect(Ns_contracted), 1, 1, 1, :)
+    κs        = ones(Float64, dims..., nunits)
+    gs        = fill(Mat3(I), dims..., nunits)
+    ints      = empty_interactions(:SUN, nunits, N)
+    extfield  = fill(B, dims..., nunits)
+    dipoles   = fill(Vec3(NaN, NaN, NaN), dims..., nunits)
+    coherents = zeros(CVec{N}, dims..., nunits)
+    sys_entangled = System(nothing, :SUN, contracted_crystal, dims, Ns, κs, gs,
+                           ModelParam[], Symbol[], ints, nothing, extfield,
+                           dipoles, coherents, Array{Vec3, 4}[], Array{CVec{N}, 4}[],
+                           copy(sys.rng), nothing)
 
-    # The (uniform) external field couples to the total moment of each unit. The
-    # unit g-factor is the identity, so the field is stored directly per unit.
-    # Non-uniform fields may be applied later via `set_field!`/`set_field_at!`.
-    fill!(sys_entangled.extfield, B)
-
-    # Transfer rng from origin system to entangled system
-    copy!(sys_entangled.rng, sys.rng)
-
-    # TODO: Extend to inhomogenous systems
-    # For each contracted site, scan original interactions and reconstruct as necessary.
-    new_pair_data = Tuple{Bond, Matrix{ComplexF64}}[]
-    for (contracted_site, N) in zip(1:natoms(contracted_crystal), Ns_contracted)
-        Ns = Ns_unit[contracted_site]
-
-        ## Onsite portion of interaction
-        relevant_sites = atoms_in_unit(unit_map, contracted_site)
-        unit_operator = zeros(ComplexF64, N, N)
-
-        # Pair couplings that become onsite (intra-unit) couplings
-        original_interactions = sys.interactions_union[relevant_sites]
-        for (site, interaction) in zip(relevant_sites, original_interactions)
-            onsite_original = interaction.onsite
-            (; part) = unit_map.atom_to_unit[site]
-            unit_operator += local_op_to_product_space(onsite_original, part, Ns)
-        end
-
-        # Sort all PairCouplings in couplings that will be within a unit and couplings that will be between units
-        pcs_intra = PairCoupling[]
-        pcs_inter = PairCoupling[]
-        for interaction in original_interactions, pc in interaction.pair
-            (; bond) = pc
-            if bond_is_in_unit(bond, unit_map)
-                push!(pcs_intra, pc)
-            else
-                push!(pcs_inter, pc)
-            end
-        end
-
-        # Convert intra-unit PairCouplings to onsite couplings
-        for pc in pcs_intra
-            accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, sys, contracted_site, unit_map)
-        end
-        set_onsite_coupling!(sys_entangled, unit_operator, contracted_site)
-
-        ## Convert inter-unit PairCouplings into new pair couplings
-        for pc in pcs_inter
-            (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, sys, unit_map)
-            push!(new_pair_data, (newbond, bond_operator))
-        end
-    end
-
-    # Now have list of bonds and bond operators. First we must find individual
-    # exemplars of each symmetry class of bonds in terms of the *new* crystal.
-    all_bonds_with_interactions = [data[1] for data in new_pair_data]
-    exemplars = Bond[]
-    while length(all_bonds_with_interactions) > 0
-        exemplar = all_bonds_with_interactions[1]
-        all_bonds_with_interactions = filter(all_bonds_with_interactions) do bond
-            !is_related_by_symmetry(contracted_crystal, bond, exemplar)
-        end
-        push!(exemplars, exemplar)
-    end
-
-    # Sum bond operators associated with exemplar and set the interaction. Use
-    # `extract_parts=false` because dipoles are NaNs for entangled systems.
-    for bond in exemplars
-        relevant_interactions = filter(data -> data[1] == bond, new_pair_data)
-        bond_operator = sum(data[2] for data in relevant_interactions)
-        set_pair_coupling!(sys_entangled, bond_operator, bond; extract_parts=false)
-    end
+    # Contract each labeled parameter independently (contraction is linear in
+    # coupling strength), then let the ordinary machinery fill the interactions.
+    sys_entangled.params = [contract_param(p, sys, unit_map, Ns_unit) for p in sys.params]
+    repopulate_couplings_from_params!(sys_entangled)
 
     # Clone the physical (bare) system and derive all entanglement metadata from
-    # the immutable `groupings` truth. The contracted `sys_entangled` carries
-    # `origin` = its chemical cell (set by the `System` constructor), matching
-    # the physical `uncontracted`, so both reshape in tandem through the ordinary
-    # backbone.
+    # the immutable `groupings` truth. Both `sys_entangled` and the physical
+    # `uncontracted` start as single chemical cells (`origin = nothing`) and
+    # reshape in tandem through the ordinary backbone.
     uncontracted = clone_system(sys)
     rebuild_entanglement!(sys_entangled, uncontracted, groupings)
 
@@ -456,36 +453,6 @@ function rebuild_entanglement!(sys::System, uncontracted, groupings::Vector{Grou
 
     sys.entanglement = Entanglement(uncontracted, groupings, unit_map, bare_dipole_operators)
     return sys
-end
-
-
-# Entangled path of `set_params!`. The labeled parameters live on the physical
-# (bare) system; the contracted couplings are a derived quantity that must be
-# regenerated. The entanglement *metadata* (contraction mapping, per-unit dipole
-# operators) is purely geometric and unaffected by coupling values, so only the
-# contracted interactions are rebuilt here.
-function set_params_entangled!(sys::System, labels, vals)
-    (; uncontracted, groupings) = get_entanglement(sys)
-
-    # 1. Update the labels on the bare system (the source of truth). This takes
-    #    the ordinary path and also syncs `uncontracted.origin`.
-    set_params!(uncontracted, labels, vals)
-
-    # 2. Regenerate the contracted chemical-cell couplings from the updated bare
-    #    chemical cell. `sys_chem` shares the crystal/structure of `sys`'s own
-    #    contracted chemical cell (`something(sys.origin, sys)`); only coupling
-    #    values differ.
-    bare_origin = something(uncontracted.origin, uncontracted)
-    sys_chem = entangle_system(bare_origin, groupings)
-
-    # 3. Install the regenerated contracted couplings. For an unreshaped `sys`,
-    #    write directly; for a reshaped `sys`, update its chemical-cell `origin`
-    #    and re-transfer to the reshaped geometry (the ordinary backbone).
-    target = something(sys.origin, sys)
-    target.params = sys_chem.params
-    target.interactions_union = sys_chem.interactions_union
-    isnothing(sys.origin) || transfer_params_from_origin!(sys)
-    return
 end
 
 

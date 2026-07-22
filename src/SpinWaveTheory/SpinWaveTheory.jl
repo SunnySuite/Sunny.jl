@@ -52,21 +52,11 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    # Create a new system with dims (1,1,1). A clone happens in all cases.
-    function flatten_system(sys)
-        new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
-        reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
-    end
-
-    if is_entangled(sys)
-        # Flatten both the contracted and uncontracted systems, then rebuild the
-        # entanglement mapping. `swt_data` requires `bare_dipole_operators` for
-        # its Zeeman and long-range dipole-dipole couplings.
-        (; uncontracted, groupings) = get_entanglement(sys)
-        sys = rebuild_entanglement!(flatten_system(sys), flatten_system(uncontracted), groupings)
-    else
-        sys = flatten_system(sys)
-    end
+    # Create a new system with dims (1,1,1). A clone happens in all cases. For an
+    # entangled system, `reshape_supercell_aux` flattens the physical
+    # (uncontracted) system in tandem and rebuilds the entanglement metadata.
+    new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
+    sys = reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
 
     # Rotate local operators to quantization axis
     data = swt_data(sys, measure)

@@ -13,23 +13,6 @@ with [`resize_supercell`](@ref).
 See also [`repeat_periodically`](@ref).
 """
 function reshape_supercell(sys::System, shape)
-    if is_entangled(sys)
-        # Reshape both the contracted and uncontracted systems to the same
-        # geometry. as ordinary systems, then synchronize the entanglement index
-        # mapping.
-        (; uncontracted, groupings) = get_entanglement(sys)
-        sys_new = reshape_supercell_plain(sys, shape)
-        bare_new = reshape_supercell_plain(uncontracted, shape)
-        return rebuild_entanglement!(sys_new, bare_new, groupings)
-    end
-    return reshape_supercell_plain(sys, shape)
-end
-
-# Reshape `sys` treating it as an ordinary system, ignoring any entanglement
-# metadata (the result carries `entanglement = nothing`). Maps the requested
-# `shape` to a `(new_cryst, new_dims)` pair that factors out periodicity, then
-# defers to `reshape_supercell_aux`.
-function reshape_supercell_plain(sys::System, shape)
     is_homogeneous(sys) || error("Cannot reshape inhomogeneous system.")
 
     orig = orig_crystal(sys)
@@ -166,6 +149,14 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
         enable_dipole_dipole!(new_sys, sys.ewald.μ0_μB²; sys.ewald.demag)
     end
 
+    if is_entangled(sys)
+        (; uncontracted, groupings) = get_entanglement(sys)
+        new_shape = Mat3(orig_crystal(sys).latvecs \ new_cryst.latvecs)
+        bare_cryst = reshape_crystal(orig_crystal(uncontracted), new_shape)
+        bare_new = reshape_supercell_aux(uncontracted, bare_cryst, new_dims)
+        rebuild_entanglement!(new_sys, bare_new, groupings)
+    end
+
     return new_sys
 end
 
@@ -192,7 +183,6 @@ reshape_supercell(sys, [dims[1] 0 0; 0 dims[2] 0; 0 0 dims[3]])
 See also [`reshape_supercell`](@ref) and [`repeat_periodically`](@ref).
 """
 function resize_supercell(sys::System, dims::NTuple{3,Int})
-    # For an entangled system, `reshape_supercell` dispatches to the entangled path.
     isnothing(sys.entanglement) && !is_homogeneous(sys) && error("Cannot resize inhomogeneous system.")
     return reshape_supercell(sys, diagm(Vec3(dims)))
 end
