@@ -63,8 +63,8 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
         # the entanglement mapping. `swt_data` reads the bare system for the
         # per-atom spin operators (Zeeman and long-range dipole-dipole), so its
         # metadata must survive here.
-        (; bare_system, units) = get_entanglement(sys)
-        sys = rebuild_entanglement!(flatten_system(sys), flatten_system(bare_system), units)
+        (; bare_system, groupings) = get_entanglement(sys)
+        sys = rebuild_entanglement!(flatten_system(sys), flatten_system(bare_system), groupings)
     else
         sys = flatten_system(sys)
     end
@@ -272,11 +272,8 @@ function swt_data(sys::System{N}, measure) where N
 end
 
 # The physical magnetic-atom "parts" contributing to each SU(N) site, as a list
-# per site of `(spin_ops::NTuple{3, HermitianC64}, g::Mat3, B::Vec3)` in the
-# global frame. For an ordinary system each site is one atom: its bare spin
-# matrices `S`, g-tensor, and field. For an entangled unit the parts are the
-# unit's bare atoms, each spin operator embedded into the product-space Hilbert
-# space (no g), with per-atom g-tensor and field read from the bare system.
+# per site of `(spin_ops, g, B)` in the global frame. For an entangled system,
+# the iterator runs over all sites of the bare system.
 function swt_spin_parts(sys::System{N}) where N
     if is_entangled(sys)
         (; bare_system, unit_map, bare_dipole_operators) = get_entanglement(sys)
@@ -297,17 +294,18 @@ end
 
 # The system carrying physical magnetic moments for the long-range dipole-dipole
 # term, and a map from each of its atoms to a `(site, part)` pair indexing
-# `spins_localized`. For an ordinary system this is `sys` itself with the trivial
-# map `a -> (a, 1)`. For an entangled system it is the physical bare system, with
-# `unit_map.atom_to_unit[a] = (unit, part)` mapping each bare atom to its unit
-# and intra-unit slot. Both share `sys.crystal.latvecs`, so the Ewald wavevector
-# is consistent.
+# `spins_localized`. For an ordinary system this is `sys` itself with the
+# trivial map `a -> (a, 1)`. For an entangled system it is the physical bare
+# system, with `unit_map.atom_to_unit[a] = (unit, part)` mapping each bare atom
+# to its unit and intra-unit part index. Both share `sys.crystal.latvecs`, so
+# the Ewald wavevector is consistent.
 function dipole_dipole_moment_system(sys::System)
     if is_entangled(sys)
         (; bare_system, unit_map) = get_entanglement(sys)
         return (bare_system, unit_map.atom_to_unit)
     else
-        return (sys, [(i, 1) for i in 1:natoms(sys.crystal)])
+        part = 1
+        return (sys, [(i, part) for i in 1:natoms(sys.crystal)])
     end
 end
 

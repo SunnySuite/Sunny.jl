@@ -14,15 +14,13 @@ See also [`repeat_periodically`](@ref).
 """
 function reshape_supercell(sys::System, shape)
     if is_entangled(sys)
-        # Reshape the contracted and physical (bare) systems to the same geometry
-        # as ordinary systems, then rebuild the entanglement mapping from the
-        # immutable `units` truth (which may leave units straddling cell
-        # boundaries). `reshape_supercell_plain` ignores entanglement metadata, so
-        # no recursion guard is needed.
-        (; bare_system, units) = get_entanglement(sys)
+        # Reshape both the contracted and uncontracted systems to the same
+        # geometry. as ordinary systems, then synchronize the entanglement index
+        # mapping.
+        (; bare_system, groupings) = get_entanglement(sys)
         sys_new = reshape_supercell_plain(sys, shape)
         bare_new = reshape_supercell_plain(bare_system, shape)
-        return rebuild_entanglement!(sys_new, bare_new, units)
+        return rebuild_entanglement!(sys_new, bare_new, groupings)
     end
     return reshape_supercell_plain(sys, shape)
 end
