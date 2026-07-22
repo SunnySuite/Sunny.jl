@@ -1,13 +1,12 @@
-# Construct a SpinWaveTheory from an EntangledSystem. The entangled-unit
-# observables are expanded into their per-subsite contributions (with
-# appropriate position offsets) and packed into the multi-contrib fields of
-# SWTDataSUN so that the standard SWT code path handles everything uniformly.
+# Construct a SpinWaveTheory from an EntangledSystem. A unit-level MeasureSpec
+# is built by build_entangled_measure, then the standard swt_data handles
+# the local-frame rotation. This eliminates all entangled-specific SWT code.
 function SpinWaveTheory(esys::EntangledSystem; measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
     (; sys, sys_origin) = esys
     isnothing(sys.ewald) || error("SpinWaveTheory for EntangledSystem does not support long-range dipole-dipole interactions.")
 
     measure = @something measure empty_measurespec(sys)
-    nsites(sys_origin) == prod(size(measure.observables)[2:5]) ||
+    nsites(sys_origin) == prod(size(measure.obs_operators)[3:6]) ||
         error("Size mismatch. Check that measure is built using consistent system.")
 
     # Reshape (flatten) both sys and sys_origin in corresponding ways
@@ -22,78 +21,41 @@ function SpinWaveTheory(esys::EntangledSystem; measure::Union{Nothing, MeasureSp
     _, new_contraction_info = contract_crystal(sys_origin.crystal, new_units)
     new_Ns_unit = Ns_in_units(sys_origin, new_contraction_info)
 
-    data = swt_data_for_entangled(sys, sys_origin, new_Ns_unit, new_contraction_info, measure)
-    return SpinWaveTheory(sys, data, measure, regularization)
+    measure_entangled = build_entangled_measure(measure, sys_origin, new_contraction_info, new_Ns_unit)
+    data = swt_data(sys, measure_entangled)
+    return SpinWaveTheory(sys, data, measure_entangled, regularization)
 end
 
-# Build SWTDataSUN for an entangled-unit system. Each unit i has atoms_per_unit
-# subsites whose local operators contribute with different q-dependent phase
-# factors (obs_offsets) and different form factors (obs_ff_atoms).
-function swt_data_for_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
-    N = sys.Ns[1]           # Hilbert space dimension of each unit (product space)
-    nunits = nsites(sys)
+# Transform an atom-level MeasureSpec into a unit-level one. For each unit i
+# and each of its atoms_per_unit subsites, the original atom operator is
+# embedded into the product-space Hilbert space via local_op_to_product_space.
+# Position offsets and form factors are extracted from contraction_info.
+function build_entangled_measure(measure, sys_origin, contraction_info, Ns_unit)
     nobs = num_observables(measure)
-    observables = reshape(measure.observables, nobs, nsites(sys_origin))
+    natoms_origin = nsites(sys_origin)
+    flat_ops = reshape(measure.obs_operators, 1, nobs, natoms_origin)
 
+    nunits = length(contraction_info.inverse)
     atoms_per_unit = length(contraction_info.inverse[1])  # uniform by construction
-    ff_dims = size(measure.observables)[2:4]  # original sys dims for form factor mapping
+    ff_dims = size(measure.obs_operators)[3:5]  # original sys dims for ff mapping
 
-    local_unitaries = Vector{Matrix{ComplexF64}}(undef, nunits)
-    obs_parts    = Array{HermitianC64}(undef, atoms_per_unit, nobs, nunits)
-    obs_offsets  = Array{Vec3}(undef, atoms_per_unit, nobs, nunits)
-    obs_ff_atoms = zeros(Int, atoms_per_unit, nobs, nunits)
-    observable_buf = zeros(ComplexF64, N, N)
-    spins_localized = Array{HermitianC64}(undef, 3, nunits)  # computed but unused (no Ewald)
-
-    S_mats = spin_matrices_of_dim(; N)
+    new_ops     = Array{eltype(measure.obs_operators), 6}(undef, atoms_per_unit, nobs, 1, 1, 1, nunits)
+    new_offsets = zeros(Vec3, atoms_per_unit, nunits)
+    new_ff      = Array{FormFactor, 3}(undef, atoms_per_unit, nobs, nunits)
 
     for i in 1:nunits
-        Z = sys.coherents[i]
-        U = hcat(nullspace(Z'), Z)
-        local_unitaries[i] = U
-
-        # Rotate local spin matrices into the quantization frame (for spins_localized)
-        for α in 1:3
-            spins_localized[α, i] = Hermitian(U' * S_mats[α] * U)
-        end
-
         for (k, inverse_info) in enumerate(contraction_info.inverse[i])
             site_original = inverse_info.site
             offset = inverse_info.offset
             ff_atom = fld1(site_original, prod(ff_dims))
+            new_offsets[k, i] = offset
             for μ in 1:nobs
-                obs_ff_atoms[k, μ, i] = ff_atom
-                obs_offsets[k, μ, i] = offset
-                A = observables[μ, site_original]
-                A_prod = local_op_to_product_space(convert(Matrix, A), k, Ns_unit[i])
-                obs_parts[k, μ, i] = Hermitian(U' * A_prod * U)
+                new_ff[k, μ, i] = measure.obs_formfactors[1, μ, ff_atom]
+                A = flat_ops[1, μ, site_original]
+                new_ops[k, μ, 1, 1, 1, i] = local_op_to_product_space(convert(Matrix, A), k, Ns_unit[i])
             end
         end
     end
 
-    # Rotate interactions into local reference frames
-    for i in 1:nunits
-        U = local_unitaries[i]
-        int = sys.interactions_union[i]
-        # Onsite already includes Zeeman for entangled units
-        int.onsite = Hermitian(U' * int.onsite * U)
-
-        pair_new = PairCoupling[]
-        for pc in int.pair
-            pc_general = as_general_pair_coupling(pc, sys)
-            bond = pc.bond
-            @assert bond.i == i
-            U′ = local_unitaries[bond.j]
-            push!(pair_new, rotate_general_coupling_into_local_frame(pc_general, U, U′))
-        end
-        int.pair = pair_new
-    end
-
-    return SWTDataSUN(local_unitaries, obs_parts, obs_offsets, obs_ff_atoms, observable_buf, spins_localized)
-end
-
-# Retained for use by EntangledSampledCorrelations and related code
-function to_reshaped_rlu(esys::EntangledSystem, q)
-    (; sys, sys_origin) = esys
-    return sys.crystal.recipvecs \ (orig_crystal(sys_origin).recipvecs * q)
+    return MeasureSpec(new_ops, measure.corr_pairs, measure.combiner, new_ff; obs_offsets=new_offsets)
 end

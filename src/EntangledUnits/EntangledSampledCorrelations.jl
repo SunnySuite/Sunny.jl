@@ -11,7 +11,7 @@ end
 function Base.setproperty!(sc::T, sym::Symbol, val) where {T<:Union{EntangledSampledCorrelations, EntangledSampledCorrelationsStatic}}
     sc = sc.sc
     if sym == :measure
-        @assert sc.measure.observables ≈ val.observables "New MeasureSpec must contain identical observables."
+        @assert sc.measure.obs_operators ≈ val.obs_operators "New MeasureSpec must contain identical observables."
         @assert all(x -> x == 1, sc.measure.corr_pairs .== val.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
         setfield!(sc, :measure, val)
     else
@@ -51,8 +51,8 @@ end
 function Base.setproperty!(esc::EntangledSampledCorrelations, sym::Symbol, val)
     if sym == :measure
         measure = val
-        (; observables) = observables_to_product_space(measure.observables, esc.esys.sys_origin, esc.esys.contraction_info)
-        @assert esc.sc.measure.observables ≈ observables "New MeasureSpec must contain identical observables."
+        (; observables) = observables_to_product_space(dropdims(measure.obs_operators; dims=1), esc.esys.sys_origin, esc.esys.contraction_info)
+        @assert dropdims(esc.sc.measure.obs_operators; dims=1) ≈ observables "New MeasureSpec must contain identical observables."
         @assert all(x -> x == 1, esc.sc.measure.corr_pairs .== measure.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
         setfield!(esc.sc, :measure, val) # Sets new combiner
     else
@@ -104,7 +104,7 @@ function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calcu
     # the position is recorded independently, and the index of the relevant
     # coherent state (which may now be used for operators corresponding to
     # multiple positions) is recorded in `source_idcs`.
-    (; observables, positions, source_idcs) = observables_to_product_space(measure.observables, esys.sys_origin, esys.contraction_info)
+    (; observables, positions, source_idcs) = observables_to_product_space(dropdims(measure.obs_operators; dims=1), esys.sys_origin, esys.contraction_info)
 
     # Make a sampled correlations for the esys.
     sc = SampledCorrelations(esys.sys; measure, energies, dt, calculate_errors, positions) 
@@ -121,7 +121,7 @@ function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calcu
 end
 
 function SampledCorrelationsStatic(esys::EntangledSystem; measure, calculate_errors=false)
-    (; observables, positions, source_idcs) = observables_to_product_space(measure.observables, esys.sys_origin, esys.contraction_info)
+    (; observables, positions, source_idcs) = observables_to_product_space(dropdims(measure.obs_operators; dims=1), esys.sys_origin, esys.contraction_info)
     sc = SampledCorrelations(esys.sys; measure, energies=nothing, dt=NaN, calculate_errors, positions) 
 
     # Replace relevant fields

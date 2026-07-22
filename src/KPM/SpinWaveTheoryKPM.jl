@@ -129,7 +129,7 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
     Nf = nflavors(swt)
     L = Nf*Na
 
-    Nobs = size(measure.observables, 1)
+    Nobs = num_observables(measure)
     Ncorr = length(measure.corr_pairs)
     corr = zeros(ComplexF64, Ncorr)
     moments = ElasticArray{ComplexF64}(undef, Ncorr, 0)
@@ -224,7 +224,7 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
     Nf = nflavors(swt)
     L = Nf*Na
 
-    Nobs = size(measure.observables, 1)
+    Nobs = num_observables(measure)
     Ncorr = length(measure.corr_pairs)
     corr = zeros(ComplexF64, Ncorr)
 

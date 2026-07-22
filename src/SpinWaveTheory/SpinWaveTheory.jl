@@ -7,9 +7,7 @@ end
 
 struct SWTDataSUN
     local_unitaries  :: Vector{Matrix{ComplexF64}}   # Transformations from global to quantization frame
-    obs_parts        :: Array{HermitianC64, 3}       # Observable parts in local frame (ncontribs × nobs × nsites)
-    obs_offsets      :: Array{Vec3, 3}               # Position offsets per part (ncontribs × nobs × nsites)
-    obs_ff_atoms     :: Array{Int, 3}                # Atom index for form factor lookup (ncontribs × nobs × nsites)
+    obs_parts        :: Array{HermitianC64, 3}       # Rotated observable parts (ncontribs × nobs × nsites)
     observable_buf   :: Matrix{ComplexF64}           # Scratch buffer of size N × N
     spins_localized  :: Array{HermitianC64, 2}       # Spins in local frame (3 × nsites), needed for Ewald
 end
@@ -50,7 +48,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     measure = @something measure empty_measurespec(sys)
-    if size(eachsite(sys)) != size(measure.observables)[2:5]
+    if size(eachsite(sys)) != size(measure.obs_operators)[3:6]
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
@@ -177,18 +175,15 @@ end
 function swt_data(sys::System{N}, measure) where N
     # Calculate transformation matrices into local reference frames
     Na = nsites(sys)
-    Nobs = size(measure.observables, 1)
-    observables = reshape(measure.observables, Nobs, Na)
+    nparts = size(measure.obs_operators, 1)
+    Nobs = num_observables(measure)
+    flat_ops = reshape(measure.obs_operators, nparts, Nobs, Na)
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
-    obs_parts    = Array{HermitianC64}(undef, 1, Nobs, Na)
-    obs_offsets  = zeros(Vec3, 1, Nobs, Na)
-    obs_ff_atoms = zeros(Int, 1, Nobs, Na)
+    obs_parts = Array{HermitianC64}(undef, nparts, Nobs, Na)
     observable_buf = zeros(ComplexF64, N, N)
     spins_localized = Array{HermitianC64}(undef, 3, Na)
-
-    ff_dims = size(measure.observables)[2:4]  # original sys dims for form factor mapping
 
     for i in 1:Na
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
@@ -205,10 +200,8 @@ function swt_data(sys::System{N}, measure) where N
         local_unitaries[i] = U
 
         # Rotate observables into local reference frames
-        ff_atom = fld1(i, prod(ff_dims))
-        for μ in 1:Nobs
-            obs_parts[1, μ, i] = Hermitian(U' * observables[μ, i] * U)
-            obs_ff_atoms[1, μ, i] = ff_atom
+        for k in 1:nparts, μ in 1:Nobs
+            obs_parts[k, μ, i] = Hermitian(U' * flat_ops[k, μ, i] * U)
         end
 
         S = spin_matrices_of_dim(; N)
@@ -250,8 +243,6 @@ function swt_data(sys::System{N}, measure) where N
     return SWTDataSUN(
         local_unitaries,
         obs_parts,
-        obs_offsets,
-        obs_ff_atoms,
         observable_buf,
         spins_localized,
     )
@@ -260,7 +251,7 @@ end
 # Compute Stevens coefficients in the local reference frame
 function swt_data(sys::System{0}, measure)
     Na = nsites(sys)
-    Nobs = size(measure.observables, 1)
+    Nobs = num_observables(measure)
 
     # Operators for rotating vectors into local frame
     Rs = map(1:Na) do i
@@ -290,8 +281,8 @@ function swt_data(sys::System{0}, measure)
     # Observable is semantically a 1x3 row vector but stored in transpose
     # (column) form. To achieve effective right-multiplication by R, we should
     # in practice left-multiply column vector by R'.
-    obs = reshape(measure.observables, Nobs, Na)
-    obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
+    obs = reshape(measure.obs_operators, 1, Nobs, Na)
+    obs_localized = [Rs[i]' * obs[1, μ, i] for μ in 1:Nobs, i in 1:Na]
 
     # Precompute transformed exchange matrices and store in sys.interactions_union.
     for (i, int) in enumerate(sys.interactions_union)
@@ -329,12 +320,12 @@ function swt_data(sys::System{0}, measure)
     return SWTDataDipole(Rs, obs_localized, cs, sqrtS)
 end
 
-# i is a site index for the flattened swt.sys. However, `measure` was originally
+# i is a site index for the flattened swt.sys. `measure` was originally
 # constructed for a system with nontrivial lattice dims. Use fld1(i, prod(dims))
 # to get an atom index for one cell of the unflattened sys.
 function formfactor_for_flattened_sys(measure, μ, i)
-    sys_dims = size(measure.observables)[2:4]
-    measure.formfactors[μ, fld1(i, prod(sys_dims))]
+    sys_dims = size(measure.obs_operators)[3:5]
+    measure.obs_formfactors[1, μ, fld1(i, prod(sys_dims))]
 end
 
 function observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
@@ -358,14 +349,18 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
     L = Nf * Na
 
     if sys.mode == :SUN
-        (; obs_parts, obs_offsets, obs_ff_atoms, observable_buf) = data::SWTDataSUN
+        (; obs_parts, observable_buf) = data::SWTDataSUN
         N = sys.Ns[1]
+        natoms_orig = size(measure.obs_operators, 6)
+        ncells = div(Na, natoms_orig)
         for μ in 1:Nobs, i in 1:Na
+            atom_idx = fld1(i, ncells)
             r = sys.crystal.positions[i]
             fill!(observable_buf, 0)
             for k in axes(obs_parts, 1)
-                ff = measure.formfactors[μ, obs_ff_atoms[k, μ, i]]
-                pref = cis(2π * dot(q_reshaped, r + obs_offsets[k, μ, i])) *
+                offset = measure.obs_offsets[k, atom_idx]
+                ff = measure.obs_formfactors[k, μ, atom_idx]
+                pref = cis(2π * dot(q_reshaped, r + offset)) *
                        compute_form_factor(ff, norm2(q_global))
                 observable_buf .+= pref .* obs_parts[k, μ, i]
             end

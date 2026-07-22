@@ -148,7 +148,7 @@ line broadening of the bands.
 """
 function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     (; sys, measure) = swt
-    isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
+    num_observables(measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     with_negative && error("Option `with_negative=true` not yet supported.")
 
     qpts = convert(AbstractQPoints, qpts)

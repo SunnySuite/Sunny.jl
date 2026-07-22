@@ -229,7 +229,7 @@ end
 # Observables must be dipole moments, with some choice of apply_g. Extract and
 # return this parameter.
 function is_apply_g(sys::System, measure::MeasureSpec)
-    obs1 = measure.observables
+    obs1 = measure.obs_operators
     for apply_g in (true, false)
         obs2 = all_dipole_observables(sys; apply_g)
         vec(obs1) ≈ vec(obs2) && return apply_g
@@ -257,7 +257,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
     (; sys, data, measure) = swt
     (; local_rotations, sqrtS) = data
 
-    isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
+    num_observables(measure) == 0 && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)

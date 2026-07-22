@@ -79,7 +79,7 @@ function EntangledSystem(sys::System{N}, units) where {N}
     # of the contracted system. `source_idcs` provides the unit index (of the
     # contracted system) in terms of the atom index (of the uncontracted
     # system).
-    dipole_operators_origin = all_dipole_observables(sys_origin; apply_g=false) 
+    dipole_operators_origin = dropdims(all_dipole_observables(sys_origin; apply_g=false); dims=1)
     (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
 
     esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables, source_idcs)
