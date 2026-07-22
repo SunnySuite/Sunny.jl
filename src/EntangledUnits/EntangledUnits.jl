@@ -281,7 +281,7 @@ function entangle_system(sys::System{M}, units) where M
         for (site, interaction) in zip(relevant_sites, original_interactions)
             # Onsite anisotropy portion. The Zeeman term is *not* folded in here;
             # it is handled as a first-class term on the contracted system via
-            # `sys.extfield` and the cached `moment_operators` (see
+            # `sys.extfield` and the cached per-unit `dipole_operators` (see
             # `set_field_entangled!` and `set_energy_grad_coherents!`).
             onsite_original = interaction.onsite
             unit_index = contraction_info.forward[site][2]
@@ -354,10 +354,10 @@ end
 # Recompute the physical dipole at one physical `site` (a site of `bare_system`)
 # from the coherent state of its containing unit.
 function sync_bare_dipole!(sys::System, site)
-    (; bare_system, source_idcs, dipole_operators) = get_entanglement(sys)
+    (; bare_system, source_idcs, bare_dipole_operators) = get_entanglement(sys)
     a, b, c, atom = site.I
     Z = sys.coherents[a, b, c, source_idcs[site]]
-    S = dipole_operators[atom]  # cached product-space spin operators
+    S = bare_dipole_operators[atom]  # per-atom product-space spin operators (no g)
     bare_system.dipoles[site] = ntuple(i -> real(dot(Z, S[i], Z)), 3)
     return
 end

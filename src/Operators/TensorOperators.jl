@@ -88,7 +88,11 @@ function local_op_to_product_space(op, i, Ns)
     @assert size(op, 1) == Ns[i] "Given operator not consistent with dimension of local Hilbert space"
     I1 = I(prod(Ns[begin:i-1]))
     I2 = I(prod(Ns[i+1:end]))
-    return kron(I1, op, I2) 
+    return kron(I1, op, I2)
+end
+
+function local_op_to_product_space(op::Hermitian, i, Ns)
+    return Hermitian(local_op_to_product_space(parent(op), i, Ns))
 end
 
 """

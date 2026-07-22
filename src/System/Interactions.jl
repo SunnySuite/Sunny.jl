@@ -627,13 +627,13 @@ function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) wh
     @. dipoles = expected_spin(Z)
     set_energy_grad_dipoles!(dE_dS, dipoles, sys)
 
-    # Zeeman coupling for an entangled system. The unit energy is Σ_α B_α ⟨T^α⟩
-    # with the cached g-weighted moment operator T^α, so dE/dZ̄ = Σ_α B_α T^α Z.
-    # (The dipole-level Zeeman term was skipped in `set_energy_grad_dipoles!`.)
+    # Zeeman coupling for an entangled system. The unit's dipole operator T^α is
+    # its g-weighted total moment (sys.dipole_operators, with gs[site] = I), so
+    # the energy is Σ_α B_α ⟨T^α⟩ and dE/dZ̄ = Σ_α B_α T^α Z. (The dipole-level
+    # Zeeman term was skipped in `set_energy_grad_dipoles!`.)
     if !isnothing(sys.entanglement)
-        moment_operators = get_entanglement(sys).moment_operators
         for site in eachsite(sys)
-            T = moment_operators[to_atom(site)]
+            T = sys.dipole_operators[to_atom(site)]
             B = sys.extfield[site]
             HZ[site] += sum(B[α] * (SMatrix{N, N}(T[α]) * Z[site]) for α in 1:3)
         end

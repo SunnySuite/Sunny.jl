@@ -50,16 +50,16 @@ end
 
     # Test external field. The Zeeman term is no longer folded into the onsite
     # operator; it lives in `extfield` (per unit) and couples to the unit's total
-    # moment via the cached `moment_operators`. The onsite operator is unchanged.
+    # moment via the per-unit `dipole_operators`. The onsite operator is unchanged.
     set_field!(esys, [0, 0, 1])
     @test esys.interactions_union[1].onsite ≈ onsite_ref
     @test esys.extfield[1] ≈ [0, 0, 1]
     @test bare.extfield[1, 1, 1, 1] ≈ [0, 0, 1]
     @test bare.extfield[1, 1, 1, 2] ≈ [0, 0, 1]
 
-    # The cached moment operator is the g-weighted total moment; for two spin-1/2
-    # atoms with g=2, T^z = 2(Slᶻ + Suᶻ). Check ⟨T^z⟩ and the Zeeman energy.
-    T = esys.entanglement.moment_operators[1]
+    # The per-unit dipole operator is the g-weighted total moment; for two
+    # spin-1/2 atoms with g=2, T^z = 2(Slᶻ + Suᶻ).
+    T = esys.dipole_operators[1]
     @test T[3] ≈ 2*(Sl[3] + Su[3])
 
     # Test apparatus for setting coherent states from dipoles specification
@@ -100,7 +100,7 @@ end
     ∇0 = Sunny.energy_grad_coherents(esys)
     set_field!(esys, B_test)
     ∇B = Sunny.energy_grad_coherents(esys)
-    T = esys.entanglement.moment_operators[1]
+    T = esys.dipole_operators[1]
     for site in eachsite(esys)
         Z = Z0[site]
         zeeman_grad = sum(B_test[α] * (T[α] * Z) for α in 1:3)

@@ -53,12 +53,15 @@ function magnetization_lswt_correction_sun(swt::SpinWaveTheory; opts...)
     V = zeros(ComplexF64, 2L, 2L)
 
     # Construct angular momentum operators O = n⋅S aligned with quantization
-    # axis.
-    S = spin_matrices_of_dim(; N)
+    # axis, where S = sys.dipole_operators[i] is the operator whose expectation is
+    # `sys.dipoles[i]` (bare spin for an ordinary system; g-weighted total moment
+    # for an entangled unit). This makes ⟨O⟩ = n⋅dipoles consistent in both cases,
+    # as the assertion below checks.
     O = zeros(ComplexF64, N, N, Natoms)
     for i in 1:Natoms
         n = normalize(swt.sys.dipoles[i])
         U = data.local_unitaries[i]
+        S = SVector{3}(sys.dipole_operators[i])
         O[:, :, i] += U' * (n' * S) * U
         @assert O[N, N, i] ≈ norm(swt.sys.dipoles[i])
     end

@@ -208,33 +208,29 @@ function swt_data(sys::System{N}, measure) where N
             obs_parts[k, μ, i] = Hermitian(U' * flat_ops[k, μ, i] * U)
         end
 
-        S = spin_matrices_of_dim(; N)
+        # Site dipole operators in the local frame. `sys.dipole_operators[i]` is
+        # the bare spin S for an ordinary system, or the g-weighted total moment
+        # for an entangled unit (with gs[i] = I); either way it pairs correctly
+        # with the g-tensor in the Ewald term μ = -g·(this). See HamiltonianSUN.jl.
+        S = sys.dipole_operators[i]
         for μ in 1:3
             spins_localized[μ, i] = Hermitian(U' * S[μ] * U)
         end
     end
-
-    # Cached g-weighted total-moment operators per unit, for the entangled Zeeman
-    # term (see below). Empty for an ordinary system.
-    moment_operators = is_entangled(sys) ? get_entanglement(sys).moment_operators : nothing
 
     # Rotate interactions into local reference frames
     for i in 1:Na
         Ui = local_unitaries[i]
         int = sys.interactions_union[i]
 
-        # Zeeman coupling operator. For an entangled system the local dimension is
-        # a product space, so the single-irrep spin matrices are meaningless;
-        # instead use Σ_α B_α T^α with the cached g-weighted moment operator T^α.
-        if isnothing(moment_operators)
-            S = spin_matrices_of_dim(; N)
-            B = sys.gs[i]' * sys.extfield[i]
-            zeeman = B' * S
-        else
-            T = moment_operators[i]
-            B = sys.extfield[i]
-            zeeman = sum(B[α] * T[α] for α in 1:3)
-        end
+        # Zeeman coupling operator, Σ_α (g'B)_α Sᵅ, where S = sys.dipole_operators[i]
+        # is the site's product-space dipole operator. For an ordinary system S is
+        # the bare spin and this is (g'B)·S; for an entangled unit S is the
+        # g-weighted total moment and gs[i] = I, so this is B·S. Using this (not
+        # single-irrep spin matrices) keeps the entangled product space correct.
+        B = sys.gs[i]' * sys.extfield[i]
+        S = sys.dipole_operators[i]
+        zeeman = sum(B[α] * S[α] for α in 1:3)
 
         # Merge and rotate all onsite couplings
         int.onsite = Hermitian(Ui' * (zeeman + int.onsite) * Ui)

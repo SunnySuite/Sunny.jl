@@ -40,23 +40,24 @@ end
 # (uncontracted) `bare_system` plus the contraction/dynamics mapping. Populated
 # by `attach_entanglement!` (see `entangle_units`).
 struct Entanglement <: AbstractEntanglement
-    bare_system      :: System                          # Physical (uncontracted) system
-    contraction_info :: CrystalContractionInfo          # Forward/inverse mapping data
-    source_idcs      :: Array{Int64, 4}                 # Coherent (unit) index feeding each physical site
-    dipole_operators :: Vector{NTuple{3, Matrix{ComplexF64}}}  # Cached product-space spin ops per physical atom
-    moment_operators :: Vector{NTuple{3, Matrix{ComplexF64}}}  # Cached g-weighted total-moment ops per unit
+    bare_system           :: System                           # Physical (uncontracted) system
+    contraction_info      :: CrystalContractionInfo           # Forward/inverse mapping data
+    source_idcs           :: Array{Int64, 4}                  # Coherent (unit) index feeding each physical site
+    bare_dipole_operators :: Vector{NTuple{3, HermitianC64}}  # Product-space spin ops per physical atom (no g)
 end
 
 function clone_entanglement(ent::Entanglement)
     return Entanglement(clone_system(ent.bare_system), copy(ent.contraction_info),
-                        copy(ent.source_idcs), ent.dipole_operators, ent.moment_operators)
+                        copy(ent.source_idcs), ent.bare_dipole_operators)
 end
 
 # Build the product-space spin operators for each atom of the physical
 # `bare_system`, embedded into the local Hilbert space of the containing
 # entangled unit. No g-tensor is applied. An entangled system is homogeneous, so
-# these depend only on the atom index.
-function build_dipole_operators(bare_system, contraction_info)
+# these depend only on the atom index. These per-atom operators feed
+# `sync_bare_dipole!` (populating `bare_system.dipoles`) and are summed with
+# g-weights to form the per-unit `sys.dipole_operators` below.
+function build_bare_dipole_operators(bare_system, contraction_info)
     Ns_unit = Ns_in_units(bare_system, contraction_info)
     natoms = length(contraction_info.forward)
     return map(1:natoms) do atom
@@ -66,38 +67,39 @@ function build_dipole_operators(bare_system, contraction_info)
     end
 end
 
-# Build the g-weighted total magnetic-moment operators for each entangled unit,
-# embedded in the unit's product Hilbert space. For unit `u`,
+# Build the per-unit product-space operators `sys.dipole_operators[u]` for an
+# entangled system: the g-weighted total magnetic moment of each unit,
 #
 #   T^α = Σ_{k ∈ u} Σ_β (g_k)_{αβ} embed(Sₖ^β),
 #
 # so that ⟨Z|T^α|Z⟩ is the α-component of the unit's total moment M = Σ_k g_k Sₖ.
-# The Zeeman energy of the unit is then Σ_α B_α ⟨T^α⟩, and its coherent-state
-# gradient is Σ_α B_α T^α Z (see `set_energy_grad_coherents!`). g-tensors are
-# uniform across cells, so these depend only on the unit index.
-function build_moment_operators(bare_system, contraction_info)
+# Derived from the per-atom `bare_dipole_operators` (one source of truth). The
+# unit g-factor `sys.gs[u]` is the identity, so the per-atom g_k live *inside*
+# these operators. Used by the Zeeman energy/gradient and SWT (see
+# `set_energy_grad_coherents!` and `swt_data`).
+function build_unit_dipole_operators(bare_system, contraction_info, bare_dipole_operators)
     Ns_unit = Ns_in_units(bare_system, contraction_info)
     nunits = length(contraction_info.inverse)
     return map(1:nunits) do unit
-        Ns = Ns_unit[unit]
-        T = ntuple(_ -> zeros(ComplexF64, prod(Ns), prod(Ns)), 3)
+        Nprod = prod(Ns_unit[unit])
+        T = ntuple(_ -> zeros(ComplexF64, Nprod, Nprod), 3)
         for id in contraction_info.inverse[unit]
             atom = id.site
             g = bare_system.gs[1, 1, 1, atom]
-            k = contraction_info.forward[atom][2]
-            S_local = spin_matrices_of_dim(; N=bare_system.Ns[1, 1, 1, atom])
-            S_embed = ntuple(β -> local_op_to_product_space(S_local[β], k, Ns), 3)
+            S_embed = bare_dipole_operators[atom]
             for α in 1:3, β in 1:3
                 T[α] .+= g[α, β] .* S_embed[β]
             end
         end
-        return T
+        # Real g-weighted sum of Hermitian embedded spins ⇒ Hermitian.
+        return ntuple(α -> Hermitian(T[α]), 3)
     end
 end
 
 # Attach entanglement metadata to a contracted `sys`, deriving the dynamics
-# metadata (`source_idcs` and cached `dipole_operators`) from the physical
-# `bare_system` and the mapping. Returns `sys`. All entangled systems get their
+# metadata (`source_idcs` and cached `bare_dipole_operators`) from the physical
+# `bare_system` and the mapping. Also overwrites `sys.dipole_operators` with the
+# per-unit (g-weighted) operators. Returns `sys`. All entangled systems get their
 # `entanglement` field populated through here.
 function attach_entanglement!(sys::System, bare_system, contraction_info)
     source_idcs = zeros(Int64, size(eachsite(bare_system)))
@@ -105,10 +107,9 @@ function attach_entanglement!(sys::System, bare_system, contraction_info)
         atom = site.I[4]
         source_idcs[site] = contraction_info.forward[atom][1]
     end
-    dipole_operators = build_dipole_operators(bare_system, contraction_info)
-    moment_operators = build_moment_operators(bare_system, contraction_info)
-    sys.entanglement = Entanglement(bare_system, contraction_info, source_idcs,
-                                    dipole_operators, moment_operators)
+    bare_dipole_operators = build_bare_dipole_operators(bare_system, contraction_info)
+    sys.dipole_operators = build_unit_dipole_operators(bare_system, contraction_info, bare_dipole_operators)
+    sys.entanglement = Entanglement(bare_system, contraction_info, source_idcs, bare_dipole_operators)
     return sys
 end
 

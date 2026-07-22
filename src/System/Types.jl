@@ -135,6 +135,17 @@ mutable struct System{N}
     # Optional long-range dipole-dipole interactions
     ewald                  :: Union{Ewald, Nothing}
 
+    # Product-space operators whose expectation gives `dipoles`, i.e.
+    # `dipoles[site] = ⟨Z|dipole_operators[i]|Z⟩` for the site's coherent state Z.
+    # Indexed by native site (atom for an ordinary system, unit for an entangled
+    # one). For an ordinary system these are the bare spin matrices S; for an
+    # entangled unit they are the g-weighted total moment Σₖ gₖ Sₖ (so the
+    # per-atom gₖ live *inside* while `gs[site] = I` is applied outside). Empty in
+    # `:dipole`/`:dipole_uncorrected` mode (dipoles are tracked directly there).
+    # NB: not consulted on the per-step hot path; `set_expected_dipoles!` uses the
+    # tuned `expected_spin`. This table is for build-time operator construction.
+    dipole_operators       :: Vector{NTuple{3, HermitianC64}}
+
     # Dynamical variables and buffers (dims × natoms)
     const extfield         :: Array{Vec3, 4}            # External B field
     const dipoles          :: Array{Vec3, 4}            # Expected dipoles

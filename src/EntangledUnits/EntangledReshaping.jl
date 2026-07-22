@@ -96,7 +96,7 @@ end
 # `SpinWaveTheory` constructor (`reshape_supercell_aux` onto
 # `resize_and_flatten_crystal`), but reshapes the physical `bare_system` in
 # tandem and reattaches fresh metadata so that the flattened contracted system
-# still carries `moment_operators` (needed for the Zeeman term in `swt_data`).
+# still carries per-unit `dipole_operators` (needed for the Zeeman term in `swt_data`).
 function flatten_supercell_entangled(sys::System)
     bare = get_entanglement(sys).bare_system
 

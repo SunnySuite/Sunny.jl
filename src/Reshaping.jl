@@ -116,10 +116,13 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     # reshaped system will also update interactions in its `origin` system.
     orig_sys = clone_system(@something sys.origin sys)
 
+    # `dipole_operators` is (re)built below once `new_Ns` is populated.
+    new_dipole_operators = NTuple{3, HermitianC64}[]
+
     new_sys = System(orig_sys, sys.mode, new_cryst, new_dims, new_Ns, new_κs, new_gs,
-                     new_params, sys.active_labels, new_ints, new_ewald, new_extfield,
-                     new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers,
-                     copy(sys.rng), nothing)
+                     new_params, sys.active_labels, new_ints, new_ewald, new_dipole_operators,
+                     new_extfield, new_dipoles, new_coherents, new_dipole_buffers,
+                     new_coherent_buffers, copy(sys.rng), nothing)
 
     if is_homogeneous(sys)
         # Transfer params from `new_sys.origin`, which will then be used to fill
@@ -143,6 +146,11 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
         new_sys.dipoles[new_site]   = sys.dipoles[site]
         new_sys.coherents[new_site] = sys.coherents[site]
     end
+
+    # Rebuild the per-atom dipole operators now that `new_Ns` is populated. For an
+    # entangled system, `attach_entanglement!` overwrites this with the per-unit
+    # (g-weighted) operators; see EntangledReshaping.jl.
+    new_sys.dipole_operators = build_dipole_operators_ordinary(sys.mode, new_sys.Ns)
 
     # Restore dipole-dipole interactions if present. This involves pre-computing
     # an interaction matrix that depends on `new_dims`.
