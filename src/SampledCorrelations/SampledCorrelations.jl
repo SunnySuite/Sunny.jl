@@ -1,31 +1,31 @@
 mutable struct SampledCorrelations
     # 𝒮^{αβ}(q,ω) data and metadata
-    const data           :: Array{ComplexF64, 7}                 # Raw SF with position indices (ncorrs × npos × npos × sys_dims × nω)
-    const M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
-    const recipvecs      :: Mat3                                 # Reshaped recipvecs for interpretation of q indices in `data`
-    const origin_crystal :: Crystal                              # Original user-specified crystal (possibly reshaped)
-    const Δω             :: Float64                              # Energy step size 
+    const data           :: Array{ComplexF64, 7}              # Raw SF with position indices (ncorrs × npos × npos × sys_dims × nω)
+    const M              :: Union{Nothing, Array{Float64, 7}} # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
+    const recipvecs      :: Mat3                              # Reshaped recipvecs for interpretation of q indices in `data`
+    const origin_crystal :: Crystal                           # Original user-specified crystal (possibly reshaped)
+    const Δω             :: Float64                           # Energy step size 
 
     # Observable information
-    measure            :: MeasureSpec                            # Storehouse for combiner. Mutable so combiner can be changed.
-    const observables  # :: Array{Op, 5}                         # (nobs × latsize × npos) -- note change of ordering relative to MeasureSpec. TODO: determine type strategy
-    const positions    :: Array{Vec3, 4}                         # Position of each observable in fractional coordinates (latsize × npos)
-    const unit_idcs    :: Array{Int64, 4}                        # Unit index per position (latsize × npos)
-    ffs                :: Vector{FormFactor}                     # Form factor per position (npos).
-    const corr_pairs   :: Vector{NTuple{2, Int}}                 # (ncorr)
+    measure            :: MeasureSpec                         # Storehouse for combiner. Mutable so combiner can be changed.
+    const observables  :: Array{Union{Vec3, HermitianC64}, 5} # Flattened measure observables (nobs × latsize × npos)
+    const positions    :: Vector{Vec3}                        # Fractional positions of bare atoms in cell (npos = nunits × nparts)
+    const unit_idcs    :: Vector{Int64}                       # Unit index per position (npos)
+    ffs                :: Vector{FormFactor}                  # Form factor per position (npos)
+    const corr_pairs   :: Vector{NTuple{2, Int}}              # (ncorr)
 
     # Trajectory specs
-    const integrator   :: AbstractIntegrator                     # Integrator for calculating sample trajectories.
-    const measperiod   :: Int                                    # Steps to skip between saving observables (i.e., downsampling factor for trajectories)
-    nsamples           :: Int64                                  # Number of accumulated samples (single number saved as array for mutability)
+    const integrator   :: AbstractIntegrator                  # Integrator for calculating sample trajectories.
+    const measperiod   :: Int                                 # Steps to skip between saving observables (i.e., downsampling factor for trajectories)
+    nsamples           :: Int64                               # Number of accumulated samples (single number saved as array for mutability)
 
     # Buffers and precomputed data 
-    const samplebuf    :: Array{ComplexF64, 6}                   # Buffer for observables (nobservables × sys_dims × npos × nsnapshots)
-    const corrbuf      :: Array{ComplexF64, 4}                   # Buffer for correlations (sys_dims × nω)
-    const space_fft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned lattice FFT for samplebuf
-    const time_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for samplebuf
-    const corr_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for corrbuf 
-    const corr_ifft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned time IFFT for corrbuf 
+    const samplebuf    :: Array{ComplexF64, 6}                # Buffer for observables (nobservables × sys_dims × npos × nsnapshots)
+    const corrbuf      :: Array{ComplexF64, 4}                # Buffer for correlations (sys_dims × nω)
+    const space_fft!   :: FFTW.AbstractFFTs.Plan              # Pre-planned lattice FFT for samplebuf
+    const time_fft!    :: FFTW.AbstractFFTs.Plan              # Pre-planned time FFT for samplebuf
+    const corr_fft!    :: FFTW.AbstractFFTs.Plan              # Pre-planned time FFT for corrbuf 
+    const corr_ifft!   :: FFTW.AbstractFFTs.Plan              # Pre-planned time IFFT for corrbuf 
 end
 
 function Base.show(io::IO, ::SampledCorrelations)
@@ -57,7 +57,7 @@ function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
         # Form factors may differ in the new measure; refresh the cached flat
         # form factors used by retrieval. (Observables/positions are unchanged
         # by the assertions above, so only `ffs` needs recomputing.)
-        setfield!(sc, :ffs, flatten_measure_formfactors(val))
+        setfield!(sc, :ffs, flatten_measure(val, sc.sys_dims).ffs)
     else
         setfield!(sc, sym, val)
     end
@@ -181,21 +181,26 @@ function to_reshaped_rlu(sc::SampledCorrelations, q)
     return sc.recipvecs \ sc.origin_crystal.recipvecs * q
 end
 
+# Physical position of each flattened observable. The flat index `i = u +
+# (p-1)*nunits` packs (sampled unit u, part p) unit-fastest. `unit_positions` are
+# the positions of the sampled sites (the contracted crystal for entangled
+# units); adding the part offset recovers the physical observable position. For
+# an ordinary system (nparts=1, zero offsets) this reduces to `unit_positions`.
+function flatten_measure_positions(measure::MeasureSpec, unit_positions::Vector{Vec3})
+    nunits = size(measure.observables, 5)
+    nparts = size(measure.observables, 6)
+    return [unit_positions[u] + measure.offsets[u, p] for p in 1:nparts for u in 1:nunits]
+end
+
 # Flatten a MeasureSpec's (nunits × nparts) observable layout into the flat
-# `npos` layout consumed by the correlation sampler. Each (sampled unit u, part
-# p) of the measure becomes one physical position i:
+# `npos` layout consumed by the correlation sampler, packed unit-fastest to match
+# `flatten_measure_positions`:
 #   - observables[μ, cell, i] = measure.observables[μ, cell, u, p]
-#   - unit_idcs[cell, i] = u  (which sampled coherent state feeds position i)
-#   - positions[cell, i] = sampled_crystal.positions[u] + measure.offsets[u, p]
-#   - ffs[i]             = measure.formfactors[μ, u, p]  (uniform over μ)
-#
-# `sampled_crystal` is the crystal of the system whose coherents are sampled
-# (the contracted crystal for entangled units). Adding the part offset recovers
-# the physical observable position. Positions are packed unit-fastest (`i = u +
-# (p-1)*nunits`), so the first part (p=1) reproduces the sampled sites `1:nunits`
-# in order. For an ordinary system (nparts=1, zero offsets) this is the identity
-# map: npos = nunits, unit_idcs[…,i] = i, and positions are the atom positions.
-function flatten_measure_positions(measure::MeasureSpec, sampled_crystal::Crystal, dims::NTuple{3, Int})
+#   - unit_idcs[i]            = u  (which sampled coherent state feeds position i)
+#   - ffs[i]                  = measure.formfactors[μ, u, p]  (uniform over μ)
+# For an ordinary system (nparts=1) this is the identity map: npos = nunits and
+# unit_idcs[i] = i.
+function flatten_measure(measure::MeasureSpec, dims::NTuple{3, Int})
     nobs   = size(measure.observables, 1)
     nunits = size(measure.observables, 5)
     nparts = size(measure.observables, 6)
@@ -203,36 +208,22 @@ function flatten_measure_positions(measure::MeasureSpec, sampled_crystal::Crysta
 
     Op = eltype(measure.observables)
     observables = Array{Op, 5}(undef, nobs, dims..., npos)
-    positions   = zeros(Vec3, dims..., npos)
-    unit_idcs   = zeros(Int64, dims..., npos)
-    ffs         = flatten_measure_formfactors(measure)
+    unit_idcs   = zeros(Int64, npos)
+    ffs         = Vector{FormFactor}(undef, npos)
 
     for p in 1:nparts, u in 1:nunits
         i = u + (p - 1) * nunits
-        pos = sampled_crystal.positions[u] + measure.offsets[u, p]
+        allequal(@view measure.formfactors[:, u, p]) || error("Observable-dependent form factors not yet supported.")
+        ffs[i] = measure.formfactors[1, u, p]
+        unit_idcs[i] = u
         for cell in CartesianIndices(dims)
-            positions[cell, i] = pos
-            unit_idcs[cell, i] = u
             for μ in 1:nobs
                 observables[μ, cell, i] = measure.observables[μ, cell, u, p]
             end
         end
     end
 
-    return (; observables, positions, unit_idcs, ffs, npos)
-end
-
-# Flat `npos`-length list of form factors, packed unit-fastest to match
-# `flatten_measure_positions`. Independent of any crystal.
-function flatten_measure_formfactors(measure::MeasureSpec)
-    nunits = size(measure.observables, 5)
-    nparts = size(measure.observables, 6)
-    ffs = Vector{FormFactor}(undef, nparts * nunits)
-    for p in 1:nparts, u in 1:nunits
-        allequal(@view measure.formfactors[:, u, p]) || error("Observable-dependent form factors not yet supported.")
-        ffs[u + (p - 1) * nunits] = measure.formfactors[1, u, p]
-    end
-    return ffs
+    return (; observables, unit_idcs, ffs)
 end
 
 """
@@ -280,7 +271,9 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     # Flatten the (units, part) indexing of MeasureSpec to the `npos` layout
     # used by the sampler. For an ordinary system, each unit maps 1-to-1 with an
     # atom position, and the MeasureSpec data can be used directly.
-    (; observables, positions, unit_idcs, ffs, npos) = flatten_measure_positions(measure, sys.crystal, sys.dims)
+    positions = flatten_measure_positions(measure, sys.crystal.positions)
+    (; observables, unit_idcs, ffs) = flatten_measure(measure, sys.dims)
+    npos = length(positions)
 
     samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., npos, n_all_ω)
     corrbuf = zeros(ComplexF64, sys.dims..., n_all_ω)

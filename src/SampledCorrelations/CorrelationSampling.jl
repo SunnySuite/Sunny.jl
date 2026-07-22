@@ -11,7 +11,7 @@ function observable_values!(buf, sys::System{N}, observables, unit_idcs) where N
         Zs = sys.coherents
         for idx in CartesianIndices(observables)
             _, la, lb, lc, pos = idx.I
-            unit = unit_idcs[la, lb, lc, pos]
+            unit = unit_idcs[pos]
             buf[idx] = dot(Zs[la, lb, lc, unit], observables[idx], Zs[la, lb, lc, unit])
         end
     end

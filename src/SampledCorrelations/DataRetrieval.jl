@@ -141,7 +141,7 @@ function intensities_aux!(intensities, data, recipvecs, positions, combiner, ff_
     (; qabs, idcs, counts) = q_idx_info
     qidx = 1
     for (qabs, idx, count) in zip(qabs, idcs, counts)
-        prefactors = prefactors_for_phase_averaging(qabs, recipvecs, view(positions, idx, :), ff_atoms, Val{NCorr}(), Val{NPos}())
+        prefactors = prefactors_for_phase_averaging(qabs, recipvecs, positions, ff_atoms, Val{NCorr}(), Val{NPos}())
 
         # Perform phase-averaging over all omega
         for (n, iω) in enumerate(ωidcs)
