@@ -1,11 +1,10 @@
-# Op is the type of a local observable operator. Either a Vec3 (for :dipole
-# mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
-# mode, in which case op is an N×N matrix).
+# Op is the type of a local observable operator. Either a Vec3 representing
+# `op⋅S` (:dipole mode) or a HermitianC64 representing the N×N matrix directly
+# (:SUN mode).
 #
-# operators has shape (nparts × nobs × d1 × d2 × d3 × natoms). For a
-# standard system, nparts=1 with zero offsets. For an entangled-unit
-# system, nparts=atoms_per_unit with intra-unit position offsets in offsets
-# and per-subsite operators (in product space) in operators.
+# Typically `nparts` is 1 and `offsets` are zero. However, if the sites of a
+# system are entangled-units, then multiple parts with distinct offsets becomes
+# useful.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     operators   :: Array{Op, 6}           # (nparts × nobs × d1 × d2 × d3 × natoms)
     offsets     :: Array{Vec3, 2}         # (nparts × natoms)
@@ -25,20 +24,6 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
         @assert (nparts, natoms) == size(offsets) "offsets must have shape (nparts, natoms)"
         @assert (nparts, nobs, natoms) == size(formfactors) "formfactors must have shape (nparts, nobs, natoms)"
         return new{Op, F, Ret}(operators, offsets, formfactors, corr_pairs, combiner)
-    end
-
-    # Backward-compatible constructor: accepts old 5D observables + 1D/2D formfactors.
-    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors) where {Op, F}
-        operators = reshape(observables, 1, size(observables)...)
-        nobs   = size(observables, 1)
-        natoms = size(observables, 5)
-        ff = if ndims(formfactors) == 1
-            Array{FormFactor, 3}([formfactors[a] for _ in 1:1, _ in 1:nobs, a in eachindex(formfactors)])
-        else
-            @assert size(formfactors) == (nobs, natoms)
-            reshape(Array(formfactors), 1, nobs, natoms)
-        end
-        return MeasureSpec(operators, corr_pairs, combiner, ff)
     end
 end
 

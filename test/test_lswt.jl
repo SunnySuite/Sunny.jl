@@ -599,10 +599,11 @@ end
         1/√2*(S1[2] - S2[2]),
         1/√2*(S1[3] - S2[3]),
     ])
-    observables = repeat(observables0, 1, size(eachsite(sys))...)
+    operators = repeat(reshape(observables0, 1, :), 1, 1, size(eachsite(sys))...)
     corr_pairs = [(3,3), (2,2), (1,1)]
     combiner = (_, data) -> real(sum(data))
-    measure = Sunny.MeasureSpec(observables, corr_pairs, combiner, [one(FormFactor)])
+    formfactors = fill(one(FormFactor), 1, 3, 1)
+    measure = Sunny.MeasureSpec(operators, corr_pairs, combiner, formfactors)
 
     # Set up SpinWaveTheory
     randomize_spins!(sys)

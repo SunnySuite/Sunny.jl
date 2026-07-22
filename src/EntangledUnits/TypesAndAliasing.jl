@@ -286,11 +286,10 @@ function entangled_measure(measure, esys::EntangledSystem)
             new_offsets[k, i] = inverse_info.offset
             for μ in 1:nobs
                 new_ff[k, μ, i] = measure.formfactors[1, μ, atom]
-                A = measure.operators[1, μ, 1, 1, 1, atom]
-                A_product = local_op_to_product_space(convert(Matrix, A), k, Ns_unit[i])
-                A_embedded = A isa Hermitian ? Hermitian(A_product) : A_product
                 for c in CartesianIndices(dims)
-                    new_ops[k, μ, c, i] = A_embedded
+                    A = measure.operators[1, μ, c, atom]
+                    A_product = local_op_to_product_space(A, k, Ns_unit[i])
+                    new_ops[k, μ, c, i] = Hermitian(A_product)
                 end
             end
         end
