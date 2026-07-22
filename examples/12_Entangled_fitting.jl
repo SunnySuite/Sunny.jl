@@ -10,7 +10,7 @@
 
 using Sunny, GLMakie, LinearAlgebra
 
-# Ba₃Mn₂O₈ belongs to spacegroup 166 (R3̄m). The magnetic Mn⁵⁺ ions occupy
+# Ba₃Mn₂O₈ belongs to spacegroup R-3m (166). The magnetic Mn⁵⁺ ions occupy
 # Wyckoff position 6c.
 
 a = 5.710728
@@ -20,8 +20,8 @@ positions = [[0, 0, 0.40708]]
 cryst = Crystal(latvecs, positions, 166)
 view_crystal(cryst)
 
-# Label interactions following Stone et al. Initialize the interaction strengths
-# to zero.
+# Label Heisenberg exchanges following Stone et al. Initialize the interaction
+# strengths to zero.
 
 sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN)
 set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J0 => 0)
@@ -64,8 +64,9 @@ energy_per_site(esys)
 
 plot_spins(esys; ghost_radius=8.0)
 
-# Labeled intensity peaks from inelastic neutron scattering are shown in Fig. 3
-# of Stone et al. It has been extracted below.
+# We will fit to intensity peak data extracted from Fig. 3 of Stone et al. This
+# data provides one energy for each ``𝐪``-point along a certain path in [H, H,
+# L] space.
 
 qs = [[0.15, 0.15, 1.5], [0.15, 0.15, 1.5], [0.2, 0.2, 1.5], [0.25, 0.25, 1.5], [0.3, 0.3, 1.5], [1/3, 1/3, 1.5], [1/3, 1/3, 1.5], [1/3, 1/3, 1.5], [0.35, 0.35, 1.5], [0.4, 0.4, 1.5], [0.4, 0.4, 1.5], [0.45, 0.45, 1.5], [0.5, 0.5, 1.5], [0.5, 0.5, 1.5], [0.5, 0.5, 1.5], [0.55, 0.55, 1.5], [0.6, 0.6, 1.5], [0.65, 0.65, 1.5], [2/3, 2/3, 1.5], [0.7, 0.7, 1.5], [0.75, 0.75, 1.5], [0.8, 0.8, 1.5], [0.85, 0.85, 1.5], [0.85, 0.85, 1.5], [0.85, 0.85, 1.5], [0.85, 0.85, 2.0], [0.85, 0.85, 2.5], [0.85, 0.85, 3.0], [0.85, 0.85, 3.0], [0.8, 0.8, 3.0], [0.75, 0.75, 3.0], [0.7, 0.7, 3.0], [2/3, 2/3, 3.0], [0.65, 0.65, 3.0], [0.6, 0.6, 3.0], [0.55, 0.55, 3.0], [0.5, 0.5, 3.0], [0.5, 0.5, 3.0], [0.45, 0.45, 3.0], [0.4, 0.4, 3.0], [0.4, 0.4, 3.0], [0.35, 0.35, 3.0], [0.34, 0.34, 3.0], [1/3, 1/3, 3.0], [0.32, 0.32, 3.0], [0.31, 0.31, 3.0], [0.3, 0.3, 3.0], [0.29, 0.29, 3.0], [0.28, 0.28, 3.0], [0.27, 0.27, 3.0], [0.26, 0.26, 3.0], [0.25, 0.25, 3.0], [0.2, 0.2, 3.0], [0.15, 0.15, 3.0], [0.15, 0.15, 3.0], [0.1, 0.1, 3.0], [0.05, 0.05, 3.0], [0.0, 0.0, 3.0], [0.0, 0.0, 3.0], [0.0, 0.0, 3.25], [0.0, 0.0, 3.5], [0.0, 0.0, 3.75], [0.0, 0.0, 4.0], [0.0, 0.0, 4.25], [0.0, 0.0, 4.5], [0.0, 0.0, 4.75], [0.0, 0.0, 5.0], [0.0, 0.0, 5.75], [0.0, 0.0, 6.25], [0.0, 0.0, 6.5], [0.0, 0.0, 6.75], [0.0, 0.0, 7.0], [0.0, 0.0, 7.25], [0.0, 0.0, 7.5], [0.0, 0.0, 7.75], [0.0, 0.0, 8.0], [0.0, 0.0, 8.25], [0.0, 0.0, 8.5]]
 Es = [[2.133], [2.127], [1.740], [1.349], [1.120], [1.075], [1.070], [1.068], [1.070], [1.177], [1.169], [1.289], [1.307], [1.292], [1.289], [1.237], [1.130], [1.075], [1.083], [1.195], [1.536], [1.841], [2.331], [2.328], [2.302], [2.081], [1.802], [1.627], [1.602], [1.365], [1.193], [1.083], [1.091], [1.107], [1.213], [1.297], [1.344], [1.323], [1.333], [1.247], [1.198], [1.127], [1.123], [1.117], [1.091], [1.083], [1.078], [1.091], [1.094], [1.109], [1.125], [1.141], [1.325], [1.536], [1.526], [1.721], [1.852], [1.911], [1.896], [1.995], [2.175], [2.440], [2.690], [2.794], [2.823], [2.737], [2.672], [1.781], [2.044], [2.250], [2.440], [2.625], [2.779], [2.766], [2.675], [2.490], [2.237], [2.047]]
@@ -73,9 +74,8 @@ Es = [[2.133], [2.127], [1.740], [1.349], [1.120], [1.075], [1.070], [1.068], [1
 
 # Crystal field data fixes the easy-axis anisotropy to ``D = -0.032`` (meV). At
 # weak inter-dimer exchange coupling, an RPA analysis shows that the dispersion
-# depends only on the four parameters ``(J_0, J_1, J_2 - J_3, J_4)``. For
-# purposes of dispersion fitting, we may select ``J_3 = 0`` without loss of
-# generality.
+# is entirely controlled by four parameters ``(J_0, J_1, J_2 - J_3, J_4)``. For
+# our dispersion fitting task, we will fix ``J_3 = 0`` to avoid ambiguity.
 
 set_params!(esys, [:D, :J3], [-0.032, 0])
 
@@ -132,13 +132,13 @@ sqrt.(diag(U) / 2) # [ΔJ0, ΔJ1, ΔJ2, ΔJ4]
 # | ``J_4``       | 0.04 ± 0.02      | 0.037              |
 #
 # Per the [published erratum](https://doi.org/10.1103/PhysRevLett.105.169901) of
-# Stone et al., all fitted exchanges are antiferromagnetic.
+# Stone et al., all fitted exchanges are correctly antiferromagnetic.
 #
-# Finally, plot the fitted dispersion together with the labeled peaks. Only the
-# triplon modes near 1-3 meV carry appreciable intensity. The helper
+# Finally, plot the fitted dispersion together with the labeled peak data. Only
+# the triplon modes near 1-3 meV carry appreciable intensity. The helper
 # [`find_qs_along_path`](@ref) maps each labeled ``𝐪``-point to an index along
-# the path, which serves as an ``x``-coordinate in the
-# [`plot_intensities`](@ref) scene.
+# the path, which serves as an ``x``-coordinate within the `plot_intensities`
+# scene.
 
 points = [
     [0.15, 0.15, 1.5],
