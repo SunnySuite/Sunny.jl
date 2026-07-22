@@ -70,11 +70,9 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         end
     end
 
-    # Long-range dipole-dipole. Moments live on `sys` (ordinary) or its physical
-    # bare system (entangled); each moment-crystal atom `a` maps to a boson site
-    # `i` and an intra-site part `ka` (index into `spins_localized`). For an
-    # entangled unit, distinct bare atoms sharing a site accumulate into the same
-    # boson block, with the dipolar kernel resolving their true atomic positions.
+    # Long-range dipole-dipole interactions originate from the "bare" atomic
+    # dipoles. In case of an entangled system, these live on the `uncontracted`
+    # system in `sys.entanglement`.
     msys, atom_to_unit = dipole_dipole_moment_system(sys)
     if !isnothing(msys.ewald)
         (; demag, μ0_μB², A) = msys.ewald

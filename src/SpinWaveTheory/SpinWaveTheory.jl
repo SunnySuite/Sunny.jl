@@ -253,7 +253,7 @@ function dipole_dipole_moment_system(sys::System)
         (; uncontracted, unit_map) = get_entanglement(sys)
         return (uncontracted, unit_map.atom_to_unit)
     else
-        return (sys, [UnitPart(i, 1) for i in 1:natoms(sys.crystal)])
+        return (sys, [UnitAndPartIndex(i, 1) for i in 1:natoms(sys.crystal)])
     end
 end
 

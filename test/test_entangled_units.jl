@@ -11,7 +11,7 @@
     set_exchange!(sys, 0.1, Bond(2, 2, [0, 1, 0]))
 
     # Entangle the original cell
-    esys = entangle_system(sys, [(1, 2)])
+    esys = entangle_system(sys, [[1, 2]])
     for u in eachsite(esys)
         set_coherent!(esys, [0, 1/√2, -1/√2, 0], u)
     end
@@ -30,7 +30,7 @@
 
     # A system may also be reshaped prior to entangling
     for shape in shapes
-        esys2 = entangle_system(reshape_supercell(sys, shape), [(1, 2)])
+        esys2 = entangle_system(reshape_supercell(sys, shape), [[1, 2]])
         for u in eachsite(esys2)
             set_coherent!(esys2, [0, 1/√2, -1/√2, 0], u)
         end
@@ -44,7 +44,7 @@
     set_field!(bare, [0, 0, 5])
     set_field_at!(bare, [0, 0, 7], (2, 1, 1, 1))
     set_dipole!(bare, [1, 0, 0], (1, 1, 1, 1))
-    esys3 = entangle_system(bare, [(1, 2)])
+    esys3 = entangle_system(bare, [[1, 2]])
     unc = esys3.entanglement.uncontracted
     @test unc.extfield[2, 1, 1, 1] ≈ [0, 0, 7]
     @test unc.extfield[1, 1, 1, 2] ≈ [0, 0, 5]
@@ -69,7 +69,7 @@ end
     set_exchange!(sys, J′, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))
 
-    esys = entangle_system(sys, [(1, 2)])
+    esys = entangle_system(sys, [[1, 2]])
     bare = esys.entanglement.uncontracted
     interactions = esys.interactions_union[1]
 
@@ -180,7 +180,7 @@ end
     set_pair_coupling!(sys, f, Bond(1, 1, [1, 0, 0]))
     set_pair_coupling!(sys, f, Bond(2, 2, [1, 0, 0]))
 
-    esys = entangle_system(sys, [(1, 2)])
+    esys = entangle_system(sys, [[1, 2]])
     pc = esys.interactions_union[1].pair[1]
     op = Sunny.bond_operator_in_tensor_space(pc, 9, 9)
 
@@ -211,7 +211,7 @@ end
     set_pair_coupling!(sys, (Si, Sj) -> 0.3(Si' * Sj), Bond(1, 1, [1, 0, 0]))
     set_pair_coupling!(sys, (Si, Sj) -> 0.5(Si' * Sj), Bond(1, 2, [1, 0, 0]))
 
-    esys = entangle_system(sys, [(1, 2)])
+    esys = entangle_system(sys, [[1, 2]])
 
     # The stored expansion on the shared bond is minimal rank (3), not the 6
     # terms that naive concatenation would produce.
@@ -221,7 +221,7 @@ end
     # Recompression is exact: energy matches the unentangled reference.
     randomize_spins!(sys)
     minimize_energy!(sys)
-    esys = entangle_system(sys, [(1, 2)])
+    esys = entangle_system(sys, [[1, 2]])
     Sunny.transfer_uncontracted_state!(esys, sys)
     @test energy_per_site(esys) ≈ energy_per_site(sys) atol=1e-10
 end
@@ -247,7 +247,7 @@ end
     enable_dipole_dipole!(sys, units.vacuum_permeability)
     minimize_energy!(sys)
 
-    esys = entangle_system(sys, [(1, 2)])
+    esys = entangle_system(sys, [[1, 2]])
     @test energy_per_site(esys) ≈ energy_per_site(sys)
 
     sys = resize_supercell(sys, (2, 1, 1))
@@ -284,7 +284,7 @@ end
     sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
     set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J => 1.0)
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :Jp => 0.2)
-    esys = entangle_system(sys, [(1, 2)])
+    esys = entangle_system(sys, [[1, 2]])
     for u in eachsite(esys)
         set_coherent!(esys, [0, 1/√2, -1/√2, 0], u)
     end
@@ -336,7 +336,7 @@ end
 
     set_field!(sys, [0., 0., 10])
 
-    esys = entangle_system(sys, [(1, 2)])
+    esys = entangle_system(sys, [[1, 2]])
 
     for s in (sys, esys)
         minimize_energy!(s)
