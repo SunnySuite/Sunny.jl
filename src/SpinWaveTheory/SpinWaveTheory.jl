@@ -48,7 +48,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     measure = @something measure empty_measurespec(sys)
-    if size(eachsite(sys)) != size(measure.operators)[2:5]
+    if size(eachsite(sys)) != size(measure.observables)[2:5]
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
@@ -131,9 +131,9 @@ function swt_data!(sys::System{N}, measure) where N
     # Calculate transformation matrices into local reference frames
     Na = nsites(sys)
     Nb = nbaresites(sys)
-    nparts = size(measure.operators, 6)
+    nparts = size(measure.observables, 6)
     Nobs = num_observables(measure)
-    flat_ops = reshape(measure.operators, Nobs, Na, nparts)
+    flat_ops = reshape(measure.observables, Nobs, Na, nparts)
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
@@ -156,8 +156,8 @@ function swt_data!(sys::System{N}, measure) where N
         local_unitaries[i] = U
 
         # Rotate observables into local reference frames
-        for k in 1:nparts, μ in 1:Nobs
-            observables[μ, i, k] = Hermitian(U' * flat_ops[μ, i, k] * U)
+        for p in 1:nparts, μ in 1:Nobs
+            observables[μ, i, p] = Hermitian(U' * flat_ops[μ, i, p] * U)
         end
 
         int = sys.interactions_union[i]
@@ -245,7 +245,7 @@ function swt_data!(sys::System{0}, measure)
     # Observable is semantically a 1x3 row vector but stored in transpose
     # (column) form. To achieve effective right-multiplication by R, we should
     # in practice left-multiply column vector by R'.
-    obs = reshape(measure.operators, Nobs, Na)
+    obs = reshape(measure.observables, Nobs, Na)
     obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
 
     # Precompute transformed exchange matrices and store in
@@ -289,7 +289,7 @@ end
 # constructed for a system with nontrivial lattice dims. Use fld1(i, prod(dims))
 # to get an atom index for one cell of the unflattened sys.
 function formfactor_for_flattened_sys(measure, μ, i)
-    sys_dims = size(measure.operators)[2:4]
+    sys_dims = size(measure.observables)[2:4]
     measure.formfactors[μ, fld1(i, prod(sys_dims)), 1]
 end
 
@@ -301,11 +301,6 @@ end
 
 # Linearize each Fourier observable Â(q) = Σᵢ exp(+i q⋅rᵢ) Âᵢ as a coefficient
 # vector u in the Nambu basis of Holstein-Primakoff bosons [a_q, a_-q†].
-#
-# For standard SWT each site has one contribution (ncontribs=1) with zero
-# offset. For entangled-unit SWT, SWTDataSUN is populated with ncontribs =
-# atoms_per_unit parts that carry distinct position offsets (relative to the
-# unit center) and distinct form factor atom indices.
 function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_global)
     (; sys, measure, data) = swt
     Na = nsites(sys)
@@ -316,18 +311,19 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
     if sys.mode == :SUN
         (; observables, observable_buf) = data::SWTDataSUN
         N = sys.Ns[1]
-        natoms_orig = size(measure.operators, 5)
+        natoms_orig = size(measure.observables, 5)
         ncells = div(Na, natoms_orig)
         for μ in 1:Nobs, i in 1:Na
-            atom_idx = fld1(i, ncells)
+            site = fld1(i, ncells)
             r = sys.crystal.positions[i]
             fill!(observable_buf, 0)
-            for k in axes(observables, 3)
-                offset = measure.offsets[atom_idx, k]
-                ff = measure.formfactors[μ, atom_idx, k]
+            # Loop over "parts" of the site of an entangled unit
+            for p in axes(observables, 3)
+                offset = measure.offsets[site, p]
+                ff = measure.formfactors[μ, site, p]
                 pref = cis(2π * dot(q_reshaped, r + offset)) *
                        compute_form_factor(ff, norm2(q_global))
-                observable_buf .+= pref .* observables[μ, i, k]
+                observable_buf .+= pref .* observables[μ, i, p]
             end
             for f in 1:Nf
                 u[f + (i-1)*Nf,     μ] = observable_buf[f, N]

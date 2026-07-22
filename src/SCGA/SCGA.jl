@@ -41,7 +41,7 @@ struct SCGA
         sys.dims == (1, 1, 1) || error("Use system with dims=(1, 1, 1) for efficiency")
 
         measure = @something measure empty_measurespec(sys)
-        if size(eachsite(sys)) != size(measure.operators)[2:5]
+        if size(eachsite(sys)) != size(measure.observables)[2:5]
             error("Size mismatch. Check that measure is built using consistent system.")
         end
 
@@ -291,7 +291,7 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
 
     # Preallocation
     A = zeros(ComplexF64, 3Na, 3Na)
-    O = view(measure.operators::Array{Vec3, 6}, :, 1, 1, 1, :, 1)
+    O = view(measure.observables::Array{Vec3, 6}, :, 1, 1, 1, :, 1)
     v = zeros(ComplexF64, 3Na, Nobs)
     u = zeros(ComplexF64, 3Na, Nobs)
     ur = reshape(u, 3, Na, Nobs)
@@ -471,7 +471,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
         u = zeros(ComplexF64, 3Na, Nobs)
         ur = reshape(u, 3, Na, Nobs)
         corr = zeros(ComplexF64, Ncorr)
-        O = view(measure.operators::Array{Vec3,6}, :, 1, 1, 1, :, 1)
+        O = view(measure.observables::Array{Vec3,6}, :, 1, 1, 1, :, 1)
 
         # Reverse buffers
         Δvals = zeros(Float64, length(sys.active_labels))

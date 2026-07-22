@@ -3,24 +3,24 @@
 # (:SUN mode). The `nparts` index and `offsets` field are needed for modeling
 # entangled units.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
-    operators   :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × nunits × nparts)
-    offsets     :: Array{Vec3, 2}         # (nunits × nparts)
-    formfactors :: Array{FormFactor, 3}   # (nobs × nunits × nparts)
+    observables :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × natoms × nparts)
+    offsets     :: Array{Vec3, 2}         # (natoms × nparts)
+    formfactors :: Array{FormFactor, 3}   # (nobs × natoms × nparts)
     corr_pairs  :: Vector{NTuple{2, Int}} # (ncorr)
     combiner    :: F                      # (q::Vec3, obs) -> Ret
 
-    function MeasureSpec(operators::Array{Op, 6}, corr_pairs, combiner::F, formfactors::Array{FormFactor, 3}; offsets=nothing) where {Op, F}
+    function MeasureSpec(observables::Array{Op, 6}, corr_pairs, combiner::F, formfactors::Array{FormFactor, 3}; offsets=nothing) where {Op, F}
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
-        nobs    = size(operators, 1)
-        natoms  = size(operators, 5)
-        nparts  = size(operators, 6)
+        nobs    = size(observables, 1)
+        natoms  = size(observables, 5)
+        nparts  = size(observables, 6)
         if isnothing(offsets)
             offsets = zeros(Vec3, natoms, nparts)
         end
         @assert (natoms, nparts) == size(offsets) "offsets must have shape (natoms, nparts)"
         @assert (nobs, natoms, nparts) == size(formfactors) "formfactors must have shape (nobs, natoms, nparts)"
-        return new{Op, F, Ret}(operators, offsets, formfactors, corr_pairs, combiner)
+        return new{Op, F, Ret}(observables, offsets, formfactors, corr_pairs, combiner)
     end
 end
 
@@ -37,15 +37,15 @@ end
 
 Base.eltype(::MeasureSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
-num_observables(measure::MeasureSpec) = size(measure.operators, 1)
+num_observables(measure::MeasureSpec) = size(measure.observables, 1)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs)
 
 function empty_measurespec(sys)
-    operators = zeros(Vec3, 0, size(eachsite(sys))..., 1)
+    observables = zeros(Vec3, 0, size(eachsite(sys))..., 1)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
     formfactors = zeros(FormFactor, 0, natoms(sys.crystal), 1)
-    return MeasureSpec(operators, corr_pairs, combiner, formfactors)
+    return MeasureSpec(observables, corr_pairs, combiner, formfactors)
 end
 
 function all_dipole_observables(sys::System{0}; apply_g)
@@ -121,8 +121,8 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
         return entangled_measure(measure_atom, sys)
     end
 
-    operators = all_dipole_observables(sys; apply_g)  # (3 × sys_dims × natoms × 1)
-    nobs = size(operators, 1)
+    observables = all_dipole_observables(sys; apply_g)  # (3 × sys_dims × natoms × 1)
+    nobs = size(observables, 1)
     natoms_orig = natoms(sys.crystal)
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     combiner(q, corr) = f(q, SA[
@@ -137,10 +137,10 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
         propagate_atom_data(orig_crystal(sys), sys.crystal, formfactors)
     end
     ffs = Array{FormFactor, 3}([ffs_1d[a] for _ in 1:nobs, a in 1:natoms_orig, _ in 1:1])
-    return MeasureSpec(operators, corr_pairs, combiner, ffs)
+    return MeasureSpec(observables, corr_pairs, combiner, ffs)
 end
 
-CRC.@non_differentiable MeasureSpec(operators, corr_pairs, combiner, formfactors)
+CRC.@non_differentiable MeasureSpec(observables, corr_pairs, combiner, formfactors)
 CRC.@non_differentiable ssf_custom(f, sys)
 
 """
