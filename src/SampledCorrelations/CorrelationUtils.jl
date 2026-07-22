@@ -7,7 +7,7 @@ system was not reshaped, then the number of Brillouin zones included is
 `prod(counts)`.
 """
 function available_wave_vectors(sc::SampledCorrelations; counts=(1,1,1))
-    Ls = sc.sys_dims
+    Ls = size(sc.samplebuf)[2:4]
     offsets = map(L -> isodd(L) ? 1 : 0, Ls)
     up = Ls .* counts
     hi = map(L -> L - div(L, 2), up) .- offsets

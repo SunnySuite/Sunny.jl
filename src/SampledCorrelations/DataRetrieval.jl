@@ -12,7 +12,7 @@ function pruned_wave_vector_info(sc::SampledCorrelations, qs)
     end
 
     # Convert to absolute units (for form factors)
-    qabs_rounded = map(m -> sc.recipvecs * (m ./ sc.sys_dims), ms)
+    qabs_rounded = map(m -> sc.recipvecs * (m ./ Ls), ms)
 
     # List of "starting" pointers i where qabs_rounded[i-1] != qabs_rounded[i],
     # i.e., indices where the desired wave vector is distinct from the previous

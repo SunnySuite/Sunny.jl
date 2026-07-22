@@ -41,10 +41,6 @@ function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
     println(io,"Lattice: $sys_dims × $(size(sc.data, 2))")
 end
 
-function Base.getproperty(sc::SampledCorrelations, sym::Symbol)
-    return sym == :sys_dims ? size(sc.samplebuf)[2:4] : getfield(sc, sym)
-end
-
 function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
     if sym == :measure
         # The sc.data is fixed, so the new measure cannot change observables,
