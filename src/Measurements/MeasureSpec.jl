@@ -8,10 +8,10 @@
 # and per-subsite operators (in product space) in obs_operators.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     obs_operators   :: Array{Op, 6}           # (nparts × nobs × d1 × d2 × d3 × natoms)
-    obs_offsets     :: Array{Vec3, 2}          # (nparts × natoms)
+    obs_offsets     :: Array{Vec3, 2}         # (nparts × natoms)
     obs_formfactors :: Array{FormFactor, 3}   # (nparts × nobs × natoms)
-    corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
-    combiner :: F                        # (q::Vec3, obs) -> Ret
+    corr_pairs :: Vector{NTuple{2, Int}}      # (ncorr)
+    combiner :: F                             # (q::Vec3, obs) -> Ret
 
     function MeasureSpec(obs_operators::Array{Op, 6}, corr_pairs, combiner::F, obs_formfactors::Array{FormFactor, 3}; obs_offsets=nothing) where {Op, F}
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
@@ -178,12 +178,12 @@ measure = ssf_custom_bm(sys; u=[0, 1, 0], v=[0, 0, 1]) do q, ssf
 end
 ```
 """
-function ssf_custom_bm(f, sys::System; u, v, apply_g=true, formfactors=nothing)
+function ssf_custom_bm(f, sys; u, v, apply_g=true, formfactors=nothing)
     u = orig_crystal(sys).recipvecs * u
     v = orig_crystal(sys).recipvecs * v
     e3 = normalize(u × v)
 
-    return ssf_custom(sys::System; apply_g, formfactors) do q, ssf
+    return ssf_custom(sys; apply_g, formfactors) do q, ssf
         if iszero(q)
             error("Blume-Maleev axis system not defined at zero q")
         end
@@ -215,7 +215,7 @@ formfactors = [1 => FormFactor("Co2")]
 ssf_perp(sys; formfactors)
 ```
 """
-function ssf_perp(sys::System; apply_g=true, formfactors=nothing)
+function ssf_perp(sys; apply_g=true, formfactors=nothing)
     return ssf_custom(sys; apply_g, formfactors) do q, ssf
         q2 = norm2(q)
         # Imaginary part vanishes in symmetric contraction
@@ -236,7 +236,7 @@ components. This quantity can be useful for checking quantum sum rules.
 
 This function is a special case of [`ssf_custom`](@ref).
 """
-function ssf_trace(sys::System{N}; apply_g=true, formfactors=nothing) where N
+function ssf_trace(sys; apply_g=true, formfactors=nothing)
     return ssf_custom(sys; apply_g, formfactors) do q, ssf
         tr(real(ssf))
     end

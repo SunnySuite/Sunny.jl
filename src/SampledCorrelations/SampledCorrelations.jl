@@ -261,7 +261,7 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
     sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω,
-                             measure, dropdims(measure.obs_operators; dims=1), positions, atom_idcs, copy(measure.corr_pairs),
+                             measure, copy(selectdim(measure.obs_operators, 1, 1)), positions, atom_idcs, copy(measure.corr_pairs),
                              integrator, measperiod, nsamples,
                              samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 

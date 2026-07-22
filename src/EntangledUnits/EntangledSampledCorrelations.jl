@@ -8,17 +8,6 @@ struct EntangledSampledCorrelationsStatic
     esys::EntangledSystem          # Probably don't need to carry around the whole thing -- defeats spirit of original design for SC
 end
 
-function Base.setproperty!(sc::T, sym::Symbol, val) where {T<:Union{EntangledSampledCorrelations, EntangledSampledCorrelationsStatic}}
-    sc = sc.sc
-    if sym == :measure
-        @assert sc.measure.obs_operators ≈ val.obs_operators "New MeasureSpec must contain identical observables."
-        @assert all(x -> x == 1, sc.measure.corr_pairs .== val.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
-        setfield!(sc, :measure, val)
-    else
-        setfield!(sc, sym, val)
-    end
-end
-
 function Base.show(io::IO, ::EntangledSampledCorrelations)
     print(io, "EntangledSampledCorrelations")
 end
@@ -48,86 +37,107 @@ function Base.show(io::IO, ::MIME"text/plain", esc::EntangledSampledCorrelations
     println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end
 
+# Reassigning `esc.measure` accepts a unit-level MeasureSpec (as produced by
+# `ssf_*` on the EntangledSystem). It is converted to the original-atom layout
+# and stored on the underlying `SampledCorrelations`, whose combiner and form
+# factors are what retrieval actually reads. Only the combiner may change; the
+# observables and correlation pairs must be identical to the originals.
+function set_entangled_measure!(parent::SampledCorrelations, esys::EntangledSystem, val)
+    (; observables, measure_atom) = entangled_sc_data(val, esys)
+    @assert parent.observables ≈ observables "New MeasureSpec must contain identical observables."
+    @assert all(parent.measure.corr_pairs .== val.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
+    setfield!(parent, :measure, measure_atom) # Sets new combiner
+end
+
 function Base.setproperty!(esc::EntangledSampledCorrelations, sym::Symbol, val)
     if sym == :measure
-        measure = val
-        (; observables) = observables_to_product_space(dropdims(measure.obs_operators; dims=1), esc.esys.sys_origin, esc.esys.contraction_info)
-        @assert dropdims(esc.sc.measure.obs_operators; dims=1) ≈ observables "New MeasureSpec must contain identical observables."
-        @assert all(x -> x == 1, esc.sc.measure.corr_pairs .== measure.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
-        setfield!(esc.sc, :measure, val) # Sets new combiner
+        set_entangled_measure!(esc.sc, esc.esys, val)
     else
-        setfield!(sc, sym, val)
+        setfield!(esc, sym, val)
     end
 end
 
-Base.setproperty!(esc::EntangledSampledCorrelationsStatic, sym::Symbol, val) = setproperty!(esc.parent, sym, val)
+function Base.setproperty!(esc::EntangledSampledCorrelationsStatic, sym::Symbol, val)
+    if sym == :measure
+        set_entangled_measure!(esc.sc.parent, esc.esys, val)
+    else
+        setfield!(esc, sym, val)
+    end
+end
 
 
-# Take observables specified in terms or original system and transform them into
-# a field of observables in the tensor product space, together with mapping
-# information for populating the expectation values of these operators with
-# respect to the entangled system.
-function observables_to_product_space(observables, sys_origin, contraction_info)
-    Ns_per_unit = Ns_in_units(sys_origin, contraction_info)
-    Ns_all = [prod(Ns) for Ns in Ns_per_unit]
-    N = Ns_all[1]
-    @assert all(==(N), Ns_all) "All entangled units must have the same dimension Hilbert space."
+# Convert a unit-level MeasureSpec (indexed to `esys.sys`, as produced by
+# `ssf_custom(esys)`) into the original-atom layout consumed by the
+# SampledCorrelations machinery. Sampling evaluates `observables[μ, cell, atom]`
+# against the coherent state of the unit that `atom` belongs to (`source_idcs`
+# records that unit index; `positions` holds the absolute atom position).
+# Retrieval reads form factors and the combiner from the returned atom-layout
+# `MeasureSpec`, whose observable/position axis is `natoms_origin`.
+function entangled_sc_data(measure, esys::EntangledSystem)
+    (; sys_origin, contraction_info) = esys
+    nobs = num_observables(measure)
+    dims = sys_origin.dims
+    natoms_origin = natoms(sys_origin.crystal)
 
-    observables_new = fill(zeros(ComplexF64, N, N), size(observables)) 
-    positions = zeros(Vec3, size(observables)[2:end])
-    source_idcs = zeros(Int64, size(observables)[2:end])
+    Op = eltype(measure.obs_operators)
+    observables = Array{Op, 5}(undef, nobs, dims..., natoms_origin)
+    positions   = zeros(Vec3, dims..., natoms_origin)
+    source_idcs = zeros(Int64, dims..., natoms_origin)
+
+    # Atom-layout MeasureSpec (nparts=1, natoms=natoms_origin) stored in the
+    # parent SampledCorrelations for the combiner and per-atom form factors.
+    atom_ops = Array{Op, 6}(undef, 1, nobs, dims..., natoms_origin)
+    atom_ff  = Array{FormFactor, 3}(undef, 1, nobs, natoms_origin)
 
     for site in eachsite(sys_origin)
         atom = site.I[4]
+        cell = CartesianIndex(site.I[1:3])
+        unit, k = contraction_info.forward[atom]
         positions[site] = sys_origin.crystal.positions[atom]
-        source_idcs[site] = contraction_info.forward[atom][1]
-        for μ in axes(observables, 1)
-            obs = observables[μ, site]
-            unit, unitsub = contraction_info.forward[atom]
-            Ns = Ns_per_unit[unit]
-            observables_new[μ, site] = local_op_to_product_space(obs, unitsub, Ns)
+        source_idcs[site] = unit
+        for μ in 1:nobs
+            op = measure.obs_operators[k, μ, cell, unit]
+            observables[μ, site] = op
+            atom_ops[1, μ, site] = op
+            atom_ff[1, μ, atom] = measure.obs_formfactors[k, μ, unit]
         end
     end
-    observables = observables_new
 
-    return (; observables, positions, source_idcs)
+    measure_atom = MeasureSpec(atom_ops, measure.corr_pairs, measure.combiner, atom_ff)
+
+    return (; observables, positions, source_idcs, measure_atom)
 end
 
-
 # Configures an ordinary SampledCorrelations for an entangled system. The
-# measure is assumed to correspond to the sites of the original "unentangled"
-# system. 
+# `measure` is a unit-level MeasureSpec (from `ssf_*` on the EntangledSystem),
+# converted to the original-atom layout for sampling and retrieval.
 function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calculate_errors=false)
-    # Convert observables on different sites to "multiposition" observables in
-    # tensor product spaces. With entangled units, the position of an operator
-    # cannot be uniquely determined from the `atom` index of a `Site`. Instead,
-    # the position is recorded independently, and the index of the relevant
-    # coherent state (which may now be used for operators corresponding to
-    # multiple positions) is recorded in `source_idcs`.
-    (; observables, positions, source_idcs) = observables_to_product_space(dropdims(measure.obs_operators; dims=1), esys.sys_origin, esys.contraction_info)
+    (; observables, positions, source_idcs, measure_atom) = entangled_sc_data(measure, esys)
 
-    # Make a sampled correlations for the esys.
-    sc = SampledCorrelations(esys.sys; measure, energies, dt, calculate_errors, positions) 
+    # Make a sampled correlations for the esys. The observables/positions fields
+    # are replaced below with the original-atom layout; the measure sizes the buffers.
+    sc = SampledCorrelations(esys.sys; measure=measure_atom, energies, dt, calculate_errors, positions)
 
-    # Replace relevant fields or the resulting SampledCorrelations. Note use of
+    # Replace relevant fields of the resulting SampledCorrelations. Note use of
     # undocumented `positions` keyword. This can be eliminated if positions are
     # migrated into the MeasureSpec.
     crystal = esys.sys_origin.crystal
     origin_crystal = orig_crystal(esys.sys_origin)
-    sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables, positions, source_idcs, measure.corr_pairs,
+    sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure_atom, observables, positions, source_idcs, measure_atom.corr_pairs,
                                  sc.integrator, sc.measperiod, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
     return EntangledSampledCorrelations(sc_new, esys)
 end
 
 function SampledCorrelationsStatic(esys::EntangledSystem; measure, calculate_errors=false)
-    (; observables, positions, source_idcs) = observables_to_product_space(dropdims(measure.obs_operators; dims=1), esys.sys_origin, esys.contraction_info)
-    sc = SampledCorrelations(esys.sys; measure, energies=nothing, dt=NaN, calculate_errors, positions) 
+    (; observables, positions, source_idcs, measure_atom) = entangled_sc_data(measure, esys)
+
+    sc = SampledCorrelations(esys.sys; measure=measure_atom, energies=nothing, dt=NaN, calculate_errors, positions)
 
     # Replace relevant fields
     crystal = esys.sys_origin.crystal
     origin_crystal = orig_crystal(esys.sys_origin)
-    parent = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables, positions, source_idcs, measure.corr_pairs,
+    parent = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure_atom, observables, positions, source_idcs, measure_atom.corr_pairs,
                                  sc.integrator, sc.measperiod, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
     ssc = SampledCorrelationsStatic(parent)

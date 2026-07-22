@@ -67,11 +67,7 @@ function reshape_supercell(esys::EntangledSystem, shape)
     _, contraction_info = contract_crystal(sys_origin_new.crystal, units_new)
     sys_new = reshape_supercell(sys, shape)
 
-    # Construct dipole operator field for reshaped EntangledSystem
-    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
-
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
+    return EntangledSystem(sys_new, sys_origin_new, contraction_info)
 end
 
 function repeat_periodically(esys, counts)
@@ -81,11 +77,7 @@ function repeat_periodically(esys, counts)
     sys_new = repeat_periodically(sys, counts)
     sys_origin_new = repeat_periodically(sys_origin, counts)
 
-    # Construct dipole operator field for reshaped EntangledSystem
-    dipole_operators_origin = dropdims(all_dipole_observables(sys_origin_new; apply_g=false); dims=1)
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
-
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
+    return EntangledSystem(sys_new, sys_origin_new, contraction_info)
 end
 
 function resize_supercell(esys::EntangledSystem, dims::NTuple{3,Int})
@@ -95,9 +87,5 @@ function resize_supercell(esys::EntangledSystem, dims::NTuple{3,Int})
     sys_new = reshape_supercell(sys, diagm(Vec3(dims)))
     sys_origin_new = reshape_supercell(sys_origin, diagm(Vec3(dims)))
 
-    # Construct dipole operator field for reshaped EntangledSystem
-    dipole_operators_origin = dropdims(all_dipole_observables(sys_origin_new; apply_g=false); dims=1)
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
-
-    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
+    return EntangledSystem(sys_new, sys_origin_new, contraction_info)
 end

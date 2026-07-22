@@ -40,9 +40,40 @@ struct EntangledSystem
     sys_origin        :: System                         # Original "uncontracted" system
     contraction_info  :: CrystalContractionInfo         # Forward and inverse mapping data for sys <-> sys_origin
 
-    # Observable field for dipoles and mapping information for loops
-    dipole_operators  :: Array{Matrix{ComplexF64}, 5}   # An observable field corresponding to dipoles of the original system.
+    # Mapping information for dynamics
     source_idcs       :: Array{Int64, 4}                # Metadata for populating the original dipoles from entangled sites.
+
+    # Cached product-space spin operators, indexed by atom of sys_origin. Each
+    # atom's bare spin operators (no g-tensor) are embedded into the local
+    # Hilbert space of its containing entangled unit. Homogeneous across cells.
+    dipole_operators  :: Vector{NTuple{3, Matrix{ComplexF64}}}
+end
+
+# Build the product-space spin operators for each atom of `sys_origin`, embedded
+# into the local Hilbert space of the containing entangled unit. No g-tensor is
+# applied. Since an `EntangledSystem` is homogeneous, these depend only on the
+# atom index.
+function build_dipole_operators(sys_origin, contraction_info)
+    Ns_unit = Ns_in_units(sys_origin, contraction_info)
+    natoms = length(contraction_info.forward)
+    return map(1:natoms) do atom
+        S_local = spin_matrices_of_dim(; N=sys_origin.Ns[1, 1, 1, atom])
+        unit, k = contraction_info.forward[atom]
+        ntuple(α -> local_op_to_product_space(S_local[α], k, Ns_unit[unit]), 3)
+    end
+end
+
+# Convenience constructor that derives the dynamics metadata (`source_idcs` and
+# the cached `dipole_operators`) from the two systems and their mapping. All
+# `EntangledSystem`s are built through here.
+function EntangledSystem(sys, sys_origin, contraction_info)
+    source_idcs = zeros(Int64, size(eachsite(sys_origin)))
+    for site in eachsite(sys_origin)
+        atom = site.I[4]
+        source_idcs[site] = contraction_info.forward[atom][1]
+    end
+    dipole_operators = build_dipole_operators(sys_origin, contraction_info)
+    return EntangledSystem(sys, sys_origin, contraction_info, source_idcs, dipole_operators)
 end
 
 """
@@ -67,22 +98,14 @@ function EntangledSystem(sys::System{N}, units) where {N}
     # interactions are indexed by atom/unit, not site, external field
     # information must also be tracked by atom/unit index only.
     for atom in axes(sys.coherents, 4)
-        @assert allequal(@view sys.gs[:,:,:,atom]) "`EntangledSystem` require g-factors be uniform across unit cells" 
+        @assert allequal(@view sys.gs[:,:,:,atom]) "`EntangledSystem` require g-factors be uniform across unit cells"
     end
 
     # Generate pair of contracted and uncontracted systems
     (; sys_entangled, contraction_info) = entangle_system(sys, units)
     sys_origin = clone_system(sys)
 
-    # Generate observable field. This observable field has as many entries as
-    # the uncontracted system but contains operators in the local product spaces
-    # of the contracted system. `source_idcs` provides the unit index (of the
-    # contracted system) in terms of the atom index (of the uncontracted
-    # system).
-    dipole_operators_origin = dropdims(all_dipole_observables(sys_origin; apply_g=false); dims=1)
-    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
-
-    esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables, source_idcs)
+    esys = EntangledSystem(sys_entangled, sys_origin, contraction_info)
 
     # Coordinate sys_entangled and sys_origin
     set_expected_dipoles_of_entangled_system!(esys)
@@ -115,6 +138,8 @@ end
 eachsite(esys::EntangledSystem) = eachsite(esys.sys_origin)
 eachunit(esys::EntangledSystem) = eachsite(esys.sys)
 
+orig_crystal(esys::EntangledSystem) = orig_crystal(esys.sys_origin)
+
 energy(esys::EntangledSystem) = energy(esys.sys)
 energy_per_site(esys::EntangledSystem) = energy(esys.sys) / nsites(esys.sys_origin)
 
@@ -122,24 +147,27 @@ function clone_system(esys::EntangledSystem)
     sys = clone_system(esys.sys)
     sys_origin = clone_system(esys.sys_origin)
     contraction_info = copy(esys.contraction_info)
-    dipole_operators = copy(esys.dipole_operators)
     source_idcs = copy(esys.source_idcs)
+    dipole_operators = esys.dipole_operators  # immutable cache, safe to share
 
-    return EntangledSystem(sys, sys_origin, contraction_info, dipole_operators, source_idcs)
+    return EntangledSystem(sys, sys_origin, contraction_info, source_idcs, dipole_operators)
 end
 
 function set_field!(esys::EntangledSystem, B)
-    (; sys, sys_origin, dipole_operators, source_idcs) = esys 
-    B_old = sys_origin.extfield[1,1,1,1] 
-    set_field!(sys_origin, B) 
+    (; sys, sys_origin, dipole_operators, source_idcs) = esys
+    B_old = sys_origin.extfield[1,1,1,1]
+    set_field!(sys_origin, B)
 
     # Iterate through atom of original system and adjust the onsite operator of
     # corresponding unit of contracted system.
     for atom in axes(sys_origin.coherents, 4)
         unit = source_idcs[1, 1, 1, atom]
-        S = dipole_operators[:, 1, 1, 1, atom]
-        ΔB = sys_origin.gs[1, 1, 1, atom]' * (B - B_old) 
-        sys.interactions_union[unit].onsite += Hermitian(ΔB' * S)
+        S = dipole_operators[atom]  # cached product-space spin operators (no g-tensor)
+
+        # Apply field change (g-tensor applied separately via ΔB)
+        ΔB = sys_origin.gs[1, 1, 1, atom]' * (B - B_old)
+        field_term = sum(ΔB[α] * S[α] for α in 1:3)
+        sys.interactions_union[unit].onsite += Hermitian(field_term)
     end
 end
 
@@ -219,10 +247,57 @@ function plot_spins(esys::EntangledSystem; kwargs...)
     plot_spins(esys.sys_origin; kwargs...)
 end
 
-ssf_custom(f, esys::EntangledSystem; kwargs...) = ssf_custom(f, esys.sys_origin; kwargs...)
-ssf_custom_bm(f, esys::EntangledSystem; kwargs...) = ssf_custom_bm(f, esys.sys_origin; kwargs...)
-ssf_trace(esys::EntangledSystem; kwargs...) = ssf_trace(esys.sys_origin; kwargs...)
-ssf_perp(esys::EntangledSystem; kwargs...) = ssf_perp(esys.sys_origin; kwargs...)
+# Build a MeasureSpec for an EntangledSystem. The measure is first constructed
+# at the atom level on `sys_origin` (reusing `ssf_custom(f, sys::System)` for
+# g-tensor, form factors, correlation pairs, and combiner), then transformed
+# into a unit-level measure indexed to `esys.sys` via `entangled_measure`.
+# `ssf_trace`, `ssf_perp`, and `ssf_custom_bm` accept an `EntangledSystem` and
+# dispatch through this method (see MeasureSpec.jl).
+function ssf_custom(f, esys::EntangledSystem; apply_g=true, formfactors=nothing)
+    measure_atom = ssf_custom(f, esys.sys_origin; apply_g, formfactors)
+    return entangled_measure(measure_atom, esys)
+end
+
+# Transform an atom-level MeasureSpec (indexed to `esys.sys_origin`) into a
+# unit-level MeasureSpec indexed to `esys.sys`. For each unit and each of its
+# `atoms_per_unit` subsites, the original atom operator is embedded into the
+# product-space Hilbert space via `local_op_to_product_space`. Position offsets
+# and form factors are extracted from `contraction_info`. Observables are
+# uniform across cells (g-factors are uniform in an `EntangledSystem`), so the
+# per-cell operator is broadcast across all cells.
+function entangled_measure(measure, esys::EntangledSystem)
+    (; sys, sys_origin, contraction_info) = esys
+    Ns_unit = Ns_in_units(sys_origin, contraction_info)
+
+    nobs = num_observables(measure)
+    dims = sys.dims
+
+    nunits = length(contraction_info.inverse)
+    atoms_per_unit = length(contraction_info.inverse[1])  # uniform by construction
+
+    Op = eltype(measure.obs_operators)
+    new_ops     = Array{Op, 6}(undef, atoms_per_unit, nobs, dims..., nunits)
+    new_offsets = zeros(Vec3, atoms_per_unit, nunits)
+    new_ff      = Array{FormFactor, 3}(undef, atoms_per_unit, nobs, nunits)
+
+    for i in 1:nunits
+        for (k, inverse_info) in enumerate(contraction_info.inverse[i])
+            atom = inverse_info.site  # atom index within a chemical cell of sys_origin
+            new_offsets[k, i] = inverse_info.offset
+            for μ in 1:nobs
+                new_ff[k, μ, i] = measure.obs_formfactors[1, μ, atom]
+                A = measure.obs_operators[1, μ, 1, 1, 1, atom]
+                A_product = local_op_to_product_space(convert(Matrix, A), k, Ns_unit[i])
+                A_embedded = A isa Hermitian ? Hermitian(A_product) : A_product
+                for c in CartesianIndices(dims)
+                    new_ops[k, μ, c, i] = A_embedded
+                end
+            end
+        end
+    end
+
+    return MeasureSpec(new_ops, measure.corr_pairs, measure.combiner, new_ff; obs_offsets=new_offsets)
+end
 
 # TODO: Note this simple wrapper makes everything work, but is not the most
 # efficient solution. `step!` currently syncs the dipoles field of the
