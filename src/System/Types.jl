@@ -135,10 +135,6 @@ mutable struct System{N}
     # Optional long-range dipole-dipole interactions
     ewald                  :: Union{Ewald, Nothing}
 
-    # Spin dipole operators Ŝ. Or, for an entangled system, a weighted sum of
-    # spin operators. Defined so that the expected dipoles S = Z† Ŝ Z yield
-    # magnetic moments, μ = - g S.
-    #
     # Dynamical variables and buffers (dims × natoms)
     const extfield         :: Array{Vec3, 4}            # External B field
     const dipoles          :: Array{Vec3, 4}            # Expected dipoles

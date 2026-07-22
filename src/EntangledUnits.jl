@@ -338,13 +338,9 @@ function entangle_units(sys::System{M}, units) where M
         relevant_sites = atoms_in_unit(contraction_info, contracted_site)
         unit_operator = zeros(ComplexF64, N, N)
 
-        # Pair interactions that become within-unit interactions
+        # Pair couplings that become onsite (intra-unit) couplings
         original_interactions = sys.interactions_union[relevant_sites]
         for (site, interaction) in zip(relevant_sites, original_interactions)
-            # Onsite anisotropy portion. The Zeeman term is *not* folded in
-            # here; it is handled as a first-class term on the contracted system
-            # via `sys.extfield` and the cached per-unit `dipole_operators` (see
-            # `set_field_entangled!` and `set_energy_grad_coherents!`).
             onsite_original = interaction.onsite
             unit_index = contraction_info.forward[site][2]
             unit_operator += local_op_to_product_space(onsite_original, unit_index, Ns)
@@ -387,15 +383,8 @@ function entangle_units(sys::System{M}, units) where M
         push!(exemplars, exemplar)
     end
 
-    # We collected all bond_operators associated with a particular exemplar, sum
-    # them, and set the interaction. Use `extract_parts=false` to keep the whole
-    # operator in the `general` (tensor-decomposed) channel. Extracting bilinear
-    # and biquadratic parts would express them in terms of the unit's
-    # spin-(N-1)/2 operators, but the contracted `sys.dipoles` holds a unit's
-    # *total moment* (Σₖ gₖ Sₖ), not ⟨spin_matrices_of_dim(N)⟩. Those channels
-    # would then be evaluated against the wrong vector in
-    # `energy_aux`/`set_energy_grad_*`. The general channel is evaluated
-    # directly from coherent states, so it is exact.
+    # Sum bond operators associated with exemplar and set the interaction. Use
+    # `extract_parts=false` because dipoles are NaNs for entangled systems.
     for bond in exemplars
         relevant_interactions = filter(data -> data[1] == bond, new_pair_data)
         bond_operator = sum(data[2] for data in relevant_interactions)
@@ -410,8 +399,13 @@ function entangle_units(sys::System{M}, units) where M
     units_truth = [collect(Int, u) for u in units]
     rebuild_entanglement!(sys_entangled, bare_system, units_truth)
 
-    # Coordinate dipole data
-    sync_dipoles!(sys_entangled)
+    # Initialize coherent states of each entangled unit to the tensor product of
+    # bare coherent states.
+    for unit in eachsite(sys_entangled)
+        members = entangled_unit_members(sys_entangled, unit)
+        Z = kron((bare_system.coherents[bs] for bs in members)...)
+        set_coherent!(sys_entangled, Z, unit)
+    end
 
     return sys_entangled
 end
@@ -602,7 +596,8 @@ end
 # Coherent states and measurements
 ################################################################################
 # Find the unique coherent state corresponding to a set of fully-polarized
-# dipoles on each site inside a specified entangled unit.
+# dipoles on each site inside a specified entangled unit. FIXME: This function
+# is dead. Fix `set_dipole!` instead.
 function coherent_state_from_dipoles(sys::System, dipoles, unit)
     (; bare_system, contraction_info) = get_entanglement(sys)
 

@@ -173,6 +173,7 @@ end
     set_exchange!(sys, 0.1, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, 0.1, Bond(2, 2, [1, 0, 0]))
     enable_dipole_dipole!(sys, units.vacuum_permeability)
+    minimize_energy!(sys)
 
     esys = Sunny.entangle_units(sys, [(1, 2)])
     @test energy_per_site(esys) ≈ energy_per_site(sys)
@@ -183,13 +184,11 @@ end
 
     # SpinWaveTheory calculations should be consistent too
     qs = [[0.1, 0, 0], [0.3, 0.2, 0]]
-    minimize_energy!(sys)
-    minimize_energy!(esys)
     res1 = intensities_bands(SpinWaveTheory(sys; measure=ssf_perp(sys)), qs)
     res2 = intensities_bands(SpinWaveTheory(esys; measure=ssf_perp(esys)), qs)
 
-    # The two lowest bands describe intra-unit singlet-triplet excitations and
-    # do not carry intensity.
+    # The two highest energy bands describe intra-unit singlet-triplet
+    # excitations and do not carry intensity.
     @test all(<(1e-12), abs.(res2.data[1:2, :]))
 
     # The remaining bands should match between entangled and non-entangled
