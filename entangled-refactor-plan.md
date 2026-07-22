@@ -131,6 +131,45 @@ B′). Golden-gate on "Dimer Tests".
 - `EntangledSystem(sys, units)` → constructor/`entangle!` returning a `System` with the
   mapping field populated.
 
+**Phase C landed (dynamics fold; construction fold deferred):**
+- Design principle (per KB): physical dipoles are a *cached quantity kept coherent with
+  the coherent states at the primitive level*, always available (future: entangled
+  energy/gradient e.g. Zeeman may read them; not wired yet).
+- New primitive-level sync, keyed on `sys.entanglement` (all in EntangledUnits.jl):
+  `sync_bare_dipoles!(sys)` (bulk), `sync_bare_dipole!(sys, site)` (one physical site),
+  `sync_entangled_unit!(sys, unit_site)` (one unit's atoms).
+- `setspin!` (System.jl) gains `isnothing(sys.entanglement) || sync_entangled_unit!` —
+  covers `set_coherent!`/`randomize_spins!`/`minimize_energy!`'s `load_spins!` (per KB:
+  minimize DOES sync each set_coherent!, by design — dipoles always available).
+- New general `set_expected_dipoles!(sys)` (System.jl), **two paths** (both SU(N) `step!`
+  methods in Integrators.jl call it in place of the bare `@. sys.dipoles =
+  expected_spin(Z)`):
+  1. Ordinary: `@. sys.dipoles = expected_spin(coherents)`.
+  2. Entangled: `expected_spin` is **nonsense** for a unit (it would treat the
+     product-space dim N=∏Nₖ as one spin-(N-1)/2 irrep — KB flagged this). Instead
+     `set_expected_dipoles_entangled!` syncs physical dipoles AND redefines each
+     contracted `sys.dipoles[unit]` as the unit's *total physical magnetic moment in the
+     unit's own g-convention*: `sys.gs[unit] \ Σₖ gₖ Sₖ` (with conventional `sys.gs=I`,
+     just `Σₖ gₖ Sₖ`). So `sys.gs[unit]*sys.dipoles[unit]` recovers the total moment —
+     sets up a future entangled Zeeman coupling. `sync_entangled_unit!` does both the
+     per-atom physical sync and this contracted-moment update in one pass.
+  - Safe because the contracted `sys.dipoles` is currently INERT in the entangled energy:
+    inter-unit couplings are `general` tensors evaluated through coherents
+    (Interactions.jl:498), `bilin`/`extfield` are zero. Golden unchanged (verified).
+- EntangledSystem wrappers `step!`/`randomize_spins!`/`minimize_energy!`/`set_coherent!`
+  collapsed to pure delegation to `esys.sys` (self-syncs via the invariant
+  `esys.sys.entanglement.bare_system === esys.sys_origin`). Old
+  `set_expected_dipole(s)_of_entangled_system!` now unused by these paths (still defined;
+  removed in D).
+- **JET gotcha + fix:** `Union{Nothing, AbstractEntanglement}` narrows to an *abstract*
+  type → runtime dispatch in the MC-hot `setspin!` path (25 JET errors). Fixed by
+  mirroring `interactions_union :: Vector{Interactions}`: added
+  `get_entanglement(sys) = sys.entanglement :: Entanglement` (concrete assertion at the
+  access boundary) and routed the sync helpers through it.
+- Verified: full suite **3789/3789**; "Type stability" + "Memory allocations" 18/18 (no
+  alloc regression in ordinary hot path); live check: entangled `step!`/`set_coherent!`
+  sync bit-identical (error 0.0) to from-scratch recomputation.
+
 ### Phase D — Delete `EntangledSystem` + wrappers
 Wrappers (`EntangledSampledCorrelations`, `EntangledSpinWaveTheory`) and most of
 `TypesAndAliasing.jl` evaporate. **Remove the transitional `crystal` kwarg from
@@ -139,19 +178,3 @@ Wrappers (`EntangledSampledCorrelations`, `EntangledSpinWaveTheory`) and most of
 Ordering rationale: B is the linchpin; A de-risks it cheaply; C/D mechanical once B lands.
 Do NOT attempt B+C+D in one session. Golden invariant throughout: "Dimer Tests" golden
 intensities in `test/test_entangled_units.jl`.
-
-## Fresh-session kickoff prompt (Phase A)
-
-> Continue the EntangledUnits refactor. SC and SWT are already thin wrappers consuming
-> `nparts` MeasureSpecs. Next: Phase A — inventory exactly what `EntangledSystem`
-> provides beyond a plain `System` (two-system pairing, dynamics sync, construction,
-> aliasing) and map each to its future home on a unified `System`. Read
-> `src/EntangledUnits/TypesAndAliasing.jl` and `EntangledUnits.jl`. No code changes yet
-> — produce the inventory and confirm whether `sys_origin` can collapse to
-> crystal+buffer. Test recipe is in CLAUDE.local.md.
-
-## Notes
-- Start Phase B+ in a FRESH julia-mcp session (struct redefs; Revise can't track).
-- Commit the current SC work before starting the next phase (clean `git status`).
-- Test recipe: see "Tests" section of CLAUDE.local.md (run_tests at repo ROOT via
-  julia-mcp; LOAD_PATH trick; don't Pkg.develop into test env).

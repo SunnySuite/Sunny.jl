@@ -333,6 +333,63 @@ function entangle_system(sys::System{M}, units) where M
 end
 
 
+# Concrete-typed view of the entanglement metadata. The field is declared
+# `Union{Nothing, AbstractEntanglement}` on `System` (the abstract supertype
+# breaks a recursive type dependency), so accessing it directly poisons
+# inference with an abstract type. Mirroring the `interactions_union ::
+# Vector{Interactions}` pattern, assert the concrete `Entanglement` here so JET
+# and downstream inference stay clean. Only call when `sys` is entangled.
+@inline get_entanglement(sys::System) = sys.entanglement :: Entanglement
+
+# Recompute the physical dipole at one physical `site` (a site of `bare_system`)
+# from the coherent state of its containing unit.
+function sync_bare_dipole!(sys::System, site)
+    (; bare_system, source_idcs, dipole_operators) = get_entanglement(sys)
+    a, b, c, atom = site.I
+    Z = sys.coherents[a, b, c, source_idcs[site]]
+    S = dipole_operators[atom]  # cached product-space spin operators
+    bare_system.dipoles[site] = ntuple(i -> real(dot(Z, S[i], Z)), 3)
+    return
+end
+
+# Keep all cached dipoles of a single unit coherent with its coherent state,
+# given a unit `site` of the contracted `sys`. Two things are updated:
+#
+#   1. The physical dipoles of every atom in the unit (`bare_system.dipoles`).
+#   2. The contracted `sys.dipoles[site]`, redefined to carry a meaningful value:
+#      the unit's *total physical magnetic moment* expressed in the unit's own
+#      g-convention. `expected_spin` is nonsense here (it would assume the
+#      product-space dimension N=∏Nₖ is a single spin-(N-1)/2 irrep), so instead
+#      we form M = Σₖ gₖ Sₖ over the physical atoms and store `sys.gs[site] \ M`.
+#      With the conventional `sys.gs[site] = I`, this is just M. Then
+#      `sys.gs[site] * sys.dipoles[site] = M` recovers the total moment, which
+#      will facilitate a Zeeman coupling on the entangled unit.
+#
+# Called after a targeted coherent-state update (`set_coherent!`/`setspin!`).
+function sync_entangled_unit!(sys::System, site)
+    (; bare_system, contraction_info) = get_entanglement(sys)
+    a, b, c, unit = to_cartesian(site).I
+    M = zero(Vec3)
+    for atom in atoms_in_unit(contraction_info, unit)
+        phys_site = CartesianIndex(a, b, c, atom)
+        sync_bare_dipole!(sys, phys_site)
+        M += bare_system.gs[phys_site] * bare_system.dipoles[phys_site]
+    end
+    sys.dipoles[site] = sys.gs[site] \ M
+    return
+end
+
+# Entangled path of `set_expected_dipoles!`: refresh every unit's cached dipoles
+# (physical + contracted total moment) from the coherent states. Every physical
+# atom belongs to exactly one unit, so iterating contracted sites covers all
+# `bare_system.dipoles` as well.
+function set_expected_dipoles_entangled!(sys::System)
+    for site in eachsite(sys)
+        sync_entangled_unit!(sys, site)
+    end
+    return
+end
+
 function set_expected_dipoles_of_entangled_system!(esys)
     for site in eachsite(esys.sys_origin)
         set_expected_dipole_of_entangled_system!(esys, site)

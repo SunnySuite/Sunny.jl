@@ -253,26 +253,20 @@ end
 
 
 # Sets the coherent state of a specified unit. The `site` refers to the
-# contracted lattice (i.e., to a "unit"). The function then updates all dipoles
-# in the uncontracted system that are determined by the coherent state. 
+# contracted lattice (i.e., to a "unit"). `esys.sys` self-syncs the physical
+# dipoles of the affected unit (via `setspin!` → `sync_entangled_unit!`), which
+# land in `esys.sys_origin` by the invariant `entanglement.bare_system ===
+# sys_origin`.
 function set_coherent!(esys::EntangledSystem, coherent, site)
-    site = to_cartesian(site)
     set_coherent!(esys.sys, coherent, site)
-    a, b, c, unit = site.I
-    for atom in atoms_in_unit(esys.contraction_info, unit)
-        set_expected_dipole_of_entangled_system!(esys, CartesianIndex(a, b, c, atom))
-    end
 end
 
-function randomize_spins!(esys::EntangledSystem) 
+function randomize_spins!(esys::EntangledSystem)
     randomize_spins!(esys.sys)
-    set_expected_dipoles_of_entangled_system!(esys)
 end
 
 function minimize_energy!(esys::EntangledSystem; kwargs...)
-    optout = minimize_energy!(esys.sys; kwargs...)
-    set_expected_dipoles_of_entangled_system!(esys)
-    return optout
+    return minimize_energy!(esys.sys; kwargs...)
 end
 
 function magnetic_moments(esys::EntangledSystem)
@@ -334,13 +328,10 @@ function entangled_measure(measure, esys::EntangledSystem)
     return MeasureSpec(new_ops, measure.corr_pairs, measure.combiner, new_ff; offsets=new_offsets)
 end
 
-# TODO: Note this simple wrapper makes everything work, but is not the most
-# efficient solution. `step!` currently syncs the dipoles field of the
-# EntangledSystem in a meaninless way. This field is ignored everywhere, but
-# this step represents needless computation.
+# `esys.sys` is entangled, so `step!` self-syncs the physical dipoles into
+# `esys.sys_origin` (via `set_expected_dipoles!`).
 function step!(esys::EntangledSystem, integrator)
-    step!(esys.sys, integrator) 
-    set_expected_dipoles_of_entangled_system!(esys)
+    step!(esys.sys, integrator)
 end
 
 suggest_timestep(esys::EntangledSystem, integrator; kwargs...) = suggest_timestep(esys.sys, integrator; kwargs...)

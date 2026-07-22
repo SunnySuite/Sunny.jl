@@ -484,6 +484,28 @@ end
 @inline function setspin!(sys::System{N}, spin::SpinState{N}, site) where N
     sys.dipoles[site] = spin.S
     sys.coherents[site] = spin.Z
+    # For an entangled system, keep the physical dipoles of the affected unit
+    # coherent with the just-updated coherent state.
+    isnothing(sys.entanglement) || sync_entangled_unit!(sys, site)
+    return
+end
+
+# Recompute cached dipoles from the coherent states. Generalizes the bare
+# `@. sys.dipoles = expected_spin(Z)` update that ends an SU(N) `step!`, with two
+# paths:
+#
+#   1. Ordinary system: `sys.dipoles = ⟨Z|S|Z⟩`, assuming each coherent state
+#      lives in a single spin-(N-1)/2 irrep.
+#   2. Entangled system: `expected_spin` is meaningless (the product-space
+#      dimension is not a single irrep). Instead sync the physical dipoles held
+#      in `sys.entanglement.bare_system`, and set each contracted `sys.dipoles`
+#      to the unit's total physical magnetic moment (see `sync_entangled_unit!`).
+function set_expected_dipoles!(sys::System{N}) where N
+    if isnothing(sys.entanglement)
+        @. sys.dipoles = expected_spin(sys.coherents)
+    else
+        set_expected_dipoles_entangled!(sys)
+    end
     return
 end
 

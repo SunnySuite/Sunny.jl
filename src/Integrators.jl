@@ -350,8 +350,8 @@ function step!(sys::System{N}, integrator::Langevin) where N
     rhs_sun!(ΔZ₂, Z′, ζ, HZ, integrator)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
-    # Coordinate dipole data
-    @. sys.dipoles = expected_spin(Z)
+    # Coordinate dipole data (unit-level, and physical dipoles if entangled)
+    set_expected_dipoles!(sys)
 
     return
 end
@@ -441,7 +441,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
 
         if fast_isapprox(Z′, Z″; atol)
             @. Z = normalize_ket(Z″, sys.κs)
-            @. sys.dipoles = expected_spin(Z)
+            set_expected_dipoles!(sys)
             return
         end
 
