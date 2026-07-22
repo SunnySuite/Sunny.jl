@@ -71,6 +71,28 @@ function hermitian_matrix_from_coords(x::AbstractVector{<:Real}, N::Integer)
     return Hermitian(A, :U)
 end
 
+# Inverse of `hermitian_matrix_from_coords`: express an N×N Hermitian matrix as a
+# real vector of coordinates in the orthonormal Hermitian basis described above.
+function hermitian_coords_from_matrix!(x::AbstractVector{<:Real}, A::AbstractMatrix, N::Integer)
+    @assert length(x) == N*N
+    sqrt2 = sqrt(2.0)
+
+    p = 1
+    for i in 1:N
+        x[p] = real(A[i, i])
+        p += 1
+    end
+
+    for i in 1:N-1, j in i+1:N
+        x[p]   =  sqrt2 * real(A[i, j])
+        x[p+1] = -sqrt2 * imag(A[i, j])
+        p += 2
+    end
+
+    @assert p == N*N + 1
+    return x
+end
+
 # Given a Hermitian operator D living in tensor-product space, find a compressed
 # decomposition D = ∑ₖ Aₖ ⊗ Bₖ, where Aₖ is N₁×N₁ and Bₖ is N₂×N₂. Returns the
 # list of Hermitian matrix pairs [(A₁, B₁), (A₂, B₂), ...].
@@ -115,40 +137,42 @@ end
 # Compress a list of Hermitian tensor pairs [(A₁, B₁), ...] (interpreted as ∑ₖ
 # Aₖ ⊗ Bₖ) into a minimal-rank list with the same sum.
 #
-# Unlike `factorize_tensor_space_operator`, this implementation avoids forming
-# the N₁N₂ × N₁N₂ product-space operator. Instead, it performs an SVD of a small
-# coefficient matrix involving inner products ⟨Aᵢ, Aⱼ⟩ and ⟨Bᵢ, Bⱼ⟩.
+# Each leg is mapped to real coordinates in the orthonormal Hermitian basis,
+# where the Hilbert-Schmidt inner product becomes the ordinary dot product.
+# Stacking these as columns of Ac (N₁²×K) and Bc (N₂²×K), the sum ∑ₖ Aₖ ⊗ Bₖ has
+# coordinate matrix M = Ac Bc'. Its rank is at most K, typically K ≪ N₁², N₂²,
+# so we reduce each leg with a thin QR and take the SVD of the small K×K core Rₐ
+# Rᵦ'. This avoids both the N₁N₂ × N₁N₂ product-space operator and the N₁² × N₂²
+# coordinate matrix M.
 function compress_tensor_product_expansion(data::Vector{Tuple{HermitianC64, HermitianC64}}; tol=1e-12)
     length(data) <= 1 && return data
 
-    # Build an orthonormal operator basis {êᵢ} for the span of `ops`, and the
-    # coefficients C[k,i] such that opₖ = ∑ᵢ C[k,i] êᵢ (in Hilbert-Schmidt inner
-    # product). Uses the eigendecomposition of the Gram matrix G[k,l] = ⟨opₖ, opₗ⟩.
-    function orthonormalize(ops)
-        G = [real(dot(P, Q)) for P in ops, Q in ops]
-        λ, U = eigen(Symmetric(G))
-        keep = findall(>(tol * maximum(λ)), λ)
-        C = U[:, keep] * Diagonal(sqrt.(λ[keep]))
-        basis = map(keep) do i
-            Hermitian(sum((U[k, i] / sqrt(λ[i])) * Matrix(ops[k]) for k in eachindex(ops)))
-        end
-        return C, basis
+    N1 = size(first(data)[1], 1)
+    N2 = size(first(data)[2], 1)
+    K = length(data)
+
+    Ac = zeros(Float64, N1*N1, K)
+    Bc = zeros(Float64, N2*N2, K)
+    for (k, (A, B)) in enumerate(data)
+        hermitian_coords_from_matrix!(view(Ac, :, k), A, N1)
+        hermitian_coords_from_matrix!(view(Bc, :, k), B, N2)
     end
 
-    CA, eA = orthonormalize(first.(data))
-    CB, eB = orthonormalize(last.(data))
+    # M = Ac Bc' = Qₐ (Rₐ Rᵦ') Qᵦ', so the SVD of the small core Rₐ Rᵦ' carries
+    # the singular values, and the leg coordinates are Qₐ U and Qᵦ V.
+    qra = qr(Ac)
+    qrb = qr(Bc)
+    F = svd!(qra.R * qrb.R')
 
-    # In the orthonormal bases, the operator is ∑ᵢⱼ Mᵢⱼ êᴬᵢ ⊗ êᴮⱼ with M = CA' CB.
-    # Its SVD gives the minimal-rank decomposition.
-    F = svd(CA' * CB)
-    ret = Tuple{HermitianC64, HermitianC64}[]
-    for (m, σ) in enumerate(F.S)
-        σ < tol * F.S[1] && break
-        A = sum(F.U[i, m] * Matrix(eA[i]) for i in eachindex(eA))
-        B = sum(F.V[j, m] * Matrix(eB[j]) for j in eachindex(eB))
-        push!(ret, (Hermitian(σ * A), Hermitian(B)))
+    nkeep = count(>(tol * F.S[1]), F.S)
+    Acoords = qra.Q * F.U[:, 1:nkeep]
+    Bcoords = qrb.Q * F.V[:, 1:nkeep]
+
+    return map(1:nkeep) do m
+        A = hermitian_matrix_from_coords(view(Acoords, :, m), N1)
+        B = hermitian_matrix_from_coords(view(Bcoords, :, m), N2)
+        (Hermitian(F.S[m] * Matrix(A), :U), Hermitian(Matrix(B), :U))
     end
-    return ret
 end
 
 # Given a local operator, A, that lives within an entangled unit on local site
