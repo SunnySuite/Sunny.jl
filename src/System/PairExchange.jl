@@ -313,9 +313,10 @@ Si, Sj = to_product_space(S, S)
 set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 ```
 
-An optional trailing [`ParamSpec`](@ref) labels the coupling to support mutable
-rescaling of its strength. Couplings with distinct labels accumulate on each
-bond.
+An optional trailing [`ParamSpec`](@ref) labels a scaling factor that can be
+mutably updated. In this case, the `op` argument should be order one to avoid
+squaring the interaction strength. Couplings with distinct labels accumulate on
+each bond.
 
 See also [`spin_matrices`](@ref), [`to_product_space`](@ref).
 """
@@ -420,13 +421,20 @@ J = [2 3 0;
 set_exchange!(sys, J, bond)
 ```
 
-An optional trailing [`ParamSpec`](@ref) labels the coupling to support mutable
-rescaling of its strength. Couplings with distinct labels accumulate on each
-bond.
+An optional trailing [`ParamSpec`](@ref) labels a scaling factor that can be
+mutably updated. In this case, the `J` argument should be order one to avoid
+squaring the interaction strength. Couplings with distinct labels accumulate on
+each bond.
 """
 function set_exchange!(sys::System{N}, J, bond::Bond, paramspec=nothing; biquad=0.0) where N
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
     sys_orig = something(sys.origin, sys)
+
+    # Detect a common mistake and warn
+    if !isnothing(paramspec) && iszero(biquad) && J isa Number && !isone(J)
+        @warn "Heisenberg coupling may be double-applied; if a labeled scale is provided, set J to 1.0 (or a dimensionless matrix shape)"
+    end
+
     scalar, bilin, biquad = adapt_for_biquad(0.0, J, biquad, sys_orig, (1, 1, 1, bond.i), (1, 1, 1, bond.j))
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, zero(TensorDecomposition), bond, paramspec)
     return

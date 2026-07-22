@@ -54,6 +54,11 @@
     @test_logs (:warn, msg) set_exchange!(sys, Diagonal([1.0, 1.0, 0.0]), b, :Jxy => 0.1)
     E6 = energy(sys)
     @test E6 ≈ (L/2) * (0.1 - 2.0) + L * J0
+
+    # A doubly-specified Heisenberg scale is very likely a mistake and triggers
+    # a warning.
+    msg = "Heisenberg coupling may be double-applied; if a labeled scale is provided, set J to 1.0 (or a dimensionless matrix shape)"
+    @test_logs (:warn, msg) set_exchange!(sys, 1.8, Bond(1, 1, [1, 0, 0]), :J => 1.8)
 end
 
 
