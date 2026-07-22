@@ -59,12 +59,11 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     if is_entangled(sys)
-        # Flatten both the contracted and physical (bare) systems, then rebuild
-        # the entanglement mapping. `swt_data` reads the bare system for the
-        # per-atom spin operators (Zeeman and long-range dipole-dipole), so its
-        # metadata must survive here.
-        (; bare_system, groupings) = get_entanglement(sys)
-        sys = rebuild_entanglement!(flatten_system(sys), flatten_system(bare_system), groupings)
+        # Flatten both the contracted and uncontracted systems, then rebuild the
+        # entanglement mapping. `swt_data` requires `bare_dipole_operators` for
+        # its Zeeman and long-range dipole-dipole couplings.
+        (; uncontracted, groupings) = get_entanglement(sys)
+        sys = rebuild_entanglement!(flatten_system(sys), flatten_system(uncontracted), groupings)
     else
         sys = flatten_system(sys)
     end
@@ -276,12 +275,12 @@ end
 # the iterator runs over all sites of the bare system.
 function swt_spin_parts(sys::System{N}) where N
     if is_entangled(sys)
-        (; bare_system, unit_map, bare_dipole_operators) = get_entanglement(sys)
+        (; uncontracted, unit_map, bare_dipole_operators) = get_entanglement(sys)
         return map(unit_map.unit_to_members) do members
             map(members) do member
                 (bare_dipole_operators[member.atom],
-                 bare_system.gs[1, 1, 1, member.atom],
-                 bare_system.extfield[1, 1, 1, member.atom])
+                 uncontracted.gs[1, 1, 1, member.atom],
+                 uncontracted.extfield[1, 1, 1, member.atom])
             end
         end
     else
@@ -301,8 +300,8 @@ end
 # the Ewald wavevector is consistent.
 function dipole_dipole_moment_system(sys::System)
     if is_entangled(sys)
-        (; bare_system, unit_map) = get_entanglement(sys)
-        return (bare_system, unit_map.atom_to_unit)
+        (; uncontracted, unit_map) = get_entanglement(sys)
+        return (uncontracted, unit_map.atom_to_unit)
     else
         return (sys, [UnitPart(i, 1) for i in 1:natoms(sys.crystal)])
     end

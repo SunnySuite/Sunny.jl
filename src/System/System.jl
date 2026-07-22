@@ -176,14 +176,6 @@ function clone_system(sys::System{N}) where N
     return ret
 end
 
-# Clone the optional entanglement metadata. The concrete `Entanglement` subtype
-# (with its inner physical `bare_system`) provides its own method in
-# EntangledUnits/; ordinary systems carry `nothing`.
-clone_entanglement(::Nothing) = nothing
-
-# True if `sys` is a system of "entangled units" carrying entanglement metadata.
-is_entangled(sys::System) = !isnothing(sys.entanglement)
-
 
 """
     (cell1, cell2, cell3, i) :: Site
@@ -292,7 +284,7 @@ The [`SCGA`](@ref) calculator returns the thermodynamic average for each site.
 function magnetic_moments(sys::System)
     # For an entangled system, physical moments live on the bare system.
     if !isnothing(sys.entanglement)
-        bare = get_entanglement(sys).bare_system
+        bare = get_entanglement(sys).uncontracted
         return magnetic_moments_aux(bare.gs, bare.dipoles)
     end
     return magnetic_moments_aux(sys.gs, sys.dipoles)

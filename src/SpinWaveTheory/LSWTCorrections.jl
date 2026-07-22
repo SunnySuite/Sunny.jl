@@ -19,10 +19,10 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
     any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")
 
     (; sys) = swt
-    # Normalize per physical site. For an entangled system the SWT crystal counts
-    # units, so the physical site count lives on the bare system (mirrors
-    # `energy_per_site`).
-    Nsites = is_entangled(sys) ? nsites(get_entanglement(sys).bare_system) : natoms(sys.crystal)
+    # Normalize per physical site. For an entangled system the SWT crystal
+    # counts units, so the physical site count lives on the uncontracted system
+    # (mirrors `energy_per_site`).
+    Nsites = is_entangled(sys) ? nsites(get_entanglement(sys).uncontracted) : natoms(sys.crystal)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     V = zeros(ComplexF64, 2L, 2L)

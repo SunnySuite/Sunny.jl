@@ -17,9 +17,9 @@ function reshape_supercell(sys::System, shape)
         # Reshape both the contracted and uncontracted systems to the same
         # geometry. as ordinary systems, then synchronize the entanglement index
         # mapping.
-        (; bare_system, groupings) = get_entanglement(sys)
+        (; uncontracted, groupings) = get_entanglement(sys)
         sys_new = reshape_supercell_plain(sys, shape)
-        bare_new = reshape_supercell_plain(bare_system, shape)
+        bare_new = reshape_supercell_plain(uncontracted, shape)
         return rebuild_entanglement!(sys_new, bare_new, groupings)
     end
     return reshape_supercell_plain(sys, shape)

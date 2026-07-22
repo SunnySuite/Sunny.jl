@@ -19,8 +19,6 @@ struct UnitPart
     part :: Int                   # Part index within unit 
 end
 
-@inline floor_cell(v) = SVector{3,Int}(floor(Int, v[1]), floor(Int, v[2]), floor(Int, v[3]))
-
 # Bidirectional mapping between atoms (in uncontracted crystal) and entangled
 # unit indices (in contracted crystal).
 struct UnitMap
@@ -31,26 +29,27 @@ end
 # Metadata for a System with entangled units.  Hilbert dimension N of the
 # uncontracted system is intentionally omitted to avoid dynamic lookup.
 struct Entanglement <: AbstractEntanglement
-    bare_system           :: System                          # System prior to entanglement
+    uncontracted          :: System                          # System prior to entanglement
     groupings             :: Vector{Groupings}               # Unit specification for chemical cell
     unit_map              :: UnitMap                         # Bidirectional atom ↔ unit mapping
-    bare_dipole_operators :: Vector{NTuple{3, HermitianC64}} # Product-space spin ops per physical atom (no g)
+    bare_dipole_operators :: Vector{NTuple{3, HermitianC64}} # Product-space spin ops per physical atom
 end
 
+# True if the system carries entanglement metadata.
+is_entangled(sys::System) = !isnothing(sys.entanglement)
+
+# Needed because uncontracted.dipoles and related state are mutably updated
 function clone_entanglement(ent::Entanglement)
-    return Entanglement(clone_system(ent.bare_system), ent.groupings,
+    return Entanglement(clone_system(ent.uncontracted), ent.groupings,
                         ent.unit_map, ent.bare_dipole_operators)
 end
 
-# Concrete-typed view of the entanglement metadata. The field is declared
-# `Union{Nothing, AbstractEntanglement}` on `System` (the abstract supertype
-# breaks a recursive type dependency), so accessing it directly poisons
-# inference with an abstract type. Mirroring the `interactions_union ::
-# Vector{Interactions}` pattern, assert the concrete `Entanglement` here so JET
-# and downstream inference stay clean. The `Entanglement{N}` parameter is the
-# bare system's local dimension (generally distinct from the contracted `sys`'s
-# N), so it is left free here; asserting the UnionAll still concretizes the
-# `bare_system::System{N}` field per instance. Only call when `sys` is entangled.
+clone_entanglement(::Nothing) = nothing
+
+
+
+# Concrete-typed view of the entanglement metadata. The explicit type ascription
+# avoids JET warnings.
 @inline get_entanglement(sys::System) = sys.entanglement :: Entanglement
 
 
@@ -89,7 +88,7 @@ function contract_crystal(crystal, groupings::Vector{Groupings})
             for (atom, cell_offset) in unit_spec
         ]
         center_unwrapped = sum(unwrapped_positions) / length(unwrapped_positions)
-        center_cell = floor_cell(center_unwrapped)
+        center_cell = floor.(Int, center_unwrapped)
 
         # Store wrapped unit center in the contracted crystal
         push!(new_positions, center_unwrapped - Vec3(center_cell...))
@@ -138,9 +137,9 @@ end
 # Physical (bare-system) sites comprising the entangled unit at contracted
 # `unit_site` of `sys`. Accepts CartesianIndex, tuple, or integer atom index.
 function entangled_unit_members(sys::System, unit_site::Union{CartesianIndex,NTuple{4,Int}})
-    (; bare_system, unit_map) = get_entanglement(sys)
+    (; uncontracted, unit_map) = get_entanglement(sys)
     unit_site = to_cartesian(unit_site)
-    return [member_site(unit_site, member, bare_system.dims) for member in unit_map.unit_to_members[to_atom(unit_site)]]
+    return [member_site(unit_site, member, uncontracted.dims) for member in unit_map.unit_to_members[to_atom(unit_site)]]
 end
 
 function entangled_unit_members(sys::System, atom::Int)
@@ -378,16 +377,16 @@ function entangle_system(sys::System{M}, groupings) where M
     # Clone the physical (bare) system and derive all entanglement metadata from
     # the immutable `groupings` truth. The contracted `sys_entangled` carries
     # `origin` = its chemical cell (set by the `System` constructor), matching
-    # the physical `bare_system`, so both reshape in tandem through the ordinary
+    # the physical `uncontracted`, so both reshape in tandem through the ordinary
     # backbone.
-    bare_system = clone_system(sys)
-    rebuild_entanglement!(sys_entangled, bare_system, groupings)
+    uncontracted = clone_system(sys)
+    rebuild_entanglement!(sys_entangled, uncontracted, groupings)
 
     # Initialize coherent states of each entangled unit to the tensor product of
     # bare coherent states.
     for unit in eachsite(sys_entangled)
         members = entangled_unit_members(sys_entangled, unit)
-        Z = kron((bare_system.coherents[bs] for bs in members)...)
+        Z = kron((uncontracted.coherents[bs] for bs in members)...)
         set_coherent!(sys_entangled, Z, unit)
     end
 
@@ -399,18 +398,18 @@ function entangle_system(::System{0}, _)
 end
 
 # Populate the entanglement metadata of a contracted `sys` (which may be
-# reshaped), given the physical `bare_system` reshaped to the same geometry and
-# the immutable `groupings` truth (a grouping of chemical-cell atoms of the
-# *unreshaped* physical crystal). The derived `unit_map` and the cached
-# operator tables are rebuilt here geometrically. This is the single entry point
-# used by both `entangle_system` and every reshaping variant.
+# reshaped), given the physical `uncontracted` system reshaped to the same
+# geometry and the immutable `groupings` truth (a grouping of chemical-cell
+# atoms of the *unreshaped* physical crystal). The derived `unit_map` and the
+# cached operator tables are rebuilt here geometrically. This is the single
+# entry point used by both `entangle_system` and every reshaping variant.
 #
 # The mapping is derived from positions in the shared lattice frame (contracted
-# and physical crystals share `latvecs`); each member's `cell_offset` records the
-# cell of its atom relative to the unit's cell, so a unit's atoms may lie in
+# and physical crystals share `latvecs`); each member's `cell_offset` records
+# the cell of its atom relative to the unit's cell, so a unit's atoms may lie in
 # different cells of the reshaped system (a "straddling" unit).
-function rebuild_entanglement!(sys::System, bare_system, groupings::Vector{Groupings})
-    bare_origin = something(bare_system.origin, bare_system)
+function rebuild_entanglement!(sys::System, uncontracted, groupings::Vector{Groupings})
+    bare_origin = something(uncontracted.origin, uncontracted)
 
     # Chemical-cell contraction: per chemical atom, its within-unit `part` and
     # global displacement from the unit center. Reshape-invariant.
@@ -428,34 +427,34 @@ function rebuild_entanglement!(sys::System, bare_system, groupings::Vector{Group
     # with the product-space factor order.
     nunits = natoms(sys.crystal)
     atoms_per_unit = length(first(groupings))
-    natoms_bare = natoms(bare_system.crystal)
+    natoms_bare = natoms(uncontracted.crystal)
     @assert natoms_bare == nunits * atoms_per_unit
     atom_to_unit = UnitPart[]
     unit_to_members = [Vector{MemberAtom}(undef, atoms_per_unit) for _ in 1:nunits]
     for a in 1:natoms_bare
-        a_chem = map_atom_to_other_crystal(bare_system.crystal, a, bare_origin.crystal)
+        a_chem = map_atom_to_other_crystal(uncontracted.crystal, a, bare_origin.crystal)
         part = parts[a_chem]
-        center = global_position_at(bare_system, CartesianIndex(1, 1, 1, a)) - goff[a_chem]
+        center = global_position_at(uncontracted, CartesianIndex(1, 1, 1, a)) - goff[a_chem]
         unit_site = position_to_site(sys, orig_crystal(sys).latvecs \ center)
         u = to_atom(unit_site)
         push!(atom_to_unit, UnitPart(u, part))
         # Physical offset from the unit center (reshaped fractional frame; used
         # by `entangled_measure`) and the integer cell of atom `a` relative to
         # the unit's cell (nonzero ⇒ straddling; used by `member_site`).
-        offset = bare_system.crystal.latvecs \ goff[a_chem]
+        offset = uncontracted.crystal.latvecs \ goff[a_chem]
         cell_offset = SVector(1, 1, 1) .- SVector(to_cell(unit_site))
         unit_to_members[u][part] = MemberAtom(a, offset, cell_offset)
     end
     unit_map = UnitMap(atom_to_unit, unit_to_members)
 
-    Ns_unit = Ns_in_units(bare_system, unit_map)
+    Ns_unit = Ns_in_units(uncontracted, unit_map)
     bare_dipole_operators =  map(1:natoms_bare) do atom
-        S_local = spin_matrices_of_dim(; N=bare_system.Ns[1, 1, 1, atom])
+        S_local = spin_matrices_of_dim(; N=uncontracted.Ns[1, 1, 1, atom])
         (; unit, part) = unit_map.atom_to_unit[atom]
         ntuple(α -> local_op_to_product_space(S_local[α], part, Ns_unit[unit]), 3)
     end
 
-    sys.entanglement = Entanglement(bare_system, groupings, unit_map, bare_dipole_operators)
+    sys.entanglement = Entanglement(uncontracted, groupings, unit_map, bare_dipole_operators)
     return sys
 end
 
@@ -466,18 +465,17 @@ end
 # operators) is purely geometric and unaffected by coupling values, so only the
 # contracted interactions are rebuilt here.
 function set_params_entangled!(sys::System, labels, vals)
-    bare_system = get_entanglement(sys).bare_system
-    groupings = get_entanglement(sys).groupings
+    (; uncontracted, groupings) = get_entanglement(sys)
 
     # 1. Update the labels on the bare system (the source of truth). This takes
-    #    the ordinary path and also syncs `bare_system.origin`.
-    set_params!(bare_system, labels, vals)
+    #    the ordinary path and also syncs `uncontracted.origin`.
+    set_params!(uncontracted, labels, vals)
 
     # 2. Regenerate the contracted chemical-cell couplings from the updated bare
     #    chemical cell. `sys_chem` shares the crystal/structure of `sys`'s own
     #    contracted chemical cell (`something(sys.origin, sys)`); only coupling
     #    values differ.
-    bare_origin = something(bare_system.origin, bare_system)
+    bare_origin = something(uncontracted.origin, uncontracted)
     sys_chem = entangle_system(bare_origin, groupings)
 
     # 3. Install the regenerated contracted couplings. For an unreshaped `sys`,
@@ -505,18 +503,19 @@ end
 # fields, so this cannot be represented by a single per-unit dE/dS vector —
 # hence the bare-atom granularity here rather than the contracted
 # `set_energy_grad_dipoles!` path. `N` is the local dimension of entangled units
-# (not of the `bare_system`).
+# (not of the `uncontracted`).
 function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entanglement) where N
-    (; bare_system, unit_map, bare_dipole_operators) = ent
-    dims = bare_system.dims
+    (; uncontracted, unit_map, bare_dipole_operators) = ent
+    dims = uncontracted.dims
 
     # Reuse the bare system's persistent scratch buffers.
-    S_bare, dE_dS_bare = get_dipole_buffers(bare_system, 2)
+    S_bare, dE_dS_bare = get_dipole_buffers(uncontracted, 2)
     fill!(dE_dS_bare, zero(Vec3))
 
-    # Physical dipoles ⟨Sₐ⟩ evaluated from the *passed* `Z` (which may be a trial
-    # state not yet synced into `bare_system.dipoles`), so the dipole-dependent
-    # Ewald field is consistent with the state whose gradient is requested.
+    # Physical dipoles ⟨Sₐ⟩ evaluated from the *passed* `Z` (which may be a
+    # trial state not yet synced into `uncontracted.dipoles`), so the
+    # dipole-dependent Ewald field is consistent with the state whose gradient
+    # is requested.
     for u in CartesianIndices(Z)
         Zu = Z[u]
         for member in unit_map.unit_to_members[to_atom(u)]
@@ -528,11 +527,11 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
 
     # Per-atom dE/dSₐ on the bare system: Zeeman gₐ' B plus, if enabled, the
     # long-range dipole-dipole field (which itself includes the g-tensor).
-    for bare_site in eachsite(bare_system)
-        dE_dS_bare[bare_site] += bare_system.gs[bare_site]' * bare_system.extfield[bare_site]
+    for site in eachsite(uncontracted)
+        dE_dS_bare[site] += uncontracted.gs[site]' * uncontracted.extfield[site]
     end
-    if !isnothing(bare_system.ewald)
-        accum_ewald_grad!(dE_dS_bare, S_bare, bare_system)
+    if !isnothing(uncontracted.ewald)
+        accum_ewald_grad!(dE_dS_bare, S_bare, uncontracted)
     end
 
     # Sum each physical atom's contribution into its containing unit's coherent
@@ -554,11 +553,11 @@ end
 # Sync the bare dipoles with the coherent state of an unit at `site`
 function sync_bare_dipoles_at!(sys::System, site)
     Z = sys.coherents[site]
-    (; bare_system, unit_map, bare_dipole_operators) = get_entanglement(sys)
+    (; uncontracted, unit_map, bare_dipole_operators) = get_entanglement(sys)
     for member in unit_map.unit_to_members[to_atom(site)]
-        bs = member_site(site, member, bare_system.dims)
+        bs = member_site(site, member, uncontracted.dims)
         S = bare_dipole_operators[member.atom]
-        bare_system.dipoles[bs] = Vec3(real(dot(Z, S[1], Z)), real(dot(Z, S[2], Z)), real(dot(Z, S[3], Z)))
+        uncontracted.dipoles[bs] = Vec3(real(dot(Z, S[1], Z)), real(dot(Z, S[2], Z)), real(dot(Z, S[3], Z)))
     end
     return
 end
@@ -571,14 +570,14 @@ end
 # dipoles on each site inside a specified entangled unit. FIXME: This function
 # is dead. Fix `set_dipole!` instead.
 function coherent_state_from_dipoles(sys::System, dipoles, unit)
-    (; bare_system, unit_map) = get_entanglement(sys)
+    (; uncontracted, unit_map) = get_entanglement(sys)
 
     # Atom indices (of the physical system) that lie in the specified unit.
     atoms = [member.atom for member in unit_map.unit_to_members[unit]]
     @assert length(dipoles) == length(atoms) "Invalid number of dipoles for specified unit."
 
     # Local Hilbert space dimensions for those atoms.
-    Ns = Ns_in_units(bare_system, unit_map)[unit]
+    Ns = Ns_in_units(uncontracted, unit_map)[unit]
 
     # Coherent state per atom, in each local Hilbert space.
     coherents = []
@@ -593,25 +592,25 @@ function coherent_state_from_dipoles(sys::System, dipoles, unit)
 end
 
 # Build a unit-level MeasureSpec for an entangled `System`. The measure is first
-# constructed at the atom level on the physical `bare_system` (reusing the
+# constructed at the atom level on the physical `uncontracted` (reusing the
 # ordinary `ssf_custom` for g-tensor, form factors, correlation pairs, and
 # combiner), then transformed into a unit-level measure via `entangled_measure`.
 # `ssf_custom(f, sys::System)` dispatches here when `sys` is entangled.
 function ssf_custom_entangled(f, sys::System; apply_g, formfactors)
-    (; bare_system) = get_entanglement(sys)
-    measure_atom = ssf_custom(f, bare_system; apply_g, formfactors)
+    (; uncontracted) = get_entanglement(sys)
+    measure_atom = ssf_custom(f, uncontracted; apply_g, formfactors)
     return entangled_measure(measure_atom, sys)
 end
 
-# Transform an atom-level MeasureSpec (indexed to `bare_system`) into a
+# Transform an atom-level MeasureSpec (indexed to `uncontracted`) into a
 # unit-level MeasureSpec indexed to the contracted `sys`. For each unit and each
 # of its `atoms_per_unit` subsites, the atom operator is embedded into the
 # product-space Hilbert space via `local_op_to_product_space`. Position offsets
 # and form factors come from `unit_map`. Observables are uniform across
 # cells (g-factors are uniform), so the per-cell operator is broadcast.
 function entangled_measure(measure, sys::System)
-    (; bare_system, unit_map) = get_entanglement(sys)
-    Ns_unit = Ns_in_units(bare_system, unit_map)
+    (; uncontracted, unit_map) = get_entanglement(sys)
+    Ns_unit = Ns_in_units(uncontracted, unit_map)
 
     nobs = num_observables(measure)
     dims = sys.dims
@@ -626,7 +625,7 @@ function entangled_measure(measure, sys::System)
 
     for i in 1:nunits
         for (k, member) in enumerate(unit_map.unit_to_members[i])
-            atom = member.atom  # atom index within a chemical cell of bare_system
+            atom = member.atom  # atom index within a chemical cell of uncontracted
             new_offsets[k, i] = member.offset
             for μ in 1:nobs
                 new_ff[k, μ, i] = measure.formfactors[1, μ, atom]

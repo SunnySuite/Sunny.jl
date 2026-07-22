@@ -103,11 +103,8 @@ struct Ewald
     ift_plan :: rIFTPlan
 end
 
-# Optional metadata attached to a `System` whose sites represent "entangled
-# units" (tensor products of local Hilbert spaces). The concrete subtype
-# `Entanglement` lives in EntangledUnits/; it is declared abstract here to break
-# the recursive `System` <-> `Entanglement` type dependency (the concrete struct
-# holds a physical `bare_system::System`). `nothing` for ordinary systems.
+# An abstract type to avoid Julia's restriction against circular type
+# dependency. The corresponding concrete type is Entanglement.
 abstract type AbstractEntanglement end
 
 mutable struct System{N}
@@ -145,9 +142,7 @@ mutable struct System{N}
     # Global data
     const rng              :: Random.Xoshiro
 
-    # Optional entanglement metadata. `nothing` for ordinary systems; for a
-    # system of "entangled units" it carries the physical (uncontracted)
-    # `bare_system` plus the contraction/dynamics mapping. See EntangledUnits/.
+    # Optional entanglement metadata
     entanglement           :: Union{Nothing, AbstractEntanglement}
 end
 

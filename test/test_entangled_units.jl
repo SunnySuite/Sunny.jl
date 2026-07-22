@@ -51,7 +51,7 @@ end
     set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))
 
     esys = entangle_system(sys, [(1, 2)])
-    bare = esys.entanglement.bare_system
+    bare = esys.entanglement.uncontracted
     interactions = esys.interactions_union[1]
 
     # Test on-bond exchange

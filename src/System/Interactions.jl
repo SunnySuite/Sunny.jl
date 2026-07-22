@@ -185,9 +185,9 @@ function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; demag=1/3)
         μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
     end
     # For an entangled system, dipole-dipole interactions couple the physical
-    # magnetic moments on the `bare_system`.
+    # magnetic moments on the uncontracted system.
     if is_entangled(sys)
-        enable_dipole_dipole!(get_entanglement(sys).bare_system, μ0_μB²; demag)
+        enable_dipole_dipole!(get_entanglement(sys).uncontracted, μ0_μB²; demag)
         return
     end
     sys.ewald = Ewald(sys, μ0_μB², Mat3(demag * I))
@@ -237,9 +237,9 @@ function set_field_at!(sys::System, B_μB, site)
 
     # Mirror the field onto the physical member sites of this unit (straddle-safe).
     if !isnothing(sys.entanglement)
-        bare_system = get_entanglement(sys).bare_system
+        (; uncontracted) = get_entanglement(sys)
         for bs in entangled_unit_members(sys, site)
-            bare_system.extfield[bs] = B
+            uncontracted.extfield[bs] = B
         end
     end
 end
@@ -331,7 +331,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     # A single-site (unit) update moves several physical moments at once, so the
     # bare Ewald `ewald_energy_delta` (which assumes one moment moves) does not
     # apply. Not yet supported.
-    if !isnothing(sys.entanglement) && !isnothing(get_entanglement(sys).bare_system.ewald)
+    if !isnothing(sys.entanglement) && !isnothing(get_entanglement(sys).uncontracted.ewald)
         error("LocalSampler does not yet support long-range dipole-dipole interactions for entangled units.")
     end
 
@@ -414,7 +414,7 @@ The total system [`energy`](@ref) divided by the number of sites.
 """
 function energy_per_site(sys::System{N}; check_normalization=true) where N
     # For an entangled system, normalize by the number of physical sites.
-    n = isnothing(sys.entanglement) ? nsites(sys) : nsites(get_entanglement(sys).bare_system)
+    n = isnothing(sys.entanglement) ? nsites(sys) : nsites(get_entanglement(sys).uncontracted)
     return energy(sys; check_normalization) / n
 end
 
@@ -438,12 +438,12 @@ function energy(sys::System{N}; check_normalization=true) where N
             E += ewald_energy(sys)
         end
     else
-        bare = get_entanglement(sys).bare_system
-        for site in eachsite(bare)
-            E += bare.extfield[site] ⋅ (bare.gs[site] * bare.dipoles[site])
+        (; uncontracted) = get_entanglement(sys)
+        for site in eachsite(uncontracted)
+            E += uncontracted.extfield[site] ⋅ (uncontracted.gs[site] * uncontracted.dipoles[site])
         end
-        if !isnothing(bare.ewald)
-            E += ewald_energy(bare)
+        if !isnothing(uncontracted.ewald)
+            E += ewald_energy(uncontracted)
         end
     end
 

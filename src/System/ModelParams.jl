@@ -95,9 +95,9 @@ const ParamSpec = Pair{Symbol, <: Real}
 Gets the value of the parameter `label`. See also [`set_param!`](@ref).
 """
 function get_param(sys::System, label::Symbol)
-    # For an entangled system the labeled parameters live on the physical
-    # (bare) system; the contracted couplings are derived from them.
-    src = isnothing(sys.entanglement) ? sys : get_entanglement(sys).bare_system
+    # For an entangled system the labeled parameters live on the uncontracted
+    # system; the contracted couplings are derived from them.
+    src = isnothing(sys.entanglement) ? sys : get_entanglement(sys).uncontracted
     return lookup_param(src, label).val
 end
 
