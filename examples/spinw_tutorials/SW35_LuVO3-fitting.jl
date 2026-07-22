@@ -88,7 +88,7 @@ loss = make_loss_fn(sys, labels) do sys
     ## minimize_energy!(sys) # Uncomment if the spin state should vary with params
     swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
     res = intensities_bands(swt, qs)
-    squared_error_bands(Es, res)
+    squared_error_bands(Es, res; intensity_cutoff=1e-6)
 end
 
 # Guess some arbitrary parameters that are consistent with the assumed Néel
