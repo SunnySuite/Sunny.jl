@@ -93,13 +93,18 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
 end
 
 function mode_to_str(sys::System{N}) where N
-    if sys.mode == :SUN
-        return "[SU($N)]"
+    mode_str = if sys.mode == :SUN
+        "SU($N)"
     elseif sys.mode == :dipole
-        return "[Dipole mode]"
+        "Dipole mode"
     else @assert sys.mode == :dipole_uncorrected
-        return "[Dipole mode, large-s]"
+        "Dipole mode, large-s"
     end
+    if is_entangled(sys)
+        nparts = maximum(length.(get_entanglement(sys).layout.unit_to_parts))
+        mode_str *= ", Entangled $nparts-mers"
+    end
+    return "[$mode_str]"
 end
 
 function supercell_to_str(dims, cryst)
