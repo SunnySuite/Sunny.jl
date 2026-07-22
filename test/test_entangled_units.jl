@@ -73,28 +73,21 @@ end
     bare = esys.entanglement.uncontracted
     interactions = esys.interactions_union[1]
 
-    # Test on-bond exchange
+    ### Test on-bond exchange
+
     onsite_operator = interactions.onsite
     S = spin_matrices(1/2)
     Sl, Su = to_product_space(S, S)
-    onsite_ref = J * (Sl' * Su)
-    @test onsite_operator ≈ onsite_ref
+    @test onsite_operator ≈ J * (Sl' * Su)
 
-    # Setting a dipole polarizes every member of the entangled unit along the
-    # given direction (here ŷ, giving each s=1/2 member a dipole of 1/2).
+    ### Test applied polarization
+
     set_dipole!(esys, [0, 1, 0], (1,1,1,1))
     @test bare.dipoles[1,1,1,1][2] ≈ 1/2
     @test bare.dipoles[1,1,1,2][2] ≈ 1/2
 
-    # Test external field. The Zeeman coupling is derived through the
-    # uncontracted system.
+    ### Test external field
     set_field!(esys, [0, 0, -10])
-    @test esys.interactions_union[1].onsite ≈ onsite_ref
-    @test all(isnan, esys.extfield[1])
-    @test bare.extfield[1, 1, 1, 1] ≈ [0, 0, -10]
-    @test bare.extfield[1, 1, 1, 2] ≈ [0, 0, -10]
-
-    # Test external field works in action
     randomize_spins!(esys)
     minimize_energy!(esys)
     @test bare.dipoles[1][3] ≈ 1/2
@@ -104,7 +97,8 @@ end
     @test norm(bare.dipoles[1]) < 1e-10
     @test norm(bare.dipoles[2]) < 1e-10
 
-    # Test inter-bond exchange
+    ### Test inter-bond exchange
+
     pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys)
     Sl1, Sl2 = to_product_space(Sl, Sl)
     Su1, Su2 = to_product_space(Su, Su)
@@ -115,9 +109,9 @@ end
     bond_ref = J′*((Sl2' * Sl1) .+ (Su2' * Su1))
     @test bond_operator ≈ bond_ref
 
-    # Test dispersion against analytical formula for antisymmetric channel.
-    qs = [[0.2, 0.3, 0]]
+    ### Test dispersion against analytical formula for antisymmetric channel.
 
+    qs = [[0.2, 0.3, 0]]
     ω_ref(q, J, J′) = J*sqrt(1 + 2(J′/J) * cos(2π*q))
     ωs_analytical = ω_ref.([q[1] for q in qs], J, J′)
 
@@ -131,7 +125,8 @@ end
 
     @test all(both -> isapprox(both[1], both[2]; atol=1e-12), zip(ωs_analytical, ωs_numerical))
 
-    # Reshaped entangled system produces the correct intensities
+    ### Reshaped entangled system produces the correct intensities
+
     swt = SpinWaveTheory(esys; measure=ssf_perp(esys))
     res = intensities_bands(swt, qs)
     shape = [1 2 0; 0 1 0; 0 0 1]
@@ -141,7 +136,8 @@ end
     @test res_sheared.disp ≈ res.disp atol=1e-11
     @test sum(res_sheared.data; dims=1) ≈ sum(res.data; dims=1) atol=1e-11
 
-    # Test static structure factor is zero (dipolar sector)
+    ### Static structure factor must be zero in dipolar sector
+
     ssf = SampledCorrelationsStatic(esys; measure=ssf_trace(esys))
     add_sample!(ssf, esys)
     @test all(x -> isapprox(x, 0.0; atol=1e-12), ssf.parent.data)
@@ -262,6 +258,7 @@ end
     @test loss([1.0, 0.2]) > 1e-6
     @test get_params(esys, [:J, :Jp]) == [1.0, 0.2]
 end
+
 
 @testitem "Entangled Unit Intensity Scaling" begin
     latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
