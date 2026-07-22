@@ -48,7 +48,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     measure = @something measure empty_measurespec(sys)
-    if size(eachsite(sys)) != size(measure.observables)[2:5]
+    if num_lattice_dims(measure) != sys.dims || num_units_per_cell(measure) != natoms(sys.crystal)
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
@@ -131,7 +131,7 @@ function swt_data!(sys::System{N}, measure) where N
     # Calculate transformation matrices into local reference frames
     Na = nsites(sys)
     Nb = nbaresites(sys)
-    nparts = size(measure.observables, 6)
+    nparts = num_parts_per_unit(measure)
     Nobs = num_observables(measure)
     flat_ops = reshape(measure.observables, Nobs, Na, nparts)
 
@@ -285,18 +285,13 @@ function swt_data!(sys::System{0}, measure)
     return SWTDataDipole(Rs, obs_localized, cs, sqrtS)
 end
 
-# i is a site index for the flattened swt.sys. `measure` was originally
-# constructed for a system with nontrivial lattice dims. Use fld1(i, prod(dims))
-# to get an atom index for one cell of the unflattened sys.
-function formfactor_for_flattened_sys(measure, μ, i)
-    sys_dims = size(measure.observables)[2:4]
-    measure.formfactors[μ, fld1(i, prod(sys_dims)), 1]
-end
-
-function observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-    r_reshaped = sys.crystal.positions[i]
-    ff = formfactor_for_flattened_sys(measure, μ, i)
-    cis(2π * dot(q_reshaped, r_reshaped)) * compute_form_factor(ff, norm2(q_global))
+# Fourier prefactor for observable μ acting on a flattened unit i of swt.sys,
+# with optional part index.
+function observable_prefactor(measure, μ, i, q_reshaped, q_global, sys; part=1)
+    unit = fld1(i, prod(num_lattice_dims(measure)))
+    r = sys.crystal.positions[i] + measure.offsets[unit, part]
+    ff = measure.formfactors[μ, unit, part]
+    cis(2π * dot(q_reshaped, r)) * compute_form_factor(ff, norm2(q_global))
 end
 
 # Linearize each Fourier observable Â(q) = Σᵢ exp(+i q⋅rᵢ) Âᵢ as a coefficient
@@ -310,19 +305,12 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
 
     if sys.mode == :SUN
         (; observables, observable_buf) = data::SWTDataSUN
-        N = sys.Ns[1]
-        nunits = size(measure.observables, 5)
-        ncells = div(Na, nunits) # FIXME: review logic
+        @assert allequal(sys.Ns)
+        N = first(sys.Ns)
         for μ in 1:Nobs, i in 1:Na
-            site = fld1(i, ncells)
-            r = sys.crystal.positions[i]
             fill!(observable_buf, 0)
-            # Loop over "parts" of the site of an entangled unit
-            for p in axes(observables, 3)
-                offset = measure.offsets[site, p]
-                ff = measure.formfactors[μ, site, p]
-                pref = cis(2π * dot(q_reshaped, r + offset)) *
-                       compute_form_factor(ff, norm2(q_global))
+            for p in 1:num_parts_per_unit(measure)
+                pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys; part=p)
                 observable_buf .+= pref .* observables[μ, i, p]
             end
             for f in 1:Nf
@@ -332,6 +320,7 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
         end
     else
         @assert sys.mode in (:dipole, :dipole_uncorrected)
+        num_parts_per_unit(measure) == 1 || error("Distinct parts unsupported in dipole-mode.")
         (; sqrtS, observables) = data::SWTDataDipole
         for μ in 1:Nobs, i in 1:Na
             pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)

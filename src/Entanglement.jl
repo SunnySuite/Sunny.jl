@@ -466,8 +466,8 @@ end
 # Transform an atom-level MeasureSpec (for `sys.entanglement.uncontracted`) into
 # a unit-level MeasureSpec (for the contracted `sys`).
 function entangled_measure(measure, sys::System)
-    @assert is_entangled(sys)                  # System is entangled
-    @assert size(measure.observables, 6) == 1  # Measure is for uncontracted system
+    @assert is_entangled(sys)                 # System is entangled
+    @assert num_parts_per_unit(measure) == 1  # Measure is for uncontracted system
 
     (; uncontracted, layout) = get_entanglement(sys)
 

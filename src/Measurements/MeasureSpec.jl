@@ -37,6 +37,9 @@ end
 Base.eltype(::MeasureSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
 num_observables(measure::MeasureSpec) = size(measure.observables, 1)
+num_lattice_dims(measure::MeasureSpec) = size(measure.observables)[2:4]
+num_units_per_cell(measure::MeasureSpec) = size(measure.observables, 5)
+num_parts_per_unit(measure::MeasureSpec) = size(measure.observables, 6)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs)
 
 function empty_measurespec(sys)
@@ -121,21 +124,21 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
     end
 
     observables = all_dipole_observables(sys; apply_g)  # (3 × sys_dims × natoms × 1)
-    nobs = size(observables, 1)
-    natoms_orig = natoms(sys.crystal)
+    @assert size(observables, 1) == 3
+    Na = natoms(sys.crystal)
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     combiner(q, corr) = f(q, SA[
         corr[6]       corr[5]       corr[3]
         conj(corr[5]) corr[4]       corr[2]
         conj(corr[3]) conj(corr[2]) corr[1]
     ])
-    ffs_1d = if isnothing(formfactors)
-        fill(one(FormFactor), natoms_orig)
+    ffs_per_atom = if isnothing(formfactors)
+        fill(one(FormFactor), Na)
     else
         formfactors isa Vector{Pair{Int, FormFactor}} || error("Pass formfactors as [i1 => FormFactor(...), i2 => ...]")
         propagate_atom_data(orig_crystal(sys), sys.crystal, formfactors)
     end
-    ffs = Array{FormFactor, 3}([ffs_1d[a] for _ in 1:nobs, a in 1:natoms_orig, _ in 1:1])
+    ffs = Array{FormFactor, 3}([ffs_per_atom[a] for _ in 1:3, a in 1:Na, _ in 1:1])
     return MeasureSpec(observables, corr_pairs, combiner, ffs)
 end
 
