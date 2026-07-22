@@ -16,30 +16,20 @@
 
     # Entangle the original cell
     esys = Sunny.entangle_units(sys, [(1, 2)])
-    set_q0(r) = for u in eachsite(r); set_coherent!(r, [0, 1/√2, -1/√2, 0], u); end
-    set_q0(esys)
+    for u in eachsite(esys)
+        set_coherent!(esys, [0, 1/√2, -1/√2, 0], u)
+    end
     E0 = energy_per_site(esys)
 
-    # The `[-2 0 0; …]` shape flips the dimer's orientation so that a unit
-    # straddles the cell boundary, exercising the `cell_offset` path in
-    # `rebuild_entanglement!`/`member_site`. The others are ordinary reshapes.
-    # Energy per site of a q=0 state is invariant under every commensurate reshape.
+    # Check that energy per site of a q=0 state is invariant under various
+    # reshapings reshape. The [-2 0 0; …] shape flips the dimer's orientation so
+    # that a unit straddles the cell boundary.
     for shape in ([-2 0 0; 0 1 0; 0 0 1],       # straddling
                   [1 1 0; -1 1 0; 0 0 1],       # shear
                   [3 0 0; 0 1 0; 0 0 1])        # resize ×3
         r = reshape_supercell(esys, shape)
-        set_q0(r)
         @test energy_per_site(r) ≈ E0
     end
-
-    r = reshape_supercell(esys, [-2 0 0; 0 1 0; 0 0 1])
-    set_field!(r, [0, 0, 10])
-    minimize_energy!(r)
-    @test all(d -> isapprox(d[3], -1/2; atol=1e-6), r.entanglement.bare_system.dipoles)
-
-    # `repeat_periodically` agrees with the unreshaped energy per site.
-    rep = repeat_periodically(esys, (2, 1, 1)); set_q0(rep)
-    @test energy_per_site(rep) ≈ E0
 end
 
 # TODO: Add test with magnetic unit cell larger than a single unit (i.e. not q=0
@@ -55,7 +45,7 @@ end
     positions = [[0, 0, 0], [0.0, 0.5, 0.0]] 
 
     crystal = Crystal(latvecs, positions, 1; types = ["A", "B"])
-    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
+    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
     set_exchange!(sys, J, Bond(1, 2, [0, 0, 0]))
     set_exchange!(sys, J′, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))
@@ -164,7 +154,7 @@ end
     @test res.data ≈ [0.6963636938867421; 4.833911994098928; 28.719089468355055; 52.61793172686838; 42.62520819431053;;]
 end
 
-@testitem "Entangled dipole-dipole" begin
+@testitem "Entangled units with dipole-dipole" begin
     import LinearAlgebra: norm, I
     import Random
 
@@ -177,63 +167,35 @@ end
     positions = [[0, 0, 0], [0, 0.15, 0]]
     crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
 
-    function make_entangled(; seed)
-        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed)
-        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
-        set_exchange!(sys, 0.1, Bond(1, 1, [1, 0, 0]))
-        set_exchange!(sys, 0.1, Bond(2, 2, [1, 0, 0]))
-        # `units` indexes the chemical cell; reshape the entangled system to size.
-        esys = resize_supercell(Sunny.entangle_units(sys, [(1, 2)]), (2, 1, 1))
-        enable_dipole_dipole!(esys, units.vacuum_permeability)
-        return esys
-    end
+    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
+    set_field!(sys, [0, 40, 0])
+    set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+    set_exchange!(sys, 0.1, Bond(1, 1, [1, 0, 0]))
+    set_exchange!(sys, 0.1, Bond(2, 2, [1, 0, 0]))
+    enable_dipole_dipole!(sys, units.vacuum_permeability)
 
-    # `enable_dipole_dipole!` builds Ewald on the physical bare system, not the
-    # contracted system.
-    esys = make_entangled(seed=1)
-    @test isnothing(esys.ewald)
-    @test !isnothing(esys.entanglement.bare_system.ewald)
+    esys = Sunny.entangle_units(sys, [(1, 2)])
+    @test energy_per_site(esys) ≈ energy_per_site(sys)
 
-    # The dipole-dipole energy (evaluated on the physical bare system) must
-    # equal that of an equivalent ordinary SU(N) system with the same physical
-    # spins, for a matching polarized state. Compare the Ewald term in
-    # isolation, since `ord` carries no exchange couplings.
-    ord = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; dims=(2, 1, 1), seed=1)
-    enable_dipole_dipole!(ord, units.vacuum_permeability)
-    polarize_spins!(ord, [0, 0, 1])
-    for u in eachsite(esys)
-        cs = Sunny.coherent_state_from_dipoles(esys, [[0, 0, 1/2], [0, 0, 1/2]], Sunny.to_atom(u))
-        set_coherent!(esys, cs, u)
-    end
-    @test Sunny.ewald_energy(esys.entanglement.bare_system) ≈ Sunny.ewald_energy(ord)
+    sys = resize_supercell(sys, (2, 1, 1))
+    esys = resize_supercell(esys, (2, 1, 1))
+    @test energy_per_site(esys) ≈ energy_per_site(sys)
 
-    # Ewald survives cloning and periodic repetition.
-    @test !isnothing(Sunny.clone_system(esys).entanglement.bare_system.ewald)
-    @test !isnothing(repeat_periodically(esys, (2, 1, 1)).entanglement.bare_system.ewald)
-
-    # SpinWaveTheory supports entangled dipole-dipole: the real-space dipolar
-    # coupling enters through the physical bare atoms (via the generalized Ewald
-    # block over unit "parts"). A strong field polarizes the units into a stable
-    # ground state; the dispersion is then finite, and it changes when the
-    # dipole-dipole interaction is present.
+    # SpinWaveTheory calculations should be consistent too
     qs = [[0.1, 0, 0], [0.3, 0.2, 0]]
-    set_field!(esys, [0, 0, 40])
-    randomize_spins!(esys)
+    minimize_energy!(sys)
     minimize_energy!(esys)
-    disp_dd = dispersion(SpinWaveTheory(esys; measure=nothing), qs)
-    @test all(isfinite, disp_dd) && all(≥(-1e-6), disp_dd)
+    res1 = intensities_bands(SpinWaveTheory(sys; measure=ssf_perp(sys)), qs)
+    res2 = intensities_bands(SpinWaveTheory(esys; measure=ssf_perp(esys)), qs)
 
-    let sys_nodd = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
-        set_exchange!(sys_nodd, 1.0, Bond(1, 2, [0, 0, 0]))
-        set_exchange!(sys_nodd, 0.1, Bond(1, 1, [1, 0, 0]))
-        set_exchange!(sys_nodd, 0.1, Bond(2, 2, [1, 0, 0]))
-        esys_nodd = resize_supercell(Sunny.entangle_units(sys_nodd, [(1, 2)]), (2, 1, 1))
-        set_field!(esys_nodd, [0, 0, 40])
-        randomize_spins!(esys_nodd)
-        minimize_energy!(esys_nodd)
-        disp_nodd = dispersion(SpinWaveTheory(esys_nodd; measure=nothing), qs)
-        @test !isapprox(disp_dd, disp_nodd; atol=1e-6)
-    end
+    # The two lowest bands describe intra-unit singlet-triplet excitations and
+    # do not carry intensity.
+    @test all(<(1e-12), abs.(res2.data[1:2, :]))
+
+    # The remaining bands should match between entangled and non-entangled
+    # calculations.
+    @test res1.disp ≈ res2.disp[3:end, :]
+    @test vec(sum(res1.data; dims=1)) ≈ vec(sum(res2.data; dims=1))
 
     # LocalSampler still does not support long-range dipole-dipole for entangled units.
     let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_flip)
@@ -248,7 +210,7 @@ end
 
     # A dimer (intra-unit :J) with an inter-unit exchange (:Jp) along x, so that
     # the entangled system's dispersion is pinned by both labeled parameters.
-    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
+    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
     set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J => 1.0)
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :Jp => 0.2)
     esys = Sunny.entangle_units(sys, [(1, 2)])

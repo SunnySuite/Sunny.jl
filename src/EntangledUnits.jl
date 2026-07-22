@@ -528,13 +528,6 @@ end
 # Dynamics: syncing physical dipoles with coherent states
 ################################################################################
 
-# Dipole-dipole energy for an entangled system, evaluated on the physical bare
-# system (whose dipoles are synced with the coherent states).
-function entangled_ewald_energy(ent::Entanglement)
-    bare = ent.bare_system
-    return isnothing(bare.ewald) ? 0.0 : ewald_energy(bare)
-end
-
 # Translate the physical (bare-system) dipole-level fields into the entangled
 # unit coherent gradient:
 #

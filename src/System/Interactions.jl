@@ -429,18 +429,21 @@ function energy(sys::System{N}; check_normalization=true) where N
     end
     E = 0.0
 
-    # Zeeman coupling to external field. For an entangled system, the physical
-    # moments live on the bare system (a unit's atoms feel independent fields, and
-    # the contracted `dipoles` are not maintained), so evaluate the Zeeman energy
-    # there — mirroring the gradient path `accum_bare_field_grad_coherents!`.
+    # Zeeman coupling and long-range dipole-dipole
     if isnothing(sys.entanglement)
         for site in eachsite(sys)
             E += sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
+        end
+        if !isnothing(sys.ewald)
+            E += ewald_energy(sys)
         end
     else
         bare = get_entanglement(sys).bare_system
         for site in eachsite(bare)
             E += bare.extfield[site] ⋅ (bare.gs[site] * bare.dipoles[site])
+        end
+        if !isnothing(bare.ewald)
+            E += ewald_energy(bare)
         end
     end
 
@@ -456,13 +459,6 @@ function energy(sys::System{N}; check_normalization=true) where N
             interactions = sys.interactions_union[site]
             E += energy_aux(interactions, sys, (site,))
         end
-    end
-
-    # Long-range dipole-dipole
-    if !isnothing(sys.ewald)
-        E += ewald_energy(sys)
-    elseif !isnothing(sys.entanglement)
-        E += entangled_ewald_energy(get_entanglement(sys))
     end
 
     return E
