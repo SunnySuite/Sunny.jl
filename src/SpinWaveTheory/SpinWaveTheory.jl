@@ -208,10 +208,7 @@ function swt_data(sys::System{N}, measure) where N
             obs_parts[k, μ, i] = Hermitian(U' * flat_ops[k, μ, i] * U)
         end
 
-        # Site dipole operators in the local frame. `sys.dipole_operators[i]` is
-        # the bare spin S for an ordinary system, or the g-weighted total moment
-        # for an entangled unit (with gs[i] = I); either way it pairs correctly
-        # with the g-tensor in the Ewald term μ = -g·(this). See HamiltonianSUN.jl.
+        # Spin dipole operators S in the local frame
         S = sys.dipole_operators[i]
         for μ in 1:3
             spins_localized[μ, i] = Hermitian(U' * S[μ] * U)
@@ -223,11 +220,7 @@ function swt_data(sys::System{N}, measure) where N
         Ui = local_unitaries[i]
         int = sys.interactions_union[i]
 
-        # Zeeman coupling operator, Σ_α (g'B)_α Sᵅ, where S = sys.dipole_operators[i]
-        # is the site's product-space dipole operator. For an ordinary system S is
-        # the bare spin and this is (g'B)·S; for an entangled unit S is the
-        # g-weighted total moment and gs[i] = I, so this is B·S. Using this (not
-        # single-irrep spin matrices) keeps the entangled product space correct.
+        # Zeeman coupling operator, Σ_α (g'B)_α Sᵅ.
         B = sys.gs[i]' * sys.extfield[i]
         S = sys.dipole_operators[i]
         zeeman = sum(B[α] * S[α] for α in 1:3)

@@ -532,14 +532,9 @@ end
 function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N}) where N
     fill!(∇E, zero(Vec3))
 
-    # Zeeman coupling. Skipped for an entangled system: there the contracted
-    # `dipoles` is a unit's total moment (not a physical spin in a single irrep),
-    # so the Zeeman gradient cannot be expressed as dE/dS. It is instead applied
-    # directly at the coherent-state level in `set_energy_grad_coherents!`.
-    if isnothing(sys.entanglement)
-        for site in eachsite(sys)
-            ∇E[site] += sys.gs[site]' * sys.extfield[site]
-        end
+    # Zeeman coupling
+    for site in eachsite(sys)
+        ∇E[site] += sys.gs[site]' * sys.extfield[site]
     end
 
     # Anisotropies and exchange interactions
@@ -627,18 +622,6 @@ function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) wh
     @. dipoles = expected_spin(Z)
     set_energy_grad_dipoles!(dE_dS, dipoles, sys)
 
-    # Zeeman coupling for an entangled system. The unit's dipole operator T^α is
-    # its g-weighted total moment (sys.dipole_operators, with gs[site] = I), so
-    # the energy is Σ_α B_α ⟨T^α⟩ and dE/dZ̄ = Σ_α B_α T^α Z. (The dipole-level
-    # Zeeman term was skipped in `set_energy_grad_dipoles!`.)
-    if !isnothing(sys.entanglement)
-        for site in eachsite(sys)
-            T = sys.dipole_operators[to_atom(site)]
-            B = sys.extfield[site]
-            HZ[site] += sum(B[α] * (SMatrix{N, N}(T[α]) * Z[site]) for α in 1:3)
-        end
-    end
-
     # Anisotropies and exchange interactions
     if is_homogeneous(sys)
         for i in 1:natoms(sys.crystal)
@@ -657,10 +640,27 @@ function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) wh
 end
 
 function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{Vec3, 4}, int::Interactions, sys::System{N}, sites) where N
-    for site in sites
-        # HZ += (Λ + dE/dS S) Z
-        Λ = int.onsite :: HermitianC64
-        HZ[site] += mul_spin_matrices(Λ, dE_dS[site], Z[site])
+    if isnothing(sys.entanglement)
+        # HZ += (Λ + dE/dS ⋅ S) Z, where S are the single-irrep spin matrices.
+        for site in sites
+            Λ = int.onsite :: HermitianC64
+            HZ[site] += mul_spin_matrices(Λ, dE_dS[site], Z[site])
+        end
+    else
+        # For an entangled unit, `dipoles` is the unit's total moment, so the
+        # dE/dS contribution must couple through the unit's dipole operators T
+        # (`sys.dipole_operators`) rather than single-irrep spin matrices. The
+        # onsite term Λ Z is added separately.
+        for site in sites
+            Λ = int.onsite :: HermitianC64
+            HZ[site] += Λ * Z[site]
+            T = sys.dipole_operators[to_atom(site)]
+            h = dE_dS[site]
+            for α in 1:3
+                Tα = SMatrix{N, N}(T[α])
+                HZ[site] += h[α] * (Tα * Z[site])
+            end
+        end
     end
 
     for pc in int.pair
