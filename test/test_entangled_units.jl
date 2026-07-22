@@ -403,5 +403,33 @@ end
     @test get_params(esys, [:J, :Jp]) == [1.0, 0.2]
 end
 
+@testitem "Entangled Unit Intensity Scaling" begin
+    latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
+    positions = [[0, 0, 0], [0, 1/3, 0]]
+    crystal = Crystal(latvecs, positions)
+
+    J  = 1
+    J′ = 0.12
+    J2 = 0.1
+
+    sys = System(crystal, [1 => Moment(s=1/2, g=2)], :SUN)
+    set_exchange!(sys, J, Bond(1, 2, [0, 0, 0]))
+    set_exchange!(sys, J′, Bond(1, 2, [0, -1, 0]));
+    set_exchange!(sys, J2, Bond(1, 1, [1, 0, 0]));
+
+    set_field!(sys, [0., 0., 10])
+
+    esys = Sunny.entangle_units(sys, [(1, 2)])
+
+    for s in (sys, esys)
+        minimize_energy!(s)
+        swt = SpinWaveTheory(s; measure=ssf_trace(s; apply_g=false))
+        qs = q_space_path(crystal, [[0, 1, 0], [1/2, 1, 0], [1, 1, 0], [0, 0, 0]], 20)
+        res = intensities_bands(swt, qs)
+        @test sum(res.data[:,1]) ≈ 1
+    end
+end
+
+
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
 # end
