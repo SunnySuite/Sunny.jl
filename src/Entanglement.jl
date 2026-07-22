@@ -42,9 +42,9 @@ is_entangled(sys::System) = !isnothing(sys.entanglement)
 # avoids JET warnings.
 @inline get_entanglement(sys::System) = sys.entanglement :: Entanglement
 
-# Atom indices comprising a unit, ordered to match the unit_to_members field of
-# a UnitMap.
-atoms_in_unit(unit_map::UnitMap, i) = [m.atom for m in unit_map.unit_to_members[i]]
+# Bare atom indices comprising a unit, ordered to match the unit_to_members
+# field of a UnitMap.
+atoms_in_unit(unit_map::UnitMap, u) = [m.atom for m in unit_map.unit_to_members[u]]
 
 # UnitMember data (Δpos and Δcell) for a bare atom.
 function unit_offsets_for_atom(unit_map::UnitMap, atom)
@@ -152,16 +152,14 @@ function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, unit_map::UnitMap
     return (; newbond, pc.scalar, tensordec=TensorDecomposition(gen1, gen2, data))
 end
 
-# Contract ModelParam data. Contraction is linear in the coupling strength, so
-# each labeled parameter is contracted independently at unit strength; the
-# ordinary `repopulate_couplings_from_params!` then rescales by `param.val`.
-function contract_param(param::ModelParam, uncontracted_Ns, unit_map::UnitMap, Ns_units)
+# Map ModelParam of an uncontracted system to that of an entangled system.
+function contract_param(param::ModelParam, uncontracted_Ns, unit_map::UnitMap)
     nunits = length(unit_map.unit_to_members)
 
     # Intra-unit terms become onsite (on-bond) operators, one per touched unit.
     onsites = Tuple{Int, OnsiteCoupling}[]
     for u in 1:nunits
-        Ns = Ns_units[u]
+        Ns = uncontracted_Ns[atoms_in_unit(unit_map, u)]
         unit_operator = zeros(ComplexF64, prod(Ns), prod(Ns))
         relevant = atoms_in_unit(unit_map, u)
 
@@ -306,14 +304,14 @@ between distinct units.
 Often, `groupings` will include just atom indices for the chemical cell. For
 example, selecting `groupings = [[1, 2], [3, 4]]` would return a system in which
 atoms `[1, 2]` and atoms `[3, 4]` are dimerized. If any entangled unit straddles
-the cell boundary, however, then cell offsets must be provided for all atoms.
-For example, replacing `[1, 2]` with `[(1, [0, 0, 0]), (2, [-1, 0, 0])]` would
+the cell boundary, however, then all atoms must be paired with cell offsets. For
+example, replacing `[1, 2]` with `[(1, [0, 0, 0]), (2, [-1, 0, 0])]` would
 indicate that atom `2` participates in the dimer via its periodic image in the
 neighboring cell ``-𝐚_1``.
 
-The input system should be in `:SUN` mode with its interactions already
-populated. These interactions will be transferred to the entangled system in
-tensor-product form.
+The input system should be in `:SUN` mode with interactions already populated.
+These interactions will be transferred to the entangled system in tensor-product
+form.
 """
 function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<: Union{Integer, Tuple{Integer, Vector{<: Integer}}}}}) where M
     is_homogeneous(uncontracted) || error("Entanglement not supported on inhomogeneous systems")
@@ -343,17 +341,15 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
     # Construct contracted (P1) crystal and the chemical-cell map
     contracted_crystal, unit_map = contract_crystal(uncontracted.crystal, unit_atoms, unit_Δcells)
 
-    # Local Hilbert space dimensions per unit (all must be equal). (TODO:
-    # Determine if alternative behavior preferable in mixed case.)
-    Ns_units = [uncontracted.Ns[atoms_in_unit(unit_map, u)] for u in eachindex(unit_map.unit_to_members)]
-    Ns_contracted = map(prod, Ns_units)
-    @assert allequal(Ns_contracted) "After contraction, the dimensions of the local Hilbert spaces on each generalized site must all be equal."
+    # Local Hilbert space dimension per unit. TODO: Relax uniformity constraint.
+    nunits = natoms(contracted_crystal)
+    Ns_contracted = [prod(uncontracted.Ns[atoms_in_unit(unit_map, u)]) for u in 1:nunits]
+    @assert allequal(Ns_contracted) "The dimensions of the local contracted Hilbert spaces must be uniform"
     N = first(Ns_contracted)
 
     # Build the contracted System directly (cf. `reshape_supercell_aux`). Dipole
     # and external field data are undefined here (NaN), and will instead be
     # derived from the associated uncontracted system.
-    nunits    = natoms(contracted_crystal)
     dims      = uncontracted.dims
     Ns        = fill(N, dims..., nunits)
     κs        = ones(Float64, dims..., nunits)
@@ -368,7 +364,7 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
 
     # Contract each labeled parameter independently (contraction is linear in
     # coupling strength), then let the ordinary machinery fill the interactions.
-    sys.params = [contract_param(p, uncontracted.Ns, unit_map, Ns_units) for p in uncontracted.params]
+    sys.params = [contract_param(p, uncontracted.Ns, unit_map) for p in uncontracted.params]
     repopulate_couplings_from_params!(sys)
 
     # Set entanglement metadata in sys. Keep a clone of the uncontracted system,
