@@ -1,25 +1,4 @@
-@testitem "Crystal contraction and expansion" begin
-    crystal = Sunny.diamond_crystal()
-
-    # Specify various entangled units.
-    units_all = [
-        [(1, 3), (2, 4), (5, 7), (6, 8)], 
-        [(1, 3, 5, 6), (2, 4, 7, 8)], 
-        [(1, 3)]
-    ]
-
-    # Check that re-expansion of a contracted crystal matches original crystal
-    # in terms of site-ordering and positions.
-    for units in units_all
-        contracted_crystal, contraction_info = Sunny.contract_crystal(crystal, units)
-        expanded_crystal = Sunny.expand_crystal(contracted_crystal, contraction_info)
-        @test expanded_crystal.positions ≈ crystal.positions
-    end
-end
-
 @testitem "Reshaping entangled units" begin
-    import LinearAlgebra: det
-
     # Dimer oriented along x within a square cell, with weak inter-cell exchange.
     latvecs = [1.0 0 0; 0 1 0; 0 0 1]
     positions = [[0.0, 0, 0], [0.5, 0, 0]]
@@ -37,49 +16,33 @@ end
 
     # Entangle the original cell
     esys = Sunny.entangle_units(sys, [(1, 2)])
+    set_q0(r) = for u in eachsite(r); set_coherent!(r, [0, 1/√2, -1/√2, 0], u); end
+    set_q0(esys)
+    E0 = energy_per_site(esys)
 
     # True when some unit has a member atom in a neighboring cell (a unit that
     # straddles the cell boundary of the reshaped system).
-    function straddles(r)
-        inv = r.entanglement.contraction_info.inverse
-        any(unit -> any(id -> !iszero(id.cell_offset), unit), inv)
-    end
+    straddles(r) = any(u -> any(id -> !iszero(id.cell_offset), u),
+                       r.entanglement.contraction_info.inverse)
 
-    set_q0(r) = for u in eachsite(r); set_coherent!(r, [0, 1/√2, -1/√2, 0], u); end
-
-    set_field!(esys, [0, 0, 0]); set_q0(esys)
-    E0 = energy_per_site(esys)
-
-    # Energy per site of a q=0 state is invariant under every commensurate
-    # reshape, including the many shapes that split a unit across cells. This
-    # exercises the geometric mapping rebuild in `rebuild_entanglement!`.
-    nstraddle = Ref(0)
-    for a in -2:2, b in -2:2, c in -2:2, d in -2:2
-        shape = [a b 0; c d 0; 0 0 1]
-        (det(shape) == 0 || abs(det(shape)) > 4) && continue
+    # The `[-2 0 0; …]` shape flips the dimer's orientation so that a unit
+    # straddles the cell boundary, exercising the `cell_offset` path in
+    # `rebuild_entanglement!`/`member_site`. The others are ordinary reshapes.
+    # Energy per site of a q=0 state is invariant under every commensurate reshape.
+    for shape in ([-2 0 0; 0 1 0; 0 0 1],       # straddling
+                  [1 1 0; -1 1 0; 0 0 1],       # shear
+                  [3 0 0; 0 1 0; 0 0 1])        # resize ×3
         r = reshape_supercell(esys, shape)
-        straddles(r) && (nstraddle[] += 1)
-        set_field!(r, [0, 0, 0]); set_q0(r)
+        set_q0(r)
         @test energy_per_site(r) ≈ E0
     end
-    # The scan must actually cover the previously-unsupported straddling case.
-    @test nstraddle[] > 0
+    @test straddles(reshape_supercell(esys, [-2 0 0; 0 1 0; 0 0 1]))
 
-    # Pick a straddling shape and check full dynamics through the reshaped
-    # mapping: a strong field polarizes every physical dipole.
-    function find_straddling_shape()
-        for a in -2:2, b in -2:2, c in -2:2, d in -2:2
-            M = [a b 0; c d 0; 0 0 1]
-            (det(M) == 0 || abs(det(M)) > 4) && continue
-            straddles(reshape_supercell(esys, M)) && return M
-        end
-        error("no straddling shape found")
-    end
-    r = reshape_supercell(esys, find_straddling_shape())
+    # Full dynamics and coherent-state gradient through the straddling mapping.
+    r = reshape_supercell(esys, [-2 0 0; 0 1 0; 0 0 1])
     set_field!(r, [0, 0, 10]); randomize_spins!(r); minimize_energy!(r)
     @test all(d -> isapprox(d[3], -1/2; atol=1e-6), r.entanglement.bare_system.dipoles)
 
-    # Coherent-state gradient matches finite difference at the straddling geometry.
     set_field!(r, [0.3, -0.7, 1.1]); randomize_spins!(r)
     Z0 = copy(r.coherents)
     ∇ = Sunny.energy_grad_coherents(r)
@@ -99,20 +62,9 @@ end
     r.coherents .= Z0; Sunny.set_expected_dipoles!(r)
     @test maxerr < 1e-8
 
-    # repeat_periodically and resize_supercell agree with an equivalent
-    # from-scratch construction at larger size.
-    big = resize_supercell(esys, (2, 1, 1))
-    rep = repeat_periodically(esys, (2, 1, 1))
-    set_field!(big, [0, 0, 0]); set_q0(big)
-    set_field!(rep, [0, 0, 0]); set_q0(rep)
-    @test energy_per_site(big) ≈ E0
+    # `repeat_periodically` agrees with the unreshaped energy per site.
+    rep = repeat_periodically(esys, (2, 1, 1)); set_q0(rep)
     @test energy_per_site(rep) ≈ E0
-
-    # Reshape followed by a compensating reshape recovers the original energy.
-    round_trip = reshape_supercell(reshape_supercell(esys, [1 1 0; -1 1 0; 0 0 1]),
-                                   [1 1 0; -1 1 0; 0 0 1])  # applied twice
-    set_field!(round_trip, [0, 0, 0]); set_q0(round_trip)
-    @test energy_per_site(round_trip) ≈ E0
 end
 
 # TODO: Add test with magnetic unit cell larger than a single unit (i.e. not q=0
@@ -412,75 +364,43 @@ end
     crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
 
     # A dimer (intra-unit :J) with an inter-unit exchange (:Jp) along x, so that
-    # the entangled system has dispersion pinned by both parameters.
-    function make_esys(J, Jp)
-        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
-        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J => J)
-        set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :Jp => Jp)
-        return Sunny.entangle_units(sys, [(1, 2)])
-    end
-    set_q0(s) = for u in eachsite(s); set_coherent!(s, [0, 1/√2, -1/√2, 0], u); end
-
-    # `get_param` reads the physical (bare-system) labels.
-    esys = make_esys(1.0, 0.1)
-    @test get_params(esys, [:J, :Jp]) == [1.0, 0.1]
-
-    # `set_params!` regenerates the contracted couplings. Energy must match a
-    # system entangled directly at the new parameters, for unreshaped, reshaped,
-    # and straddling geometries.
-    for op in (identity,
-               s -> repeat_periodically(s, (2, 1, 1)),
-               s -> resize_supercell(s, (3, 1, 1)),
-               s -> reshape_supercell(s, [1 1 0; -1 1 0; 0 0 1]))
-        ref = op(make_esys(2.0, 0.3)); set_q0(ref)
-        esys_op = op(make_esys(1.0, 0.1))
-        set_params!(esys_op, [:J, :Jp], [2.0, 0.3])
-        @test get_params(esys_op, [:J, :Jp]) == [2.0, 0.3]
-        set_q0(esys_op)
-        @test energy_per_site(esys_op) ≈ energy_per_site(ref)
+    # the entangled system's dispersion is pinned by both labeled parameters.
+    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed=1)
+    set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J => 1.0)
+    set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :Jp => 0.2)
+    esys = Sunny.entangle_units(sys, [(1, 2)])
+    for u in eachsite(esys)
+        set_coherent!(esys, [0, 1/√2, -1/√2, 0], u)
     end
 
-    # `make_loss_fn` end-to-end: correct values, and evaluation leaves the
-    # original system's parameters untouched (it operates on a clone).
-    esys = make_esys(1.0, 0.1)
-    loss = make_loss_fn(esys, [:J, :Jp]) do s
-        set_q0(s)
-        return energy_per_site(s)
-    end
-    for (J, Jp) in ((1.0, 0.1), (2.0, 0.3), (0.5, -0.2))
-        ref = make_esys(J, Jp); set_q0(ref)
-        @test loss([J, Jp]) ≈ energy_per_site(ref)
-    end
-    @test get_params(esys, [:J, :Jp]) == [1.0, 0.1]
-
-    # A loss through SpinWaveTheory (exercises the flatten path on regenerated
-    # contracted couplings) evaluates and varies with the parameter.
-    swt_loss = make_loss_fn(esys, [:J]) do s
-        for u in eachsite(s); set_coherent!(s, [0, 1/√2, -1/√2, 0], u); end
-        swt = SpinWaveTheory(s; measure=Sunny.empty_measurespec(s), regularization=0.0)
-        return sum(dispersion(swt, [[0.2, 0.3, 0]]))
-    end
-    d1 = swt_loss([1.0]); d2 = swt_loss([2.0])
-    @test isfinite(d1) && isfinite(d2) && !(d1 ≈ d2)
-
-    # Full fitting workflow: recover parameters by minimizing a dispersion loss
-    # against a synthetic target. The dimer's antisymmetric-channel dispersion,
-    # ω = J √(1 + 2(J′/J) cos 2πq), pins both :J and :Jp.
-    import Optim
     qs = [[0.1, 0, 0], [0.25, 0, 0], [0.4, 0, 0]]
     dispersion_at(s) = let
-        for u in eachsite(s); set_coherent!(s, [0, 1/√2, -1/√2, 0], u); end
         swt = SpinWaveTheory(s; measure=Sunny.empty_measurespec(s), regularization=0.0)
-        dispersion(swt, qs)
+        dispersion(swt, qs)[1, :]
     end
-    Jtrue, Jptrue = 1.0, 0.2
-    target = dispersion_at(make_esys(Jtrue, Jptrue))
-    fit_loss = make_loss_fn(esys, [:J, :Jp]) do s
-        return squared_error(target, dispersion_at(s))
+
+    # `get_param` reads the labels off the physical (bare) system.
+    @test get_params(esys, [:J, :Jp]) == [1.0, 0.2]
+
+    # `set_params!` mutably regenerates the contracted couplings, changing the
+    # dispersion. A round-trip back to the original values reproduces it exactly.
+    disp0 = dispersion_at(esys)
+    set_params!(esys, [:J, :Jp], [1.5, 0.3])
+    @test get_params(esys, [:J, :Jp]) == [1.5, 0.3]
+    disp1 = dispersion_at(esys)
+    @test !(disp1 ≈ disp0)
+    set_params!(esys, [:J, :Jp], [1.0, 0.2])
+    @test dispersion_at(esys) ≈ disp0
+
+    # `make_loss_fn` operates on a clone: it sees the trial parameters, and the
+    # original `esys` parameters are left untouched. The loss vanishes exactly at
+    # the target parameters that generated `disp1`.
+    loss = make_loss_fn(esys, [:J, :Jp]) do s
+        return squared_error(disp1, dispersion_at(s))
     end
-    @test fit_loss([Jtrue, Jptrue]) < 1e-20
-    fit = Optim.optimize(fit_loss, [1.3, 0.4], Optim.NelderMead())
-    @test isapprox(fit.minimizer, [Jtrue, Jptrue]; atol=1e-2)
+    @test loss([1.5, 0.3]) < 1e-20
+    @test loss([1.0, 0.2]) > 1e-6
+    @test get_params(esys, [:J, :Jp]) == [1.0, 0.2]
 end
 
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin

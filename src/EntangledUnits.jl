@@ -156,21 +156,6 @@ function contract_crystal(crystal, units)
 end
 
 
-# Reconstruct original crystal from contracted Crystal and a CrystalContractionInfo
-function expand_crystal(contracted_crystal, contraction_info)
-    (; forward, inverse) = contraction_info
-    contracted_positions = contracted_crystal.positions
-    nsites_expanded = length(forward)
-    expanded_positions = [Vec3(0, 0, 0) for _ in 1:nsites_expanded]
-    for (contracted_idx, original_site_data) in enumerate(inverse)
-        for (; site, offset) in original_site_data
-            expanded_positions[site] = contracted_positions[contracted_idx] + offset
-        end
-    end
-    Crystal(contracted_crystal.latvecs, expanded_positions)
-end
-
-
 # Returns a list of length equal to the number of "units" in the a contracted
 # crystal. Each list element is itself a list of integers, each of which
 # corresponds to the N of the corresponding site of the original system. The
@@ -491,9 +476,9 @@ function rebuild_entanglement!(sys::System, bare_system, units)
         unit_site = position_to_site(sys, orig_crystal(sys).latvecs \ center)
         u = to_atom(unit_site)
         forward[a] = (u, k)
-        # Physical offset from the unit center (reshaped fractional frame; used by
-        # `expand_crystal`/`entangled_measure`) and the integer cell of atom `a`
-        # relative to the unit's cell (nonzero ⇒ straddling; used by `member_site`).
+        # Physical offset from the unit center (reshaped fractional frame; used
+        # by `entangled_measure`) and the integer cell of atom `a` relative to
+        # the unit's cell (nonzero ⇒ straddling; used by `member_site`).
         offset = bare_system.crystal.latvecs \ goff[a_chem]
         cell_offset = SVector(1, 1, 1) .- SVector(to_cell(unit_site))
         inverse[u][k] = InverseData(a, offset, cell_offset)
