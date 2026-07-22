@@ -8,9 +8,10 @@ mutable struct SampledCorrelations
 
     # Observable information
     measure            :: MeasureSpec                            # Storehouse for combiner. Mutable so combiner can be changed.
-    const observables  # :: Array{Op, 5}                         # (nobs × npos x latsize) -- note change of ordering relative to MeasureSpec. TODO: determine type strategy
-    const positions    :: Array{Vec3, 4}                         # Position of each operator in fractional coordinates (latsize x npos)
-    const atom_idcs    :: Array{Int64, 4}                        # Atom index corresponding to position of observable.
+    const observables  # :: Array{Op, 5}                         # (nobs × latsize × npos) -- note change of ordering relative to MeasureSpec. TODO: determine type strategy
+    const positions    :: Array{Vec3, 4}                         # Position of each observable in fractional coordinates (latsize × npos)
+    const atom_idcs    :: Array{Int64, 4}                        # Sampled-system site (unit) index feeding each position (latsize × npos)
+    ffs                :: Vector{FormFactor}                     # Form factor per flat position (npos). Flattened from measure.formfactors; recomputed if measure is reassigned.
     const corr_pairs   :: Vector{NTuple{2, Int}}                 # (ncorr)
 
     # Trajectory specs
@@ -54,6 +55,10 @@ function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
         @assert sc.measure.operators ≈ val.operators "New MeasureSpec must contain identical observables."
         @assert all(x -> x == 1, sc.measure.corr_pairs .== val.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
         setfield!(sc, :measure, val)
+        # Form factors may differ in the new measure; refresh the cached flat
+        # form factors used by retrieval. (Observables/positions are unchanged
+        # by the assertions above, so only `ffs` needs recomputing.)
+        setfield!(sc, :ffs, flatten_measure_positions(val, sc.crystal, sc.sys_dims).ffs)
     else
         setfield!(sc, sym, val)
     end
@@ -109,7 +114,7 @@ function clone_correlations(sc::SampledCorrelations)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations(
         copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
-        deepcopy(sc.measure), copy(sc.observables), copy(sc.positions), copy(sc.atom_idcs), copy(sc.corr_pairs),
+        deepcopy(sc.measure), copy(sc.observables), copy(sc.positions), copy(sc.atom_idcs), copy(sc.ffs), copy(sc.corr_pairs),
         copy(sc.integrator), sc.measperiod, sc.nsamples,
         copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
     )
@@ -178,6 +183,51 @@ function to_reshaped_rlu(sc::SampledCorrelations, q)
     return sc.crystal.recipvecs \ orig_cryst.recipvecs * q
 end
 
+# Flatten a MeasureSpec's (nparts × natoms) observable layout into the flat
+# `npos` layout consumed by the correlation sampler. Each (part k, sampled site
+# a) of the measure becomes one physical position p:
+#
+#   - observables[μ, cell, p] = measure.operators[k, μ, cell, a]  (the operator)
+#   - atom_idcs[cell, p]      = a  (which sampled coherent state feeds position p)
+#   - positions[cell, p]      = sampled_crystal.positions[a] + measure.offsets[k, a]
+#   - ffs[p]                  = measure.formfactors[k, μ, a]  (uniform over μ)
+#
+# `sampled_crystal` is the crystal of the system whose coherents are sampled
+# (the contracted crystal for entangled units). Adding the part offset recovers
+# the physical observable position. For an ordinary system (nparts=1, zero
+# offsets) this is the identity map: npos = natoms, atom_idcs[…,p] = p, and
+# positions are the atom positions.
+function flatten_measure_positions(measure::MeasureSpec, sampled_crystal::Crystal, dims::NTuple{3, Int})
+    nparts = size(measure.operators, 1)
+    nobs   = size(measure.operators, 2)
+    natoms = size(measure.operators, 6)
+    npos   = nparts * natoms
+
+    Op = eltype(measure.operators)
+    observables = Array{Op, 5}(undef, nobs, dims..., npos)
+    positions   = zeros(Vec3, dims..., npos)
+    atom_idcs   = zeros(Int64, dims..., npos)
+    ffs         = Vector{FormFactor}(undef, npos)
+
+    for a in 1:natoms, k in 1:nparts
+        p = (a - 1) * nparts + k
+        # Form factors must be uniform across observables for a given position;
+        # retrieval applies a single form factor per position.
+        allequal(@view measure.formfactors[k, :, a]) || error("Observable-dependent form factors not yet supported.")
+        ffs[p] = measure.formfactors[k, 1, a]
+        pos = sampled_crystal.positions[a] + measure.offsets[k, a]
+        for cell in CartesianIndices(dims)
+            positions[cell, p] = pos
+            atom_idcs[cell, p] = a
+            for μ in 1:nobs
+                observables[μ, cell, p] = measure.operators[k, μ, cell, a]
+            end
+        end
+    end
+
+    return (; observables, positions, atom_idcs, ffs, npos)
+end
+
 """
     SampledCorrelations(sys::System; measure, energies, dt)
 
@@ -196,7 +246,8 @@ can can then be extracted as pair-correlation [`intensities`](@ref) with
 appropriate classical-to-quantum correction factors. See also
 [`intensities_static`](@ref), which integrates over energy.
 """
-function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, positions=nothing, integrator=ImplicitMidpoint())
+function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, integrator=ImplicitMidpoint(),
+                             crystal=sys.crystal, origin_crystal=(isnothing(sys.origin) ? nothing : sys.origin.crystal))
     if isnothing(energies)
         n_all_ω = 1
         measperiod = 1
@@ -216,26 +267,15 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     isnan(integrator.dt) || error("Timestep of `integrator` must be uninitialized.")
     integrator.dt = dt
 
-    # Determine the positions of the observables in the MeasureSpec. By default,
-    # these will just be the atom indices. 
-    positions = if isnothing(positions)
-        map(eachsite(sys)) do site
-            sys.crystal.positions[site.I[4]]
-        end
-    else
-        positions
-    end
-
-    # Determine the number of positions. For an unentangled system, this will
-    # just be the number of atoms.
-    npos = size(positions, 4) 
-
-    # Determine which atom index is used to derive information about a given
-    # physical position. This becomes relevant for entangled units. 
-    atom_idcs = map(site -> site.I[4], eachsite(sys))
-
     measure = isnothing(measure) ? ssf_trace(sys) : measure
-    num_observables(measure)
+
+    # Flatten the (possibly nparts>1) MeasureSpec into the flat `npos` layout
+    # used by the sampler. For an ordinary system this is the identity: npos =
+    # natoms, atom_idcs[…,p] = p, positions are the atom positions. For
+    # entangled units, each unit's coherent state feeds multiple positions
+    # (offset by the part displacement stored in the measure).
+    (; observables, positions, atom_idcs, ffs, npos) = flatten_measure_positions(measure, sys.crystal, sys.dims)
+
     samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., npos, n_all_ω)
     corrbuf = zeros(ComplexF64, sys.dims..., n_all_ω)
 
@@ -258,10 +298,10 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     # without making struct mutable.
     nsamples = 0 
 
-    # Make Structure factor and add an initial sample
-    origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
-    sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω,
-                             measure, copy(selectdim(measure.operators, 1, 1)), positions, atom_idcs, copy(measure.corr_pairs),
+    # `crystal` is the physical crystal to report intensities against (defaults
+    # to `sys.crystal`; the entangled path passes the uncontracted crystal).
+    sc = SampledCorrelations(data, M, crystal, origin_crystal, Δω,
+                             measure, observables, positions, atom_idcs, ffs, copy(measure.corr_pairs),
                              integrator, measperiod, nsamples,
                              samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 

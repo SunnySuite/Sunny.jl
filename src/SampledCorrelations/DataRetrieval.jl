@@ -97,11 +97,9 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     qpts = Base.convert(AbstractQPoints, qpts)
     qs_reshaped = [to_reshaped_rlu(sc, q) for q in qpts.qs]
 
-    # Check that form factors are uniform for each observable.
-    for col in eachcol(sc.measure.formfactors[1, :, :])
-        @assert allequal(col) "Observable-dependent form factors not yet supported."
-    end
-    ffs = sc.measure.formfactors[1, 1, :]
+    # Form factor per flat position (uniformity across observables was checked
+    # when the measure was flattened at construction).
+    ffs = sc.ffs
 
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic SWT
     q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
