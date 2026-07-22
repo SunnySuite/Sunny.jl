@@ -32,7 +32,30 @@ end
 
 
 ################################################################################
-# System 
+# Entanglement metadata (attached to a `System`)
+################################################################################
+# Metadata marking a `System` whose sites are "entangled units". Subtype of the
+# `AbstractEntanglement` placeholder declared in System/Types.jl (which breaks
+# the recursive System <-> Entanglement type dependency). Holds the physical
+# (uncontracted) `bare_system` plus the contraction/dynamics mapping. During the
+# EntangledSystem transition this mirrors the data on `EntangledSystem`; the
+# invariant `sys.entanglement.bare_system === esys.sys_origin` is (re)established
+# by the `EntangledSystem(sys, sys_origin, contraction_info)` constructor.
+struct Entanglement <: AbstractEntanglement
+    bare_system      :: System                          # Physical (uncontracted) system
+    contraction_info :: CrystalContractionInfo          # Forward/inverse mapping data
+    source_idcs      :: Array{Int64, 4}                 # Coherent (unit) index feeding each physical site
+    dipole_operators :: Vector{NTuple{3, Matrix{ComplexF64}}}  # Cached product-space spin ops per physical atom
+end
+
+function clone_entanglement(ent::Entanglement)
+    return Entanglement(clone_system(ent.bare_system), copy(ent.contraction_info),
+                        copy(ent.source_idcs), ent.dipole_operators)
+end
+
+
+################################################################################
+# System
 ################################################################################
 struct EntangledSystem
     # Entangled System, original system, and mapping info between systems
@@ -73,6 +96,13 @@ function EntangledSystem(sys, sys_origin, contraction_info)
         source_idcs[site] = contraction_info.forward[atom][1]
     end
     dipole_operators = build_dipole_operators(sys_origin, contraction_info)
+
+    # Populate the entanglement metadata on the contracted `sys`, so that a
+    # unified `System` carries everything needed to recover physical geometry
+    # and sync physical dipoles. Kept in sync with the `EntangledSystem` fields
+    # during the transition; `EntangledSystem` collapses in Phase D.
+    sys.entanglement = Entanglement(sys_origin, contraction_info, source_idcs, dipole_operators)
+
     return EntangledSystem(sys, sys_origin, contraction_info, source_idcs, dipole_operators)
 end
 
@@ -149,6 +179,12 @@ function clone_system(esys::EntangledSystem)
     contraction_info = copy(esys.contraction_info)
     source_idcs = copy(esys.source_idcs)
     dipole_operators = esys.dipole_operators  # immutable cache, safe to share
+
+    # Re-establish the invariant `sys.entanglement.bare_system === sys_origin`
+    # using the pieces cloned here. (`clone_system(esys.sys)` already produced an
+    # `entanglement` via `clone_entanglement`, but wrapping a *separate* clone of
+    # the origin; overwrite it so both views share one physical system.)
+    sys.entanglement = Entanglement(sys_origin, contraction_info, source_idcs, dipole_operators)
 
     return EntangledSystem(sys, sys_origin, contraction_info, source_idcs, dipole_operators)
 end

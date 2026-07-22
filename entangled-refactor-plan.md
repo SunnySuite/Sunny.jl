@@ -107,6 +107,24 @@ Struct shape and method→home mapping pinned in the Phase A section above. Scop
 state relocation: keep eager dipole sync and the full `bare_system` (no slimming — that's
 B′). Golden-gate on "Dimer Tests".
 
+**Phase B landed:**
+- `abstract type AbstractEntanglement` declared in `System/Types.jl` (breaks recursive
+  `System`↔`Entanglement` dependency). New non-const field `entanglement::Union{Nothing,
+  AbstractEntanglement}` appended to `System{N}`.
+- Concrete `struct Entanglement <: AbstractEntanglement` in `EntangledUnits/
+  TypesAndAliasing.jl`: `{bare_system::System, contraction_info, source_idcs,
+  dipole_operators}`.
+- `is_entangled(sys) = !isnothing(sys.entanglement)`; `clone_entanglement` (nothing
+  fallback in System.jl, Entanglement method in TypesAndAliasing.jl).
+- Field populated in the `EntangledSystem(sys, sys_origin, contraction_info)` funnel; the
+  invariant `sys.entanglement.bare_system === esys.sys_origin` is re-established in
+  `clone_system(::EntangledSystem)` too.
+- 3 positional `System(...)` call sites (System.jl:88,161; Reshaping.jl:118) pass
+  `nothing`. Nothing yet *reads* `sys.entanglement` — that's Phase C.
+- Verified: "Dimer Tests" 14/14 bit-for-bit; contraction+reshaping group 36/36; live
+  invariant checks (ordinary→nothing/false; entangled→populated & aliased; clone deep +
+  invariant preserved).
+
 ### Phase C — Fold dynamics + construction onto unified `System`
 - `step!(sys)` on entangled `System` does coherent evolution + (lazy) dipole expectation
   internally; the sync becomes an internal detail, not a wrapper obligation.

@@ -103,6 +103,13 @@ struct Ewald
     ift_plan :: rIFTPlan
 end
 
+# Optional metadata attached to a `System` whose sites represent "entangled
+# units" (tensor products of local Hilbert spaces). The concrete subtype
+# `Entanglement` lives in EntangledUnits/; it is declared abstract here to break
+# the recursive `System` <-> `Entanglement` type dependency (the concrete struct
+# holds a physical `bare_system::System`). `nothing` for ordinary systems.
+abstract type AbstractEntanglement end
+
 mutable struct System{N}
     const origin           :: Union{Nothing, System{N}} # System for the original chemical cell
     const mode             :: Symbol                    # :SUN, :dipole, or :dipole_uncorrected
@@ -137,6 +144,11 @@ mutable struct System{N}
 
     # Global data
     const rng              :: Random.Xoshiro
+
+    # Optional entanglement metadata. `nothing` for ordinary systems; for a
+    # system of "entangled units" it carries the physical (uncontracted)
+    # `bare_system` plus the contraction/dynamics mapping. See EntangledUnits/.
+    entanglement           :: Union{Nothing, AbstractEntanglement}
 end
 
 

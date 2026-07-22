@@ -87,7 +87,7 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
 
     ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, params, active_labels,
                  interactions, ewald, extfield, dipoles, coherents, dipole_buffers,
-                 coherent_buffers, rng)
+                 coherent_buffers, rng, nothing)
     polarize_spins!(ret, (0,0,1))
     return dims == (1, 1, 1) ? ret : repeat_periodically(ret, dims)
 end
@@ -143,7 +143,7 @@ not affect the other, and thread safety is guaranteed.
 """
 function clone_system(sys::System{N}) where N
     (; origin, mode, crystal, dims, Ns, gs, κs, extfield, interactions_union,
-       params, active_labels, ewald, dipoles, coherents, rng) = sys
+       params, active_labels, ewald, dipoles, coherents, rng, entanglement) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
 
@@ -158,10 +158,12 @@ function clone_system(sys::System{N}) where N
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
+    entanglement_clone = clone_entanglement(entanglement)
+
     ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
                  params_clone, active_labels, interactions_clone, nothing, copy(extfield),
                  copy(dipoles), copy(coherents), empty_dipole_buffers,
-                 empty_coherent_buffers, copy(rng))
+                 empty_coherent_buffers, copy(rng), entanglement_clone)
 
     if !isnothing(ewald)
         # At the moment, clone_ewald is unavailable, so instead rebuild the
@@ -172,6 +174,14 @@ function clone_system(sys::System{N}) where N
 
     return ret
 end
+
+# Clone the optional entanglement metadata. The concrete `Entanglement` subtype
+# (with its inner physical `bare_system`) provides its own method in
+# EntangledUnits/; ordinary systems carry `nothing`.
+clone_entanglement(::Nothing) = nothing
+
+# True if `sys` is a system of "entangled units" carrying entanglement metadata.
+is_entangled(sys::System) = !isnothing(sys.entanglement)
 
 
 """
