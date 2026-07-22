@@ -352,6 +352,67 @@ end
     @test all(isfinite, res_reshaped.data)
 end
 
+@testitem "Offsets for different unit orientations" begin
+    import LinearAlgebra: dot
+
+    # Test that phase factors are correct when units have different orientations.
+    # Two dimers: one along x, one along y. At q=[1,0,0], the x-oriented dimer
+    # should have a phase difference between its members, while the y-oriented
+    # dimer should not.
+
+    latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
+    positions = [
+        [0.0, 0.0, 0.0],   # Atom 1
+        [0.25, 0.0, 0.0],  # Atom 2 (x-dimer with atom 1)
+        [0.5, 0.0, 0.0],   # Atom 3
+        [0.5, 0.25, 0.0],  # Atom 4 (y-dimer with atom 3)
+    ]
+    cryst = Crystal(latvecs, positions, 1)
+    sys = System(cryst, [i => Moment(s=1/2, g=1) for i in 1:4], :SUN; dims=(1,1,1))
+
+    units = [
+        [(1, [0,0,0]), (2, [0,0,0])],  # x-oriented dimer
+        [(3, [0,0,0]), (4, [0,0,0])],  # y-oriented dimer
+    ]
+    esys = entangle_system(sys, units)
+
+    # Check measure offsets reflect the different orientations
+    measure = ssf_trace(esys)
+    @test size(measure.offsets) == (2, 2)  # 2 members × 2 unit types
+
+    # x-oriented dimer: offsets should be along x
+    offset_x1 = esys.crystal.latvecs * measure.offsets[1, 1]
+    offset_x2 = esys.crystal.latvecs * measure.offsets[2, 1]
+    @test abs(offset_x1[1]) > 0.1 && abs(offset_x1[2]) < 0.01
+    @test abs(offset_x2[1]) > 0.1 && abs(offset_x2[2]) < 0.01
+
+    # y-oriented dimer: offsets should be along y
+    offset_y1 = esys.crystal.latvecs * measure.offsets[1, 2]
+    offset_y2 = esys.crystal.latvecs * measure.offsets[2, 2]
+    @test abs(offset_y1[1]) < 0.01 && abs(offset_y1[2]) > 0.1
+    @test abs(offset_y2[1]) < 0.01 && abs(offset_y2[2]) > 0.1
+
+    # Test phase factors at q=[1,0,0]. The x-oriented dimer members acquire
+    # different phases (one at x≈0, one at x≈0.25), while the y-oriented members
+    # both sit at x=0.5 and get the same phase.
+    q = [1.0, 0.0, 0.0]
+    r1 = esys.crystal.positions[1]
+    r2 = esys.crystal.positions[2]
+
+    # x-dimer: member positions differ in x, so phases differ
+    phase_x1 = cis(2π * dot(q, r1 + measure.offsets[1, 1]))
+    phase_x2 = cis(2π * dot(q, r1 + measure.offsets[2, 1]))
+    @test abs(phase_x1 - 1.0) < 1e-10         # member 1 at x≈0
+    @test abs(phase_x2 - im) < 1e-10          # member 2 at x≈0.25, exp(iπ/2)=i
+    @test abs(phase_x2 - phase_x1) > 0.1      # significant phase difference
+
+    # y-dimer: member positions have same x=0.5, so phases are equal
+    phase_y1 = cis(2π * dot(q, r2 + measure.offsets[1, 2]))
+    phase_y2 = cis(2π * dot(q, r2 + measure.offsets[2, 2]))
+    @test abs(phase_y1 - (-1.0)) < 1e-10      # both at x=0.5, exp(iπ)=-1
+    @test abs(phase_y2 - (-1.0)) < 1e-10
+    @test abs(phase_y2 - phase_y1) < 1e-10    # no phase difference
+end
 
 # @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
 # end
