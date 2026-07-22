@@ -87,54 +87,49 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         Aq = precompute_dipole_ewald_at_wavevector(msys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
         Aq = reshape(Aq, Nmom, Nmom)
 
-        # `bare_dipoles` is indexed by (unit site, part); the Ewald matrices and
-        # g-tensors are indexed by bare crystal-atom `a`. The permutation `p[k,u]`
-        # bridges the two: (part k, unit u) → bare atom `a`. For an ordinary
-        # system nparts=1 and p is the identity.
-        Na = natoms(sys.crystal)
-        nparts = size(bare_dipoles, 3)
-        p = if is_entangled(sys)
-            (; unit_map) = get_entanglement(sys)
-            [unit_map.unit_to_members[u][k].atom for k in 1:nparts, u in 1:Na]
-        else
-            reshape(1:Na, 1, Na)
-        end
+        # The Ewald matrices and g-tensors are indexed by bare crystal-atom `a`
+        for i in 1:Nmom, j in 1:Nmom
+            if is_entangled(sys)
+                atom_to_unit = get_entanglement(sys).unit_map.atom_to_unit
+                ui, ki = (atom_to_unit[i].unit, atom_to_unit[i].part)
+                uj, kj = (atom_to_unit[j].unit, atom_to_unit[j].part)
+            else
+                ui, ki = i, 1
+                uj, kj = j, 1
+            end
 
-        for u1 in 1:Na, k1 in 1:nparts, u2 in 1:Na, k2 in 1:nparts
-            a = p[k1, u1]
-            b = p[k2, u2]
             # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
             # energy, where μ = - g S. A symmetric contribution will appear for
             # the bond reversal (a, b) → (b, a).
-            J = gs[a]' * Aq[a, b] * gs[b] / 2
-            J0 = gs[a]' * A0[a, b] * gs[b] / 2
+            J = gs[i]' * Aq[i, j] * gs[j] / 2
+            J0 = gs[i]' * A0[i, j] * gs[j] / 2
 
             for α in 1:3, β in 1:3
-                Ai = bare_dipoles[α, u1, k1]
-                Bj = bare_dipoles[β, u2, k2]
+                Ai = bare_dipoles[α, ui, ki]
+                Bj = bare_dipoles[β, uj, kj]
 
                 for m in 1:N-1, n in 1:N-1
                     c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
-                    H11[m, u1, n, u1] += c * J0[α, β]
-                    H22[n, u1, m, u1] += c * J0[α, β]
+                    H11[m, ui, n, ui] += c * J0[α, β]
+                    H22[n, ui, m, ui] += c * J0[α, β]
 
                     c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
-                    H11[m, u2, n, u2] += c * J0[α, β]
-                    H22[n, u2, m, u2] += c * J0[α, β]
+                    H11[m, uj, n, uj] += c * J0[α, β]
+                    H22[n, uj, m, uj] += c * J0[α, β]
 
                     c = Ai[m,N] * Bj[N,n]
-                    H11[m, u1, n, u2] += c * J[α, β]
-                    H22[n, u2, m, u1] += c * conj(J[α, β])
+                    H11[m, ui, n, uj] += c * J[α, β]
+                    H22[n, uj, m, ui] += c * conj(J[α, β])
 
                     c = Ai[N,m] * Bj[n,N]
-                    H11[n, u2, m, u1] += c * conj(J[α, β])
-                    H22[m, u1, n, u2] += c * J[α, β]
+                    H11[n, uj, m, ui] += c * conj(J[α, β])
+                    H22[m, ui, n, uj] += c * J[α, β]
 
                     c = Ai[m,N] * Bj[n,N]
-                    H12[m, u1, n, u2] += c * J[α, β]
-                    H12[n, u2, m, u1] += c * conj(J[α, β])
-                    H21[n, u2, m, u1] += conj(c) * conj(J[α, β])
-                    H21[m, u1, n, u2] += conj(c) * J[α, β]
+                    H12[m, ui, n, uj] += c * J[α, β]
+                    H12[n, uj, m, ui] += c * conj(J[α, β])
+                    H21[n, uj, m, ui] += conj(c) * conj(J[α, β])
+                    H21[m, ui, n, uj] += conj(c) * J[α, β]
                 end
             end
         end
