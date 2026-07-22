@@ -250,9 +250,9 @@ function set_field_at!(sys::System, B_μB, site)
     else
         # For an entangled system, `sys.extfield` stays NaN. The Zeeman coupling
         # is instead tracked through member sites of the uncontracted system.
-        (; uncontracted) = get_entanglement(sys)
-        for bs in entangled_unit_members(sys, site)
-            uncontracted.extfield[bs] = B
+        ent = get_entanglement(sys)
+        for bs in bare_sites_for_unit(ent, site)
+            ent.uncontracted.extfield[bs] = B
         end
     end
 end

@@ -18,8 +18,8 @@ end
 
 # Bidirectional mapping between entangled units and their atomic members
 struct UnitMap
-    atom_to_unit    :: Vector{UnitAndPartIndex}   # atom → (unit, part)
-    unit_to_members :: Vector{Vector{UnitMember}} # unit → atom offsets, ordered by part
+    atom_to_unit    :: Vector{UnitAndPartIndex}   # bare atom → (unit, part)
+    unit_to_members :: Vector{Vector{UnitMember}} # unit → bare atom offsets, ordered by part
 end
 
 # Metadata for a System with entangled units. Hilbert dimension N of the
@@ -46,25 +46,25 @@ is_entangled(sys::System) = !isnothing(sys.entanglement)
 # a UnitMap.
 atoms_in_unit(unit_map::UnitMap, i) = [m.atom for m in unit_map.unit_to_members[i]]
 
-# UnitMember data for a given atom (including Δpos and Δcell).
-function member_for_atom(unit_map::UnitMap, atom)
+# UnitMember data (Δpos and Δcell) for a bare atom.
+function unit_offsets_for_atom(unit_map::UnitMap, atom)
     (; unit, part) = unit_map.atom_to_unit[atom]
     return unit_map.unit_to_members[unit][part]
 end
 
-# Given a unit member in the entangled system, obtain the corresponding site
-# index for the uncontracted system. Implementation mirrors `bonded_site`.
-function member_site(unit_site, member::UnitMember, dims)
+# Given a site representing an entangled unit, obtain the corresponding "bare
+# site" for the uncontracted system. Implementation mirrors `bonded_site`.
+function bare_site_for_unit_member(unit_site, member::UnitMember, dims)
     (; atom, Δcell) = member
     CartesianIndex(altmod1.(to_cell(unit_site) .+ Δcell, dims)..., atom)
 end
 
-# Uncontracted sites comprising the entangled unit at contracted `unit_site` of
-# `sys`. Accepts CartesianIndex, tuple, or integer atom index.
-function entangled_unit_members(sys::System, unit_site::CartesianIndex)
-    (; uncontracted, unit_map) = get_entanglement(sys)
+# Given a site representing an entangled unit, return an iterator over the
+# corresponding "bare sites" of the uncontracted system.
+function bare_sites_for_unit(ent::Entanglement, unit_site)
+    (; uncontracted, unit_map) = ent
     members = unit_map.unit_to_members[to_atom(unit_site)]
-    return [member_site(unit_site, m, uncontracted.dims) for m in members]
+    return (bare_site_for_unit_member(unit_site, m, uncontracted.dims) for m in members)
 end
 
 # Needed because uncontracted.dipoles and related state are mutably updated
@@ -87,8 +87,10 @@ function contracted_bond(bond::Bond, unit_map::UnitMap)
     ui = unit_map.atom_to_unit[bond.i]
     uj = unit_map.atom_to_unit[bond.j]
     n = SVector{3,Int}(bond.n)
-    n_new = n + member_for_atom(unit_map, bond.i).Δcell - member_for_atom(unit_map, bond.j).Δcell
-    return Bond(ui.unit, uj.unit, collect(n_new))
+    Δcell_i = unit_offsets_for_atom(unit_map, bond.i).Δcell
+    Δcell_j = unit_offsets_for_atom(unit_map, bond.j).Δcell
+    n_new = n + Δcell_i - Δcell_j
+    return Bond(ui.unit, uj.unit, n_new)
 end
 
 # Checks whether a bond given in terms of the original crystal lies inside a
@@ -250,7 +252,7 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_unit_map::UnitMap
         part = orig_unit_map.atom_to_unit[orig_a].part
 
         # Fractional displacement from the unit center to member atom
-        orig_Δpos = member_for_atom(orig_unit_map, orig_a).Δpos
+        orig_Δpos = unit_offsets_for_atom(orig_unit_map, orig_a).Δpos
         global_Δpos = orig_crystal(sys).latvecs * orig_Δpos
         Δpos = uncontracted.crystal.latvecs \ global_Δpos
 
@@ -280,15 +282,16 @@ end
 
 # Copy per-site state from an uncontracted system into the entangled system.
 function transfer_uncontracted_state!(sys::System, uncontracted::System)
-    dst = get_entanglement(sys).uncontracted
+    ent = get_entanglement(sys)
+    dst = ent.uncontracted  # entanglement's own clone, distinct from arg
     @. dst.dipoles   = uncontracted.dipoles
     @. dst.coherents = uncontracted.coherents
     @. dst.extfield  = uncontracted.extfield
     @. dst.κs        = uncontracted.κs
     @. dst.gs        = uncontracted.gs
     for unit in eachsite(sys)
-        members = entangled_unit_members(sys, unit)
-        sys.coherents[unit] = kron((uncontracted.coherents[m] for m in members)...)
+        Zs = (uncontracted.coherents[bs] for bs in bare_sites_for_unit(ent, unit))
+        sys.coherents[unit] = kron(Zs...)
     end
 end
 
@@ -403,8 +406,7 @@ end
 # `set_energy_grad_dipoles!` path. `N` is the local dimension of entangled units
 # (not of the `uncontracted`).
 function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entanglement) where N
-    (; uncontracted, unit_map, bare_dipole_operators) = ent
-    dims = uncontracted.dims
+    (; uncontracted, bare_dipole_operators) = ent
 
     # Reuse the bare system's persistent scratch buffers.
     S_bare, dE_dS_bare = get_dipole_buffers(uncontracted, 2)
@@ -416,9 +418,8 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
     # is requested.
     for u in CartesianIndices(Z)
         Zu = Z[u]
-        for member in unit_map.unit_to_members[to_atom(u)]
-            bs = member_site(u, member, dims)
-            S_bare[bs] = bare_expected_dipole(Zu, bare_dipole_operators[member.atom])
+        for bs in bare_sites_for_unit(ent, u)
+            S_bare[bs] = bare_expected_dipole(Zu, bare_dipole_operators[to_atom(bs)])
         end
     end
 
@@ -432,12 +433,11 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
     end
 
     # Sum each physical atom's contribution into its containing unit's coherent
-    # gradient. A unit's members may straddle cells; `member_site` routes them.
+    # gradient.
     for u in CartesianIndices(Z)
         Zu = Z[u]
-        for member in unit_map.unit_to_members[to_atom(u)]
-            bs = member_site(u, member, dims)
-            S = bare_dipole_operators[member.atom]
+        for bs in bare_sites_for_unit(ent, u)
+            S = bare_dipole_operators[to_atom(bs)]
             h = dE_dS_bare[bs]
             for β in 1:3
                 HZ[u] += h[β] * mul_svec(S[β], Zu)
@@ -450,10 +450,10 @@ end
 # Sync the bare dipoles with the coherent state of an unit at `site`
 function sync_bare_dipoles_at!(sys::System, site)
     Z = sys.coherents[site]
-    (; uncontracted, unit_map, bare_dipole_operators) = get_entanglement(sys)
-    for member in unit_map.unit_to_members[to_atom(site)]
-        bs = member_site(site, member, uncontracted.dims)
-        uncontracted.dipoles[bs] = bare_expected_dipole(Z, bare_dipole_operators[member.atom])
+    ent = get_entanglement(sys)
+    (; uncontracted, bare_dipole_operators) = ent
+    for bs in bare_sites_for_unit(ent, site)
+        uncontracted.dipoles[bs] = bare_expected_dipole(Z, bare_dipole_operators[to_atom(bs)])
     end
     return
 end
