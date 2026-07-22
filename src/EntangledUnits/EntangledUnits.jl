@@ -326,11 +326,17 @@ function entangle_system(sys::System{M}, units) where M
     end
 
     # We collected all bond_operators associated with a particular exemplar, sum
-    # them, and set the interaction
+    # them, and set the interaction. Use `extract_parts=false` to keep the whole
+    # operator in the `general` (tensor-decomposed) channel. Extracting bilinear
+    # and biquadratic parts would express them in terms of the unit's spin-(N-1)/2
+    # operators, but the contracted `sys.dipoles` holds a unit's *total moment*
+    # (Σₖ gₖ Sₖ), not ⟨spin_matrices_of_dim(N)⟩. Those channels would then be
+    # evaluated against the wrong vector in `energy_aux`/`set_energy_grad_*`. The
+    # general channel is evaluated directly from coherent states, so it is exact.
     for bond in exemplars
         relevant_interactions = filter(data -> data[1] == bond, new_pair_data)
         bond_operator = sum(data[2] for data in relevant_interactions)
-        set_pair_coupling!(sys_entangled, bond_operator, bond)
+        set_pair_coupling!(sys_entangled, bond_operator, bond; extract_parts=false)
     end
 
     return (; sys_entangled, contraction_info)

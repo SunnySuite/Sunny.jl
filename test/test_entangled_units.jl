@@ -23,7 +23,7 @@ end
 # ordering).
 
 @testitem "Dimer Tests" begin
-    import LinearAlgebra: norm
+    import LinearAlgebra: norm, I
     import Random
 
     J = 1.0
@@ -118,6 +118,60 @@ end
     end
     bond_ref = J′*((Sl2' * Sl1) .+ (Su2' * Su1))
     @test bond_operator ≈ bond_ref
+
+    # Regression: the total energy and coherent-state gradient must be exact even
+    # in the presence of inter-unit coupling. Inter-unit couplings are stored in
+    # the `general` (tensor-decomposed) channel; extracting bilinear/biquadratic
+    # parts would express them in the unit's spin operators, but the contracted
+    # `dipoles` holds a unit's total moment, so those channels would be evaluated
+    # against the wrong vector. Compare against an exact product-space reference.
+    let
+        esys2 = repeat_periodically(esys, (2, 1, 1))
+        set_field!(esys2, [0, 0, 0])
+        Random.seed!(esys2.rng, 2)
+        randomize_spins!(esys2)
+
+        # Exact energy: onsite ⟨Z|Λ|Z⟩ plus, for each non-culled bond, the full
+        # product-space bond operator evaluated on Zᵢ ⊗ Zⱼ.
+        function exact_energy(sys)
+            E = 0.0
+            for i in 1:Sunny.natoms(sys.crystal)
+                int = sys.interactions_union[i]
+                for site in Sunny.eachsite_sublattice(sys, i)
+                    Z = sys.coherents[site]
+                    E += real(Z' * int.onsite * Z)
+                    for pcᵢ in int.pair
+                        pcᵢ.isculled && continue
+                        sj = Sunny.bonded_site(site, pcᵢ.bond, sys.dims)
+                        Ψ = kron(Z, sys.coherents[sj])
+                        pcg = Sunny.as_general_pair_coupling(pcᵢ, sys)
+                        op = pcg.scalar*I(length(Ψ)) + sum(kron(A, B) for (A, B) in pcg.general.data)
+                        E += real(Ψ' * op * Ψ)
+                    end
+                end
+            end
+            return E
+        end
+        @test energy(esys2) ≈ exact_energy(esys2)
+
+        # Coherent-state gradient dE/dZ̄ against a finite difference.
+        Z0 = copy(esys2.coherents)
+        ∇ = Sunny.energy_grad_coherents(esys2)
+        ε = 1e-6
+        maxerr = 0.0
+        for site in eachsite(esys2), c in 1:4, scale in (1.0 + 0im, im)
+            δ = zeros(ComplexF64, 4); δ[c] = scale
+            znew = copy(Z0); znew[site] = Z0[site] + ε*δ
+            esys2.coherents .= znew; Sunny.set_expected_dipoles!(esys2)
+            Ep = energy(esys2; check_normalization=false)
+            znew[site] = Z0[site] - ε*δ
+            esys2.coherents .= znew; Sunny.set_expected_dipoles!(esys2)
+            Em = energy(esys2; check_normalization=false)
+            maxerr = max(maxerr, abs((Ep - Em)/(2ε) - 2*real(δ' * ∇[site])))
+        end
+        esys2.coherents .= Z0; Sunny.set_expected_dipoles!(esys2)
+        @test maxerr < 1e-8
+    end
 
     # Test dispersion against analytical formula for antisymmetric channel.
     qs = [[0.2, 0.3, 0]]
