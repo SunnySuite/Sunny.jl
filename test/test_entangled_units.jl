@@ -17,7 +17,99 @@
     end
 end
 
-# TODO: Add reshapings tests.
+@testitem "Reshaping entangled units" begin
+    import LinearAlgebra: det
+
+    # Dimer oriented along x within a square cell, with weak inter-cell exchange.
+    latvecs = [1.0 0 0; 0 1 0; 0 0 1]
+    positions = [[0.0, 0, 0], [0.5, 0, 0]]
+    crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
+
+    function make_esys(; seed=1)
+        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN; seed)
+        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+        set_exchange!(sys, 0.1, Bond(1, 1, [0, 1, 0]))
+        set_exchange!(sys, 0.1, Bond(2, 2, [0, 1, 0]))
+        return Sunny.entangle_units(sys, [(1, 2)])
+    end
+
+    # True when some unit has a member physical site in a different cell (a unit
+    # that straddles the cell boundary of the reshaped system).
+    function straddles(r)
+        um = r.entanglement.unit_members
+        any(u -> any(bs -> Sunny.to_cell(bs) != Sunny.to_cell(u), um[u]), eachsite(r))
+    end
+
+    set_q0(r) = for u in eachsite(r); set_coherent!(r, [0, 1/√2, -1/√2, 0], u); end
+
+    esys = make_esys()
+    set_field!(esys, [0, 0, 0]); set_q0(esys)
+    E0 = energy_per_site(esys)
+
+    # Energy per site of a q=0 state is invariant under every commensurate
+    # reshape, including the many shapes that split a unit across cells. This
+    # exercises the geometric mapping rebuild in `rebuild_entanglement!`.
+    nstraddle = Ref(0)
+    for a in -2:2, b in -2:2, c in -2:2, d in -2:2
+        shape = [a b 0; c d 0; 0 0 1]
+        (det(shape) == 0 || abs(det(shape)) > 4) && continue
+        r = reshape_supercell(esys, shape)
+        straddles(r) && (nstraddle[] += 1)
+        set_field!(r, [0, 0, 0]); set_q0(r)
+        @test energy_per_site(r) ≈ E0
+    end
+    # The scan must actually cover the previously-unsupported straddling case.
+    @test nstraddle[] > 0
+
+    # Pick a straddling shape and check full dynamics through the reshaped
+    # mapping: a strong field polarizes every physical dipole.
+    function find_straddling_shape()
+        for a in -2:2, b in -2:2, c in -2:2, d in -2:2
+            M = [a b 0; c d 0; 0 0 1]
+            (det(M) == 0 || abs(det(M)) > 4) && continue
+            straddles(reshape_supercell(esys, M)) && return M
+        end
+        error("no straddling shape found")
+    end
+    r = reshape_supercell(esys, find_straddling_shape())
+    set_field!(r, [0, 0, 10]); randomize_spins!(r); minimize_energy!(r)
+    @test all(d -> isapprox(d[3], -1/2; atol=1e-6), r.entanglement.bare_system.dipoles)
+
+    # Coherent-state gradient matches finite difference at the straddling geometry.
+    set_field!(r, [0.3, -0.7, 1.1]); randomize_spins!(r)
+    Z0 = copy(r.coherents)
+    ∇ = Sunny.energy_grad_coherents(r)
+    maxerr = let ε = 1e-6, acc = 0.0
+        for site in eachsite(r), c in 1:4, scale in (1.0 + 0im, im)
+            δ = zeros(ComplexF64, 4); δ[c] = scale
+            zn = copy(Z0); zn[site] = Z0[site] + ε*δ
+            r.coherents .= zn; Sunny.set_expected_dipoles!(r)
+            Ep = energy(r; check_normalization=false)
+            zn[site] = Z0[site] - ε*δ
+            r.coherents .= zn; Sunny.set_expected_dipoles!(r)
+            Em = energy(r; check_normalization=false)
+            acc = max(acc, abs((Ep - Em)/(2ε) - 2*real(δ' * ∇[site])))
+        end
+        acc
+    end
+    r.coherents .= Z0; Sunny.set_expected_dipoles!(r)
+    @test maxerr < 1e-8
+
+    # repeat_periodically and resize_supercell agree with an equivalent
+    # from-scratch construction at larger size.
+    big = resize_supercell(esys, (2, 1, 1))
+    rep = repeat_periodically(esys, (2, 1, 1))
+    set_field!(big, [0, 0, 0]); set_q0(big)
+    set_field!(rep, [0, 0, 0]); set_q0(rep)
+    @test energy_per_site(big) ≈ E0
+    @test energy_per_site(rep) ≈ E0
+
+    # Reshape followed by a compensating reshape recovers the original energy.
+    round_trip = reshape_supercell(reshape_supercell(esys, [1 1 0; -1 1 0; 0 0 1]),
+                                   [1 1 0; -1 1 0; 0 0 1])  # applied twice
+    set_field!(round_trip, [0, 0, 0]); set_q0(round_trip)
+    @test energy_per_site(round_trip) ≈ E0
+end
 
 # TODO: Add test with magnetic unit cell larger than a single unit (i.e. not q=0
 # ordering).

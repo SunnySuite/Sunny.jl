@@ -235,12 +235,11 @@ function set_field_at!(sys::System, B_μB, site)
     B = Vec3(B_μB)
     sys.extfield[site] = B
 
-    # FIXME: Simply call set_field_at! on sys.entanglement.bare_system instead.
+    # Mirror the field onto the physical member sites of this unit (straddle-safe).
     if !isnothing(sys.entanglement)
-        (; bare_system, contraction_info) = get_entanglement(sys)
-        cell = to_cell(site)
-        for atom in atoms_in_unit(contraction_info, to_atom(site))
-            bare_system.extfield[cell..., atom] = B
+        bare_system = get_entanglement(sys).bare_system
+        for bs in entangled_unit_members(sys, site)
+            bare_system.extfield[bs] = B
         end
     end
 end
