@@ -129,7 +129,6 @@ include("SCGA/NewtonBacktracking.jl")
 include("SCGA/SCGA.jl")
 export SCGA, magnetic_susceptibility_per_site
 
-include("EntangledUnits/TypesAndAliasing.jl")
 include("EntangledUnits/EntangledUnits.jl")
 include("EntangledUnits/EntangledReshaping.jl")
 # export entangle_units
