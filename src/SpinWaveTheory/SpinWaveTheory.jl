@@ -311,8 +311,8 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
     if sys.mode == :SUN
         (; observables, observable_buf) = data::SWTDataSUN
         N = sys.Ns[1]
-        natoms_orig = size(measure.observables, 5)
-        ncells = div(Na, natoms_orig)
+        nunits = size(measure.observables, 5)
+        ncells = div(Na, nunits) # FIXME: review logic
         for μ in 1:Nobs, i in 1:Na
             site = fld1(i, ncells)
             r = sys.crystal.positions[i]

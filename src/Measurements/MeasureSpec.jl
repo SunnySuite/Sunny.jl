@@ -1,11 +1,10 @@
 # Op is the type of a local observable operator. Either a Vec3 representing
 # `op⋅S` (:dipole mode) or a HermitianC64 representing the N×N matrix directly
-# (:SUN mode). The `nparts` index and `offsets` field are needed for modeling
-# entangled units.
+# (:SUN mode). The "parts" index is needed for entangled units.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
-    observables :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × natoms × nparts)
-    offsets     :: Array{Vec3, 2}         # (natoms × nparts)
-    formfactors :: Array{FormFactor, 3}   # (nobs × natoms × nparts)
+    observables :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × nunits × nparts)
+    offsets     :: Array{Vec3, 2}         # (nunits × nparts)
+    formfactors :: Array{FormFactor, 3}   # (nobs × nunits × nparts)
     corr_pairs  :: Vector{NTuple{2, Int}} # (ncorr)
     combiner    :: F                      # (q::Vec3, obs) -> Ret
 
@@ -13,13 +12,13 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
         nobs    = size(observables, 1)
-        natoms  = size(observables, 5)
+        nunits  = size(observables, 5)
         nparts  = size(observables, 6)
         if isnothing(offsets)
-            offsets = zeros(Vec3, natoms, nparts)
+            offsets = zeros(Vec3, nunits, nparts)
         end
-        @assert (natoms, nparts) == size(offsets) "offsets must have shape (natoms, nparts)"
-        @assert (nobs, natoms, nparts) == size(formfactors) "formfactors must have shape (nobs, natoms, nparts)"
+        @assert (nunits, nparts) == size(offsets) "offsets must have shape (nunits, nparts)"
+        @assert (nobs, nunits, nparts) == size(formfactors) "formfactors must have shape (nobs, nunits, nparts)"
         return new{Op, F, Ret}(observables, offsets, formfactors, corr_pairs, combiner)
     end
 end
