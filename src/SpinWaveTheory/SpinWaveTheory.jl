@@ -277,7 +277,7 @@ end
 function swt_spin_parts(sys::System{N}) where N
     if is_entangled(sys)
         (; bare_system, unit_map, bare_dipole_operators) = get_entanglement(sys)
-        return map(unit_map.unit_members) do members
+        return map(unit_map.unit_to_members) do members
             map(members) do member
                 (bare_dipole_operators[member.atom],
                  bare_system.gs[1, 1, 1, member.atom],
