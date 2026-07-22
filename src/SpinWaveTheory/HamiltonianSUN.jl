@@ -2,7 +2,7 @@
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; spins_localized) = data
+    (; bare_dipoles) = data
 
     N = sys.Ns[1]
     Na = natoms(sys.crystal)
@@ -70,13 +70,13 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         end
     end
 
-    # Long-range dipole-dipole interactions originate from the "bare" atomic
-    # dipoles. In case of an entangled system, these live on the `uncontracted`
-    # system in `sys.entanglement`.
-    msys, atom_to_unit = dipole_dipole_moment_system(sys)
+    # Long-range dipole-dipole interactions. In case of an entangled system,
+    # this data would be stored in its uncontracted system.
+    msys = uncontracted_system(sys)
+
     if !isnothing(msys.ewald)
-        (; demag, μ0_μB², A) = msys.ewald
-        gs = msys.gs
+        (; gs, ewald) = msys
+        (; demag, μ0_μB², A) = ewald
         Nmom = natoms(msys.crystal)
 
         # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
@@ -87,44 +87,48 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         Aq = precompute_dipole_ewald_at_wavevector(msys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
         Aq = reshape(Aq, Nmom, Nmom)
 
-        for a in 1:Nmom, b in 1:Nmom
+        # For an entangled system, each bare atom `a` maps to the unit site `ua`
+        # that contains it; otherwise the two indices coincide.
+        if is_entangled(sys)
+            (; unit_map) = get_entanglement(sys)
+            bare_atoms = ((a, u.unit) for (a, u) in enumerate(unit_map.atom_to_unit))
+        else
+            bare_atoms = ((a, a) for a in 1:natoms(sys.crystal))
+        end
+
+        for (a, ua) in bare_atoms, (b, ub) in bare_atoms
             # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
             # energy, where μ = - g S. A symmetric contribution will appear for
             # the bond reversal (a, b) → (b, a).
             J = gs[a]' * Aq[a, b] * gs[b] / 2
             J0 = gs[a]' * A0[a, b] * gs[b] / 2
 
-            ua = atom_to_unit[a]
-            ub = atom_to_unit[b]
-            i, ka = ua.unit, ua.part
-            j, kb = ub.unit, ub.part
-
             for α in 1:3, β in 1:3
-                Ai = spins_localized[α, ka, i]
-                Bj = spins_localized[β, kb, j]
+                Ai = bare_dipoles[α, a]
+                Bj = bare_dipoles[β, b]
 
                 for m in 1:N-1, n in 1:N-1
                     c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
-                    H11[m, i, n, i] += c * J0[α, β]
-                    H22[n, i, m, i] += c * J0[α, β]
+                    H11[m, ua, n, ua] += c * J0[α, β]
+                    H22[n, ua, m, ua] += c * J0[α, β]
 
                     c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
-                    H11[m, j, n, j] += c * J0[α, β]
-                    H22[n, j, m, j] += c * J0[α, β]
+                    H11[m, ub, n, ub] += c * J0[α, β]
+                    H22[n, ub, m, ub] += c * J0[α, β]
 
                     c = Ai[m,N] * Bj[N,n]
-                    H11[m, i, n, j] += c * J[α, β]
-                    H22[n, j, m, i] += c * conj(J[α, β])
+                    H11[m, ua, n, ub] += c * J[α, β]
+                    H22[n, ub, m, ua] += c * conj(J[α, β])
 
                     c = Ai[N,m] * Bj[n,N]
-                    H11[n, j, m, i] += c * conj(J[α, β])
-                    H22[m, i, n, j] += c * J[α, β]
+                    H11[n, ub, m, ua] += c * conj(J[α, β])
+                    H22[m, ua, n, ub] += c * J[α, β]
 
                     c = Ai[m,N] * Bj[n,N]
-                    H12[m, i, n, j] += c * J[α, β]
-                    H12[n, j, m, i] += c * conj(J[α, β])
-                    H21[n, j, m, i] += conj(c) * conj(J[α, β])
-                    H21[m, i, n, j] += conj(c) * J[α, β]
+                    H12[m, ua, n, ub] += c * J[α, β]
+                    H12[n, ub, m, ua] += c * conj(J[α, β])
+                    H21[n, ub, m, ua] += conj(c) * conj(J[α, β])
+                    H21[m, ua, n, ub] += conj(c) * J[α, β]
                 end
             end
         end

@@ -1,15 +1,15 @@
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}             # Rotations from global to quantization frame
-    observables_localized :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
+    observables           :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
     stevens_coefs         :: Vector{StevensExpansion} # Rotated onsite coupling as Steven expansion
     sqrtS                 :: Vector{Float64}          # Square root of spin magnitudes
 end
 
 struct SWTDataSUN
-    local_unitaries  :: Vector{Matrix{ComplexF64}}   # Transformations from global to quantization frame
-    obs_parts        :: Array{HermitianC64, 3}       # Rotated observable parts (ncontribs × nobs × nsites)
-    observable_buf   :: Matrix{ComplexF64}           # Scratch buffer (N × N)
-    spins_localized  :: Array{HermitianC64, 3}       # Spins in local frame (3 × nparts × nsites)
+    local_unitaries  :: Vector{Matrix{ComplexF64}}    # Transformations from global to quantization frame
+    observables      :: Array{HermitianC64, 3}        # Rotated observables (nparts × nobs × nsites)
+    observable_buf   :: Matrix{ComplexF64}            # Scratch buffer (N × N)
+    bare_dipoles     :: Array{HermitianC64, 2}        # Bare spin dipoles in local frame (3 × natoms)
 end
 
 # To facilitate sharing some code with SpinWaveTheorySpiral
@@ -139,13 +139,13 @@ function swt_data(sys::System{N}, measure) where N
     # for an entangled unit the parts are the unit's bare atoms, each embedded into
     # the product space, with per-atom g-factor and field from the bare system.
     site_parts = swt_spin_parts(sys)
-    nparts_spin = maximum(length, site_parts)
+    nbareatoms = sum(length, site_parts)
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
-    obs_parts = Array{HermitianC64}(undef, nparts, Nobs, Na)
+    observables = Array{HermitianC64}(undef, nparts, Nobs, Na)
     observable_buf = zeros(ComplexF64, N, N)
-    spins_localized = fill(Hermitian(zeros(ComplexF64, N, N)), 3, nparts_spin, Na)
+    bare_dipoles = fill(Hermitian(zeros(ComplexF64, N, N)), 3, nbareatoms)
 
     for i in 1:Na
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
@@ -163,13 +163,13 @@ function swt_data(sys::System{N}, measure) where N
 
         # Rotate observables into local reference frames
         for k in 1:nparts, μ in 1:Nobs
-            obs_parts[k, μ, i] = Hermitian(U' * flat_ops[k, μ, i] * U)
+            observables[k, μ, i] = Hermitian(U' * flat_ops[k, μ, i] * U)
         end
 
-        # Spin dipole operators per part in the local frame (for dipole-dipole).
-        for (k, (spin_ops, _, _)) in enumerate(site_parts[i])
+        # Spin dipole operators per bare atom in the local frame (dipole-dipole).
+        for (a, spin_ops, _, _) in site_parts[i]
             for α in 1:3
-                spins_localized[α, k, i] = Hermitian(U' * spin_ops[α] * U)
+                bare_dipoles[α, a] = Hermitian(U' * spin_ops[α] * U)
             end
         end
     end
@@ -182,7 +182,7 @@ function swt_data(sys::System{N}, measure) where N
         # Zeeman coupling Σ_parts Σ_α (gₐ'Bₐ)_α Sₐᵅ, accumulated into the onsite
         # coupling in the global frame so it rotates with the anisotropy below.
         onsite = Matrix{ComplexF64}(int.onsite)
-        for (spin_ops, g, B) in site_parts[i]
+        for (_, spin_ops, g, B) in site_parts[i]
             gB = g' * B
             for α in 1:3
                 onsite += gB[α] * spin_ops[α]
@@ -214,21 +214,23 @@ function swt_data(sys::System{N}, measure) where N
 
     return SWTDataSUN(
         local_unitaries,
-        obs_parts,
+        observables,
         observable_buf,
-        spins_localized,
+        bare_dipoles,
     )
 end
 
 # The physical magnetic-atom "parts" contributing to each SU(N) site, as a list
-# per site of `(spin_ops, g, B)` in the global frame. For an entangled system,
-# the iterator runs over all sites of the bare system.
+# per site of `(a, spin_ops, g, B)` in the global frame, where `a` is the bare
+# atom index. For an entangled system, `a` runs over all sites of the bare
+# system; otherwise `a` coincides with the site index.
 function swt_spin_parts(sys::System{N}) where N
     if is_entangled(sys)
         (; uncontracted, unit_map, bare_dipole_operators) = get_entanglement(sys)
         return map(unit_map.unit_to_members) do members
             map(members) do member
-                (bare_dipole_operators[member.atom],
+                (member.atom,
+                 bare_dipole_operators[member.atom],
                  uncontracted.gs[1, 1, 1, member.atom],
                  uncontracted.extfield[1, 1, 1, member.atom])
             end
@@ -236,26 +238,11 @@ function swt_spin_parts(sys::System{N}) where N
     else
         return map(1:nsites(sys)) do i
             S = spin_matrices_of_dim(; N)
-            [(ntuple(α -> S[α], 3), sys.gs[i], sys.extfield[i])]
+            [(i, ntuple(α -> S[α], 3), sys.gs[i], sys.extfield[i])]
         end
     end
 end
 
-# The system carrying physical magnetic moments for the long-range dipole-dipole
-# term, and a map from each of its atoms to a `(site, part)` pair indexing
-# `spins_localized`. For an ordinary system this is `sys` itself with the
-# trivial map `a -> (a, 1)`. For an entangled system it is the physical bare
-# system, with `unit_map.atom_to_unit[a] = (unit, part)` mapping each bare atom
-# to its unit and intra-unit part index. Both share `sys.crystal.latvecs`, so
-# the Ewald wavevector is consistent.
-function dipole_dipole_moment_system(sys::System)
-    if is_entangled(sys)
-        (; uncontracted, unit_map) = get_entanglement(sys)
-        return (uncontracted, unit_map.atom_to_unit)
-    else
-        return (sys, [UnitAndPartIndex(i, 1) for i in 1:natoms(sys.crystal)])
-    end
-end
 
 # Compute Stevens coefficients in the local reference frame
 function swt_data(sys::System{0}, measure)
@@ -358,7 +345,7 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
     L = Nf * Na
 
     if sys.mode == :SUN
-        (; obs_parts, observable_buf) = data::SWTDataSUN
+        (; observables, observable_buf) = data::SWTDataSUN
         N = sys.Ns[1]
         natoms_orig = size(measure.operators, 6)
         ncells = div(Na, natoms_orig)
@@ -366,12 +353,12 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
             atom_idx = fld1(i, ncells)
             r = sys.crystal.positions[i]
             fill!(observable_buf, 0)
-            for k in axes(obs_parts, 1)
+            for k in axes(observables, 1)
                 offset = measure.offsets[k, atom_idx]
                 ff = measure.formfactors[k, μ, atom_idx]
                 pref = cis(2π * dot(q_reshaped, r + offset)) *
                        compute_form_factor(ff, norm2(q_global))
-                observable_buf .+= pref .* obs_parts[k, μ, i]
+                observable_buf .+= pref .* observables[k, μ, i]
             end
             for f in 1:Nf
                 u[f + (i-1)*Nf,     μ] = observable_buf[f, N]
@@ -380,10 +367,10 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
         end
     else
         @assert sys.mode in (:dipole, :dipole_uncorrected)
-        (; sqrtS, observables_localized) = data::SWTDataDipole
+        (; sqrtS, observables) = data::SWTDataDipole
         for μ in 1:Nobs, i in 1:Na
             pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-            O = observables_localized[μ, i]
+            O = observables[μ, i]
             u[i, μ]   = pref * (sqrtS[i] / √2) * (O[1] + im*O[2])
             u[i+L, μ] = pref * (sqrtS[i] / √2) * (O[1] - im*O[2])
         end

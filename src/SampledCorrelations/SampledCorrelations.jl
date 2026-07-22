@@ -246,7 +246,7 @@ appropriate classical-to-quantum correction factors. See also
 [`intensities_static`](@ref), which integrates over energy.
 """
 function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, integrator=ImplicitMidpoint())
-    uncontracted = isnothing(sys.entanglement) ? sys : get_entanglement(sys).uncontracted
+    uncontracted = uncontracted_system(sys)
     crystal = uncontracted.crystal
     origin_crystal = orig_crystal(uncontracted)
     if isnothing(energies)

@@ -3,9 +3,9 @@
 # (:SUN mode). The `nparts` index and `offsets` field are needed for modeling
 # entangled units.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
-    operators   :: Array{Op, 6}           # (nparts × nobs × d1 × d2 × d3 × natoms)
-    offsets     :: Array{Vec3, 2}         # (nparts × natoms)
-    formfactors :: Array{FormFactor, 3}   # (nparts × nobs × natoms)
+    operators   :: Array{Op, 6}           # (nparts × nobs × d1 × d2 × d3 × nunits)
+    offsets     :: Array{Vec3, 2}         # (nparts × nunits)
+    formfactors :: Array{FormFactor, 3}   # (nparts × nobs × nunits)
     corr_pairs  :: Vector{NTuple{2, Int}} # (ncorr)
     combiner    :: F                      # (q::Vec3, obs) -> Ret
 

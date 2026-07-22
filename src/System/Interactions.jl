@@ -427,7 +427,7 @@ The total system [`energy`](@ref) divided by the number of sites.
 """
 function energy_per_site(sys::System{N}; check_normalization=true) where N
     # For an entangled system, normalize by the number of physical sites.
-    n = isnothing(sys.entanglement) ? nsites(sys) : nsites(get_entanglement(sys).uncontracted)
+    n = nsites(uncontracted_system(sys))
     return energy(sys; check_normalization) / n
 end
 

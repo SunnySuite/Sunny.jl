@@ -42,6 +42,10 @@ is_entangled(sys::System) = !isnothing(sys.entanglement)
 # avoids JET warnings.
 @inline get_entanglement(sys::System) = sys.entanglement :: Entanglement
 
+function uncontracted_system(sys::System)
+    is_entangled(sys) ? get_entanglement(sys).uncontracted : sys
+end
+
 # Bare atom indices comprising a unit, ordered to match the unit_to_members
 # field of a UnitMap.
 atoms_in_unit(unit_map::UnitMap, u) = [m.atom for m in unit_map.unit_to_members[u]]
