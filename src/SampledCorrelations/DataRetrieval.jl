@@ -103,7 +103,6 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
 
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic SWT
     q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
-    crystal = @something sc.origin_crystal sc.crystal
     NCorr  = Val{size(sc.data, 1)}()
     # NPos = Val{size(sc.data, 2)}()
     NPos = Val{length(sc.crystal.positions)}()
@@ -112,7 +111,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     intensities_aux!(intensities, sc.data, sc.crystal, sc.positions, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NPos)
 
     # Convert to a q-space density in original (not reshaped) RLU.
-    intensities .*= det(sc.crystal.recipvecs) / det(crystal.recipvecs)
+    intensities .*= det(sc.crystal.recipvecs) / det(sc.origin_crystal.recipvecs)
 
     # Post-processing steps for dynamical correlations 
     if contains_dynamic_correlations(sc) 
@@ -133,9 +132,9 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
 
     return if contains_dynamic_correlations(sc) 
-        Intensities(crystal, qpts, collect(ωs), intensities)
+        Intensities(sc.origin_crystal, qpts, collect(ωs), intensities)
     else
-        StaticIntensities(crystal, qpts, dropdims(intensities; dims=1))
+        StaticIntensities(sc.origin_crystal, qpts, dropdims(intensities; dims=1))
     end
 end
 

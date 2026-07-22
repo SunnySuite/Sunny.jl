@@ -3,7 +3,7 @@ mutable struct SampledCorrelations
     const data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × sys_dims × nω)
     const M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
     const crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
-    const origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above)
+    const origin_crystal :: Crystal                              # Original user-specified crystal (possibly reshaped into `crystal`)
     const Δω             :: Float64                              # Energy step size 
 
     # Observable information
@@ -179,8 +179,7 @@ end
 
 
 function to_reshaped_rlu(sc::SampledCorrelations, q)
-    orig_cryst = @something sc.origin_crystal sc.crystal
-    return sc.crystal.recipvecs \ orig_cryst.recipvecs * q
+    return sc.crystal.recipvecs \ sc.origin_crystal.recipvecs * q
 end
 
 # Flatten a MeasureSpec's (nparts × natoms) observable layout into the flat
@@ -247,17 +246,9 @@ appropriate classical-to-quantum correction factors. See also
 [`intensities_static`](@ref), which integrates over energy.
 """
 function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, integrator=ImplicitMidpoint())
-    # Intensities are reported against the physical crystal. For an entangled
-    # system, coherents are sampled from the contracted `sys`, but positions
-    # (and hence `npos`) live on the physical `uncontracted`.
-    if isnothing(sys.entanglement)
-        crystal = sys.crystal
-        origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
-    else
-        (; uncontracted) = get_entanglement(sys)
-        crystal = uncontracted.crystal
-        origin_crystal = orig_crystal(uncontracted)
-    end
+    uncontracted = isnothing(sys.entanglement) ? sys : get_entanglement(sys).uncontracted
+    crystal = uncontracted.crystal
+    origin_crystal = orig_crystal(uncontracted)
     if isnothing(energies)
         n_all_ω = 1
         measperiod = 1
