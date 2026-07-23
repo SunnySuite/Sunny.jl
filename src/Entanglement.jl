@@ -540,6 +540,8 @@ expected_dipole(Z, S) = Vec3(real(dot(Z, S[1], Z)), real(dot(Z, S[2], Z)), real(
 function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entanglement) where N
     (; uncontracted, lifted_spin_ops) = ent
 
+    iszero(uncontracted.extfield) && isnothing(uncontracted.ewald) && return
+
     # Reuse the bare system's persistent scratch buffers.
     S_bare, dE_dS_bare = get_dipole_buffers(uncontracted, 2)
     fill!(dE_dS_bare, zero(Vec3))
