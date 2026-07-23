@@ -74,8 +74,8 @@ Es = [[2.133], [2.127], [1.740], [1.349], [1.120], [1.075], [1.070], [1.068], [1
 
 # Crystal field data fixes the easy-axis anisotropy to ``D = -0.032`` (meV). At
 # weak inter-dimer exchange coupling, an RPA analysis shows that the dispersion
-# is entirely controlled by four parameters ``(J_0, J_1, J_2 - J_3, J_4)``. For
-# our dispersion fitting task, we will fix ``J_3 = 0`` to avoid ambiguity.
+# is entirely controlled by four parameters ``(J_0, J_1, J_2 - J_3, J_4)``. We
+# arbitrarily fix ``J_3 = 0```.
 
 set_params!(esys, [:D, :J3], [-0.032, 0])
 
@@ -134,11 +134,10 @@ sqrt.(diag(U) / 2) # [ΔJ0, ΔJ1, ΔJ2, ΔJ4]
 # Per the [published erratum](https://doi.org/10.1103/PhysRevLett.105.169901) of
 # Stone et al., all fitted exchanges are correctly antiferromagnetic.
 #
-# Finally, plot the fitted dispersion together with the labeled peak data. Only
-# the triplon modes near 1-3 meV carry appreciable intensity. The helper
-# [`find_qs_along_path`](@ref) maps each labeled ``𝐪``-point to an index along
-# the path, which serves as an ``x``-coordinate within the `plot_intensities`
-# scene.
+# Finally, plot the fitted dispersion together with the labeled peak data. The
+# helper [`find_qs_along_path`](@ref) maps each labeled ``𝐪``-point to an index
+# along the path, which serves as an ``x``-coordinate within the
+# `plot_intensities` scene.
 
 points = [
     [0.15, 0.15, 1.5],
