@@ -453,6 +453,19 @@ end
     @test ecryst.classes == [1, 1]
     @test ecryst.sg.number == 85  # inherits the parent P4/n spacegroup
 
+    # A second P4/n cell where each unit both straddles the cell and sits on the
+    # fourfold axis. A symmetry-consistent grouping exists, but is not found by
+    # the naive `compactify_cell_offsets` algorithm.
+    p4b = Crystal(lattice_vectors(8, 8, 6, 90, 90, 90), [[0.20, 0.55, 0.30]], "P 4/n"; choice="2")
+    p4b_sys = System(p4b, [1 => Moment(s=1/2, g=2)], :SUN)
+    set_exchange!(p4b_sys, 1.0, Bond(1, 2, [0, 0, 0]))
+    p4b_offset = [[(1, [-1, 0, 0]), (2, [0, 0, 0]), (3, [0, 0, 0]), (4, [0, -1, 0])],
+                  [(5, [0, 1, 0]), (6, [0, 0, 0]), (7, [0, 0, 0]), (8, [1, 0, 0])]]
+    ecryst = entangle_system(p4b_sys, p4b_offset).crystal
+    @test ecryst.classes == [1, 1] && ecryst.sg.number == 85
+    err = try entangle_system(p4b_sys, zero_offset); "" catch e; sprint(showerror, e) end
+    @test_broken occursin("consider groupings", err)
+
     # A partition whose atom sets themselves break symmetry: the fourfold axis maps
     # {1,2,3,5} onto atoms that are not a unit. No offsets can fix this, so it is
     # rejected up front with a distinct message (still overridable).
