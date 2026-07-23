@@ -248,9 +248,9 @@ end
     pc = only(pc for pc in esys.interactions_union[1].pair if !pc.isculled && !isempty(pc.general.data))
     @test length(pc.general.data) == 3
 
-    # Recompression is exact: energy matches the unentangled reference.
+    # Recompression is exact: energy matches the unentangled reference in a
+    # generic product state.
     randomize_spins!(sys)
-    minimize_energy!(sys)
     esys = entangle_system(sys, [[1, 2]])
     Sunny.transfer_uncontracted_state!(esys, sys)
     @test energy_per_site(esys) ≈ energy_per_site(sys) atol=1e-10
@@ -516,6 +516,3 @@ end
     @test abs(offset_y1[1]) < 0.01 && abs(offset_y1[2]) > 0.1
     @test abs(offset_y2[1]) < 0.01 && abs(offset_y2[2]) > 0.1
 end
-
-# @testitem "Ba3Mn2O8 Dispersion and Golden Test" begin
-# end
