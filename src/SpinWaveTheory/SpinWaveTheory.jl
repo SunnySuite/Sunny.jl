@@ -164,7 +164,7 @@ function swt_data!(sys::System{N}, measure) where N
 
         for ai in atoms_in_unit(sys, i)
             # Incorporate Zeeman coupling into onsite
-            S = lifted_spin_op(sys, ai)
+            S = spin_ops_embedded(sys, ai)
             (; gs, extfield) = uncontracted_system(sys)
             int.onsite += (extfield[ai]' * gs[ai]) * S
 

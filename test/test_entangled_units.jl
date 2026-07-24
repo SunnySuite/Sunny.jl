@@ -257,7 +257,7 @@ end
 end
 
 @testitem "Entangled units with dipole-dipole" begin
-    import LinearAlgebra: norm, I
+    import LinearAlgebra: norm, normalize, I
     import Random
 
     units = Units(:meV, :angstrom)
@@ -305,6 +305,30 @@ end
     let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_flip)
         @test_throws "propose_flip is not supported for general coherent states" step!(esys, sampler)
     end
+
+    # On a state entangled *within* a unit, the intra-unit dipole energy must be
+    # the exact ⟨Sᵢ D Sⱼ⟩, not the factorized ⟨Sᵢ⟩ D ⟨Sⱼ⟩ that the Ewald path
+    # currently delivers. Use a large box (inter-unit/image dipole negligible) so
+    # only the intra-unit dipole matters; the reference folds the direct dipole
+    # tensor D into a matrix exchange, which the contraction handles exactly.
+    bigcry = Crystal([100.0 0 0; 0 100 0; 0 0 100], [[0,0,0], [0,0.01,0]], 1; types=["A","B"])
+    moments = [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)]
+    r = Sunny.global_displacement(bigcry, Bond(1, 2, [0, 0, 0]))
+    r̂ = normalize(r)
+    D = (units.vacuum_permeability/4π) * 2^2 * (I - 3*(r̂ * r̂')) / norm(r)^3
+    ewald_sys = System(bigcry, moments, :SUN)
+    set_exchange!(ewald_sys, 1.0, Bond(1, 2, [0, 0, 0]))
+    enable_dipole_dipole!(ewald_sys, units.vacuum_permeability)
+    eewald = entangle_system(ewald_sys, [[1, 2]])
+    ref = System(bigcry, moments, :SUN)
+    set_exchange!(ref, Sunny.Mat3(1.0*I + D), Bond(1, 2, [0, 0, 0]))
+    eref = entangle_system(ref, [[1, 2]])
+    Z = normalize(Sunny.CVec{4}(0.1, 0.7, -0.68, 0.2))  # entangled, not a product state
+    for s in eachsite(eewald)
+        set_coherent!(eewald, Z, s)
+        set_coherent!(eref, Z, s)
+    end
+    @test_broken energy(eewald) ≈ energy(eref)
 end
 
 @testitem "Model parameters for entangled units" begin

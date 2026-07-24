@@ -13,9 +13,19 @@ end
 # Metadata for a System with entangled units. Hilbert dimension N of the
 # uncontracted System{N} is intentionally omitted to avoid dynamic lookup.
 struct Entanglement <: AbstractEntanglement
-    units           :: Vector{Vector{UnitPart}}         # Grouping of units into parts
-    uncontracted    :: System                           # System prior to entanglement
-    lifted_spin_ops :: Vector{SVector{3, HermitianC64}} # Product-space spin ops for atoms
+    units        :: Vector{Vector{UnitPart}} # Grouping of units into parts
+    uncontracted :: System                   # System prior to entanglement
+end
+
+# The required data to embed a local operator Aₚ into the unit product space,
+# I₁⊗Aₚ⊗I₂. Contains the local Hilbert dimension Nₚ of the uncontracted part p
+# (where Aₚ acts), and the dimension d₁ of the leading identity block I₁, i.e.,
+# the product of local dimensions of earlier parts. The dimension d₂ of the
+# trailing identity block I₂ can be inferred from the length N of the SU(N)
+# coherent state vector.
+struct EmbeddingDims
+    Np :: Int
+    d1 :: Int
 end
 
 
@@ -55,30 +65,25 @@ function atoms_in_unit(sys::System, u)
     is_entangled(sys) ? atoms_in_unit(get_entanglement(sys).units, u) : [u]
 end
 
+# Bare site of an entangled unit `part` in `cell` of the uncontracted system.
+# Mirrors `bonded_site`.
+@inline function bare_site(cell, part, dims)
+    (; Δcell, atom) = part
+    return CartesianIndex(altmod1.(Tuple(cell) .+ Δcell, dims)..., atom)
+end
+
 # Given a site representing an entangled unit, return an iterator over the
 # corresponding "bare sites" of the uncontracted system.
 function bare_sites_for_unit(ent::Entanglement, unit_site)
     (; uncontracted, units) = ent
-    (; dims) = uncontracted
-    parts = units[to_atom(unit_site)]
-    return Iterators.map(parts) do (; atom, Δcell)
-        # Mirrors `bonded_site`
-        CartesianIndex(altmod1.(to_cell(unit_site) .+ Δcell, dims)..., atom)
-    end
-end
-
-function lifted_spin_op(sys::System, i)
-    if is_entangled(sys)
-        return get_entanglement(sys).lifted_spin_ops[i]
-    else
-        return spin_matrices_of_dim(; N=sys.Ns[i])
-    end
+    cell = to_cell(unit_site)
+    dims = uncontracted.dims
+    return (bare_site(cell, part, dims) for part in units[to_atom(unit_site)])
 end
 
 # Needed because uncontracted.dipoles and related state are mutably updated
 function clone_entanglement(ent::Entanglement)
-    return Entanglement(ent.units, clone_system(ent.uncontracted),
-                        ent.lifted_spin_ops)
+    return Entanglement(ent.units, clone_system(ent.uncontracted))
 end
 clone_entanglement(::Nothing) = nothing
 
@@ -94,6 +99,102 @@ function units_to_groupings(units)
     map(units) do parts
         [(atom, Vector(Δcell)) for (; atom, Δcell) in parts]
     end
+end
+
+
+################################################################################
+# Embedded operators
+################################################################################
+
+# Spin operators for bare atom `i`, embedded into the product space of its
+# entangled unit.
+function spin_ops_embedded(sys::System, i)
+    if is_entangled(sys)
+        (; uncontracted, units) = get_entanglement(sys)
+        u, p = unit_and_part(units, i)
+        Ns_unit = uncontracted.Ns[atoms_in_unit(units, u)]
+        S = spin_matrices_of_dim(; N=uncontracted.Ns[1, 1, 1, i])
+        return SVector{3}(ntuple(α -> local_op_to_product_space(S[α], p, Ns_unit), 3))
+    else
+        return spin_matrices_of_dim(; N=sys.Ns[i])
+    end
+end
+
+# Lazily yields (UnitPart, EmbeddingDims) pairs for a unit, in the same order as
+# the unit parts.
+@inline function part_embeddings(uncontracted::System, parts)
+    (; Ns) = uncontracted
+    seed = (UnitPart(0, zero(SVector{3,Int})), EmbeddingDims(1, 1))
+    return Iterators.accumulate(parts; init=seed) do (_, prev), part
+        return (part, EmbeddingDims(Ns[1, 1, 1, part.atom], prev.d1 * prev.Np))
+    end
+end
+
+# Returns the triple (Sˣ Z, Sʸ Z, Sᶻ Z), where each Sᵅ=I₁⊗Sᵅₚ⊗I₂ is the spin
+# operator for a unit part p. This is the tensor-embedded analog of
+# `mul_spin_matrices`. The total dimension N is inferred from Z.
+@inline function mul_spin_matrices_embedded(emb::EmbeddingDims, Z::SVector{N,T}) where {N, T}
+    (; Np, d1) = emb
+    d2 = N ÷ (d1 * Np)
+    s = (Np - 1) / 2
+    @inline offdiag(k) = sqrt(2(s+1)*k - k*(k+1)) / 2  # ⟨r|Sˣ|r±1⟩ magnitude, 1-based k
+    # Returns element l of the output triple (SˣZ, SʸZ, SᶻZ)
+    @inline function elem(l)
+        l0   = l - 1
+        r    = (l0 ÷ d2) % Np                    # middle (spin) index, 0-based
+        base = (l0 % d2) + d2*Np*(l0 ÷ (d2*Np))
+        sz = (s - r) * Z[base + d2*r + 1]
+        sx = zero(T); sy = zero(T)
+        if r >= 1
+            lo = offdiag(r) * Z[base + d2*(r-1) + 1];  sx += lo;  sy += im*lo
+        end
+        if r <= Np-2
+            hi = offdiag(r+1) * Z[base + d2*(r+1) + 1];  sx += hi;  sy += -im*hi
+        end
+        return (sx, sy, sz)
+    end
+    t = ntuple(elem, Val(N))
+    return SVector{3}(SVector{N}(ntuple(l -> t[l][1], Val(N))),
+                      SVector{N}(ntuple(l -> t[l][2], Val(N))),
+                      SVector{N}(ntuple(l -> t[l][3], Val(N))))
+end
+
+# Expected dipole ⟨Sᵅ⟩ = real⟨Z|Sᵅ Z⟩ for one unit part.
+@inline function embedded_expected_dipole(emb::EmbeddingDims, Z)
+    SZ = mul_spin_matrices_embedded(emb, Z)
+    return Vec3(real(dot(Z, SZ[1])), real(dot(Z, SZ[2])), real(dot(Z, SZ[3])))
+end
+
+# Applies the a local operator I₁⊗Aₚ⊗I₂ to Z without materializing the
+# embedding. Generalizes mul_spin_matrices_embedded to arbitrary Aₚ. TODO: get
+# Np from Ap.
+@inline function mul_matrix_embedded(Ap::AbstractMatrix, emb::EmbeddingDims, Z::SVector{N,T}) where {N, T}
+    (; Np, d1) = emb
+    d2 = N ÷ (d1 * Np)
+    @inline function elem(l)
+        l0   = l - 1
+        r    = (l0 ÷ d2) % Np                    # middle index, 0-based
+        base = (l0 % d2) + d2*Np*(l0 ÷ (d2*Np))
+        acc  = zero(T)
+        for b in 0:Np-1
+            acc += Ap[r+1, b+1] * Z[base + d2*b + 1]
+        end
+        return acc
+    end
+    return SVector{N}(ntuple(elem, Val(N)))
+end
+
+# Sync the bare dipoles with the coherent state of a single unit at `site`.
+function sync_bare_dipoles_at!(sys::System, site)
+    Z = sys.coherents[site]
+    (; uncontracted, units) = get_entanglement(sys)
+    cell = to_cell(site)
+    dims = uncontracted.dims
+    for (part, emb) in part_embeddings(uncontracted, units[to_atom(site)])
+        bs = bare_site(cell, part, dims)
+        uncontracted.dipoles[bs] = embedded_expected_dipole(emb, Z)
+    end
+    return nothing
 end
 
 
@@ -415,14 +516,7 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_units)
     # In the base case (no reshaping), units should be unchanged.
     @assert !isnothing(sys.origin) || units == orig_units
 
-    lifted_spin_ops = map(1:natoms_bare) do atom
-        S_local = spin_matrices_of_dim(; N=uncontracted.Ns[1, 1, 1, atom])
-        u, p = unit_and_part(units, atom)
-        Ns_unit = uncontracted.Ns[atoms_in_unit(units, u)]
-        ntuple(α -> local_op_to_product_space(S_local[α], p, Ns_unit), 3)
-    end
-
-    sys.entanglement = Entanglement(units, uncontracted, lifted_spin_ops)
+    sys.entanglement = Entanglement(units, uncontracted)
     return nothing
 end
 
@@ -527,29 +621,29 @@ end
 
 
 ################################################################################
-# Coherent states to bare dipoles
+# Dynamics
 ################################################################################
-
-# ⟨Z|S|Z⟩ for an embedded spin-operator triple S (an entry of
-# `lifted_spin_ops`).
-expected_dipole(Z, S) = Vec3(real(dot(Z, S[1], Z)), real(dot(Z, S[2], Z)), real(dot(Z, S[3], Z)))
 
 # Helper for set_energy_grad_coherents! that accumulates Zeeman and Ewald
 # interactions. These need special handling for entangled systems because they
-# refer to the uncontracted ("bare") dipoles.
+# refer to the uncontracted ("bare") dipoles. The per-part spin operators embedded
+# into the unit's product space are applied to `Z` on the fly via
+# `mul_spin_matrices_embedded`, so no product-space matrix is materialized.
 function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entanglement) where N
-    (; uncontracted, lifted_spin_ops) = ent
+    (; uncontracted, units) = ent
 
     iszero(uncontracted.extfield) && isnothing(uncontracted.ewald) && return
 
     # Reuse the bare system's persistent scratch buffers.
     S_bare, dE_dS_bare = get_dipole_buffers(uncontracted, 2)
     fill!(dE_dS_bare, zero(Vec3))
+    dims = uncontracted.dims
 
     # Expected dipoles of the uncontracted system for the provided coherents Z.
-    for u in CartesianIndices(Z)
-        for bs in bare_sites_for_unit(ent, u)
-            S_bare[bs] = expected_dipole(Z[u], lifted_spin_ops[to_atom(bs)])
+    for u in eachindex(units), (part, emb) in part_embeddings(uncontracted, units[u])
+        for cell in CartesianIndices(dims)
+            bs = bare_site(cell, part, dims)
+            S_bare[bs] = embedded_expected_dipole(emb, Z[cell, u])
         end
     end
 
@@ -562,26 +656,13 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
         accum_ewald_grad!(dE_dS_bare, S_bare, uncontracted)
     end
 
-    # Accumulate gradients for entangled units u
-    for u in CartesianIndices(Z)
-        for bs in bare_sites_for_unit(ent, u)
-            S = lifted_spin_ops[to_atom(bs)]
-            h = dE_dS_bare[bs]
-            for β in 1:3
-                HZ[u] += h[β] * mul_svec(S[β], Z[u])
-            end
+    # Accumulate gradients for entangled units.
+    for u in eachindex(units), (part, emb) in part_embeddings(uncontracted, units[u])
+        for cell in CartesianIndices(dims)
+            bs = bare_site(cell, part, dims)
+            SZ = mul_spin_matrices_embedded(emb, Z[cell, u])
+            HZ[cell, u] += dE_dS_bare[bs]' * SZ
         end
-    end
-    return
-end
-
-# Sync the bare dipoles with the coherent state of an unit at `site`
-function sync_bare_dipoles_at!(sys::System, site)
-    Z = sys.coherents[site]
-    ent = get_entanglement(sys)
-    (; uncontracted, lifted_spin_ops) = ent
-    for bs in bare_sites_for_unit(ent, site)
-        uncontracted.dipoles[bs] = expected_dipole(Z, lifted_spin_ops[to_atom(bs)])
     end
     return
 end
