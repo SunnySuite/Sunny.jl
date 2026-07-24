@@ -337,7 +337,7 @@ function set_spin_s_at!(sys::System, s::Real, site::Site)
     set_dipole!(sys, sys.dipoles[site], site)
 end
 
-function local_energy_change(sys::System{N}, site, state::SpinState) where N
+function local_energy_change(sys::System, site, state::SpinState)
     (; S, Z) = state
     (; dims, extfield, dipoles, coherents, ewald) = sys
 
@@ -357,11 +357,16 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     ΔS = S - S₀
     ΔE = 0.0
 
-    # Zeeman coupling to external field
+    # This mirrors the sector decomposition of `energy`. A single onsite term
+    # and a single pass over `pair` serve both sectors, so the terms interleave
+    # here; each is labeled with the sector it belongs to.
+
+    # Zeeman coupling to external field (dipole sector)
     ΔE += dot(extfield[site], sys.gs[site], ΔS)
 
-    # Single-ion anisotropy, dipole or SUN mode
-    if N == 0
+    # Single-ion anisotropy. Dipole sector (Stevens) in dipole mode, else
+    # coherent sector (Λ).
+    if sys.mode != :SUN
         stvexp = onsite :: StevensExpansion
         E_new, _ = energy_and_gradient_for_classical_anisotropy(S, stvexp)
         E_old, _ = energy_and_gradient_for_classical_anisotropy(S₀, stvexp)
@@ -371,7 +376,6 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
         ΔE += real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
 
-    # Pair coupling
     for pc in pair
         @assert to_atom(site) == pc.bond.i
         siteⱼ = bonded_site(site, pc.bond, dims)
@@ -380,13 +384,14 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
         Sⱼ = dipoles[siteⱼ]
         Zⱼ = coherents[siteⱼ]
 
-        # Bilinear
+        # Bilinear (dipole sector, both modes)
         J = pc.bilin
         ΔE += dot(ΔS, J, Sⱼ)
 
-        # Biquadratic
+        # Biquadratic. Dipole sector (quadrupole of S) in dipole mode, else
+        # coherent sector (quadrupole of Z).
         if !iszero(pc.biquad)
-            if sys.mode in (:dipole, :dipole_uncorrected)
+            if sys.mode != :SUN
                 ΔQ = quadrupole(S) - quadrupole(S₀)
                 Qⱼ = quadrupole(Sⱼ)
             else
@@ -400,7 +405,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
             end
         end
 
-        # General
+        # General (coherent sector)
         if sys.mode == :SUN
             for (A, B) in pc.general.data
                 ΔĀ = real(dot(Z, A, Z) - dot(Z₀, A, Z₀))
@@ -410,7 +415,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
         end
     end
 
-    # Long-range dipole-dipole
+    # Long-range dipole-dipole (dipole sector)
     if !isnothing(ewald)
         ΔE += ewald_energy_delta(sys, site, S)
     end
@@ -438,60 +443,113 @@ function energy(sys::System{N}; check_normalization=true) where N
     if check_normalization 
         validate_normalization(sys)
     end
+
+    # Every interaction lives in one of two sectors. The dipole sector collects
+    # terms naturally expressed via the spin dipoles S (Zeeman, Ewald, bilinear,
+    # and in dipole mode also anisotropy and biquadratic); the coherent sector
+    # collects the remaining SU(N) terms expressed via the coherents Z (onsite,
+    # scalar, biquadratic, general). For an entangled system the dipole sector is
+    # delegated to the uncontracted system (see `entangled_dipole_sector_energy`),
+    # whose bare dipoles track `sys.coherents`; the coherent sector holds only the
+    # residual product-space couplings and needs no entanglement awareness.
+    dipole_E = isnothing(sys.entanglement) ? dipole_sector_energy(sys) :
+                                             entangled_dipole_sector_energy(get_entanglement(sys))
+    return dipole_E + coherent_sector_energy(sys)
+end
+
+# Energy of the dipole sector. In dipole mode this is the complete energy —
+# Zeeman, Ewald, anisotropy, bilinear, biquadratic. In SU(N) mode it is the
+# subset {Zeeman, Ewald, bilinear}, evaluated on the expected spins.
+#
+# `@nospecialize` (as for `ewald_energy`) compiles a single instance for all
+# `System{N}`. This lets entangled systems delegate here through their
+# abstractly-typed `uncontracted::System` field (unknown N) without a runtime
+# dispatch — the dipole sector touches no N-dependent state, so N is irrelevant.
+function dipole_sector_energy(@nospecialize(sys::System))
     E = 0.0
-
-    # Zeeman coupling and long-range dipole-dipole
-    if isnothing(sys.entanglement)
-        for site in eachsite(sys)
-            E += sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
-        end
-        if !isnothing(sys.ewald)
-            E += ewald_energy(sys)
-        end
-    else
-        (; uncontracted) = get_entanglement(sys)
-        for site in eachsite(uncontracted)
-            E += uncontracted.extfield[site] ⋅ (uncontracted.gs[site] * uncontracted.dipoles[site])
-        end
-        if !isnothing(uncontracted.ewald)
-            E += ewald_energy(uncontracted)
-        end
+    for site in eachsite(sys)
+        E += sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
     end
-
-    # Anisotropies and exchange interactions
     if is_homogeneous(sys)
         for i in 1:natoms(sys.crystal)
-            # Interactions for sublattice i (same for every cell)
-            interactions = sys.interactions_union[i]
-            E += energy_aux(interactions, sys, eachsite_sublattice(sys, i))
+            E += dipole_sector_energy_aux(sys.interactions_union[i], sys, eachsite_sublattice(sys, i))
         end
     else
         for site in eachsite(sys)
-            interactions = sys.interactions_union[site]
-            E += energy_aux(interactions, sys, (site,))
+            E += dipole_sector_energy_aux(sys.interactions_union[site], sys, (site,))
         end
     end
-
+    if !isnothing(sys.ewald)
+        E += ewald_energy(sys)
+    end
     return E
 end
 
-# Total energy associated with the sites of one sublattice
-function energy_aux(int::Interactions, sys::System{N}, sites) where N
+# Dipole-sector energy for one sublattice, evaluated on the spin dipoles. In
+# SU(N) mode only bilinear exchange lives here (the rest is coherent sector); in
+# dipole mode this is the full onsite anisotropy, scalar, bilinear, biquadratic.
+# Branch on `sys.mode`, not `System{N}` dispatch, so the caller stays
+# `@nospecialize`.
+function dipole_sector_energy_aux(int::Interactions, @nospecialize(sys::System), sites)
+    E = 0.0
+    if sys.mode != :SUN
+        stvexp = int.onsite :: StevensExpansion
+        for site in sites
+            E += energy_and_gradient_for_classical_anisotropy(sys.dipoles[site], stvexp)[1]
+        end
+    end
+    for pc in int.pair
+        (; bond, isculled) = pc
+        isculled && break
+        for siteᵢ in sites
+            @assert to_atom(siteᵢ) == bond.i
+            siteⱼ = bonded_site(siteᵢ, bond, sys.dims)
+            Sᵢ = sys.dipoles[siteᵢ]
+            Sⱼ = sys.dipoles[siteⱼ]
+
+            E += dot(Sᵢ, pc.bilin, Sⱼ)
+            sys.mode == :SUN && continue
+
+            E += pc.scalar
+            if !iszero(pc.biquad)
+                Qᵢ = quadrupole(Sᵢ)
+                Qⱼ = quadrupole(Sⱼ)
+                if pc.biquad isa Float64
+                    E += pc.biquad::Float64 * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
+                else
+                    E += dot(Qᵢ, pc.biquad::Mat5, Qⱼ)
+                end
+            end
+        end
+    end
+    return E
+end
+
+# Energy of the coherent sector: onsite, scalar, biquadratic, and general
+# couplings expressed via the coherents Z. Empty in dipole mode.
+coherent_sector_energy(::System{0}) = 0.0
+function coherent_sector_energy(sys::System{N}) where N
+    E = 0.0
+    if is_homogeneous(sys)
+        for i in 1:natoms(sys.crystal)
+            E += coherent_sector_energy_aux(sys.interactions_union[i], sys, eachsite_sublattice(sys, i))
+        end
+    else
+        for site in eachsite(sys)
+            E += coherent_sector_energy_aux(sys.interactions_union[site], sys, (site,))
+        end
+    end
+    return E
+end
+
+function coherent_sector_energy_aux(int::Interactions, sys::System{N}, sites) where N
     E = 0.0
 
     # Single-ion anisotropy
-    if N == 0       # Dipole mode
-        stvexp = int.onsite :: StevensExpansion
-        for site in sites
-            S = sys.dipoles[site]
-            E += energy_and_gradient_for_classical_anisotropy(S, stvexp)[1]
-        end
-    else            # SU(N) mode
-        Λ = int.onsite :: HermitianC64
-        for site in sites
-            Z = sys.coherents[site]
-            E += real(dot(Z, Λ, Z))
-        end
+    Λ = int.onsite :: HermitianC64
+    for site in sites
+        Z = sys.coherents[site]
+        E += real(dot(Z, Λ, Z))
     end
 
     for pc in int.pair
@@ -501,54 +559,29 @@ function energy_aux(int::Interactions, sys::System{N}, sites) where N
         for siteᵢ in sites
             @assert to_atom(siteᵢ) == bond.i
             siteⱼ = bonded_site(siteᵢ, bond, sys.dims)
+            Zᵢ = sys.coherents[siteᵢ]
+            Zⱼ = sys.coherents[siteⱼ]
 
-            # Scalar
-            if sys.mode == :SUN
-                # The scalar originates as a product of two expectation values,
-                # which should rescale as κᵢ and κⱼ.
-                E += pc.scalar * sys.κs[siteᵢ] * sys.κs[siteⱼ]
-            else
-                E += pc.scalar
-            end
+            # Scalar. Originates as a product of two expectation values, so it
+            # rescales as κᵢ and κⱼ.
+            E += pc.scalar * sys.κs[siteᵢ] * sys.κs[siteⱼ]
 
-            # Bilinear and biquadratic dipole couplings. Skip for entangled
-            # systems, which populate "general" couplings instead.
-            if isnothing(sys.entanglement)
-                Sᵢ = sys.dipoles[siteᵢ]
-                Sⱼ = sys.dipoles[siteⱼ]
-
-                # Bilinear
-                J = pc.bilin :: Union{Float64, Mat3}
-                E += dot(Sᵢ, J, Sⱼ)
-
-                # Biquadratic
-                if !iszero(pc.biquad)
-                    if sys.mode in (:dipole, :dipole_uncorrected)
-                        Qᵢ = quadrupole(Sᵢ)
-                        Qⱼ = quadrupole(Sⱼ)
-                    else
-                        Zᵢ = sys.coherents[siteᵢ]
-                        Zⱼ = sys.coherents[siteⱼ]
-                        Qᵢ = expected_quadrupole(Zᵢ)
-                        Qⱼ = expected_quadrupole(Zⱼ)
-                    end
-                    if pc.biquad isa Float64
-                        E += pc.biquad::Float64 * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
-                    else
-                        E += dot(Qᵢ, pc.biquad::Mat5, Qⱼ)
-                    end
+            # Biquadratic
+            if !iszero(pc.biquad)
+                Qᵢ = expected_quadrupole(Zᵢ)
+                Qⱼ = expected_quadrupole(Zⱼ)
+                if pc.biquad isa Float64
+                    E += pc.biquad::Float64 * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
+                else
+                    E += dot(Qᵢ, pc.biquad::Mat5, Qⱼ)
                 end
             end
 
             # General
-            if sys.mode == :SUN
-                Zᵢ = sys.coherents[siteᵢ]
-                Zⱼ = sys.coherents[siteⱼ]
-                for (A, B) in pc.general.data
-                    Ā = real(dot(Zᵢ, A, Zᵢ))
-                    B̄ = real(dot(Zⱼ, B, Zⱼ))
-                    E += Ā * B̄
-                end
+            for (A, B) in pc.general.data
+                Ā = real(dot(Zᵢ, A, Zᵢ))
+                B̄ = real(dot(Zⱼ, B, Zⱼ))
+                E += Ā * B̄
             end
         end
     end
@@ -557,12 +590,15 @@ function energy_aux(int::Interactions, sys::System{N}, sites) where N
 end
 
 
-# Updates ∇E in-place to hold energy gradient, dE/dS, for each spin. In the case
-# of :SUN mode, S is interpreted as expected spin, and dE/dS only includes
-# contributions from Zeeman coupling, bilinear exchange, and long-range
-# dipole-dipole. Excluded terms include onsite coupling, and general pair
-# coupling (biquadratic and beyond).
-function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N}) where N
+# Accumulate the dipole-sector gradient dE/dS into ∇E. In dipole mode this is the
+# complete gradient — Zeeman, Ewald, anisotropy, bilinear, biquadratic. In SU(N)
+# mode S is the expected spin and dE/dS holds only {Zeeman, Ewald, bilinear}; the
+# remaining terms (onsite, biquadratic, general) belong to the coherent sector.
+# For entangled systems this runs on the bare uncontracted system (itself
+# non-entangled), hence the assertion. `@nospecialize` (as for `dipole_sector_energy`)
+# lets that delegation reach the abstractly-typed `uncontracted::System` (unknown
+# N) without a runtime dispatch; the dipole sector uses no N-dependent state.
+function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, @nospecialize(sys::System))
     @assert isnothing(sys.entanglement)
 
     fill!(∇E, zero(Vec3))
@@ -590,11 +626,12 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
     end
 end
 
-# Calculate the energy gradient `∇E' for all sites of one sublattice
-function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, int::Interactions, sys::System{N}, sites) where N
-    # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
-    # anisotropy matrix will be incorporated directly into local H matrix.
-    if sys.mode in (:dipole, :dipole_uncorrected)
+# Dipole-sector gradient dE/dS for one sublattice. In SU(N) mode only bilinear
+# exchange lives here (anisotropy and biquadratic are coherent sector); in dipole
+# mode this is the full onsite anisotropy, bilinear, biquadratic. Branch on
+# `sys.mode`, not `System{N}` dispatch, so the caller stays `@nospecialize`.
+function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, int::Interactions, @nospecialize(sys::System), sites)
+    if sys.mode != :SUN
         stvexp = int.onsite :: StevensExpansion
         for site in sites
             S = dipoles[site]
@@ -617,25 +654,25 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, int::Intera
             ∇E[siteᵢ] += J  * Sⱼ
             ∇E[siteⱼ] += J' * Sᵢ
 
-            # Biquadratic for dipole mode only (SU(N) handled differently)
-            if sys.mode in (:dipole, :dipole_uncorrected)
-                if !iszero(pc.biquad)
-                    Qᵢ = quadrupole(Sᵢ)
-                    Qⱼ = quadrupole(Sⱼ)
-                    ∇Qᵢ = grad_quadrupole(Sᵢ)
-                    ∇Qⱼ = grad_quadrupole(Sⱼ)
+            sys.mode == :SUN && continue
 
-                    # In matrix case, energy is `Qᵢ' * biquad * Qⱼ`, and we are
-                    # taking gradient with respect to either sᵢ or sⱼ.
-                    if pc.biquad isa Float64
-                        J = pc.biquad::Float64
-                        ∇E[siteᵢ] += J * (Qⱼ .* scalar_biquad_metric)' * ∇Qᵢ
-                        ∇E[siteⱼ] += J * (Qᵢ .* scalar_biquad_metric)' * ∇Qⱼ
-                    else
-                        J = pc.biquad::Mat5
-                        ∇E[siteᵢ] += (Qⱼ' * J') * ∇Qᵢ
-                        ∇E[siteⱼ] += (Qᵢ' * J)  * ∇Qⱼ
-                    end
+            # Biquadratic
+            if !iszero(pc.biquad)
+                Qᵢ = quadrupole(Sᵢ)
+                Qⱼ = quadrupole(Sⱼ)
+                ∇Qᵢ = grad_quadrupole(Sᵢ)
+                ∇Qⱼ = grad_quadrupole(Sⱼ)
+
+                # In matrix case, energy is `Qᵢ' * biquad * Qⱼ`, and we are
+                # taking gradient with respect to either sᵢ or sⱼ.
+                if pc.biquad isa Float64
+                    J = pc.biquad::Float64
+                    ∇E[siteᵢ] += J * (Qⱼ .* scalar_biquad_metric)' * ∇Qᵢ
+                    ∇E[siteⱼ] += J * (Qᵢ .* scalar_biquad_metric)' * ∇Qⱼ
+                else
+                    J = pc.biquad::Mat5
+                    ∇E[siteᵢ] += (Qⱼ' * J') * ∇Qᵢ
+                    ∇E[siteⱼ] += (Qᵢ' * J)  * ∇Qⱼ
                 end
             end
         end
@@ -647,9 +684,10 @@ function set_energy_grad_coherents!(∇E, Z::Array{CVec{N}, 4}, sys::System{N}) 
     @assert N > 0
     fill!(∇E, zero(CVec{N}))
 
+    # Dipole sector: accumulate ∇E += (dE/dS ⋅ S) Z, where dE/dS collects
+    # {Zeeman, Ewald, bilinear}. For an entangled system this is delegated to the
+    # uncontracted system's bare dipoles (see `accum_entangled_dipole_sector_grad!`).
     if isnothing(sys.entanglement)
-        # Calculate the local effective field dE/dS for Zeeman, dipole-dipole,
-        # and spin-bilinear exchange. Accumulate ∇E += (dE/dS ⋅ S) Z.
         dE_dS, dipoles = get_dipole_buffers(sys, 2)
         @. dipoles = expected_spin(Z)
         set_energy_grad_dipoles!(dE_dS, dipoles, sys)
@@ -657,12 +695,10 @@ function set_energy_grad_coherents!(∇E, Z::Array{CVec{N}, 4}, sys::System{N}) 
             ∇E[site] += mul_spin_matrices(dE_dS[site], Z[site])
         end
     else
-        # For entangled units, handle Zeeman and dipole-dipole interactions via
-        # the uncontracted magnetic moment dipoles.
-        accum_bare_field_grad_coherents!(∇E, Z, get_entanglement(sys))
+        accum_entangled_dipole_sector_grad!(∇E, Z, get_entanglement(sys))
     end
 
-    # Onsite, biquadratic, and general pair couplings.
+    # Coherent sector: onsite, biquadratic, and general pair couplings.
     if is_homogeneous(sys)
         for i in 1:natoms(sys.crystal)
             interactions = sys.interactions_union[i]
@@ -698,11 +734,9 @@ function set_energy_grad_coherents_aux!(∇E, Z::Array{CVec{N}, 4}, int::Interac
                 Qᵢ = expected_quadrupole(Zᵢ)
                 Qⱼ = expected_quadrupole(Zⱼ)
                 if pc.biquad isa Float64
-                    J = pc.biquad::Float64
                     dE_dQᵢ = pc.biquad * (scalar_biquad_metric .* Qⱼ)
                     dE_dQⱼ = pc.biquad * (scalar_biquad_metric .* Qᵢ)
                 else
-                    J = pc.biquad::Mat5
                     dE_dQᵢ = pc.biquad * Qⱼ
                     dE_dQⱼ = pc.biquad' * Qᵢ
                 end

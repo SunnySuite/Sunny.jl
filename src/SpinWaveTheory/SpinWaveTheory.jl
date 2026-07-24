@@ -56,6 +56,16 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
     sys = reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
 
+    # For an entangled system, classical dynamics delegates inter-unit bilinear
+    # exchange to the uncontracted system. Spin-wave theory instead expects the
+    # full coupling in product-space (tensor decomposition) form, so re-contract
+    # with `extract_parts=false`. The uncontracted clone retains the bare params.
+    if is_entangled(sys)
+        (; uncontracted, units) = get_entanglement(sys)
+        sys.params = [contract_param(p, uncontracted.Ns, units; extract_parts=false) for p in uncontracted.params]
+        repopulate_couplings_from_params!(sys)
+    end
+
     # Rotate local operators to quantization axis
     data = swt_data!(sys, measure)
 

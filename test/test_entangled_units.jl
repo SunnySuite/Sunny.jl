@@ -99,12 +99,14 @@ end
 
     ### Test inter-bond exchange
 
-    pc = interactions.pair[1]
-    op = Sunny.bond_operator_in_tensor_space(pc, 4, 4)
-    Sl1, Sl2 = to_product_space(Sl, Sl)
-    Su1, Su2 = to_product_space(Su, Su)
-    op_ref = J′*((Sl2' * Sl1) .+ (Su2' * Su1))
-    @test op ≈ op_ref
+    # Inter-unit bilinear exchange is delegated to the uncontracted system (like
+    # Zeeman/Ewald), so it lives as `bilin` on the bare bonds rather than in the
+    # unit's product-space tensor decomposition, which stays empty.
+    @test all(pc -> isempty(pc.general.data), interactions.pair)
+    for a in 1:2
+        pc = only(pc for pc in bare.interactions_union[a].pair if !pc.isculled)
+        @test pc.bilin ≈ J′
+    end
 
     ### Test dispersion against analytical formula for antisymmetric channel.
 
@@ -222,7 +224,14 @@ end
     Su1, Su2 = to_product_space(Su, Su)     # part2-of-A ↔ part2-of-B
     opref = f(Sl1, Sl2) + f(Su1, Su2)
 
-    @test op ≈ opref
+    # The tensor decomposition retains only the non-bilinear (biquadratic)
+    # residual; the bilinear part is peeled off and delegated to the uncontracted
+    # system, where it is stored as `bilin` on the bare bonds. Reassembling the
+    # residual with the delegated bilinear must reproduce the full operator.
+    bare = esys.entanglement.uncontracted
+    Jbilin = only(pc for pc in bare.interactions_union[1].pair if !pc.isculled).bilin
+    bilin_op = Jbilin * ((Sl1' * Sl2) + (Su1' * Su2))
+    @test op + bilin_op ≈ opref
 end
 
 @testitem "Inter-unit coupling recompression" begin
@@ -236,17 +245,19 @@ end
 
     sys = System(crystal, [1 => Moment(s=1, g=2), 2 => Moment(s=1, g=2)], :SUN)
     set_pair_coupling!(sys, (Si, Sj) -> (Si' * Sj), Bond(1, 2, [0, 0, 0]))
-    # Both couplings share part 1 of unit A, so they overlap on the A-side and
-    # recompress from 6 concatenated terms down to Schmidt rank 3.
-    set_pair_coupling!(sys, (Si, Sj) -> 0.3(Si' * Sj), Bond(1, 1, [1, 0, 0]))
-    set_pair_coupling!(sys, (Si, Sj) -> 0.5(Si' * Sj), Bond(1, 2, [1, 0, 0]))
+    # Biquadratic couplings (bilinear is delegated to the uncontracted system and
+    # never reaches the tensor decomposition). Both share part 1 of unit A, so
+    # they overlap on the A-side; each contributes 5 terms and the concatenation
+    # of 10 recompresses down to Schmidt rank 5.
+    set_pair_coupling!(sys, (Si, Sj) -> 0.3(Si' * Sj)^2, Bond(1, 1, [1, 0, 0]))
+    set_pair_coupling!(sys, (Si, Sj) -> 0.5(Si' * Sj)^2, Bond(1, 2, [1, 0, 0]))
 
     esys = entangle_system(sys, [[1, 2]])
 
-    # The stored expansion on the shared bond is minimal rank (3), not the 6
+    # The stored expansion on the shared bond is minimal rank (5), not the 10
     # terms that naive concatenation would produce.
     pc = only(pc for pc in esys.interactions_union[1].pair if !pc.isculled && !isempty(pc.general.data))
-    @test length(pc.general.data) == 3
+    @test length(pc.general.data) == 5
 
     # Recompression is exact: energy matches the unentangled reference in a
     # generic product state.

@@ -10,8 +10,9 @@ struct UnitPart
     Δcell :: SVector{3,Int} # Cell of this atom relative to the unit centroid's cell
 end
 
-# Metadata for a System with entangled units. Hilbert dimension N of the
-# uncontracted System{N} is intentionally omitted to avoid dynamic lookup.
+# Metadata for a System with entangled units. Hilbert dimension M of the
+# uncontracted System{M} cannot be statically inferred from the entangled
+# System{N}, so we omit it.
 struct Entanglement <: AbstractEntanglement
     units        :: Vector{Vector{UnitPart}} # Grouping of units into parts
     uncontracted :: System                   # System prior to entanglement
@@ -252,8 +253,13 @@ function accum_intra_unit_pair_coupling!(op, pc, uncontracted_Ns, units)
 end
 
 # Promote an atomistic-level pair coupling to an inter-unit pair coupling on the
-# contracted system.
-function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
+# contracted system. With `extract_parts=true`, bilinear exchange is peeled off
+# and delegated to the uncontracted system, where it is handled efficiently at the
+# dipole level (cf. Zeeman and Ewald); only the residual (biquadratic and general)
+# part is promoted to the product-space tensor decomposition. With
+# `extract_parts=false`, the full operator (bilinear included) is retained in the
+# tensor decomposition; this is used by spin-wave theory.
+function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units; extract_parts)
     (; i, j) = pc.bond
     ui, pi = unit_and_part(units, i)
     uj, pj = unit_and_part(units, j)
@@ -263,9 +269,10 @@ function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
     Ni = uncontracted_Ns[1, 1, 1, i]
     Nj = uncontracted_Ns[1, 1, 1, j]
 
-    # Decompose the pair operator as ∑ₖ aₖ ⊗ bₖ. Then promote each factor to the
-    # tensor product space, aₖ → Aₖ.
-    data = map(pair_coupling_tensor_data(pc, Ni, Nj)) do (a, b)
+    # Decompose as ∑ₖ aₖ ⊗ bₖ and embed each factor aₖ → Aₖ into the unit spaces.
+    bilin = extract_parts ? 0.0 : pc.bilin
+    promoted = PairCoupling(pc.bond, 0.0, bilin, pc.biquad, pc.general)
+    data = map(pair_coupling_tensor_data(promoted, Ni, Nj)) do (a, b)
         A = Hermitian(local_op_to_product_space(Matrix(a), pi, Ns1))
         B = Hermitian(local_op_to_product_space(Matrix(b), pj, Ns2))
         (A, B)
@@ -277,8 +284,9 @@ function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
     return (; newbond, pc.scalar, tensordec=TensorDecomposition(gen1, gen2, data))
 end
 
-# Map ModelParam of an uncontracted system to that of an entangled system.
-function contract_param(param::ModelParam, uncontracted_Ns, units)
+# Map ModelParam of an uncontracted system to that of an entangled system. See
+# `promote_inter_unit_pair_coupling` for the meaning of `extract_parts`.
+function contract_param(param::ModelParam, uncontracted_Ns, units; extract_parts)
     nunits = length(units)
 
     # Intra-unit terms become onsite (on-bond) operators, one per touched unit.
@@ -310,7 +318,7 @@ function contract_param(param::ModelParam, uncontracted_Ns, units)
     pairs = PairCoupling[]
     for pc in param.pairs
         bond_is_in_unit(pc.bond, units) && continue
-        (; newbond, scalar, tensordec) = promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
+        (; newbond, scalar, tensordec) = promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units; extract_parts)
         bilin = biquad = 0.0 # Dipoles are NaN for entangled systems
         push!(pairs, PairCoupling(newbond, scalar, bilin, biquad, tensordec))
     end
@@ -478,6 +486,30 @@ end
 # Entanglement construction
 ################################################################################
 
+# Project the `uncontracted` clone's `interactions_union` onto the dipole sector:
+# the interactions the entangled system delegates to dipole-level physics —
+# inter-unit bilinear exchange, alongside the Zeeman and Ewald terms the clone
+# already carries. Intra-unit couplings are dropped because they are folded into
+# the contracted onsite operator (and would otherwise be double-counted). Onsite,
+# scalar, biquadratic, and general data are cleared so that the dipole-sector
+# kernels (`dipole_sector_energy`, `set_energy_grad_dipoles!`) yield exactly the
+# delegated terms when applied here.
+#
+# NOTE: this desyncs the clone's `interactions_union` from its `params`, which is
+# deliberate. The clone plays two roles: `params` remains the *faithful* bare
+# model (the reconstruction source for reshaping and for spin-wave theory's
+# `extract_parts=false` re-contraction), while `interactions_union` is a lossy
+# *dipole-sector projection* used only to drive classical dynamics.
+function project_to_dipole_sector!(uncontracted::System, units)
+    for int in interactions_homog(uncontracted)
+        int.onsite = empty_anisotropy(:SUN, size(int.onsite, 1))
+        filter!(pc -> !bond_is_in_unit(pc.bond, units), int.pair)
+        map!(int.pair, int.pair) do pc
+            PairCoupling(pc.bond, 0.0, pc.bilin, 0.0, zero(TensorDecomposition))
+        end
+    end
+end
+
 # Populate the entanglement metadata of a (possibly reshaped) contracted `sys`,
 # given the corresponding `uncontracted` system. The `orig_units` defines the
 # entanged units in the context of the "original" chemical crystal.
@@ -515,6 +547,10 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_units)
 
     # In the base case (no reshaping), units should be unchanged.
     @assert !isnothing(sys.origin) || units == orig_units
+
+    # Project the clone's interactions onto the dipole sector delegated to it
+    # (its `params` remain the faithful bare model).
+    project_to_dipole_sector!(uncontracted, units)
 
     sys.entanglement = Entanglement(units, uncontracted)
     return nothing
@@ -601,7 +637,7 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
 
     # Contract each labeled parameter independently (contraction is linear in
     # coupling strength), then let the ordinary machinery fill the interactions.
-    sys.params = [contract_param(p, uncontracted.Ns, units) for p in uncontracted.params]
+    sys.params = [contract_param(p, uncontracted.Ns, units; extract_parts=true) for p in uncontracted.params]
     repopulate_couplings_from_params!(sys)
 
     # Set entanglement metadata in sys. Keep a clone of the uncontracted system,
@@ -624,19 +660,31 @@ end
 # Dynamics
 ################################################################################
 
-# Helper for set_energy_grad_coherents! that accumulates Zeeman and Ewald
-# interactions. These need special handling for entangled systems because they
-# refer to the uncontracted ("bare") dipoles. The per-part spin operators embedded
-# into the unit's product space are applied to `Z` on the fly via
-# `mul_spin_matrices_embedded`, so no product-space matrix is materialized.
-function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entanglement) where N
+# Dipole-sector energy of an entangled system. The dipole sector (Zeeman, Ewald,
+# bilinear exchange) is delegated to the uncontracted system, which holds exactly
+# these terms (see `project_to_dipole_sector!`) and whose bare dipoles track
+# `sys.coherents`. The `uncontracted::System` field is type-erased (unknown N),
+# but `dipole_sector_energy` is `@nospecialize` and uses no N-dependent state, so
+# this call resolves statically — no runtime dispatch.
+function entangled_dipole_sector_energy(ent::Entanglement)
+    return dipole_sector_energy(ent.uncontracted)
+end
+
+# Dipole-sector gradient of an entangled system, driving SU(N) dynamics. The
+# dipole sector (Zeeman, Ewald, inter-unit bilinear exchange) is delegated to the
+# uncontracted system, whose bare dipoles are the expected dipoles for the unit
+# coherents Z. The bare `dE/dS` is computed there via `set_energy_grad_dipoles!`
+# (which, in SU(N) mode, includes exactly these terms), then the per-part spin
+# operators embedded into the unit's product space are applied to `Z` on the fly
+# via `mul_spin_matrices_embedded`, so no product-space matrix is materialized.
+function accum_entangled_dipole_sector_grad!(HZ, Z::Array{CVec{N}, 4}, ent::Entanglement) where N
     (; uncontracted, units) = ent
 
-    iszero(uncontracted.extfield) && isnothing(uncontracted.ewald) && return
+    iszero(uncontracted.extfield) && isnothing(uncontracted.ewald) &&
+        all(int -> isempty(int.pair), interactions_homog(uncontracted)) && return
 
     # Reuse the bare system's persistent scratch buffers.
     S_bare, dE_dS_bare = get_dipole_buffers(uncontracted, 2)
-    fill!(dE_dS_bare, zero(Vec3))
     dims = uncontracted.dims
 
     # Expected dipoles of the uncontracted system for the provided coherents Z.
@@ -647,14 +695,10 @@ function accum_bare_field_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, ent::Entangl
         end
     end
 
-    # Energy gradient dE/dS associated with Zeeman and Ewald couplings, for each
-    # bare atom of the uncontracted system.
-    for site in eachsite(uncontracted)
-        dE_dS_bare[site] += uncontracted.gs[site]' * uncontracted.extfield[site]
-    end
-    if !isnothing(uncontracted.ewald)
-        accum_ewald_grad!(dE_dS_bare, S_bare, uncontracted)
-    end
+    # Energy gradient dE/dS for Zeeman, Ewald, and bilinear exchange couplings.
+    # `uncontracted :: System` is type-erased (unknown N), but `set_energy_grad_dipoles!`
+    # is `@nospecialize` and uses no N-dependent state, so this resolves statically.
+    set_energy_grad_dipoles!(dE_dS_bare, S_bare, uncontracted)
 
     # Accumulate gradients for entangled units.
     for u in eachindex(units), (part, emb) in part_embeddings(uncontracted, units[u])
