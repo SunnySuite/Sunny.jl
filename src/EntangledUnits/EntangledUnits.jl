@@ -326,7 +326,7 @@ function entangle_system(sys::System{M}, units) where M
     for bond in exemplars
         relevant_interactions = filter(data -> data[1] == bond, new_pair_data)
         bond_operator = sum(data[2] for data in relevant_interactions)
-        set_pair_coupling!(sys_contracted, bond_operator, bond; extract_parts=false)
+        set_pair_coupling!(sys_contracted, bond_operator, bond)
     end
 
     return (; sys_contracted, contraction_info)
