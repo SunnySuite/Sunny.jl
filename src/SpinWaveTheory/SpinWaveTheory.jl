@@ -1,20 +1,19 @@
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}             # Rotations from global to quantization frame
-    observables_localized :: Array{Vec3, 2}           # Observables rotated to local frame (nsites, nobs)
+    observables           :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
     stevens_coefs         :: Vector{StevensExpansion} # Rotated onsite coupling as Steven expansion
     sqrtS                 :: Vector{Float64}          # Square root of spin magnitudes
 end
 
 struct SWTDataSUN
-    local_unitaries       :: Vector{Matrix{ComplexF64}} # Transformations from global to quantization frame
-    observables_localized :: Array{HermitianC64, 2}     # Observables rotated to local frame (nobs × nsites)
-    spins_localized       :: Array{HermitianC64, 2}     # Spins rotated to local frame (3 × nsites)
+    local_unitaries  :: Vector{Matrix{ComplexF64}}    # Transformations from global to quantization frame
+    observables      :: Array{HermitianC64, 3}        # Rotated observables (nobs × nunits × nparts)
+    observable_buf   :: Matrix{ComplexF64}            # Scratch buffer (N × N)
+    spin_ops         :: Array{HermitianC64, 2}        # Spin dipoles in local frame (3 × nbareatoms)
 end
 
-# To facilitate code sharing with SpinWaveTheorySpiral
+# To facilitate sharing some code with SpinWaveTheorySpiral
 abstract type AbstractSpinWaveTheory end
-# To facilitate code sharing with EntangledSpinWaveTheory
-abstract type AbstractDirectSpinWaveTheory <: AbstractSpinWaveTheory end
 
 """
     SpinWaveTheory(sys::System; measure, regularization=1e-8)
@@ -35,7 +34,7 @@ matrix to avoid numerical issues with quasi-particle modes of vanishing energy.
 Physically, this shift can be interpreted as application of an inhomogeneous
 field aligned with the magnetic ordering.
 """
-struct SpinWaveTheory <: AbstractDirectSpinWaveTheory
+struct SpinWaveTheory <: AbstractSpinWaveTheory
     sys            :: System
     data           :: Union{SWTDataDipole, SWTDataSUN}
     measure        :: MeasureSpec
@@ -49,19 +48,16 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     measure = @something measure empty_measurespec(sys)
-    if size(eachsite(sys)) != size(measure.observables)[2:5]
+    if num_lattice_dims(measure) != sys.dims || num_units_per_cell(measure) != natoms(sys.crystal)
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    # Create a single enlarged chemical cell that matches the full system size
-    # while preserving the system's linear site order.
-    new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
-
     # Create a new system with dims (1,1,1). A clone happens in all cases.
-    sys = reshape_supercell_aux(sys, new_cryst, (1,1,1))
+    new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
+    sys = reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
 
     # Rotate local operators to quantization axis
-    data = swt_data(sys, measure)
+    data = swt_data!(sys, measure)
 
     return SpinWaveTheory(sys, data, measure, regularization)
 end
@@ -93,21 +89,14 @@ function to_reshaped_rlu(sys::System, q)
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
-# Give EntangledSpinWaveTheory an overloading hook. The fundamental problem is
-# that orig_crystal(eswt.sys) is not guaranteed to be the actual original
-# chemical cell.
-function to_reshaped_rlu(swt::SpinWaveTheory, q)
-    to_reshaped_rlu(swt.sys, q)
-end
-
-function dynamical_matrix(swt::AbstractDirectSpinWaveTheory, q_reshaped)
+function dynamical_matrix(swt::SpinWaveTheory, q_reshaped)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     dynamical_matrix!(H, swt, q_reshaped)
     return Hermitian(H)
 end
 
-function dynamical_matrix!(H, swt::AbstractDirectSpinWaveTheory, q_reshaped)
+function dynamical_matrix!(H, swt::SpinWaveTheory, q_reshaped)
     if swt.sys.mode == :SUN
         swt_hamiltonian_SUN!(H, swt, q_reshaped)
     else
@@ -135,61 +124,22 @@ function mul_dynamical_matrix!(swt, y, x, qs_reshaped)
 end
 
 
-# Take PairCoupling `pc` and use it to make a new, equivalent PairCoupling that
-# contains all information about the interaction in the `general` (tensor
-# decomposition) field.
-function as_general_pair_coupling(pc, sys)
-    (; bond, scalar, bilin, biquad, general) = pc
-    N1 = sys.Ns[bond.i]
-    N2 = sys.Ns[bond.j]
-
-    accum = zeros(ComplexF64, N1*N2, N1*N2)
-
-    # Add scalar part
-    accum += scalar * I
-
-    # Add bilinear part
-    S1, S2 = to_product_space(spin_matrices((N1-1)/2), spin_matrices((N2-1)/2))
-    J = bilin isa Float64 ? bilin*I(3) : bilin
-    accum += S1' * J * S2
-
-    # Add biquadratic part
-    K = biquad isa Float64 ? diagm(biquad * Sunny.scalar_biquad_metric) : biquad
-    O1, O2 = to_product_space(stevens_matrices_of_dim(2; N=N1), stevens_matrices_of_dim(2; N=N2))
-    accum += O1' * K * O2
-
-    # Add general part
-    for (A, B) in general.data
-        accum += kron(A, B) 
-    end
-
-    # Generate new interaction with extract_parts=false 
-    scalar, bilin, biquad, general = decompose_general_coupling(accum, N1, N2; extract_parts=false)
-
-    return PairCoupling(bond, scalar, bilin, biquad, general)
-end
-
-function rotate_general_coupling_into_local_frame(pc, U1, U2)
-    (; bond, scalar, bilin, biquad, general) = pc
-    data_new = map(general.data) do (A, B)
-        (Hermitian(U1'*A*U1), Hermitian(U2'*B*U2))
-    end
-    td = TensorDecomposition(general.gen1, general.gen2, data_new)
-    return PairCoupling(bond, scalar, bilin, biquad, td)
-end
-
-# Prepare local operators and observables for SU(N) spin wave calculation by
-# rotating these into the local reference frame determined by the ground state.
-function swt_data(sys::System{N}, measure) where N
+# Prepare local operators and observables for spin wave calculation by rotating
+# into the local reference frame as defined by the ground state. Mutates
+# interactions in sys.
+function swt_data!(sys::System{N}, measure) where N
     # Calculate transformation matrices into local reference frames
     Na = nsites(sys)
-    Nobs = size(measure.observables, 1)
-    observables = reshape(measure.observables, Nobs, Na)
+    Nb = nbaresites(sys)
+    nparts = num_parts_per_unit(measure)
+    Nobs = num_observables(measure)
+    flat_ops = reshape(measure.observables, Nobs, Na, nparts)
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
-    observables_localized = Array{HermitianC64}(undef, Nobs, Na)
-    spins_localized = Array{HermitianC64}(undef, 3, Na)
+    observables = Array{HermitianC64}(undef, Nobs, Na, nparts)
+    observable_buf = zeros(ComplexF64, N, N)
+    spin_ops = fill(Hermitian(zeros(ComplexF64, N, N)), 3, Nb)
 
     for i in 1:Na
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
@@ -206,57 +156,66 @@ function swt_data(sys::System{N}, measure) where N
         local_unitaries[i] = U
 
         # Rotate observables into local reference frames
-        for μ in 1:Nobs
-            observables_localized[μ, i] = Hermitian(U' * observables[μ, i] * U)
+        for p in 1:nparts, μ in 1:Nobs
+            observables[μ, i, p] = Hermitian(U' * flat_ops[μ, i, p] * U)
         end
 
-        S = spin_matrices_of_dim(; N)
-        for μ in 1:3
-            spins_localized[μ, i] = Hermitian(U' * S[μ] * U)
+        int = sys.interactions_union[i]
+
+        for ai in atoms_in_unit(sys, i)
+            # Incorporate Zeeman coupling into onsite
+            S = lifted_spin_op(sys, ai)
+            (; gs, extfield) = uncontracted_system(sys)
+            int.onsite += (extfield[ai]' * gs[ai]) * S
+
+            # Store spin dipoles in the local frame
+            for α in 1:3
+                spin_ops[α, ai] = Hermitian(U' * S[α] * U)
+            end
         end
     end
 
-    # Rotate interactions into local reference frames
     for i in 1:Na
         Ui = local_unitaries[i]
         int = sys.interactions_union[i]
 
-        # Zeeman coupling operator
-        S = spin_matrices_of_dim(; N)
-        B = sys.gs[i]' * sys.extfield[i]
-        zeeman = B' * S
+        # Rotate onsite coupling
+        int.onsite = Hermitian(Ui' * int.onsite * Ui)
 
-        # Merge and rotate all onsite couplings
-        int.onsite = Hermitian(Ui' * (zeeman + int.onsite) * Ui)
-
-        # Transform pair couplings into tensor decomposition and rotate.
+        # Convert each pair coupling to a compressed tensor decomposed form and
+        # rotate it into the local reference frames of both sites.
         pair_new = PairCoupling[]
         for pc in int.pair
-            # Convert PairCoupling to a purely general (tensor decomposed) interaction.
-            pc_general = as_general_pair_coupling(pc, sys)
-
-            # Rotate tensor decomposition into local frame.
-            bond = pc.bond
+            (; bond) = pc
             @assert bond.i == i
-            Uj = local_unitaries[bond.j]
-            pc_rotated = rotate_general_coupling_into_local_frame(pc_general, Ui, Uj)
 
-            push!(pair_new, pc_rotated)
+            N1, N2 = sys.Ns[bond.i], sys.Ns[bond.j]
+            Uj = local_unitaries[bond.j]
+            data_rotated = map(pair_coupling_tensor_data(pc, N1, N2)) do (A, B)
+                (Hermitian(Ui'*A*Ui), Hermitian(Uj'*B*Uj))
+            end
+
+            gen1 = spin_matrices_of_dim(; N=N1)
+            gen2 = spin_matrices_of_dim(; N=N2)
+            general_rotated = TensorDecomposition(gen1, gen2, data_rotated)
+
+            push!(pair_new, PairCoupling(bond, 0.0, 0.0, 0.0, general_rotated))
         end
         int.pair = pair_new
     end
 
     return SWTDataSUN(
         local_unitaries,
-        observables_localized,
-        spins_localized,
+        observables,
+        observable_buf,
+        spin_ops,
     )
 end
 
-# Compute Stevens coefficients in the local reference frame
-function swt_data(sys::System{0}, measure)
+
+function swt_data!(sys::System{0}, measure)
     Na = nsites(sys)
-    Nobs = size(measure.observables, 1)
+    Nobs = num_observables(measure)
 
     # Operators for rotating vectors into local frame
     Rs = map(1:Na) do i
@@ -289,7 +248,8 @@ function swt_data(sys::System{0}, measure)
     obs = reshape(measure.observables, Nobs, Na)
     obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
 
-    # Precompute transformed exchange matrices and store in sys.interactions_union.
+    # Precompute transformed exchange matrices and store in
+    # sys.interactions_union.
     for (i, int) in enumerate(sys.interactions_union)
         for c in eachindex(int.pair)
             (; bond, scalar, bilin, biquad, general) = int.pair[c]
@@ -314,7 +274,7 @@ function swt_data(sys::System{0}, measure)
         end
     end
 
-    # Rotated Stevens expansion.
+    # Rotated Stevens expansion
     cs = map(sys.interactions_union, Rs) do int, R
         iszero(R) ? empty_anisotropy(sys.mode, 0) : rotate_operator(int.onsite, R)
     end
@@ -325,11 +285,50 @@ function swt_data(sys::System{0}, measure)
     return SWTDataDipole(Rs, obs_localized, cs, sqrtS)
 end
 
-# i is a site index for the flattened swt.sys. However, `measure` was originally
-# constructed for a system with nontrivial lattice dims. Use fld1(i, prod(dims))
-# to get a true atom index for the unflattened sys. This is needed to index
-# measure.formfactors.
-function get_swt_formfactor(measure, μ, i)
-    sys_dims = size(measure.observables)[2:4]
-    measure.formfactors[μ, fld1(i, prod(sys_dims))]
+# Fourier prefactor for observable μ acting on a flattened unit i of swt.sys,
+# with optional part index.
+function observable_prefactor(measure, μ, i, q_reshaped, q_global, sys; part=1)
+    unit = fld1(i, prod(num_lattice_dims(measure)))
+    r = sys.crystal.positions[i] + measure.offsets[unit, part]
+    ff = measure.formfactors[μ, unit, part]
+    cis(2π * dot(q_reshaped, r)) * compute_form_factor(ff, norm2(q_global))
+end
+
+# Linearize each Fourier observable Â(q) = Σᵢ exp(+i q⋅rᵢ) Âᵢ as a coefficient
+# vector u in the Nambu basis of Holstein-Primakoff bosons [a_q, a_-q†].
+function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_global)
+    (; sys, measure, data) = swt
+    Na = nsites(sys)
+    Nobs = num_observables(measure)
+    Nf = nflavors(swt)
+    L = Nf * Na
+
+    if sys.mode == :SUN
+        (; observables, observable_buf) = data::SWTDataSUN
+        @assert allequal(sys.Ns)
+        N = first(sys.Ns)
+        for μ in 1:Nobs, i in 1:Na
+            fill!(observable_buf, 0)
+            for p in 1:num_parts_per_unit(measure)
+                pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys; part=p)
+                observable_buf .+= pref .* observables[μ, i, p]
+            end
+            for f in 1:Nf
+                u[f + (i-1)*Nf,     μ] = observable_buf[f, N]
+                u[f + (i-1)*Nf + L, μ] = observable_buf[N, f]
+            end
+        end
+    else
+        @assert sys.mode in (:dipole, :dipole_uncorrected)
+        num_parts_per_unit(measure) == 1 || error("Distinct parts unsupported in dipole-mode.")
+        (; sqrtS, observables) = data::SWTDataDipole
+        for μ in 1:Nobs, i in 1:Na
+            pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+            O = observables[μ, i]
+            u[i, μ]   = pref * (sqrtS[i] / √2) * (O[1] + im*O[2])
+            u[i+L, μ] = pref * (sqrtS[i] / √2) * (O[1] - im*O[2])
+        end
+    end
+
+    return u
 end

@@ -37,6 +37,8 @@ end
 
 # Generate list of SymOps for the pointgroup of atom i
 function symmetries_for_pointgroup_of_atom(cryst::Crystal, i::Int)
+    validate_symops(cryst)
+
     ret = SymOp[]
     r = cryst.positions[i]
     for s in cryst.sg.symops

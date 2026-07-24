@@ -4,7 +4,7 @@ Sunny is a package for simulating magnetic materials in and out of equilibrium.
 It facilitates the development of theoretical models that can be quantitatively
 compared to experimental data such as scattering intensities.
 
-[_**Feature highlights**_](@ref "Why Choose Sunny?") include symmetry-guided
+[_**Feature highlights**_](@ref "Feature Highlights") include symmetry-guided
 modeling, interactive visualization, and careful treatment of quantum spin
 effects.
 

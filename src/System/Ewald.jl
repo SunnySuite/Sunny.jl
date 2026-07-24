@@ -152,7 +152,9 @@ function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag,
 end
 
 
-function ewald_energy(sys::System{N}) where N
+# The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known
+# statically.
+function ewald_energy(@nospecialize(sys::System))
     (; μ, FA, Fμ, plan) = sys.ewald
     dims = size(sys.dipoles)[1:3]
     even_rft_size = dims[1] % 2 == 0
@@ -181,13 +183,14 @@ function ewald_energy(sys::System{N}) where N
 end
 
 # Use FFT to accumulate the entire field dE/dS for long-range dipole-dipole
-# interactions
-function accum_ewald_grad!(∇E, dipoles, sys::System{N}) where N
-    (; ewald, gs) = sys
+# interactions. The @nospecialize(sys) hint satisfies JET when Hilbert size N is
+# not known statically.
+function accum_ewald_grad!(∇E, dipoles, @nospecialize(sys::System))
+    (; gs, ewald) = sys
     (; μ, FA, Fμ, Fϕ, ϕ, plan, ift_plan) = ewald
 
     # Fourier transformed magnetic moments for the provided trial dipoles
-    @. μ = - sys.gs * dipoles
+    @. μ = - gs * dipoles
     mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
 
     # Calculate magneto-potential ϕ in Fourier space. Without @inbounds,

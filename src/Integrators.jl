@@ -351,7 +351,7 @@ function step!(sys::System{N}, integrator::Langevin) where N
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
-    @. sys.dipoles = expected_spin(Z)
+    sync_dipoles!(sys)
 
     return
 end
@@ -441,7 +441,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
 
         if fast_isapprox(Z′, Z″; atol)
             @. Z = normalize_ket(Z″, sys.κs)
-            @. sys.dipoles = expected_spin(Z)
+            sync_dipoles!(sys)
             return
         end
 

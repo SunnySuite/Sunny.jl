@@ -19,7 +19,8 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
     any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")
 
     (; sys) = swt
-    Natoms = natoms(sys.crystal)
+    # Normalize per physical site
+    Nsites = nsites(uncontracted_system(sys))
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     V = zeros(ComplexF64, 2L, 2L)
@@ -27,14 +28,14 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
     # The uniform correction to the classical energy (trace of the (1,1)-block
     # of the spin-wave Hamiltonian)
     dynamical_matrix!(H, swt, zero(Vec3))
-    δE₁ = -real(tr(view(H, 1:L, 1:L))) / 2Natoms
+    δE₁ = -real(tr(view(H, 1:L, 1:L))) / 2Nsites
 
     # Integrate zero-point energy over the first Brillouin zone 𝐪 ∈ [0, 1]³ for
     # magnetic cell in reshaped RLU
     δE₂ = hcubature((0,0,0), (1,1,1); opts...) do q_reshaped
         dynamical_matrix!(H, swt, q_reshaped)
         ωs = bogoliubov!(V, H)
-        return sum(view(ωs, 1:L)) / 2Natoms
+        return sum(view(ωs, 1:L)) / 2Nsites
     end
 
     # Error bars in δE₂[2] are discarded
@@ -45,6 +46,12 @@ end
 function magnetization_lswt_correction_sun(swt::SpinWaveTheory; opts...)
     (; sys, data) = swt
 
+    # This correction measures the reduction of the classical dipole moment along
+    # its own direction. It is undefined for an entangled system, whose ordered
+    # object is a unit's product-space state (e.g. a dimer singlet has zero net
+    # dipole), not a spin-(N-1)/2 dipole.
+    is_entangled(sys) && error("Magnetization correction is not supported for entangled units.")
+
     N = sys.Ns[1]
     Natoms = natoms(sys.crystal)
     L = (N - 1) * Natoms
@@ -53,8 +60,8 @@ function magnetization_lswt_correction_sun(swt::SpinWaveTheory; opts...)
     V = zeros(ComplexF64, 2L, 2L)
 
     # Construct angular momentum operators O = n⋅S aligned with quantization
-    # axis.
-    S = spin_matrices_of_dim(; N)
+    # axis, where S are the bare spin matrices and n = normalize(dipoles[i]).
+    S = SVector{3}(spin_matrices_of_dim(; N))
     O = zeros(ComplexF64, N, N, Natoms)
     for i in 1:Natoms
         n = normalize(swt.sys.dipoles[i])

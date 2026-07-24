@@ -7,14 +7,13 @@ system was not reshaped, then the number of Brillouin zones included is
 `prod(counts)`.
 """
 function available_wave_vectors(sc::SampledCorrelations; counts=(1,1,1))
-    Ls = sc.sys_dims
+    Ls = size(sc.samplebuf)[2:4]
     offsets = map(L -> isodd(L) ? 1 : 0, Ls)
     up = Ls .* counts
     hi = map(L -> L - div(L, 2), up) .- offsets
     lo = map(L -> 1 - div(L, 2), up) .- offsets
 
-    orig_crystal = @something sc.origin_crystal sc.crystal
-    convert = orig_crystal.recipvecs \ sc.crystal.recipvecs
+    convert = sc.origin_crystal.recipvecs \ sc.recipvecs
     return [convert * Vec3(lx/Ls[1], ly/Ls[2], lz/Ls[3]) for lx in lo[1]:hi[1], ly in lo[2]:hi[2], lz in lo[3]:hi[3]]
 end
 

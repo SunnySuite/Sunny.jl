@@ -393,10 +393,10 @@ end
     S = Sunny.spin_matrices_of_dim(; N)
     Si, Sj = to_product_space(S, S)
 
-    _, _, _, tensordec = Sunny.decompose_general_coupling(Si'*J*Sj, N, N; extract_parts=false)
+    (; tensordec) = Sunny.decompose_general_coupling(Si'*J*Sj, N, N; extract_parts=false)
     @test Sunny.is_coupling_valid(cryst, b, tensordec)
 
-    _, _, _, tensordec = Sunny.decompose_general_coupling(Si'*J_bad*Sj, N, N; extract_parts=false)
+    (; tensordec) = Sunny.decompose_general_coupling(Si'*J_bad*Sj, N, N; extract_parts=false)
     @test !Sunny.is_coupling_valid(cryst, b, tensordec)
 end
 

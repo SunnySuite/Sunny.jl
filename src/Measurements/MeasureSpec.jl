@@ -1,28 +1,25 @@
-# Op is the type of a local observable operator. Either a Vec3 (for :dipole
-# mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
-# mode, in which case op is an N×N matrix). `natoms` refers to the reshaped
-# crystal.
+# Op is the type of a local observable operator. Either a Vec3 representing
+# `op⋅S` (:dipole mode) or a HermitianC64 representing the N×N matrix directly
+# (:SUN mode). The "parts" index is needed for entangled units.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
-    observables :: Array{Op, 5}          # (nobs × sys_dims × natoms)
-    corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
-    combiner :: F                        # (q::Vec3, obs) -> Ret
-    formfactors :: Array{FormFactor, 2}  # (nobs × natoms)
-    offsets :: Array{Vec3, 2}            # (nobs × natoms)
+    observables :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × nunits × nparts)
+    formfactors :: Array{FormFactor, 3}   # (nobs × nunits × nparts)
+    offsets     :: Array{Vec3, 2}         # (nunits × nparts)
+    corr_pairs  :: Vector{NTuple{2, Int}} # (ncorr)
+    combiner    :: F                      # (q::Vec3, obs) -> Ret
 
-    # TODO: Default combiner will be SVector?
-    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors; offsets=nothing) where {Op, F}
-        # Lift return type of combiner function to type-level
+    function MeasureSpec(observables::Array{Op, 6}, corr_pairs, combiner::F, formfactors::Array{FormFactor, 3}; offsets=nothing) where {Op, F}
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
-        # Create inner `nobs` dimension, if missing
-        if isone(ndims(formfactors))
-            formfactors = [ff for _ in axes(observables, 1), ff in formfactors]
-        end
+        nobs    = size(observables, 1)
+        nunits  = size(observables, 5)
+        nparts  = size(observables, 6)
         if isnothing(offsets)
-            offsets = zeros(Vec3, size(observables)[[1,5]]...)
+            offsets = zeros(Vec3, nunits, nparts)
         end
-        @assert size(observables)[[1,5]] == size(formfactors) == size(offsets)
-        return new{Op, F, Ret}(observables, corr_pairs, combiner, formfactors, offsets)
+        @assert (nunits, nparts) == size(offsets) "offsets must have shape (nunits, nparts)"
+        @assert (nobs, nunits, nparts) == size(formfactors) "formfactors must have shape (nobs, nunits, nparts)"
+        return new{Op, F, Ret}(observables, formfactors, offsets, corr_pairs, combiner)
     end
 end
 
@@ -40,36 +37,41 @@ end
 Base.eltype(::MeasureSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
 num_observables(measure::MeasureSpec) = size(measure.observables, 1)
-num_correlations(measure::MeasureSpec) = length(measure.corr_pairs) 
+num_lattice_dims(measure::MeasureSpec) = size(measure.observables)[2:4]
+num_units_per_cell(measure::MeasureSpec) = size(measure.observables, 5)
+num_parts_per_unit(measure::MeasureSpec) = size(measure.observables, 6)
+num_correlations(measure::MeasureSpec) = length(measure.corr_pairs)
 
 function empty_measurespec(sys)
-    observables = zeros(Vec3, 0, size(eachsite(sys))...)
+    observables = zeros(Vec3, 0, size(eachsite(sys))..., 1)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
-    formfactors = zeros(FormFactor, 0, natoms(sys.crystal))
+    formfactors = zeros(FormFactor, 0, natoms(sys.crystal), 1)
     return MeasureSpec(observables, corr_pairs, combiner, formfactors)
 end
 
 function all_dipole_observables(sys::System{0}; apply_g)
-    observables = zeros(Vec3, 3, size(eachsite(sys))...)
+    observables = zeros(Vec3, 3, size(eachsite(sys))..., 1)
     for site in eachsite(sys)
         # Component α of observable is op⋅S = g[α,β] S[β]. Minus sign would
         # cancel because observables come in pairs.
         op = apply_g ? sys.gs[site] : Mat3(I)
         for α in 1:3
-            observables[α, site] = op[α, :]
+            observables[α, site, 1] = op[α, :]
         end
     end
     return observables
 end
 
 function all_dipole_observables(sys::System{N}; apply_g) where {N}
-    observables = Array{HermitianC64, 5}(undef, 3, size(eachsite(sys))...)
+    @assert isnothing(sys.entanglement)
+
+    S = SVector{3}(spin_matrices_of_dim(; N))
+    observables = Array{HermitianC64, 6}(undef, 3, size(eachsite(sys))..., 1)
     for site in eachsite(sys)
-        S = spin_matrices_of_dim(; N=sys.Ns[site])
         op = apply_g ? sys.gs[site]*S : S
         for α in 1:3
-            observables[α, site] = op[α]
+            observables[α, site, 1] = Hermitian(op[α])
         end
     end
     return observables
@@ -113,6 +115,15 @@ measure = ssf_custom((q, ssf) -> real(ssf[1, 1] + ssf[2, 2] + ssf[3, 3]), sys)
 See also the Sunny documentation on [Structure Factor Conventions](@ref).
 """
 function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
+    # For an entangled system, build the measure for the uncontracted system
+    # first, and then transform it to the entangled units.
+    if !isnothing(sys.entanglement)
+        (; uncontracted) = get_entanglement(sys)
+        measure_atom = ssf_custom(f, uncontracted; apply_g, formfactors)
+        return entangled_measure(measure_atom, sys)
+    end
+
+    Na = natoms(sys.crystal)
     observables = all_dipole_observables(sys; apply_g)
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     combiner(q, corr) = f(q, SA[
@@ -120,13 +131,14 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
         conj(corr[5]) corr[4]       corr[2]
         conj(corr[3]) conj(corr[2]) corr[1]
     ])
-    formfactors = if isnothing(formfactors)
-        fill(one(FormFactor), natoms(sys.crystal))
+    ffs_per_atom = if isnothing(formfactors)
+        fill(one(FormFactor), Na)
     else
         formfactors isa Vector{Pair{Int, FormFactor}} || error("Pass formfactors as [i1 => FormFactor(...), i2 => ...]")
         propagate_atom_data(orig_crystal(sys), sys.crystal, formfactors)
     end
-    return MeasureSpec(observables, corr_pairs, combiner, formfactors)
+    ffs = Array{FormFactor, 3}([ffs_per_atom[a] for _ in 1:3, a in 1:Na, _ in 1:1])
+    return MeasureSpec(observables, corr_pairs, combiner, ffs)
 end
 
 CRC.@non_differentiable MeasureSpec(observables, corr_pairs, combiner, formfactors)
@@ -159,12 +171,12 @@ measure = ssf_custom_bm(sys; u=[0, 1, 0], v=[0, 0, 1]) do q, ssf
 end
 ```
 """
-function ssf_custom_bm(f, sys::System; u, v, apply_g=true, formfactors=nothing)
+function ssf_custom_bm(f, sys; u, v, apply_g=true, formfactors=nothing)
     u = orig_crystal(sys).recipvecs * u
     v = orig_crystal(sys).recipvecs * v
     e3 = normalize(u × v)
 
-    return ssf_custom(sys::System; apply_g, formfactors) do q, ssf
+    return ssf_custom(sys; apply_g, formfactors) do q, ssf
         if iszero(q)
             error("Blume-Maleev axis system not defined at zero q")
         end
@@ -196,7 +208,7 @@ formfactors = [1 => FormFactor("Co2")]
 ssf_perp(sys; formfactors)
 ```
 """
-function ssf_perp(sys::System; apply_g=true, formfactors=nothing)
+function ssf_perp(sys; apply_g=true, formfactors=nothing)
     return ssf_custom(sys; apply_g, formfactors) do q, ssf
         q2 = norm2(q)
         # Imaginary part vanishes in symmetric contraction
@@ -217,7 +229,7 @@ components. This quantity can be useful for checking quantum sum rules.
 
 This function is a special case of [`ssf_custom`](@ref).
 """
-function ssf_trace(sys::System{N}; apply_g=true, formfactors=nothing) where N
+function ssf_trace(sys; apply_g=true, formfactors=nothing)
     return ssf_custom(sys; apply_g, formfactors) do q, ssf
         tr(real(ssf))
     end

@@ -2,8 +2,7 @@
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; spins_localized) = data
-    (; gs) = sys
+    (; spin_ops) = data
 
     N = sys.Ns[1]
     Na = natoms(sys.crystal)
@@ -38,7 +37,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             @assert i == bond.i
             j = bond.j
 
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            phase = cis(2π * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             # Set "general" pair interactions of the form Aᵢ⊗Bⱼ. Note that Aᵢ
             # and Bᵢ have already been transformed according to the local frames
@@ -71,51 +70,60 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         end
     end
 
-    if !isnothing(sys.ewald)
-        (; demag, μ0_μB², A) = sys.ewald
-        N = sys.Ns[1]
+    # Long-range dipole-dipole interactions. In case of an entangled system,
+    # this data would be stored in its uncontracted system.
+    usys = uncontracted_system(sys)
+
+    if !isnothing(usys.ewald)
+        (; gs, ewald) = usys
+        (; demag, μ0_μB², A) = ewald
+        Nbare = natoms(usys.crystal)
 
         # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
-        # precompute_dipole_ewald(sys.crystal, (1,1,1), demag) * μ0_μB²
-        A0 = reshape(A, Na, Na)
+        # precompute_dipole_ewald(usys.crystal, (1,1,1), demag) * μ0_μB²
+        A0 = reshape(A, Nbare, Nbare)
 
         # Interaction matrix for wavevector q
-        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
-        Aq = reshape(Aq, Na, Na)
+        Aq = precompute_dipole_ewald_at_wavevector(usys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
+        Aq = reshape(Aq, Nbare, Nbare)
 
+        # The Ewald matrices and g-tensors are indexed by bare crystal-atom `a`
         for i in 1:Na, j in 1:Na
-            # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
-            # energy, where μ = - g S. A symmetric contribution will appear for
-            # the bond reversal (i, j) → (j, i).
-            J = gs[i]' * Aq[i, j] * gs[j] / 2
-            J0 = gs[i]' * A0[i, j] * gs[j] / 2
+            for ai in atoms_in_unit(sys, i), aj in atoms_in_unit(sys, j)
 
-            for α in 1:3, β in 1:3
-                Ai = spins_localized[α, i]
-                Bj = spins_localized[β, j]
+                # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
+                # energy, where μ = - g S. A symmetric contribution will appear for
+                # the bond reversal (a, b) → (b, a).
+                J = gs[ai]' * Aq[ai, aj] * gs[aj] / 2
+                J0 = gs[ai]' * A0[ai, aj] * gs[aj] / 2
 
-                for m in 1:N-1, n in 1:N-1
-                    c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
-                    H11[m, i, n, i] += c * J0[α, β]
-                    H22[n, i, m, i] += c * J0[α, β]
+                for α in 1:3, β in 1:3
+                    Ai = spin_ops[α, ai]
+                    Bj = spin_ops[β, aj]
 
-                    c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
-                    H11[m, j, n, j] += c * J0[α, β]
-                    H22[n, j, m, j] += c * J0[α, β]
+                    for m in 1:N-1, n in 1:N-1
+                        c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
+                        H11[m, i, n, i] += c * J0[α, β]
+                        H22[n, i, m, i] += c * J0[α, β]
 
-                    c = Ai[m,N] * Bj[N,n]
-                    H11[m, i, n, j] += c * J[α, β]
-                    H22[n, j, m, i] += c * conj(J[α, β])
+                        c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
+                        H11[m, j, n, j] += c * J0[α, β]
+                        H22[n, j, m, j] += c * J0[α, β]
 
-                    c = Ai[N,m] * Bj[n,N]
-                    H11[n, j, m, i] += c * conj(J[α, β])
-                    H22[m, i, n, j] += c * J[α, β]
+                        c = Ai[m,N] * Bj[N,n]
+                        H11[m, i, n, j] += c * J[α, β]
+                        H22[n, j, m, i] += c * conj(J[α, β])
 
-                    c = Ai[m,N] * Bj[n,N]
-                    H12[m, i, n, j] += c * J[α, β]
-                    H12[n, j, m, i] += c * conj(J[α, β])
-                    H21[n, j, m, i] += conj(c) * conj(J[α, β])
-                    H21[m, i, n, j] += conj(c) * J[α, β]
+                        c = Ai[N,m] * Bj[n,N]
+                        H11[n, j, m, i] += c * conj(J[α, β])
+                        H22[m, i, n, j] += c * J[α, β]
+
+                        c = Ai[m,N] * Bj[n,N]
+                        H12[m, i, n, j] += c * J[α, β]
+                        H12[n, j, m, i] += c * conj(J[α, β])
+                        H21[n, j, m, i] += conj(c) * conj(J[α, β])
+                        H21[m, i, n, j] += conj(c) * J[α, β]
+                    end
                 end
             end
         end

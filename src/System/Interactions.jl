@@ -35,6 +35,17 @@ function repopulate_couplings_from_params!(sys::System)
         end
     end
 
+    # The net coupling on each bond may arise from multiple source couplings
+    # (this occurs naturally for entangled units). Compress "general"
+    # interactions ∑ₖ aₖ⊗bₖ so that the sum has a minimal set of terms.
+    for int in ints
+        for (k, pc) in enumerate(int.pair)
+            (; gen1, gen2, data) = pc.general
+            tensordec = TensorDecomposition(gen1, gen2, compress_tensor_product_expansion(data))
+            int.pair[k] = PairCoupling(pc.bond, pc.scalar, pc.bilin, pc.biquad, tensordec)
+        end
+    end
+
     # Non-culled couplings must come first to enable early `break`
     for (; pair) in ints
         sort!(pair, by = pc -> pc.isculled)
@@ -184,6 +195,12 @@ function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; demag=1/3)
         @warn "Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV, :angstrom)`."
         μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
     end
+    # For an entangled system, dipole-dipole interactions couple the physical
+    # magnetic moments on the uncontracted system.
+    if is_entangled(sys)
+        enable_dipole_dipole!(get_entanglement(sys).uncontracted, μ0_μB²; demag)
+        return
+    end
     sys.ewald = Ewald(sys, μ0_μB², Mat3(demag * I))
     return
 end
@@ -225,7 +242,19 @@ between field and energy dimensions.
 See the documentation of [`set_field!`](@ref) for more information.
 """
 function set_field_at!(sys::System, B_μB, site)
-    sys.extfield[to_cartesian(site)] = Vec3(B_μB)
+    site = to_cartesian(site)
+    B = Vec3(B_μB)
+
+    if isnothing(sys.entanglement)
+        sys.extfield[site] = B
+    else
+        # For an entangled system, `sys.extfield` stays NaN. The Zeeman coupling
+        # is instead tracked through member sites of the uncontracted system.
+        ent = get_entanglement(sys)
+        for bs in bare_sites_for_unit(ent, site)
+            ent.uncontracted.extfield[bs] = B
+        end
+    end
 end
 
 """
@@ -312,6 +341,11 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     (; S, Z) = state
     (; dims, extfield, dipoles, coherents, ewald) = sys
 
+    # Could be implemented if a use case appears
+    if is_entangled(sys) && !isnothing(uncontracted_system(sys).ewald)
+        error("LocalSampler does not yet support entangled units with Ewald interactions")
+    end
+
     if is_homogeneous(sys)
         (; onsite, pair) = interactions_homog(sys)[to_atom(site)]
     else
@@ -390,7 +424,9 @@ end
 The total system [`energy`](@ref) divided by the number of sites.
 """
 function energy_per_site(sys::System{N}; check_normalization=true) where N
-    return energy(sys; check_normalization) / nsites(sys)
+    # For an entangled system, normalize by the number of physical sites.
+    n = nsites(uncontracted_system(sys))
+    return energy(sys; check_normalization) / n
 end
 
 """
@@ -404,9 +440,22 @@ function energy(sys::System{N}; check_normalization=true) where N
     end
     E = 0.0
 
-    # Zeeman coupling to external field
-    for site in eachsite(sys)
-        E += sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
+    # Zeeman coupling and long-range dipole-dipole
+    if isnothing(sys.entanglement)
+        for site in eachsite(sys)
+            E += sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
+        end
+        if !isnothing(sys.ewald)
+            E += ewald_energy(sys)
+        end
+    else
+        (; uncontracted) = get_entanglement(sys)
+        for site in eachsite(uncontracted)
+            E += uncontracted.extfield[site] ⋅ (uncontracted.gs[site] * uncontracted.dipoles[site])
+        end
+        if !isnothing(uncontracted.ewald)
+            E += ewald_energy(uncontracted)
+        end
     end
 
     # Anisotropies and exchange interactions
@@ -421,11 +470,6 @@ function energy(sys::System{N}; check_normalization=true) where N
             interactions = sys.interactions_union[site]
             E += energy_aux(interactions, sys, (site,))
         end
-    end
-
-    # Long-range dipole-dipole
-    if !isnothing(sys.ewald)
-        E += ewald_energy(sys)
     end
 
     return E
@@ -457,8 +501,6 @@ function energy_aux(int::Interactions, sys::System{N}, sites) where N
         for siteᵢ in sites
             @assert to_atom(siteᵢ) == bond.i
             siteⱼ = bonded_site(siteᵢ, bond, sys.dims)
-            Sᵢ = sys.dipoles[siteᵢ]
-            Sⱼ = sys.dipoles[siteⱼ]
 
             # Scalar
             if sys.mode == :SUN
@@ -469,25 +511,32 @@ function energy_aux(int::Interactions, sys::System{N}, sites) where N
                 E += pc.scalar
             end
 
-            # Bilinear
-            J = pc.bilin :: Union{Float64, Mat3}
-            E += dot(Sᵢ, J, Sⱼ)
+            # Bilinear and biquadratic dipole couplings. Skip for entangled
+            # systems, which populate "general" couplings instead.
+            if isnothing(sys.entanglement)
+                Sᵢ = sys.dipoles[siteᵢ]
+                Sⱼ = sys.dipoles[siteⱼ]
 
-            # Biquadratic
-            if !iszero(pc.biquad)
-                if sys.mode in (:dipole, :dipole_uncorrected)
-                    Qᵢ = quadrupole(Sᵢ)
-                    Qⱼ = quadrupole(Sⱼ)
-                else
-                    Zᵢ = sys.coherents[siteᵢ]
-                    Zⱼ = sys.coherents[siteⱼ]
-                    Qᵢ = expected_quadrupole(Zᵢ)
-                    Qⱼ = expected_quadrupole(Zⱼ)
-                end
-                if pc.biquad isa Float64
-                    E += pc.biquad::Float64 * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
-                else
-                    E += dot(Qᵢ, pc.biquad::Mat5, Qⱼ)
+                # Bilinear
+                J = pc.bilin :: Union{Float64, Mat3}
+                E += dot(Sᵢ, J, Sⱼ)
+
+                # Biquadratic
+                if !iszero(pc.biquad)
+                    if sys.mode in (:dipole, :dipole_uncorrected)
+                        Qᵢ = quadrupole(Sᵢ)
+                        Qⱼ = quadrupole(Sⱼ)
+                    else
+                        Zᵢ = sys.coherents[siteᵢ]
+                        Zⱼ = sys.coherents[siteⱼ]
+                        Qᵢ = expected_quadrupole(Zᵢ)
+                        Qⱼ = expected_quadrupole(Zⱼ)
+                    end
+                    if pc.biquad isa Float64
+                        E += pc.biquad::Float64 * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
+                    else
+                        E += dot(Qᵢ, pc.biquad::Mat5, Qⱼ)
+                    end
                 end
             end
 
@@ -514,9 +563,11 @@ end
 # dipole-dipole. Excluded terms include onsite coupling, and general pair
 # coupling (biquadratic and beyond).
 function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N}) where N
+    @assert isnothing(sys.entanglement)
+
     fill!(∇E, zero(Vec3))
 
-    # Zeeman coupling
+    # Zeeman coupling, dE/dS = g' B
     for site in eachsite(sys)
         ∇E[site] += sys.gs[site]' * sys.extfield[site]
     end
@@ -591,43 +642,46 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, int::Intera
     end
 end
 
-# Updates `HZ` in-place to hold `dE/dZ̄`, which is the Schrödinger analog to the
-# quantity `dE/dS`. **Overwrites the first two dipole buffers in `sys`.**
-function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) where N
+# Updates ∇E in-place to hold dE/dZ̄, which is used to drive SU(N) dynamics.
+function set_energy_grad_coherents!(∇E, Z::Array{CVec{N}, 4}, sys::System{N}) where N
     @assert N > 0
+    fill!(∇E, zero(CVec{N}))
 
-    fill!(HZ, zero(CVec{N}))
+    if isnothing(sys.entanglement)
+        # Calculate the local effective field dE/dS for Zeeman, dipole-dipole,
+        # and spin-bilinear exchange. Accumulate ∇E += (dE/dS ⋅ S) Z.
+        dE_dS, dipoles = get_dipole_buffers(sys, 2)
+        @. dipoles = expected_spin(Z)
+        set_energy_grad_dipoles!(dE_dS, dipoles, sys)
+        for site in eachsite(sys)
+            ∇E[site] += mul_spin_matrices(dE_dS[site], Z[site])
+        end
+    else
+        # For entangled units, handle Zeeman and dipole-dipole interactions via
+        # the uncontracted magnetic moment dipoles.
+        accum_bare_field_grad_coherents!(∇E, Z, get_entanglement(sys))
+    end
 
-    # Accumulate Zeeman, Ewald interactions, and spin-bilinear exchange
-    # interactions into dE/dS, where S is the expected spin associated with Z.
-    # Note that dE_dS does _not_ include the onsite, biquadratic, or general
-    # pair couplings, which must be handled differently.
-    dE_dS, dipoles = get_dipole_buffers(sys, 2)
-    @. dipoles = expected_spin(Z)
-    set_energy_grad_dipoles!(dE_dS, dipoles, sys)
-
-    # Anisotropies and exchange interactions
+    # Onsite, biquadratic, and general pair couplings.
     if is_homogeneous(sys)
         for i in 1:natoms(sys.crystal)
             interactions = sys.interactions_union[i]
-            set_energy_grad_coherents_aux!(HZ, Z, dE_dS, interactions, sys, eachsite_sublattice(sys, i))
+            set_energy_grad_coherents_aux!(∇E, Z, interactions, sys, eachsite_sublattice(sys, i))
         end
     else
         for site in eachsite(sys)
             interactions = sys.interactions_union[site]
-            set_energy_grad_coherents_aux!(HZ, Z, dE_dS, interactions, sys, (site,))
+            set_energy_grad_coherents_aux!(∇E, Z, interactions, sys, (site,))
         end
     end
-
-    fill!(dE_dS, zero(Vec3))
-    fill!(dipoles, zero(Vec3))
 end
 
-function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{Vec3, 4}, int::Interactions, sys::System{N}, sites) where N
+
+function set_energy_grad_coherents_aux!(∇E, Z::Array{CVec{N}, 4}, int::Interactions, sys::System{N}, sites) where N
+    # Onsite coupling, ∇E += Λ Z.
+    Λ = int.onsite :: HermitianC64
     for site in sites
-        # HZ += (Λ + dE/dS S) Z
-        Λ = int.onsite :: HermitianC64
-        HZ[site] += mul_spin_matrices(Λ, dE_dS[site], Z[site])
+        ∇E[site] += mul_svec(Λ, Z[site])
     end
 
     for pc in int.pair
@@ -652,17 +706,15 @@ function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_dS::Array{V
                     dE_dQᵢ = pc.biquad * Qⱼ
                     dE_dQⱼ = pc.biquad' * Qᵢ
                 end
-                HZ[siteᵢ] += mul_quadrupole_matrices(dE_dQᵢ, Zᵢ)
-                HZ[siteⱼ] += mul_quadrupole_matrices(dE_dQⱼ, Zⱼ)
+                ∇E[siteᵢ] += mul_quadrupole_matrices(dE_dQᵢ, Zᵢ)
+                ∇E[siteⱼ] += mul_quadrupole_matrices(dE_dQⱼ, Zⱼ)
             end
 
             for (A, B) in pc.general.data
-                A = SMatrix{N, N}(A)
-                B = SMatrix{N, N}(B)
                 Ā = real(dot(Zᵢ, A, Zᵢ))
                 B̄ = real(dot(Zⱼ, B, Zⱼ))
-                HZ[siteᵢ] += (A * Zᵢ) * B̄
-                HZ[siteⱼ] += Ā * (B * Zⱼ)
+                ∇E[siteᵢ] += mul_svec(A, Zᵢ) * B̄
+                ∇E[siteⱼ] += Ā * mul_svec(B, Zⱼ)
             end
         end
     end

@@ -116,9 +116,9 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
     orig_sys = clone_system(@something sys.origin sys)
 
     new_sys = System(orig_sys, sys.mode, new_cryst, new_dims, new_Ns, new_κs, new_gs,
-                     new_params, sys.active_labels, new_ints, new_ewald, new_extfield,
-                     new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers,
-                     copy(sys.rng))
+                     new_params, sys.active_labels, new_ints, new_ewald,
+                     new_extfield, new_dipoles, new_coherents, new_dipole_buffers,
+                     new_coherent_buffers, copy(sys.rng), nothing)
 
     if is_homogeneous(sys)
         # Transfer params from `new_sys.origin`, which will then be used to fill
@@ -149,6 +149,15 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
         enable_dipole_dipole!(new_sys, sys.ewald.μ0_μB²; sys.ewald.demag)
     end
 
+    if is_entangled(sys)
+        # Rebuild sys.entanglement for the reshaping
+        (; uncontracted) = get_entanglement(sys)
+        new_shape = Mat3(orig_crystal(sys).latvecs \ new_cryst.latvecs)
+        new_uncontracted_cryst = reshape_crystal(orig_crystal(uncontracted), new_shape)
+        new_uncontracted_sys = reshape_supercell_aux(uncontracted, new_uncontracted_cryst, new_dims)
+        rebuild_entanglement!(new_sys, new_uncontracted_sys, get_entanglement(orig_sys).units)
+    end
+
     return new_sys
 end
 
@@ -175,7 +184,7 @@ reshape_supercell(sys, [dims[1] 0 0; 0 dims[2] 0; 0 0 dims[3]])
 See also [`reshape_supercell`](@ref) and [`repeat_periodically`](@ref).
 """
 function resize_supercell(sys::System, dims::NTuple{3,Int})
-    is_homogeneous(sys) || error("Cannot resize inhomogeneous system.")
+    isnothing(sys.entanglement) && !is_homogeneous(sys) && error("Cannot resize inhomogeneous system.")
     return reshape_supercell(sys, diagm(Vec3(dims)))
 end
 
@@ -190,9 +199,9 @@ See also [`repeat_periodically_as_spiral`](@ref), which rotates the spins
 between periodic copies.
 """
 function repeat_periodically(sys::System, counts::NTuple{3,Int})
-    is_homogeneous(sys) || error("Cannot repeat inhomogeneous system.")
     all(>=(1), counts) || error("Require at least one count in each direction.")
-    return reshape_supercell_aux(sys, sys.crystal, counts .* sys.dims)
+    shape = cell_shape(sys) * diagm(Vec3(sys.dims .* counts))
+    return reshape_supercell(sys, shape)
 end
 
 """

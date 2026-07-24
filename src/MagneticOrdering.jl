@@ -189,11 +189,11 @@ function suggest_magnetic_supercell_aux(ks)
 
     kstrs = join(map(vec3_to_string, ks), ", ")
     println("""Possible magnetic supercell in multiples of lattice vectors:
-               
+
                    $(repr(best_A))
-               
+
                for the rationalized wavevectors:
-               
+
                    [$kstrs]""")
 end
 

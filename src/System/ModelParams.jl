@@ -57,33 +57,51 @@ function print_all_params(sys::System)
 end
 
 """
-    (label => val) :: ParamSpec
+    (label => scale) :: ParamSpec
 
 Functions like [`set_exchange!`](@ref), [`set_pair_coupling!`](@ref), and
-[`set_onsite_coupling!`](@ref) accept a trailing `ParamSpec` argument that
-introduces a `label` for the coupling strength `val`. The coupling strength can
-then be updated with [`set_param!`](@ref) or [`set_params!`](@ref).
+[`set_onsite_coupling!`](@ref) accept a trailing `ParamSpec` argument that sets
+the interaction `scale`. Mutable updates are then possible with
+[`set_param!`](@ref) or [`set_params!`](@ref).
 
-For example, set two Heisenberg couplings and then optimize their strengths.
+For example, one can set a labeled Heisenberg exchange as,
 
 ```julia
-set_exchange!(sys, 1.0, bond1, :J1 => 1.8)
-set_exchange!(sys, 1.0, bond2, :J2 => 0.5)
-
-# ... later, during optimization
-set_params!(sys, [:J1, :J2], [1.9, 0.4])
+set_exchange!(sys, 1.0, bond1, :J1 => 1.8) # Strength 1.0 * 1.8
 ```
 
-Couplings with distinct labels on the same site or bond will accumulate. For
-example, one could add anisotropic terms on top of the Heisenberg exchange.
+By selecting `1.0` as the second argument, the scale factor of `1.8` entirely
+determines the Heisenberg interaction strength.
+
+!!! warning "Avoid accidentally squaring the interaction strength"  
+    The interaction scale should be provided only once. Do not write,
+    
+    ```jl
+    set_exchange!(sys, 1.8, bond1, :J1 => 1.8) 
+    ```
+    
+    as this would set the Heisenberg coupling to `1.8^2` rather than `1.8`.
+
+Couplings with distinct labels accumulate. For example, one could add
+anisotropic terms on top of the Heisenberg exchange,
 
 ```julia
 set_exchange!(sys, 1.0, bond1, :J1 => 1.8)
 set_exchange!(sys, Diagonal([1.0, -1.0, 0.0]), bond1, :J1pm => 0.1)
 set_exchange!(sys, Diagonal([0.0, 0.0, 1.0]), bond1, :J1zz => -0.2)
+```
 
-# ... it's possible to optimize only J1zz, fixing J1 and J1pm
-set_param!(sys, :J1zz, -0.15)
+Similarly, an onsite coupling may decompose into labeled parts,
+
+```julia
+set_onsite_coupling!(sys, S -> S[3]^2, i, :D2 => 0.04)
+set_onsite_coupling!(sys, S -> S[3]^4, i, :D4 => 0.01)
+```
+
+Later, during optimization, any subset of the coupling strengths can be updated,
+
+```julia
+set_params!(sys, [:D4, :J1zz], [0.02, -0.3])
 ```
 """
 const ParamSpec = Pair{Symbol, <: Real}
@@ -146,6 +164,11 @@ function set_params!(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
         end
     end
     repopulate_couplings_from_params!(sys)
+
+    if !isnothing(sys.entanglement)
+        set_params!(get_entanglement(sys).uncontracted, labels, vals)
+    end
+
     return
 end
 

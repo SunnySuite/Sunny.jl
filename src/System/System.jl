@@ -86,20 +86,25 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     rng = isnothing(seed) ? Random.Xoshiro(rand(UInt64, 4)...) : Random.Xoshiro(seed)
 
     ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, params, active_labels,
-                 interactions, ewald, extfield, dipoles, coherents, dipole_buffers,
-                 coherent_buffers, rng)
+                 interactions, ewald, extfield, dipoles, coherents,
+                 dipole_buffers, coherent_buffers, rng, nothing)
     polarize_spins!(ret, (0,0,1))
     return dims == (1, 1, 1) ? ret : repeat_periodically(ret, dims)
 end
 
 function mode_to_str(sys::System{N}) where N
-    if sys.mode == :SUN
-        return "[SU($N)]"
+    mode_str = if sys.mode == :SUN
+        "SU($N)"
     elseif sys.mode == :dipole
-        return "[Dipole mode]"
+        "Dipole mode"
     else @assert sys.mode == :dipole_uncorrected
-        return "[Dipole mode, large-s]"
+        "Dipole mode, large-s"
     end
+    if is_entangled(sys)
+        nparts = maximum(length, get_entanglement(sys).units)
+        mode_str *= ", Entangled $nparts-mers"
+    end
+    return "[$mode_str]"
 end
 
 function supercell_to_str(dims, cryst)
@@ -143,7 +148,8 @@ not affect the other, and thread safety is guaranteed.
 """
 function clone_system(sys::System{N}) where N
     (; origin, mode, crystal, dims, Ns, gs, κs, extfield, interactions_union,
-       params, active_labels, ewald, dipoles, coherents, rng) = sys
+       params, active_labels, ewald, dipoles, coherents, rng,
+       entanglement) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
 
@@ -158,10 +164,12 @@ function clone_system(sys::System{N}) where N
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
+    entanglement_clone = clone_entanglement(entanglement)
+
     ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
-                 params_clone, active_labels, interactions_clone, nothing, copy(extfield),
-                 copy(dipoles), copy(coherents), empty_dipole_buffers,
-                 empty_coherent_buffers, copy(rng))
+                 params_clone, copy(active_labels), interactions_clone, nothing,
+                 copy(extfield), copy(dipoles), copy(coherents),
+                 empty_dipole_buffers, empty_coherent_buffers, copy(rng), entanglement_clone)
 
     if !isnothing(ewald)
         # At the moment, clone_ewald is unavailable, so instead rebuild the
@@ -278,7 +286,14 @@ for each site in the system.
 
 The [`SCGA`](@ref) calculator returns the thermodynamic average for each site.
 """
-magnetic_moments(sys::System) = magnetic_moments_aux(sys.gs, sys.dipoles)
+function magnetic_moments(sys::System)
+    # For an entangled system, physical moments live on the bare system.
+    if !isnothing(sys.entanglement)
+        bare = get_entanglement(sys).uncontracted
+        return magnetic_moments_aux(bare.gs, bare.dipoles)
+    end
+    return magnetic_moments_aux(sys.gs, sys.dipoles)
+end
 
 function magnetic_moments_aux(gs, dipoles)
     mappedarray((g, S) -> -g * S, gs, dipoles)
@@ -424,7 +439,7 @@ end
 
 @inline function coherent_state(sys::System{N}, site, Z) where N
     Z = normalize_ket(CVec{N}(Z), sys.κs[site])
-    S = expected_spin(Z)
+    S = is_entangled(sys) ? Vec3(NaN, NaN, NaN) : expected_spin(Z)
     return SpinState(S, Z)
 end
 
@@ -434,11 +449,12 @@ end
     return SpinState(S, Z)
 end
 @inline function dipolar_state(sys::System{N}, site, dir) where N
-    return coherent_state(sys, site, ket_from_dipole(Vec3(dir), Val(N)))
+    @assert !is_entangled(sys)
+    return coherent_state(sys, site, ket_from_dipole(Vec3(dir), Val{N}()))
 end
 
 @inline function flip(spin::SpinState{N}) where N
-    return SpinState(-spin.S, flip_ket(spin.Z))
+    return SpinState(-spin.S, time_reverse_irrep_ket(spin.Z))
 end
 
 @inline function randspin(sys::System{0}, site)
@@ -446,9 +462,7 @@ end
     return SpinState(S, CVec{0}())
 end
 @inline function randspin(sys::System{N}, site) where N
-    Z = normalize_ket(randn(sys.rng, CVec{N}), sys.κs[site])
-    S = expected_spin(Z)
-    return SpinState(S, Z)
+    return coherent_state(sys, site, randn(sys.rng, CVec{N}))
 end
 
 @inline function perturbed_spin(sys::System{0}, site, magnitude)
@@ -462,9 +476,7 @@ end
     isinf(magnitude) && return randspin(sys, site)
     κ = sys.κs[site]
     Z = sys.coherents[site] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
-    Z = normalize_ket(Z, κ)
-    S = expected_spin(Z)
-    return SpinState(S, Z)
+    return coherent_state(sys, site, Z)
 end
 
 @inline function getspin(sys::System{N}, site) where N
@@ -474,6 +486,24 @@ end
 @inline function setspin!(sys::System{N}, spin::SpinState{N}, site) where N
     sys.dipoles[site] = spin.S
     sys.coherents[site] = spin.Z
+
+    # For an entangled system, sync dipoles in the uncontracted system
+    if !isnothing(sys.entanglement)
+        sync_bare_dipoles_at!(sys, site)
+    end
+    return
+end
+
+# Recompute spin dipoles from the coherent states.
+function sync_dipoles!(sys::System{N}) where N
+    if isnothing(sys.entanglement)
+        @. sys.dipoles = expected_spin(sys.coherents)
+    else
+        @. sys.dipoles = Vec3(NaN, NaN, NaN)
+        for site in eachsite(sys)
+            sync_bare_dipoles_at!(sys, site)
+        end
+    end
     return
 end
 
@@ -551,8 +581,16 @@ Polarize the spin dipole at one [`Site`](@ref) in the direction `dir`.
 See also [`polarize_spins!`](@ref).
 """
 function set_dipole!(sys::System{N}, dir, site) where N
+    dir = Vec3(dir)
     site = to_cartesian(site)
-    setspin!(sys, dipolar_state(sys, site, dir), site)
+    if is_entangled(sys)
+        (; uncontracted, units) = get_entanglement(sys)
+        Ns = uncontracted.Ns[atoms_in_unit(units, to_atom(site))]
+        Z = kron((ket_from_dipole(dir, Val{N}()) for N in Ns)...)
+        setspin!(sys, coherent_state(sys, site, Z), site)
+    else
+        setspin!(sys, dipolar_state(sys, site, dir), site)
+    end
 end
 
 """
@@ -646,7 +684,9 @@ function set_spin_rescaling_for_static_sum_rule!(sys::System{N}) where N
 end
 
 
-function get_dipole_buffers(sys::System{N}, numrequested) where N
+# The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known
+# statically.
+function get_dipole_buffers(@nospecialize(sys::System), numrequested)
     numexisting = length(sys.dipole_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)

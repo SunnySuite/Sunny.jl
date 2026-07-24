@@ -584,7 +584,8 @@ end
 
         S1i, S1j = Sunny.to_product_space(S1, S1)
         S2i, S2j = Sunny.to_product_space(S2, S2)
-        scalar, bilin, biquad, tensordec = Sunny.decompose_general_coupling(J′*(S1i' * S1j + S2i' * S2j), 4, 4; extract_parts=fast)
+        op = J′*(S1i' * S1j + S2i' * S2j)
+        (; scalar, bilin, biquad, tensordec) = Sunny.decompose_general_coupling(op, 4, 4; extract_parts=fast)
         Sunny.set_pair_coupling_aux!(sys, scalar, Sunny.Mat3(I)*bilin, biquad, tensordec, Bond(1, 1, [-1,0,0]), nothing)
 
         return sys, cryst
@@ -599,10 +600,12 @@ end
         1/√2*(S1[2] - S2[2]),
         1/√2*(S1[3] - S2[3]),
     ])
-    observables = repeat(observables0, 1, size(eachsite(sys))...)
+    # Layout is (nobs × d1 × d2 × d3 × nunits × nparts); here nparts=1.
+    operators = repeat(reshape(observables0, 3, 1, 1, 1, 1, 1), 1, size(eachsite(sys))..., 1)
     corr_pairs = [(3,3), (2,2), (1,1)]
     combiner = (_, data) -> real(sum(data))
-    measure = Sunny.MeasureSpec(observables, corr_pairs, combiner, [one(FormFactor)])
+    formfactors = fill(one(FormFactor), 3, 1, 1)
+    measure = Sunny.MeasureSpec(operators, corr_pairs, combiner, formfactors)
 
     # Set up SpinWaveTheory
     randomize_spins!(sys)
