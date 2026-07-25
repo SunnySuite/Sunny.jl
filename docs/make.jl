@@ -117,10 +117,12 @@ function prepare_contributed()
 end
 
 example_sources = filter(endswith(".jl"), readdir(pkgdir(Sunny, "examples"), join=true))
+example_sources = filter(!contains("CUDA"), example_sources)
 example_names = [splitext(basename(src))[1] for src in example_sources]
 example_mds = build_examples(example_sources, "examples")
 
 spinw_sources = filter(endswith(".jl"), readdir(pkgdir(Sunny, "examples", "spinw_tutorials"), join=true))
+spinw_sources = filter(!contains("CUDA"), spinw_sources)
 spinw_names = [splitext(basename(src))[1] for src in spinw_sources]
 spinw_mds = build_examples(spinw_sources, joinpath("examples", "spinw"))
 
