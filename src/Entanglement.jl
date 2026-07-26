@@ -253,13 +253,12 @@ function accum_intra_unit_pair_coupling!(op, pc, uncontracted_Ns, units)
 end
 
 # Promote an atomistic-level pair coupling to an inter-unit pair coupling on the
-# contracted system. With `extract_parts=true`, bilinear exchange is peeled off
-# and delegated to the uncontracted system, where it is handled efficiently at the
-# dipole level (cf. Zeeman and Ewald); only the residual (biquadratic and general)
-# part is promoted to the product-space tensor decomposition. With
-# `extract_parts=false`, the full operator (bilinear included) is retained in the
-# tensor decomposition; this is used by spin-wave theory.
-function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units; extract_parts)
+# contracted system. Bilinear exchange is peeled off and delegated to the
+# uncontracted system, where it is handled efficiently at the dipole level (cf.
+# Zeeman and Ewald); only the residual (biquadratic and general) part is promoted
+# to the product-space tensor decomposition. Both classical dynamics and
+# spin-wave theory consume this delegated form.
+function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
     (; i, j) = pc.bond
     ui, pi = unit_and_part(units, i)
     uj, pj = unit_and_part(units, j)
@@ -270,8 +269,8 @@ function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units; extract_pa
     Nj = uncontracted_Ns[1, 1, 1, j]
 
     # Decompose as ∑ₖ aₖ ⊗ bₖ and embed each factor aₖ → Aₖ into the unit spaces.
-    bilin = extract_parts ? 0.0 : pc.bilin
-    promoted = PairCoupling(pc.bond, 0.0, bilin, pc.biquad, pc.general)
+    # Bilinear exchange is delegated to the clone, so it is dropped here.
+    promoted = PairCoupling(pc.bond, 0.0, 0.0, pc.biquad, pc.general)
     data = map(pair_coupling_tensor_data(promoted, Ni, Nj)) do (a, b)
         A = Hermitian(local_op_to_product_space(Matrix(a), pi, Ns1))
         B = Hermitian(local_op_to_product_space(Matrix(b), pj, Ns2))
@@ -284,9 +283,8 @@ function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units; extract_pa
     return (; newbond, pc.scalar, tensordec=TensorDecomposition(gen1, gen2, data))
 end
 
-# Map ModelParam of an uncontracted system to that of an entangled system. See
-# `promote_inter_unit_pair_coupling` for the meaning of `extract_parts`.
-function contract_param(param::ModelParam, uncontracted_Ns, units; extract_parts)
+# Map ModelParam of an uncontracted system to that of an entangled system.
+function contract_param(param::ModelParam, uncontracted_Ns, units)
     nunits = length(units)
 
     # Intra-unit terms become onsite (on-bond) operators, one per touched unit.
@@ -318,7 +316,7 @@ function contract_param(param::ModelParam, uncontracted_Ns, units; extract_parts
     pairs = PairCoupling[]
     for pc in param.pairs
         bond_is_in_unit(pc.bond, units) && continue
-        (; newbond, scalar, tensordec) = promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units; extract_parts)
+        (; newbond, scalar, tensordec) = promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
         bilin = biquad = 0.0 # Dipoles are NaN for entangled systems
         push!(pairs, PairCoupling(newbond, scalar, bilin, biquad, tensordec))
     end
@@ -497,9 +495,9 @@ end
 #
 # NOTE: this desyncs the clone's `interactions_union` from its `params`, which is
 # deliberate. The clone plays two roles: `params` remains the *faithful* bare
-# model (the reconstruction source for reshaping and for spin-wave theory's
-# `extract_parts=false` re-contraction), while `interactions_union` is a lossy
-# *dipole-sector projection* used only to drive classical dynamics.
+# model (the reconstruction source for reshaping), while `interactions_union` is
+# the *dipole-sector projection* that drives both classical dynamics and the
+# delegated inter-unit bilinear contribution to spin-wave theory.
 function project_to_dipole_sector!(uncontracted::System, units)
     for int in interactions_homog(uncontracted)
         int.onsite = empty_anisotropy(:SUN, size(int.onsite, 1))
@@ -508,6 +506,73 @@ function project_to_dipole_sector!(uncontracted::System, units)
             PairCoupling(pc.bond, 0.0, pc.bilin, 0.0, zero(TensorDecomposition))
         end
     end
+end
+
+# Iterate over ordered (unit, atom-i, atom-j, Δ) tuples for the intra-unit
+# inter-part pairs (i ≠ j), where `Δ` is the cell offset from atom `ai` to atom
+# `aj` in the uncontracted crystal.
+function intra_unit_part_pairs(units)
+    return ((ui, pi.atom, pj.atom, pj.Δcell - pi.Δcell)
+            for (ui, parts) in enumerate(units) for pi in parts for pj in parts if pi.atom != pj.atom)
+end
+
+# Build a synthetic bare `:IntraUnitDipole` parameter holding the intra-unit
+# inter-part dipole-dipole couplings `D = gᵢ' A[Δ, ai, aj] gⱼ` (μ = −gS ⇒ μAμ =
+# S(g'Ag)S) read from the clone's Ewald. Contracting this parameter folds the
+# exact `⟨Sᵢ D Sⱼ⟩` into the unit onsite. The dipole tensor is box-dependent
+# (Ewald periodic images), so this is regenerated on every (re)build rather than
+# frozen. Returns `nothing` if there is no Ewald or no inter-part pair.
+function intra_unit_dipole_param(uncontracted::System, units)
+    isnothing(uncontracted.ewald) && return nothing
+    (; A) = uncontracted.ewald
+    (; gs) = uncontracted
+    dims_A = size(A)[1:3]
+
+    pairs = PairCoupling[]
+    for (_, ai, aj, Δ) in intra_unit_part_pairs(units)
+        cell = CartesianIndex(Tuple(mod.(Δ, dims_A)) .+ (1, 1, 1))
+        D = gs[1, 1, 1, ai]' * A[cell, ai, aj] * gs[1, 1, 1, aj]
+        push!(pairs, PairCoupling(Bond(ai, aj, Δ), 0.0, Mat3(D), 0.0, zero(TensorDecomposition)))
+    end
+    isempty(pairs) && return nothing
+    return ModelParam(:IntraUnitDipole, 1.0, Tuple{Int, OnsiteCoupling}[], pairs)
+end
+
+# Fold the intra-unit inter-part dipole-dipole into the contracted unit onsite
+# (exact `⟨Sᵢ D Sⱼ⟩`) and strip the same blocks from the clone's Ewald to avoid
+# double counting the factorized `⟨Sᵢ⟩ D ⟨Sⱼ⟩` the delegated sum would otherwise
+# deliver. The fold enters `sys.params` as a contracted onsite parameter (so it
+# survives `set_params!` and is re-emitted by `repopulate_couplings_from_params!`),
+# and is regenerated here on every (re)build because the dipole tensor depends on
+# the box size.
+function fold_intra_unit_dipole!(sys::System, uncontracted::System, units)
+    filter!(p -> p.label !== :IntraUnitDipole, sys.params)
+    bare = intra_unit_dipole_param(uncontracted, units)
+    if !isnothing(bare)
+        push!(sys.params, contract_param(bare, uncontracted.Ns, units))
+        repopulate_couplings_from_params!(sys)
+        strip_intra_unit_ewald!(uncontracted, units)
+    end
+    return
+end
+
+# Zero the intra-unit inter-part blocks of the clone's Ewald interaction matrix
+# `A`, rebuilding the Fourier transform `FA`. These blocks are folded into the
+# unit onsite instead (see `fold_intra_unit_dipole!`). Self blocks `A[0, a, a]`
+# and inter-unit blocks are preserved.
+function strip_intra_unit_ewald!(uncontracted::System, units)
+    ew = uncontracted.ewald :: Ewald
+    dims_A = size(ew.A)[1:3]
+
+    A = copy(ew.A)
+    for (_, ai, aj, Δ) in intra_unit_part_pairs(units)
+        A[CartesianIndex(Tuple(mod.(Δ, dims_A)) .+ (1, 1, 1)), ai, aj] = zero(Mat3)
+    end
+
+    Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...)
+    FA = FFTW.rfft(Ar, 3:5)
+    uncontracted.ewald = Ewald(ew.μ0_μB², ew.demag, A, ew.μ, ew.ϕ, FA, ew.Fμ, ew.Fϕ, ew.plan, ew.ift_plan)
+    return
 end
 
 # Populate the entanglement metadata of a (possibly reshaped) contracted `sys`,
@@ -551,6 +616,11 @@ function rebuild_entanglement!(sys::System, uncontracted, orig_units)
     # Project the clone's interactions onto the dipole sector delegated to it
     # (its `params` remain the faithful bare model).
     project_to_dipole_sector!(uncontracted, units)
+
+    # Fold the intra-unit inter-part dipole-dipole exactly into the unit onsite
+    # (and strip it from the clone's Ewald). Must run after projection and with
+    # the box-correct clone Ewald in place.
+    fold_intra_unit_dipole!(sys, uncontracted, units)
 
     sys.entanglement = Entanglement(units, uncontracted)
     return nothing
@@ -637,7 +707,7 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
 
     # Contract each labeled parameter independently (contraction is linear in
     # coupling strength), then let the ordinary machinery fill the interactions.
-    sys.params = [contract_param(p, uncontracted.Ns, units; extract_parts=true) for p in uncontracted.params]
+    sys.params = [contract_param(p, uncontracted.Ns, units) for p in uncontracted.params]
     repopulate_couplings_from_params!(sys)
 
     # Set entanglement metadata in sys. Keep a clone of the uncontracted system,

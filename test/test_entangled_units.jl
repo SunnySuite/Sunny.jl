@@ -166,33 +166,42 @@ end
 end
 
 @testitem "Entangled dipole-dipole SWT" begin
-    # Compare systems with and without entanglement. The result should match if
-    # there's no intra-unit exchange.
-    latvecs = [1.0 0 0; 0 1 0; 0 0 2]
-    positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
-    cryst = Crystal(latvecs, positions, 1; types=["A", "B"])
+    import LinearAlgebra: norm, normalize, I
 
-    function build(; entangled)
+    # Intra-unit dipole-dipole is treated exactly by the entangled unit (folded
+    # into the unit onsite), whereas an unentangled SU(N) system would factorize
+    # it as ⟨S₁⟩D⟨S₂⟩. So the faithful reference is a *second* entangled system
+    # in which the intra-unit dipole is instead supplied as an explicit exchange
+    # matrix D. A large cell makes the inter-unit dipole tail negligible, so the
+    # two entangled calculations must agree.
+    units = Units(:meV, :angstrom)
+    latvecs = [100.0 0 0; 0 100 0; 0 0 100]
+    positions = [[0, 0, 0.0], [0, 0.005, 0.0]]
+    cryst = Crystal(latvecs, positions, 1; types=["A", "B"])
+    r = Sunny.global_displacement(cryst, Bond(1, 2, [0, 0, 0]))
+    D = (units.vacuum_permeability/4π) * 2^2 * (I - 3*(normalize(r)*normalize(r)')) / norm(r)^3
+
+    function build(; folded)
         sys = System(cryst, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
         set_exchange!(sys, 0.3, Bond(1, 1, [1, 0, 0]))
         set_exchange!(sys, 0.3, Bond(2, 2, [1, 0, 0]))
-        enable_dipole_dipole!(sys, Units(:meV, :angstrom).vacuum_permeability)
         set_field!(sys, [0, 0, -5])
-        entangled && (sys = entangle_system(sys, [[1, 2]]))
+        # The intra-unit dipole enters either through Ewald or as explicit exchange.
+        folded ? set_exchange!(sys, Sunny.Mat3(D), Bond(1, 2, [0, 0, 0])) :
+                 enable_dipole_dipole!(sys, units.vacuum_permeability)
+        sys = entangle_system(sys, [[1, 2]])
         randomize_spins!(sys); minimize_energy!(sys)
         return sys
     end
 
-    qs = [[0, 0, 0], [0.2, 0.1, 0], [0.5, 0, 0]]
-    sys_b = build(entangled=false); swt_b = SpinWaveTheory(sys_b; measure=nothing)
-    sys_e = build(entangled=true);  swt_e = SpinWaveTheory(sys_e; measure=nothing)
+    qs = [[0, 0, 0], [0.2, 0.1, 0], [0.4, 0, 0]]
+    sys_e = build(folded=false); swt_e = SpinWaveTheory(sys_e; measure=nothing)
+    sys_f = build(folded=true);  swt_f = SpinWaveTheory(sys_f; measure=nothing)
 
-    @test energy_per_site(sys_b) ≈ energy_per_site(sys_e)
-    # Entangled dispersion carries an extra high-energy product-space band; its
-    # two lowest bands must match the bare two-band dispersion.
-    disp_b = sort(dispersion(swt_b, qs); dims=1)
+    @test energy_per_site(sys_e) ≈ energy_per_site(sys_f) atol=1e-7
     disp_e = sort(dispersion(swt_e, qs); dims=1)
-    @test disp_e[1:2, :] ≈ disp_b atol=1e-10
+    disp_f = sort(dispersion(swt_f, qs); dims=1)
+    @test disp_e ≈ disp_f atol=1e-6
 end
 
 @testitem "General inter-unit coupling" begin
@@ -273,41 +282,49 @@ end
 
     units = Units(:meV, :angstrom)
 
-    # Two spin-1/2 atoms per cell, well separated so the moments are physical
-    # point dipoles. Intra-cell exchange makes them one entangled unit; a weak
-    # inter-cell exchange gives a nontrivial ground state.
-    latvecs = [3.0 0 0; 0 3 0; 0 0 6]
-    positions = [[0, 0, 0], [0, 0.15, 0]]
+    # Two spin-1/2 atoms per cell. Intra-cell exchange makes them one entangled
+    # unit; a weak inter-cell exchange gives a nontrivial ground state. The
+    # intra-unit dipole-dipole is treated exactly (folded into the unit onsite),
+    # so the faithful reference `fsys` is another entangled system that instead
+    # carries the intra-unit dipole as an explicit exchange matrix D. A large cell
+    # makes the inter-unit dipole tail negligible, so the two must agree.
+    latvecs = [30.0 0 0; 0 30 0; 0 0 60]
+    positions = [[0, 0, 0], [0, 0.005, 0]]
     crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
+    r = Sunny.global_displacement(crystal, Bond(1, 2, [0, 0, 0]))
+    D = (units.vacuum_permeability/4π) * 2^2 * (I - 3*(normalize(r)*normalize(r)')) / norm(r)^3
 
-    sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
-    set_field!(sys, [0, 40, 0])
-    set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
-    set_exchange!(sys, 0.1, Bond(1, 1, [1, 0, 0]))
-    set_exchange!(sys, 0.1, Bond(2, 2, [1, 0, 0]))
-    enable_dipole_dipole!(sys, units.vacuum_permeability)
-    minimize_energy!(sys)
+    function build(; folded)
+        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
+        set_field!(sys, [0, 40, 0])
+        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+        set_exchange!(sys, 0.1, Bond(1, 1, [1, 0, 0]))
+        set_exchange!(sys, 0.1, Bond(2, 2, [1, 0, 0]))
+        folded ? set_exchange!(sys, Sunny.Mat3(D), Bond(1, 2, [0, 0, 0]), :dip => 1.0) :
+                 enable_dipole_dipole!(sys, units.vacuum_permeability)
+        esys = entangle_system(sys, [[1, 2]])
+        minimize_energy!(esys)
+        return esys
+    end
 
-    esys = entangle_system(sys, [[1, 2]])
-    @test energy_per_site(esys) ≈ energy_per_site(sys)
+    # The residual mismatches are the inter-unit dipole tail (Ewald includes it;
+    # the folded exchange does not), which vanishes as the cell grows.
+    esys = build(folded=false)
+    fsys = build(folded=true)
+    @test energy_per_site(esys) ≈ energy_per_site(fsys) atol=1e-5
 
-    sys = resize_supercell(sys, (2, 1, 1))
     esys = resize_supercell(esys, (2, 1, 1))
-    @test energy_per_site(esys) ≈ energy_per_site(sys)
+    fsys = resize_supercell(fsys, (2, 1, 1))
+    minimize_energy!(esys); minimize_energy!(fsys)
+    @test energy_per_site(esys) ≈ energy_per_site(fsys) atol=1e-5
 
-    # SpinWaveTheory calculations should be consistent too
+    # SpinWaveTheory dispersions and total intensities match between the two
+    # entangled systems.
     qs = [[0.1, 0, 0], [0.3, 0.2, 0]]
-    res1 = intensities_bands(SpinWaveTheory(sys; measure=ssf_perp(sys)), qs)
+    res1 = intensities_bands(SpinWaveTheory(fsys; measure=ssf_perp(fsys)), qs)
     res2 = intensities_bands(SpinWaveTheory(esys; measure=ssf_perp(esys)), qs)
-
-    # The two highest energy bands describe intra-unit singlet-triplet
-    # excitations and do not carry intensity.
-    @test all(<(1e-12), abs.(res2.data[1:2, :]))
-
-    # The remaining bands should match between entangled and non-entangled
-    # calculations.
-    @test res1.disp ≈ res2.disp[3:end, :]
-    @test vec(sum(res1.data; dims=1)) ≈ vec(sum(res2.data; dims=1))
+    @test res1.disp ≈ res2.disp atol=1e-3
+    @test vec(sum(res1.data; dims=1)) ≈ vec(sum(res2.data; dims=1)) atol=1e-4
 
     let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_delta(0.1))
         @test_throws "LocalSampler does not yet support entangled units with Ewald interactions" step!(esys, sampler)
@@ -339,7 +356,7 @@ end
         set_coherent!(eewald, Z, s)
         set_coherent!(eref, Z, s)
     end
-    @test_broken energy(eewald) ≈ energy(eref)
+    @test energy(eewald) ≈ energy(eref)
 end
 
 @testitem "Model parameters for entangled units" begin

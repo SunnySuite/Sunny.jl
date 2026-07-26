@@ -1,5 +1,65 @@
 
-# Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
+# The five bilinear block coefficients coupling flavors (m,n) for a pair of
+# local-frame operators A (on unit i) and B (on unit j). The N-th slot of a
+# rotated operator is the condensate direction Z, so A[m,N] = ⟨f_m|A|Z⟩,
+# A[N,N] = ⟨A⟩, etc. This is the single source of truth shared by the dense
+# builder and the matrix-free matvec, and by both the general-coupling and
+# dipole-sector (Ewald / delegated bilinear) paths.
+@inline function swt_pair_coefs(A, B, m, n, N)
+    c1 = (A[m,n] - δ(m,n)*A[N,N]) * B[N,N]     # A-block on unit i, ⟨B⟩
+    c2 = A[N,N] * (B[m,n] - δ(m,n)*B[N,N])     # ⟨A⟩, B-block on unit j
+    c3 = A[m,N] * B[N,n]                        # i→j hop
+    c4 = A[N,m] * B[n,N]                        # j→i hop
+    c5 = A[m,N] * B[n,N]                        # particle-hole (anomalous)
+    return (c1, c2, c3, c4, c5)
+end
+
+# Scatter the bilinear contribution of a pair (A on unit i, B on unit j) into the
+# dense Hamiltonian blocks. `w_self` scales the intra-unit blocks (c1,c2);
+# `w_hop` the inter-unit blocks (c3,c4,c5) — a periodic-wrapping phase for
+# ordinary couplings, or a complex dipole coupling J[α,β] for the Ewald sector.
+@inline function accum_pair_dense!(H11, H12, H21, H22, A, B, i, j, w_self, w_hop, N)
+    for m in 1:N-1, n in 1:N-1
+        (c1, c2, c3, c4, c5) = swt_pair_coefs(A, B, m, n, N)
+        H11[m,i,n,i] += c1*w_self;  H22[n,i,m,i] += c1*w_self
+        H11[m,j,n,j] += c2*w_self;  H22[n,j,m,j] += c2*w_self
+        H11[m,i,n,j] += c3*w_hop;   H22[n,j,m,i] += c3*conj(w_hop)
+        H11[n,j,m,i] += c4*conj(w_hop);  H22[m,i,n,j] += c4*w_hop
+        H12[m,i,n,j] += c5*w_hop;   H12[n,j,m,i] += c5*conj(w_hop)
+        H21[n,j,m,i] += conj(c5)*conj(w_hop);  H21[m,i,n,j] += conj(c5)*w_hop
+    end
+end
+
+# Matrix-free counterpart of `accum_pair_dense!`: accumulate y += (pair block) x
+# over all wavevectors, keeping Holstein-Primakoff state in Nambu form
+# X[q, flavor, unit, particle/hole]. `w_self` scales intra-unit blocks; `w_hop`
+# is a per-q inter-unit weight (typically the periodic-wrapping phase).
+@inline function accum_pair_matvec!(Y, X, A, B, i, j, w_hop, N; w_self=1)
+    for m in 1:N-1, n in 1:N-1
+        (c1, c2, c3, c4, c5) = swt_pair_coefs(A, B, m, n, N)
+        @inbounds for q in axes(Y, 1)
+            ph = w_hop[q]
+            Y[q, m, i, 1] += c1 * w_self * X[q, n, i, 1]
+            Y[q, n, i, 2] += c1 * w_self * X[q, m, i, 2]
+
+            Y[q, m, j, 1] += c2 * w_self * X[q, n, j, 1]
+            Y[q, n, j, 2] += c2 * w_self * X[q, m, j, 2]
+
+            Y[q, m, i, 1] += c3 * ph * X[q, n, j, 1]
+            Y[q, n, j, 2] += c3 * conj(ph) * X[q, m, i, 2]
+
+            Y[q, n, j, 1] += c4 * conj(ph) * X[q, m, i, 1]
+            Y[q, m, i, 2] += c4 * ph * X[q, n, j, 2]
+
+            Y[q, m, i, 1] += c5 * ph * X[q, n, j, 2]
+            Y[q, n, j, 1] += c5 * conj(ph) * X[q, m, i, 2]
+            Y[q, n, j, 2] += conj(c5) * conj(ph) * X[q, m, i, 1]
+            Y[q, m, i, 2] += conj(c5) * ph * X[q, n, j, 1]
+        end
+    end
+end
+
+# Set the dynamical quadratic Hamiltonian matrix in SU(N) mode.
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
     (; spin_ops) = data
@@ -42,30 +102,8 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             # Set "general" pair interactions of the form Aᵢ⊗Bⱼ. Note that Aᵢ
             # and Bᵢ have already been transformed according to the local frames
             # of sublattice i and j, respectively.
-            for (Ai, Bj) in coupling.general.data 
-                for m in 1:N-1, n in 1:N-1
-                    c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
-                    H11[m, i, n, i] += c
-                    H22[n, i, m, i] += c
-
-                    c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
-                    H11[m, j, n, j] += c
-                    H22[n, j, m, j] += c
-
-                    c = Ai[m,N] * Bj[N,n]
-                    H11[m, i, n, j] += c * phase
-                    H22[n, j, m, i] += c * conj(phase)
-
-                    c = Ai[N,m] * Bj[n,N]
-                    H11[n, j, m, i] += c * conj(phase)
-                    H22[m, i, n, j] += c * phase
-
-                    c = Ai[m,N] * Bj[n,N]
-                    H12[m, i, n, j] += c * phase
-                    H12[n, j, m, i] += c * conj(phase)
-                    H21[n, j, m, i] += conj(c) * conj(phase)
-                    H21[m, i, n, j] += conj(c) * phase
-                end
+            for (Ai, Bj) in coupling.general.data
+                accum_pair_dense!(H11, H12, H21, H22, Ai, Bj, i, j, 1, phase, N)
             end
         end
     end
@@ -91,6 +129,12 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         for i in 1:Na, j in 1:Na
             for ai in atoms_in_unit(sys, i), aj in atoms_in_unit(sys, j)
 
+                # Intra-unit inter-part dipole is folded exactly into the unit
+                # onsite (see `intra_unit_dipole_param`), so skip it here. `Aq` is
+                # recomputed from the crystal and, unlike the clone's stripped
+                # `A0`, still contains this block.
+                i == j && ai != aj && continue
+
                 # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
                 # energy, where μ = - g S. A symmetric contribution will appear for
                 # the bond reversal (a, b) → (b, a).
@@ -100,30 +144,31 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
                 for α in 1:3, β in 1:3
                     Ai = spin_ops[α, ai]
                     Bj = spin_ops[β, aj]
+                    accum_pair_dense!(H11, H12, H21, H22, Ai, Bj, i, j, J0[α,β], J[α,β], N)
+                end
+            end
+        end
+    end
 
-                    for m in 1:N-1, n in 1:N-1
-                        c = (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
-                        H11[m, i, n, i] += c * J0[α, β]
-                        H22[n, i, m, i] += c * J0[α, β]
-
-                        c = Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
-                        H11[m, j, n, j] += c * J0[α, β]
-                        H22[n, j, m, j] += c * J0[α, β]
-
-                        c = Ai[m,N] * Bj[N,n]
-                        H11[m, i, n, j] += c * J[α, β]
-                        H22[n, j, m, i] += c * conj(J[α, β])
-
-                        c = Ai[N,m] * Bj[n,N]
-                        H11[n, j, m, i] += c * conj(J[α, β])
-                        H22[m, i, n, j] += c * J[α, β]
-
-                        c = Ai[m,N] * Bj[n,N]
-                        H12[m, i, n, j] += c * J[α, β]
-                        H12[n, j, m, i] += c * conj(J[α, β])
-                        H21[n, j, m, i] += conj(c) * conj(J[α, β])
-                        H21[m, i, n, j] += conj(c) * J[α, β]
-                    end
+    # Inter-unit bilinear exchange delegated to the uncontracted clone (like
+    # Ewald). It lives as `bilin` on the clone's bare bonds rather than in the
+    # unit's product-space tensor decomposition. Both factors are embedded spin
+    # dipoles, so the contribution routes through the same kernel: w_self = J
+    # (coupling at q=0), w_hop = J·phase (coupling at q), with the phase carried
+    # by the corresponding contracted bond.
+    if is_entangled(sys)
+        (; units) = get_entanglement(sys)
+        for (ai, int) in enumerate(usys.interactions_union)
+            i, _ = unit_and_part(units, ai)
+            for pc in int.pair
+                pc.isculled && break
+                aj = pc.bond.j
+                j, _ = unit_and_part(units, aj)
+                J = pc.bilin isa Number ? Mat3(pc.bilin*I) : Mat3(pc.bilin)
+                phase = cis(2π * dot(q_reshaped, contracted_bond(pc.bond, units).n))
+                for α in 1:3, β in 1:3
+                    iszero(J[α,β]) && continue
+                    accum_pair_dense!(H11, H12, H21, H22, spin_ops[α,ai], spin_ops[β,aj], i, j, J[α,β], J[α,β]*phase, N)
                 end
             end
         end
@@ -188,31 +233,31 @@ function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::Abstract
 
             # General pair interactions
             for (A, B) in coupling.general.data
-                for m in 1:N-1, n in 1:N-1
-                    c1 = (A[m,n] - δ(m,n)*A[N,N]) * B[N,N]
-                    c2 = A[N,N] * (B[m,n] - δ(m,n)*B[N,N])
-                    c3 = A[m,N] * B[N,n]
-                    c4 = A[N,m] * B[n,N]
-                    c5 = A[m,N] * B[n,N]
+                accum_pair_matvec!(Y, X, A, B, i, j, phases, N)
+            end
+        end
+    end
 
-                    @inbounds for q in axes(Y, 1)
-                        Y[q, m, i, 1] += c1 * X[q, n, i, 1] 
-                        Y[q, n, i, 2] += c1 * X[q, m, i, 2]
-
-                        Y[q, m, j, 1] += c2 * X[q, n, j, 1]
-                        Y[q, n, j, 2] += c2 * X[q, m, j, 2]
-
-                        Y[q, m, i, 1] += c3 * phases[q] * X[q, n, j, 1]
-                        Y[q, n, j, 2] += c3 * conj(phases[q]) * X[q, m, i, 2]
-
-                        Y[q, n, j, 1] += c4 * conj(phases[q]) * X[q, m, i, 1]
-                        Y[q, m, i, 2] += c4 * phases[q] * X[q, n, j, 2]
-
-                        Y[q, m, i, 1] += c5 * phases[q] * X[q, n, j, 2]
-                        Y[q, n, j, 1] += c5 * conj(phases[q]) * X[q, m, i, 2]
-                        Y[q, n, j, 2] += conj(c5) * conj(phases[q]) * X[q, m, i, 1]
-                        Y[q, m, i, 2] += conj(c5) * phases[q] * X[q, n, j, 1]
-                    end
+    # Inter-unit bilinear exchange delegated to the uncontracted clone. See the
+    # corresponding block in `swt_hamiltonian_SUN!`.
+    if is_entangled(sys)
+        (; spin_ops) = swt.data
+        (; units) = get_entanglement(sys)
+        whop = zeros(ComplexF64, Nq)
+        for (ai, int) in enumerate(uncontracted_system(sys).interactions_union)
+            i, _ = unit_and_part(units, ai)
+            for pc in int.pair
+                pc.isculled && break
+                aj = pc.bond.j
+                j, _ = unit_and_part(units, aj)
+                J = pc.bilin isa Number ? Mat3(pc.bilin*I) : Mat3(pc.bilin)
+                map!(phases, qs_reshaped) do q
+                    cis(2π * dot(q, contracted_bond(pc.bond, units).n))
+                end
+                for α in 1:3, β in 1:3
+                    iszero(J[α,β]) && continue
+                    @. whop = J[α,β] * phases
+                    accum_pair_matvec!(Y, X, spin_ops[α,ai], spin_ops[β,aj], i, j, whop, N; w_self=J[α,β])
                 end
             end
         end
