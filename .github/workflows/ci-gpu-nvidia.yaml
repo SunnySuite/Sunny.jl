@@ -74,7 +74,7 @@ jobs:
       - name: Setup Julia
         if: steps.check.outputs.triggered == 'true'
         run: |
-          echo "$HOME/opt/julia-1.11.7/bin" >> $GITHUB_PATH
+          julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.add("CUDA")'
 
       - name: Cache Julia
         if: steps.check.outputs.triggered == 'true'
