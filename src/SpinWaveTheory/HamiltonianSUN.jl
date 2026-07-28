@@ -120,21 +120,22 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
         # precompute_dipole_ewald(usys.crystal, (1,1,1), demag) * μ0_μB²
         A0 = reshape(A, Nbare, Nbare)
-
         # Interaction matrix for wavevector q
         Aq = precompute_dipole_ewald_at_wavevector(usys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
         Aq = reshape(Aq, Nbare, Nbare)
 
+        # For an entangled system, A0 has already had its intra-unit
+        # interactions stripped and shifted to an onsite coupling. The same
+        # stripping must be done for Aq.
+        if is_entangled(sys)
+            for (; ai, aj, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, μ0_μB²)
+                Aq[ai, aj] -= Adir
+            end
+        end
+
         # The Ewald matrices and g-tensors are indexed by bare crystal-atom `a`
         for i in 1:Na, j in 1:Na
             for ai in atoms_in_unit(sys, i), aj in atoms_in_unit(sys, j)
-
-                # Intra-unit inter-part dipole is folded exactly into the unit
-                # onsite (see `intra_unit_dipole_param`), so skip it here. `Aq` is
-                # recomputed from the crystal and, unlike the clone's stripped
-                # `A0`, still contains this block.
-                i == j && ai != aj && continue
-
                 # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
                 # energy, where μ = - g S. A symmetric contribution will appear for
                 # the bond reversal (a, b) → (b, a).

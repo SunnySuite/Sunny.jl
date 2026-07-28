@@ -2,8 +2,8 @@ function repopulate_couplings_from_params!(sys::System)
     @assert is_homogeneous(sys)
     ints = interactions_homog(sys)
 
-    # If `sys` has been reshaped, then also repopulate `sys.origin` (useful for
-    # view_crystal(sys)).
+    # If `sys` has been reshaped, then also repopulate `sys.origin`. Useful for
+    # view_crystal(sys).
     if !isnothing(sys.origin)
         repopulate_couplings_from_params!(sys.origin)
     end
@@ -444,16 +444,11 @@ function energy(sys::System{N}; check_normalization=true) where N
         validate_normalization(sys)
     end
 
-    # Every interaction lives in one of two sectors. The dipole sector collects
-    # terms naturally expressed via the spin dipoles S (Zeeman, Ewald, bilinear,
-    # and in dipole mode also anisotropy and biquadratic); the coherent sector
-    # collects the remaining SU(N) terms expressed via the coherents Z (onsite,
-    # scalar, biquadratic, general). For an entangled system the dipole sector is
-    # delegated to the uncontracted system (see `entangled_dipole_sector_energy`),
-    # whose bare dipoles track `sys.coherents`; the coherent sector holds only the
-    # residual product-space couplings and needs no entanglement awareness.
-    dipole_E = isnothing(sys.entanglement) ? dipole_sector_energy(sys) :
-                                             entangled_dipole_sector_energy(get_entanglement(sys))
+    # The dipole sector collects terms naturally expressed via the spin dipoles
+    # S (Zeeman, Ewald, bilinear, and in dipole mode also anisotropy and
+    # biquadratic); the coherent sector collects the remaining SU(N) terms
+    # expressed via the coherents Z (onsite, scalar, biquadratic, general).
+    dipole_E = dipole_sector_energy(uncontracted_system(sys))
     return dipole_E + coherent_sector_energy(sys)
 end
 
@@ -685,8 +680,8 @@ function set_energy_grad_coherents!(∇E, Z::Array{CVec{N}, 4}, sys::System{N}) 
     fill!(∇E, zero(CVec{N}))
 
     # Dipole sector: accumulate ∇E += (dE/dS ⋅ S) Z, where dE/dS collects
-    # {Zeeman, Ewald, bilinear}. For an entangled system this is delegated to the
-    # uncontracted system's bare dipoles (see `accum_entangled_dipole_sector_grad!`).
+    # {Zeeman, Ewald, bilinear}. For an entangled system this is delegated to
+    # the uncontracted system's bare dipoles.
     if isnothing(sys.entanglement)
         dE_dS, dipoles = get_dipole_buffers(sys, 2)
         @. dipoles = expected_spin(Z)

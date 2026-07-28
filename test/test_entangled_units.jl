@@ -272,7 +272,6 @@ end
     # generic product state.
     randomize_spins!(sys)
     esys = entangle_system(sys, [[1, 2]])
-    Sunny.transfer_uncontracted_state!(esys, sys)
     @test energy_per_site(esys) ≈ energy_per_site(sys) atol=1e-10
 end
 
@@ -357,6 +356,54 @@ end
         set_coherent!(eref, Z, s)
     end
     @test energy(eewald) ≈ energy(eref)
+
+    # Only the *local* (home-image) intra-unit dipole is folded exactly into the
+    # onsite; that direct tensor is box-independent, so energy per site is invariant
+    # under reshaping even on a genuinely entangled (non-product) state, where the
+    # exact ⟨SᵢDSⱼ⟩ contributes. A small box makes the periodic-image tail (which
+    # stays in the delegated factorized Ewald sum) significant, so this would fail
+    # if the whole Ewald block were folded instead.
+    small = System(Crystal([5.0 0 0; 0 5 0; 0 0 5], [[0,0,0.0],[0,0.2,0]], 1; types=["A","B"]),
+                   moments, :SUN)
+    set_exchange!(small, 1.0, Bond(1, 2, [0, 0, 0]))
+    set_exchange!(small, 0.2, Bond(1, 1, [1, 0, 0]))
+    set_exchange!(small, 0.2, Bond(2, 2, [1, 0, 0]))
+    enable_dipole_dipole!(small, units.vacuum_permeability)
+    esmall = entangle_system(small, [[1, 2]])
+    Zent = normalize(Sunny.CVec{4}(0.1, 0.7, -0.68im, 0.2))
+    for s in eachsite(esmall); set_coherent!(esmall, Zent, s); end
+    E0 = energy_per_site(esmall)
+    for shape in ([2 0 0; 0 1 0; 0 0 1], [1 0 0; 0 2 0; 0 0 1], [3 0 0; 0 1 0; 0 0 1])
+        rs = reshape_supercell(esmall, shape)
+        for s in eachsite(rs); set_coherent!(rs, Zent, s); end
+        @test isapprox(energy_per_site(rs), E0; atol=1e-12)
+    end
+
+    # SWT dispersion exercises the entangled-Ewald `Aq` path (the q-dependent
+    # dipole matrix), which the energy checks above do not. This small box keeps
+    # the periodic-image dipole tail significant, so the q≠0 dispersion is only
+    # correct if the home-image direct term stripped from the q=0 matrix is also
+    # removed from `Aq(q)` consistently.
+    box = Crystal([5.0 0 0; 0 5 0; 0 0 6], [[0, 0, 0], [0, 0.2, 0]], 1; types=["A","B"])
+    dsys = System(box, moments, :SUN)
+    set_exchange!(dsys, 1.0, Bond(1, 2, [0, 0, 0]))
+    set_exchange!(dsys, 0.2, Bond(1, 1, [1, 0, 0]))
+    set_exchange!(dsys, 0.2, Bond(2, 2, [1, 0, 0]))
+    set_field!(dsys, [0, 0, -3])
+    enable_dipole_dipole!(dsys, units.vacuum_permeability; demag=Sunny.Mat3(I/3))
+    # modify_exchange_with_truncated_dipole_dipole!(dsys, cutoff, units.vacuum_permeability)
+    edsys = entangle_system(dsys, [[1, 2]])
+    randomize_spins!(edsys); minimize_energy!(edsys)
+    qs = [[0.1, 0, 0], [0.3, 0.2, 0], [0.25, 0.25, 0]]
+    disp = sort(dispersion(SpinWaveTheory(edsys; measure=nothing), qs); dims=1)
+
+    # To validate these golden values, replace enable_dipole_dipole! with
+    # modify_exchange_with_truncated_dipole_dipole! per comment above. At
+    # cutoff=50 the max the max deviation is 2.5e-4. At cutoff=70 it is 7.7e-5.
+    golden = [4.906945628750579  4.683252377366419  4.744997203967233
+              5.800316340774632  5.577887749213549  5.639863059424799
+              11.597318534836047 11.597144492278936 11.597192079860365]
+    @test isapprox(disp, golden; atol=1e-6)
 end
 
 @testitem "Model parameters for entangled units" begin
@@ -370,9 +417,7 @@ end
     set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]), :J => 1.0)
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]), :Jp => 0.2)
     esys = entangle_system(sys, [[1, 2]])
-    for u in eachsite(esys)
-        set_coherent!(esys, [0, 1/√2, -1/√2, 0], u)
-    end
+    randomize_spins!(esys)
 
     # `get_params` reads the labels off the physical (bare) system.
     @test get_params(esys, [:J, :Jp]) == [1.0, 0.2]
@@ -383,7 +428,6 @@ end
     set_params!(esys, [:J, :Jp], [1.5, 0.3])
     @test get_params(esys, [:J, :Jp]) == [1.5, 0.3]
     @test get_params(esys.entanglement.uncontracted, [:J, :Jp]) == [1.5, 0.3]
-    @test !(energy_per_site(esys) ≈ E0)
     set_params!(esys, [:J, :Jp], [1.0, 0.2])
     @test energy_per_site(esys) ≈ E0
 

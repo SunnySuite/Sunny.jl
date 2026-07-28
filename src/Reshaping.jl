@@ -149,13 +149,9 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
         enable_dipole_dipole!(new_sys, sys.ewald.μ0_μB²; sys.ewald.demag)
     end
 
+    # If the system is entangled, then we also need to update its internal data.
     if is_entangled(sys)
-        # Rebuild sys.entanglement for the reshaping
-        (; uncontracted) = get_entanglement(sys)
-        new_shape = Mat3(orig_crystal(sys).latvecs \ new_cryst.latvecs)
-        new_uncontracted_cryst = reshape_crystal(orig_crystal(uncontracted), new_shape)
-        new_uncontracted_sys = reshape_supercell_aux(uncontracted, new_uncontracted_cryst, new_dims)
-        rebuild_entanglement!(new_sys, new_uncontracted_sys, get_entanglement(orig_sys).units)
+        rebuild_entanglement_for_reshaping!(new_sys)
     end
 
     return new_sys
