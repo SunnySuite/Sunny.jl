@@ -69,7 +69,7 @@ function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag,
 
     # Precalculate constants
     I₃ = Mat3(I)
-    V = det(latvecs)
+    V = abs(det(latvecs))
     L = cbrt(V)
     # Roughly balances the real and Fourier space costs. Note that σ = 1/(√2 λ)
     σ = L/3
