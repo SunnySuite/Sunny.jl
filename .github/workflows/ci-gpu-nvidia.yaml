@@ -16,6 +16,7 @@ jobs:
     env:
       GH_JOBNAME: ${{matrix.jobname}}
       GH_OS: Linux
+      JULIA_DEPOT_PATH: /home/svh/.julia-zenith
     strategy:
       fail-fast: false
       matrix:
@@ -74,13 +75,15 @@ jobs:
       - name: Setup Julia
         if: steps.check.outputs.triggered == 'true'
         run: |
+          module load nvhpc/26.5
           julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.add("CUDA")'
+          julia --project -e 'using CUDA; CUDA.set_runtime_version!(local_toolkit=true)`
 
       - name: Cache Julia
         if: steps.check.outputs.triggered == 'true'
         uses: julia-actions/cache@v3
         with:
-          depot: $HOME/.julia-cousteau
+          depot: $HOME/.julia-zenith
 
       - name: Test
         if: steps.check.outputs.triggered == 'true'
