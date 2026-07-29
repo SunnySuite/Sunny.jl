@@ -143,6 +143,20 @@ function get_params(sys::System, labels::Vector{Symbol})
     return get_param.(Ref(sys), labels)
 end
 
+# Helper function to update parameter value in system and its delegates.
+function set_param_vals!(sys, labels, vals)
+    if !isnothing(sys.origin)
+        set_param_vals!(sys.origin, labels, vals)
+    end
+    if !isnothing(sys.entanglement)
+        set_param_vals!(get_entanglement(sys).uncontracted, labels, vals)
+    end
+
+    foreach(labels, vals) do label, val
+        lookup_param(sys, label).val = val
+    end
+end
+
 """
     set_params!(sys::System, labels::Vector{Symbol}, vals::Vector{Real})
 
@@ -157,19 +171,12 @@ set_params!(sys, [:J1, :J2], [2.0, 3.0])
 """
 function set_params!(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
     length(labels) == length(vals) || error("Mismatched lengths")
-    foreach(labels, vals) do label, val
-        lookup_param(sys, label).val = val
-        if !isnothing(sys.origin)
-            lookup_param(sys.origin, label).val = val
-        end
-    end
+
+    # Update parameter values in this system as well as its delegates.
+    set_param_vals!(sys, labels, vals)
+
+    # Update couplings for the new parameter values
     repopulate_couplings_from_params!(sys)
-
-    if !isnothing(sys.entanglement)
-        set_params!(get_entanglement(sys).uncontracted, labels, vals)
-    end
-
-    return
 end
 
 """

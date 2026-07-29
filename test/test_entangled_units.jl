@@ -436,6 +436,13 @@ end
     loss = make_loss_fn(energy_per_site, esys, [:J, :Jp])
     loss([1.5, 0.3])
     @test get_params(esys, [:J, :Jp]) == [1.0, 0.2]
+
+    # `set_params!` must recurse to origin's uncontracted subsystem, from which
+    # a subsequent reshaping rebuilds.
+    resys = reshape_supercell(esys, [1 1 0; 0 1 0; 0 0 1])
+    set_params!(resys, [:J, :Jp], [1.0, 0.9])
+    reresys = reshape_supercell(resys, [1 0 0; 1 1 0; 0 0 1])
+    @test energy_per_site(reresys) ≈ energy_per_site(resys)
 end
 
 

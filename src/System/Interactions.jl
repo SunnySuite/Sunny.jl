@@ -2,10 +2,16 @@ function repopulate_couplings_from_params!(sys::System)
     @assert is_homogeneous(sys)
     ints = interactions_homog(sys)
 
-    # If `sys` has been reshaped, then also repopulate `sys.origin`. Useful for
-    # view_crystal(sys).
+    # If `sys` has been reshaped, then also repopulate its `origin` system.
+    # Useful for view_crystal(sys).
     if !isnothing(sys.origin)
         repopulate_couplings_from_params!(sys.origin)
+    end
+
+    # If `sys` is entangled, then also repopulate its `uncontracted` system,
+    # which handles inter-unit bilinear exchange.
+    if !isnothing(sys.entanglement)
+        repopulate_couplings_from_params!(get_entanglement(sys).uncontracted)
     end
 
     # Clear current interactions
