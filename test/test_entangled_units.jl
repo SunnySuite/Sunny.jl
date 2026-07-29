@@ -566,8 +566,7 @@ end
                   [(5, [0, 1, 0]), (6, [0, 0, 0]), (7, [0, 0, 0]), (8, [1, 0, 0])]]
     ecryst = entangle_system(p4b_sys, p4b_offset).crystal
     @test ecryst.classes == [1, 1] && ecryst.sg.number == 85
-    err = try entangle_system(p4b_sys, zero_offset); "" catch e; sprint(showerror, e) end
-    @test_broken occursin("consider groupings", err)
+    @test_throws "Symmetry-inconsistency detected" entangle_system(p4b_sys, zero_offset)
 
     # A partition whose atom sets themselves break symmetry: the fourfold axis maps
     # {1,2,3,5} onto atoms that are not a unit. No offsets can fix this, so it is
