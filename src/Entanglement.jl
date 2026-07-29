@@ -167,8 +167,8 @@ end
 
 # Applies a local operator I₁⊗Aₚ⊗I₂ to Z without materializing the embedding.
 # Generalizes mul_spin_matrices_embedded to arbitrary Aₚ. Currently unused, but
-# may be helpful for future optimizations that avoid lifting all interactions to
-# product space.
+# may be helpful for future optimizations that avoid promoting all interactions
+# to product space.
 @inline function mul_matrix_embedded(Ap::AbstractMatrix, emb::EmbeddingDims, Z::SVector{N,T}) where {N, T}
     (; Np, d1) = emb
     d2 = N ÷ (d1 * Np)
@@ -234,10 +234,10 @@ function bond_is_in_unit(bond::Bond, units)
     return newbond.i == newbond.j && all(iszero, newbond.n)
 end
 
-# Converts what was a pair coupling between two different sites of a single unit
-# in the original system into an "onsite coupling" for the entangled unit.
-# Accumulates to `op` in place.
-function accum_intra_unit_pair_coupling!(op, pc, uncontracted_Ns, units)
+# Given a pair coupling `pc` between uncontracted parts of one entangled unit,
+# accumulate the corresponding product-space operator to the "onsite coupling"
+# `op` in place.
+function fold_intra_unit_pair_coupling!(op, pc, uncontracted_Ns, units)
     pc.isculled && return
 
     ui, pi = unit_and_part(units, pc.bond.i)
@@ -293,7 +293,7 @@ function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
 end
 
 # Map ModelParam of an uncontracted system to that of an entangled system.
-function contract_param(param::ModelParam, uncontracted_Ns, units)
+function contract_model_param(param::ModelParam, uncontracted_Ns, units)
     nunits = length(units)
 
     # Intra-unit terms become onsite (on-bond) operators, one per touched unit.
@@ -314,7 +314,7 @@ function contract_param(param::ModelParam, uncontracted_Ns, units)
         for pc in param.pairs
             u′, _ = unit_and_part(units, pc.bond.i)
             if bond_is_in_unit(pc.bond, units) && u′ == u
-                accum_intra_unit_pair_coupling!(unit_operator, pc, uncontracted_Ns, units)
+                fold_intra_unit_pair_coupling!(unit_operator, pc, uncontracted_Ns, units)
             end
         end
 
@@ -340,13 +340,9 @@ end
 
 # The local (home-image) direct dipole tensors that are folded out of the Ewald
 # sum for an entangled system. For each intra-unit inter-part pair (i ≠ j) this
-# yields `(; ai, aj, Δ, Adir)` with `Δ` the cell offset from atom `ai` to `aj`
-# and `Adir = (μ0_μB²/4π)(I − 3r̂r̂)/r³` for the intra-unit displacement
-# `r = global_displacement(crystal, Bond(ai, aj, Δ))`. It is the single source of
-# truth for the strip: the entanglement build subtracts `Adir` from the stored
-# real-space Ewald `A` (folding `gᵢ' Adir gⱼ` into the unit onsite), and spin-wave
-# theory subtracts the same term from the recomputed `Aq(q)` to keep the two
-# matrices consistent (see `swt_hamiltonian_SUN!`).
+# yields `(; ai, aj, Δ, Adir)` with `Δ` the crystal cell offset from atom `ai`
+# to `aj` and `Adir = (μ0_μB²/4π)(I − 3r̂r̂)/r³` for the global displacement `r`
+# between bare atoms.
 function intra_unit_dipole_terms(crystal, units, μ0_μB²)
     function term(pi, pj)
         Δ = pj.Δcell - pi.Δcell
@@ -357,33 +353,31 @@ function intra_unit_dipole_terms(crystal, units, μ0_μB²)
     return [term(pi, pj) for parts in units for pi in parts for pj in parts if pi.atom != pj.atom]
 end
 
-# Move the *local* intra-unit inter-part dipole-dipole coupling out of the
-# clone's Ewald and into the contracted unit onsite, where it is treated exactly
-# as `⟨Sᵢ D Sⱼ⟩`. Entanglement is spatially local, so only the bare single-image
-# dipole tensor `Adir = (μ0_μB²/4π)(I − 3r̂r̂)/r³` for the intra-unit displacement
-# `r` is folded (via `D = gᵢ' Adir gⱼ`, since μ = −gS ⇒ μAμ = S(g'Ag)S) and
-# subtracted from `A`. The remaining lattice tail in `A[Δ, ai, aj]` couples part
-# `i` to *periodic images* of part `j`, which live in neighboring units; that tail
-# is genuinely inter-unit and stays in the delegated Ewald sum, treated at the
-# factorized `⟨Sᵢ⟩ D ⟨Sⱼ⟩` level. Storing the fold in `sys.params` lets it survive
-# `set_params!` and be re-emitted by `repopulate_couplings_from_params!`; the
-# Ewald strip persists because that machinery never touches `ewald`. Self blocks
-# `A[0, a, a]` and inter-unit blocks are left intact. Only `sys.params` and the
-# clone's `ewald` are updated; the caller repopulates interactions afterward.
-function fold_intra_unit_dipole!(sys::System, uncontracted::System, units)
+# Replace the intra-unit dipole-dipole coupling with its onsite equivalent in
+# the entangled space, ⟨Sᵢ⟩ Jᵢⱼ ⟨Sⱼ⟩ → ⟨Sᵢ Jᵢⱼ Sⱼ⟩. Entanglement is spatially
+# local, so this replacement refers only to the _local_ coupling (μ0_μB²/4π)(I −
+# 3r̂r̂)/r³ between bare magnetic moments μᵢ = gSᵢ. The total effective Ewald
+# coupling A also includes interactions between periodic images (i, j) and these
+# interactions must be kept unentangled.
+# 
+# Operationally, this function:
+#   * Mutates uncontracted.ewald to remove direct intra-unit couplings.
+#   * Adds an :IntraUnitDipole param that folds these couplings into the
+#     entangled space.
+function contract_ewald!(sys::System, uncontracted::System, units)
     # Remove any previous special handling of Ewald interactions
     filter!(p -> p.label !== :IntraUnitDipole, sys.params)
 
     # Continue only if Ewald is defined on the uncontracted system.
     isnothing(uncontracted.ewald) && return
 
-    ew = uncontracted.ewald :: Ewald
     (; gs, crystal) = uncontracted
-    dims_A = size(ew.A)[1:3]
+    (; A, FA, μ0_μB²) = uncontracted.ewald :: Ewald
+    dims_A = size(A)[1:3]
 
-    A = copy(ew.A)
+    # Subtract intra-unit couplings from uncontracted interaction matrix A.
     pairs = PairCoupling[]
-    for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(crystal, units, ew.μ0_μB²)
+    for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(crystal, units, μ0_μB²)
         cell = CartesianIndex(Tuple(mod.(Δ, dims_A)) .+ (1, 1, 1))
         D = gs[1, 1, 1, ai]' * Adir * gs[1, 1, 1, aj]
         push!(pairs, PairCoupling(Bond(ai, aj, Δ), 0.0, Mat3(D), 0.0, zero(TensorDecomposition)))
@@ -391,12 +385,14 @@ function fold_intra_unit_dipole!(sys::System, uncontracted::System, units)
     end
     isempty(pairs) && return
 
-    bare = ModelParam(:IntraUnitDipole, 1.0, Tuple{Int, OnsiteCoupling}[], pairs)
-    push!(sys.params, contract_param(bare, uncontracted.Ns, units))
-
+    # Rebuild the Fourier space representation of A.
     Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...)
-    FA = FFTW.rfft(Ar, 3:5)
-    uncontracted.ewald = Ewald(ew.μ0_μB², ew.demag, A, ew.μ, ew.ϕ, FA, ew.Fμ, ew.Fϕ, ew.plan, ew.ift_plan)
+    FA .= FFTW.rfft(Ar, 3:5)
+
+    # Move the subtracted intra-unit couplings into the onsite operator of the
+    # entangled unit.
+    bare = ModelParam(:IntraUnitDipole, 1.0, Tuple{Int, OnsiteCoupling}[], pairs)
+    push!(sys.params, contract_model_param(bare, uncontracted.Ns, units))
     return
 end
 
@@ -646,7 +642,7 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
     # bare bilinear exchange between units, which will be handled at the level
     # of the uncontracted system.
     sys.params = map(uncontracted.params) do p
-        contract_param(p, uncontracted.Ns, units)
+        contract_model_param(p, uncontracted.Ns, units)
     end
 
     # Remove all couplings from the uncontracted system except inter-unit
@@ -662,7 +658,7 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
 
     # Ewald interactions similarly decompose to an intra-unit part (on sys) and
     # an inter-unit part (on uncontracted).
-    fold_intra_unit_dipole!(sys, uncontracted, units)
+    contract_ewald!(sys, uncontracted, units)
 
     # Ensure interactions are synced with params.
     repopulate_couplings_from_params!(sys)
@@ -729,7 +725,7 @@ function rebuild_entanglement_for_reshaping!(sys::System)
 
     # The effective Ewald interactions have been rebuilt under reshaping.
     # Decompose again the intra- and inter-unit parts.
-    fold_intra_unit_dipole!(sys, uncontracted, units)
+    contract_ewald!(sys, uncontracted, units)
 
     # Populate interactions from params
     repopulate_couplings_from_params!(sys)
