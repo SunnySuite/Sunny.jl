@@ -341,9 +341,10 @@ function local_energy_change(sys::System, site, state::SpinState)
     (; S, Z) = state
     (; dims, extfield, dipoles, coherents, ewald) = sys
 
-    # Could be implemented if a use case appears
-    if is_entangled(sys) && !isnothing(uncontracted_system(sys).ewald)
-        error("LocalSampler does not yet support entangled units with Ewald interactions")
+    # The dipole sector (Zeeman, inter-unit bilinear, Ewald) is delegated to the
+    # uncontracted system and would need special handling here.
+    if is_entangled(sys)
+        error("LocalSampler does not yet support entangled units")
     end
 
     if is_homogeneous(sys)

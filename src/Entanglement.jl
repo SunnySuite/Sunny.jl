@@ -88,7 +88,7 @@ function clone_entanglement(ent::Entanglement)
 end
 clone_entanglement(::Nothing) = nothing
 
-# Conversion between user-supplied `groupings` and regularized `units`
+# Conversion between user-supplied `groupings` and the equivalent `units` data.
 function groupings_to_units(groupings)
     map(groupings) do grouping
         map(grouping) do elem
@@ -121,8 +121,7 @@ function spin_ops_embedded(sys::System, i)
     end
 end
 
-# Lazily yields (UnitPart, EmbeddingDims) pairs for a unit, in the same order as
-# the unit parts.
+# Maps a list of UnitParts to an iterator over (UnitPart, EmbeddingDims) pairs.
 @inline function part_embeddings(uncontracted::System, parts)
     (; Ns) = uncontracted
     seed = (UnitPart(0, zero(SVector{3,Int})), EmbeddingDims(1, 1))
@@ -166,9 +165,10 @@ end
     return Vec3(real(dot(Z, SZ[1])), real(dot(Z, SZ[2])), real(dot(Z, SZ[3])))
 end
 
-# Applies the a local operator I₁⊗Aₚ⊗I₂ to Z without materializing the
-# embedding. Generalizes mul_spin_matrices_embedded to arbitrary Aₚ. TODO: get
-# Np from Ap.
+# Applies a local operator I₁⊗Aₚ⊗I₂ to Z without materializing the embedding.
+# Generalizes mul_spin_matrices_embedded to arbitrary Aₚ. Currently unused, but
+# may be helpful for future optimizations that avoid lifting all interactions to
+# product space.
 @inline function mul_matrix_embedded(Ap::AbstractMatrix, emb::EmbeddingDims, Z::SVector{N,T}) where {N, T}
     (; Np, d1) = emb
     d2 = N ÷ (d1 * Np)
@@ -263,11 +263,10 @@ function accum_intra_unit_pair_coupling!(op, pc, uncontracted_Ns, units)
 end
 
 # Promote an atomistic-level pair coupling to an inter-unit pair coupling on the
-# contracted system. Bilinear exchange handled at the level of the uncontracted
-# system for efficiency (next to Zeeman and Ewald couplings). The remaining
-# interactions are promoted to a "general" tensor decomposition at the entangled
-# level. TODO: Handle all inter-unit couplings in uncontracted space instead,
-# then promote the bare coherents to product space as a final step.
+# contracted system. Bilinear exchange is handled at the level of the
+# uncontracted system for efficiency (next to Zeeman and Ewald couplings). The
+# remaining interactions are promoted to a "general" tensor decomposition at the
+# entangled level.
 function promote_inter_unit_pair_coupling(pc, uncontracted_Ns, units)
     (; i, j) = pc.bond
     ui, pi = unit_and_part(units, i)
@@ -598,7 +597,7 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
     is_entangled(uncontracted)  && error("Cannot entangle a system twice")
 
     # If `uncontracted` has already been reshaped, then entangle on the original
-    # unreshaped system and repeat the reshaping.
+    # (unreshaped) system and redo the reshaping on that.
     if !isnothing(uncontracted.origin)
         shape = cell_shape(uncontracted) * diagm(Vec3(uncontracted.dims))
         sys = reshape_supercell(entangle_system(uncontracted.origin, groupings; enforce_symmetry), shape)
@@ -641,13 +640,17 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
                  Array{CVec{N}, 4}[], copy(uncontracted.rng),
                  Entanglement(units, uncontracted))
 
-    # Promote intra-unit interactions from uncontracted to onsite couplings in
-    # the entangled product space.
+    # Promote couplings from uncontracted to entangled system. Bare couplings
+    # within a unit are absorbed into the unit's onsite coupling. Bare couplings
+    # between units are promoted to the tensor product space. The exception is
+    # bare bilinear exchange between units, which will be handled at the level
+    # of the uncontracted system.
     sys.params = map(uncontracted.params) do p
         contract_param(p, uncontracted.Ns, units)
     end
 
-    # Keep only the inter-unit interactions in the uncontracted system.
+    # Remove all couplings from the uncontracted system except inter-unit
+    # bilinear exchange.
     uncontracted.params = map(uncontracted.params) do param
         pairs = PairCoupling[]
         for pc in param.pairs
@@ -657,15 +660,15 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
         ModelParam(param.label, param.val, Tuple{Int, OnsiteCoupling}[], pairs)
     end
 
-    # If there are Ewald interactions, then these must be similarly decomposed
-    # between sys and uncontracted.
+    # Ewald interactions similarly decompose to an intra-unit part (on sys) and
+    # an inter-unit part (on uncontracted).
     fold_intra_unit_dipole!(sys, uncontracted, units)
 
     # Ensure interactions are synced with params.
     repopulate_couplings_from_params!(sys)
     repopulate_couplings_from_params!(uncontracted)
 
-    # Map uncontracted spin states to the product-space representations in sys
+    # Map uncontracted spin states to the product-space representations in sys.
     sync_unit_coherents!(sys)
 
     return sys
@@ -681,8 +684,8 @@ end
 ################################################################################
 
 # Rebuild the entanglement metadata for a contracted `sys` that has just been
-# reshaped. This involves a recursive reshaping of the uncontracted system from
-# `sys.origin` and a rebuild of the units mapping.
+# reshaped. This requires reshaping the uncontracted system, a rebuild of the
+# units mapping, and a re-contraction of Ewald interactions.
 function rebuild_entanglement_for_reshaping!(sys::System)
     ent = get_entanglement(sys.origin::System)
     orig_uncontracted = ent.uncontracted
@@ -725,7 +728,7 @@ function rebuild_entanglement_for_reshaping!(sys::System)
     @assert all(isassigned(parts, p) for parts in units for p in 1:nparts) "Failed to assign all unit parts"
 
     # The effective Ewald interactions have been rebuilt under reshaping.
-    # Decompose the intra- and inter-unit parts.
+    # Decompose again the intra- and inter-unit parts.
     fold_intra_unit_dipole!(sys, uncontracted, units)
 
     # Populate interactions from params

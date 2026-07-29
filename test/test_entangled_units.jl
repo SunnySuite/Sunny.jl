@@ -326,7 +326,7 @@ end
     @test vec(sum(res1.data; dims=1)) ≈ vec(sum(res2.data; dims=1)) atol=1e-4
 
     let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_delta(0.1))
-        @test_throws "LocalSampler does not yet support entangled units with Ewald interactions" step!(esys, sampler)
+        @test_throws "LocalSampler does not yet support entangled units" step!(esys, sampler)
     end
 
     let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_flip)
