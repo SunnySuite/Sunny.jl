@@ -167,8 +167,8 @@ end
 
 # Applies a local operator I₁⊗Aₚ⊗I₂ to Z without materializing the embedding.
 # Generalizes mul_spin_matrices_embedded to arbitrary Aₚ. Currently unused, but
-# may be helpful for future optimizations that avoid promoting all interactions
-# to product space.
+# intended for use with future refactors that avoid promoting operators to
+# product space.
 @inline function mul_matrix_embedded(Ap::AbstractMatrix, emb::EmbeddingDims, Z::SVector{N,T}) where {N, T}
     (; Np, d1) = emb
     d2 = N ÷ (d1 * Np)
@@ -780,6 +780,30 @@ function accum_entangled_dipole_sector_grad!(HZ, Z::Array{CVec{N}, 4}, ent::Enta
         end
     end
     return
+end
+
+
+################################################################################
+# Spin wave theory
+################################################################################
+
+# Enumerate the inter-unit bilinear exchange terms delegated to the uncontracted
+# system. Each term invokes `f(i, j, ai, aj, J, n)` to indicate that bare atoms
+# `ai, aj` belong to units `i, j`, have cell displacement `n`, and are coupled
+# with exchange J.
+function foreach_entangled_bilinear_term(f, sys::System)
+    (; units) = get_entanglement(sys)
+    for (ai, int) in enumerate(uncontracted_system(sys).interactions_union)
+        i, _ = unit_and_part(units, ai)
+        for pc in int.pair
+            pc.isculled && break
+            aj = pc.bond.j
+            j, _ = unit_and_part(units, aj)
+            J = pc.bilin isa Number ? Mat3(pc.bilin*I) : Mat3(pc.bilin)
+            n = contracted_bond(pc.bond, units).n
+            f(i, j, ai, aj, J, n)
+        end
+    end
 end
 
 

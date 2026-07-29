@@ -174,19 +174,11 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # For an entangled system, inter-unit bilinear exchange is delegated to the
     # uncontracted clone (like Ewald).
     if is_entangled(sys)
-        (; units) = get_entanglement(sys)
-        for (ai, int) in enumerate(usys.interactions_union)
-            i, _ = unit_and_part(units, ai)
-            for pc in int.pair
-                pc.isculled && break
-                aj = pc.bond.j
-                j, _ = unit_and_part(units, aj)
-                J = pc.bilin isa Number ? Mat3(pc.bilin*I) : Mat3(pc.bilin)
-                phase = cis(2π * dot(q_reshaped, contracted_bond(pc.bond, units).n))
-                for α in 1:3, β in 1:3
-                    iszero(J[α,β]) && continue
-                    accum_pair_dense!(H11, H12, H21, H22, spin_ops[α,ai], spin_ops[β,aj], i, j, J[α,β], J[α,β]*phase, N)
-                end
+        foreach_entangled_bilinear_term(sys) do i, j, ai, aj, J, n
+            phase = cis(2π * dot(q_reshaped, n))
+            for α in 1:3, β in 1:3
+                iszero(J[α,β]) && continue
+                accum_pair_dense!(H11, H12, H21, H22, spin_ops[α,ai], spin_ops[β,aj], i, j, J[α,β], J[α,β]*phase, N)
             end
         end
     end
@@ -244,9 +236,7 @@ function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::Abstract
             @assert i == bond.i
             j = bond.j
 
-            map!(phases, qs_reshaped) do q
-                cis(2π*dot(q, bond.n))
-            end
+            phases .= cis.(2π .* dot.(qs_reshaped, Ref(bond.n)))
 
             # General pair interactions
             for (A, B) in coupling.general.data
@@ -255,27 +245,16 @@ function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::Abstract
         end
     end
 
-    # Inter-unit bilinear exchange delegated to the uncontracted clone. See the
-    # corresponding block in `swt_hamiltonian_SUN!`.
+    # Inter-unit bilinear exchange delegated to the uncontracted clone.
     if is_entangled(sys)
         (; spin_ops) = swt.data
-        (; units) = get_entanglement(sys)
         Jqs = zeros(ComplexF64, Nq)
-        for (ai, int) in enumerate(uncontracted_system(sys).interactions_union)
-            i, _ = unit_and_part(units, ai)
-            for pc in int.pair
-                pc.isculled && break
-                aj = pc.bond.j
-                j, _ = unit_and_part(units, aj)
-                J = pc.bilin isa Number ? Mat3(pc.bilin*I) : Mat3(pc.bilin)
-                map!(phases, qs_reshaped) do q
-                    cis(2π * dot(q, contracted_bond(pc.bond, units).n))
-                end
-                for α in 1:3, β in 1:3
-                    iszero(J[α,β]) && continue
-                    @. Jqs = J[α,β] * phases
-                    accum_pair_matvec!(Y, X, spin_ops[α,ai], spin_ops[β,aj], i, j, J[α,β], Jqs, N)
-                end
+        foreach_entangled_bilinear_term(sys) do i, j, ai, aj, J, n
+            phases .= cis.(2π .* dot.(qs_reshaped, Ref(n)))
+            for α in 1:3, β in 1:3
+                iszero(J[α,β]) && continue
+                @. Jqs = J[α,β] * phases
+                accum_pair_matvec!(Y, X, spin_ops[α,ai], spin_ops[β,aj], i, j, J[α,β], Jqs, N)
             end
         end
     end
