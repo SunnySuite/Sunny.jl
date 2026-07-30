@@ -143,7 +143,8 @@ function get_params(sys::System, labels::Vector{Symbol})
     return get_param.(Ref(sys), labels)
 end
 
-# Helper function to update parameter value in system and its delegates.
+# Helper function to update parameter value in system and its delegates, prior
+# to repopulating the couplings.
 function set_param_vals!(sys, labels, vals)
     if !isnothing(sys.origin)
         set_param_vals!(sys.origin, labels, vals)
@@ -151,7 +152,6 @@ function set_param_vals!(sys, labels, vals)
     if !isnothing(sys.entanglement)
         set_param_vals!(get_entanglement(sys).uncontracted, labels, vals)
     end
-
     foreach(labels, vals) do label, val
         lookup_param(sys, label).val = val
     end
