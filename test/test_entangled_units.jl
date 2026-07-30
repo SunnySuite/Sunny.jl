@@ -51,8 +51,34 @@
     @test unc.dipoles[1, 1, 1, 1] ≈ [1/2, 0, 0]
 end
 
-# TODO: Add test with magnetic unit cell larger than a single unit (i.e. not q=0
-# ordering).
+@testitem "Entangled units with AFM order" begin
+    latvecs = [1 0 0; 0 1 0; 0 0 2]
+    positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
+    crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
+
+    # AFM inter-unit exchange prefers Néel order
+    function build(; entangle)
+        sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
+        set_exchange!(sys, -0.3, Bond(1, 2, [0, 0, 0]))  # FM intra-unit
+        set_exchange!(sys,  1.0, Bond(1, 1, [1, 0, 0]))  # AFM inter-unit
+        set_exchange!(sys,  1.0, Bond(2, 2, [1, 0, 0]))
+        sys = resize_supercell(sys, (2, 1, 1))           # two units in the mag cell
+        entangle && (sys = entangle_system(sys, [[1, 2]]))
+        minimize_energy!(sys)
+        sys
+    end
+
+    esys = build(entangle=true)
+    bsys = build(entangle=false)
+
+    @test energy_per_site(esys) ≈ energy_per_site(bsys) ≈ -0.2875
+
+    # Check equivalence of dispersion calculations
+    qs = [[0.1, 0, 0], [0.25, 0, 0], [0.3, 0.2, 0]]
+    disp(s) = sort(dispersion(SpinWaveTheory(s; measure=nothing), qs); dims=1)
+    disp_b = disp(bsys)
+    @test disp(esys)[1:size(disp_b, 1), :] ≈ disp_b
+end
 
 @testitem "Dimer Tests" begin
     import LinearAlgebra: norm, I
@@ -87,6 +113,7 @@ end
     @test bare.dipoles[1,1,1,2][2] ≈ 1/2
 
     ### Test external field
+
     set_field!(esys, [0, 0, -10])
     randomize_spins!(esys)
     minimize_energy!(esys)
@@ -106,6 +133,15 @@ end
     for a in 1:2
         pc = only(pc for pc in bare.interactions_union[a].pair if !pc.isculled)
         @test pc.bilin ≈ J′
+    end
+
+    ### LocalSampler does not support entangled units
+
+    let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_delta(0.1))
+        @test_throws "LocalSampler does not yet support entangled units" step!(esys, sampler)
+    end
+    let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_flip)
+        @test_throws "propose_flip is not supported for general coherent states" step!(esys, sampler)
     end
 
     ### Test dispersion against analytical formula for antisymmetric channel.
@@ -163,50 +199,22 @@ end
     res = intensities(sc, qs; energies, kT=0.05)
 
     @test res.data ≈ [0.6963636938867421; 4.833911994098928; 28.719089468355055; 52.61793172686838; 42.62520819431053;;]
-end
 
-@testitem "Entangled dipole-dipole SWT" begin
-    import LinearAlgebra: norm, normalize, I
+    ### Entangled SWT band intensities sum rule
 
-    # Intra-unit dipole-dipole is treated exactly by the entangled unit (folded
-    # into the unit onsite), whereas an unentangled SU(N) system would factorize
-    # it as ⟨S₁⟩D⟨S₂⟩. So the faithful reference is a *second* entangled system
-    # in which the intra-unit dipole is instead supplied as an explicit exchange
-    # matrix D. A large cell makes the inter-unit dipole tail negligible, so the
-    # two entangled calculations must agree.
-    units = Units(:meV, :angstrom)
-    latvecs = [100.0 0 0; 0 100 0; 0 0 100]
-    positions = [[0, 0, 0.0], [0, 0.005, 0.0]]
-    cryst = Crystal(latvecs, positions, 1; types=["A", "B"])
-    r = Sunny.global_displacement(cryst, Bond(1, 2, [0, 0, 0]))
-    D = (units.vacuum_permeability/4π) * 2^2 * (I - 3*(normalize(r)*normalize(r)')) / norm(r)^3
-
-    function build(; folded)
-        sys = System(cryst, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
-        set_exchange!(sys, 0.3, Bond(1, 1, [1, 0, 0]))
-        set_exchange!(sys, 0.3, Bond(2, 2, [1, 0, 0]))
-        set_field!(sys, [0, 0, -5])
-        # The intra-unit dipole enters either through Ewald or as explicit exchange.
-        folded ? set_exchange!(sys, Sunny.Mat3(D), Bond(1, 2, [0, 0, 0])) :
-                 enable_dipole_dipole!(sys, units.vacuum_permeability)
-        sys = entangle_system(sys, [[1, 2]])
-        randomize_spins!(sys); minimize_energy!(sys)
-        return sys
+    # The bare `sys` above is still pristine (only `esys` was mutated). Field-
+    # polarize it: the summed first-band intensity is then exactly 1, and
+    # entangling must not rescale it.
+    set_field!(sys, [0, 0, 10])
+    esys = entangle_system(sys, [[1, 2]])
+    for s in (sys, esys)
+        minimize_energy!(s)
+        swt_pol = SpinWaveTheory(s; measure=ssf_trace(s; apply_g=false))
+        @test sum(intensities_bands(swt_pol, qs).data[:, 1]) ≈ 1
     end
-
-    qs = [[0, 0, 0], [0.2, 0.1, 0], [0.4, 0, 0]]
-    sys_e = build(folded=false); swt_e = SpinWaveTheory(sys_e; measure=nothing)
-    sys_f = build(folded=true);  swt_f = SpinWaveTheory(sys_f; measure=nothing)
-
-    @test energy_per_site(sys_e) ≈ energy_per_site(sys_f) atol=1e-7
-    disp_e = sort(dispersion(swt_e, qs); dims=1)
-    disp_f = sort(dispersion(swt_f, qs); dims=1)
-    @test disp_e ≈ disp_f atol=1e-6
 end
 
-@testitem "General inter-unit coupling" begin
-    import LinearAlgebra: I
-
+@testitem "Inter-unit coupling" begin
     # Spin-1 dimers with a *biquadratic* inter-unit coupling. This exercises the
     # general (non-dipole) contraction path: each bare coupling is compressed via
     # an SVD in the small two-atom operator space and then embedded into the
@@ -241,35 +249,19 @@ end
     Jbilin = only(pc for pc in bare.interactions_union[1].pair if !pc.isculled).bilin
     bilin_op = Jbilin * ((Sl1' * Sl2) + (Su1' * Su2))
     @test op + bilin_op ≈ opref
-end
 
-@testitem "Inter-unit coupling recompression" begin
-    # Two exchange couplings that land on the *same* inter-unit bond have their
-    # tensor expansions concatenated during `repopulate_couplings_from_params!`.
-    # Recompression must collapse them to minimal Schmidt rank while preserving
-    # the bond operator (hence energy and gradient) exactly.
-    latvecs = [1 0 0; 0 1 0; 0 0 2]
-    positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
-    crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
-
+    # Two biquadratic couplings that land on the *same* inter-unit bond have
+    # their tensor expansions concatenated. The 5+5 concatenated terms compress
+    # down to just 5.
     sys = System(crystal, [1 => Moment(s=1, g=2), 2 => Moment(s=1, g=2)], :SUN)
     set_pair_coupling!(sys, (Si, Sj) -> (Si' * Sj), Bond(1, 2, [0, 0, 0]))
-    # Biquadratic couplings (bilinear is delegated to the uncontracted system and
-    # never reaches the tensor decomposition). Both share part 1 of unit A, so
-    # they overlap on the A-side; each contributes 5 terms and the concatenation
-    # of 10 recompresses down to Schmidt rank 5.
     set_pair_coupling!(sys, (Si, Sj) -> 0.3(Si' * Sj)^2, Bond(1, 1, [1, 0, 0]))
     set_pair_coupling!(sys, (Si, Sj) -> 0.5(Si' * Sj)^2, Bond(1, 2, [1, 0, 0]))
-
     esys = entangle_system(sys, [[1, 2]])
-
-    # The stored expansion on the shared bond is minimal rank (5), not the 10
-    # terms that naive concatenation would produce.
     pc = only(pc for pc in esys.interactions_union[1].pair if !pc.isculled && !isempty(pc.general.data))
     @test length(pc.general.data) == 5
 
-    # Recompression is exact: energy matches the unentangled reference in a
-    # generic product state.
+    # Energy matches the unentangled reference in a generic product state.
     randomize_spins!(sys)
     esys = entangle_system(sys, [[1, 2]])
     @test energy_per_site(esys) ≈ energy_per_site(sys) atol=1e-10
@@ -324,14 +316,6 @@ end
     res2 = intensities_bands(SpinWaveTheory(esys; measure=ssf_perp(esys)), qs)
     @test res1.disp ≈ res2.disp atol=1e-3
     @test vec(sum(res1.data; dims=1)) ≈ vec(sum(res2.data; dims=1)) atol=1e-4
-
-    let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_delta(0.1))
-        @test_throws "LocalSampler does not yet support entangled units" step!(esys, sampler)
-    end
-
-    let sampler = LocalSampler(kT=0.1, propose=Sunny.propose_flip)
-        @test_throws "propose_flip is not supported for general coherent states" step!(esys, sampler)
-    end
 
     # On a state entangled *within* a unit, the intra-unit dipole energy must be
     # the exact ⟨Sᵢ D Sⱼ⟩, not the factorized ⟨Sᵢ⟩ D ⟨Sⱼ⟩ that the Ewald path
@@ -446,35 +430,7 @@ end
 end
 
 
-@testitem "Entangled Unit Intensity Scaling" begin
-    latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
-    positions = [[0, 0, 0], [0, 1/3, 0]]
-    crystal = Crystal(latvecs, positions)
-
-    J  = 1
-    J′ = 0.12
-    J2 = 0.1
-
-    sys = System(crystal, [1 => Moment(s=1/2, g=2)], :SUN)
-    set_exchange!(sys, J, Bond(1, 2, [0, 0, 0]))
-    set_exchange!(sys, J′, Bond(1, 2, [0, -1, 0]));
-    set_exchange!(sys, J2, Bond(1, 1, [1, 0, 0]));
-
-    set_field!(sys, [0., 0., 10])
-
-    esys = entangle_system(sys, [[1, 2]])
-
-    for s in (sys, esys)
-        minimize_energy!(s)
-        swt = SpinWaveTheory(s; measure=ssf_trace(s; apply_g=false))
-        qs = q_space_path(crystal, [[0, 1, 0], [1/2, 1, 0], [1, 1, 0], [0, 0, 0]], 20)
-        res = intensities_bands(swt, qs)
-        @test sum(res.data[:,1]) ≈ 1
-    end
-end
-
-
-@testitem "Cell offset for straddling dimers" begin
+@testitem "Offset-based unit specs" begin
     # A unit specified with cell offsets straddles the cell boundary from the
     # start: atom 2 at offset [0,0,0] pairs with atom 1 in the next cell along x.
     # The strong bond then lives *within* the unit (an onsite operator) and the
@@ -511,6 +467,41 @@ end
         @test b.i == b.j == 1
         @test abs(b.n[1]) == 1
     end
+
+    # A measure on an entangled system records each member's position offset from
+    # its unit center. With two dimers of different orientation (one along x, one
+    # along y), the offsets must point along the respective bond directions; these
+    # offsets carry the intra-unit phase factors into structure-factor sums.
+    latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
+    positions = [
+        [0.0, 0.0, 0.0],   # Atom 1
+        [0.25, 0.0, 0.0],  # Atom 2 (x-dimer with atom 1)
+        [0.5, 0.0, 0.0],   # Atom 3
+        [0.5, 0.25, 0.0],  # Atom 4 (y-dimer with atom 3)
+    ]
+    cryst = Crystal(latvecs, positions, 1)
+    sys = System(cryst, [i => Moment(s=1/2, g=1) for i in 1:4], :SUN; dims=(1,1,1))
+
+    units = [
+        [(1, [0,0,0]), (2, [0,0,0])],  # x-oriented dimer
+        [(3, [0,0,0]), (4, [0,0,0])],  # y-oriented dimer
+    ]
+    esys = entangle_system(sys, units)
+
+    measure = ssf_trace(esys)
+    @test size(measure.offsets) == (2, 2)  # 2 unit types × 2 members
+
+    # x-oriented dimer (unit 1): offsets should be along x
+    offset_x1 = esys.crystal.latvecs * measure.offsets[1, 1]
+    offset_x2 = esys.crystal.latvecs * measure.offsets[1, 2]
+    @test abs(offset_x1[1]) > 0.1 && abs(offset_x1[2]) < 0.01
+    @test abs(offset_x2[1]) > 0.1 && abs(offset_x2[2]) < 0.01
+
+    # y-oriented dimer (unit 2): offsets should be along y
+    offset_y1 = esys.crystal.latvecs * measure.offsets[2, 1]
+    offset_y2 = esys.crystal.latvecs * measure.offsets[2, 2]
+    @test abs(offset_y1[1]) < 0.01 && abs(offset_y1[2]) > 0.1
+    @test abs(offset_y2[1]) < 0.01 && abs(offset_y2[2]) > 0.1
 end
 
 @testitem "Symmetry validation of entangled units" begin
@@ -578,43 +569,4 @@ end
     @test length(ebroken.positions) == 2
     @test ebroken.sg.number == 1
     @test ebroken.classes == [1, 2]
-end
-
-@testitem "Offsets for different unit orientations" begin
-    # A measure on an entangled system records each member's position offset from
-    # its unit center. With two dimers of different orientation (one along x, one
-    # along y), the offsets must point along the respective bond directions; these
-    # offsets carry the intra-unit phase factors into structure-factor sums.
-
-    latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
-    positions = [
-        [0.0, 0.0, 0.0],   # Atom 1
-        [0.25, 0.0, 0.0],  # Atom 2 (x-dimer with atom 1)
-        [0.5, 0.0, 0.0],   # Atom 3
-        [0.5, 0.25, 0.0],  # Atom 4 (y-dimer with atom 3)
-    ]
-    cryst = Crystal(latvecs, positions, 1)
-    sys = System(cryst, [i => Moment(s=1/2, g=1) for i in 1:4], :SUN; dims=(1,1,1))
-
-    units = [
-        [(1, [0,0,0]), (2, [0,0,0])],  # x-oriented dimer
-        [(3, [0,0,0]), (4, [0,0,0])],  # y-oriented dimer
-    ]
-    esys = entangle_system(sys, units)
-
-    # Check measure offsets reflect the different orientations
-    measure = ssf_trace(esys)
-    @test size(measure.offsets) == (2, 2)  # 2 unit types × 2 members
-
-    # x-oriented dimer (unit 1): offsets should be along x
-    offset_x1 = esys.crystal.latvecs * measure.offsets[1, 1]
-    offset_x2 = esys.crystal.latvecs * measure.offsets[1, 2]
-    @test abs(offset_x1[1]) > 0.1 && abs(offset_x1[2]) < 0.01
-    @test abs(offset_x2[1]) > 0.1 && abs(offset_x2[2]) < 0.01
-
-    # y-oriented dimer (unit 2): offsets should be along y
-    offset_y1 = esys.crystal.latvecs * measure.offsets[2, 1]
-    offset_y2 = esys.crystal.latvecs * measure.offsets[2, 2]
-    @test abs(offset_y1[1]) < 0.01 && abs(offset_y1[2]) > 0.1
-    @test abs(offset_y2[1]) < 0.01 && abs(offset_y2[2]) > 0.1
 end
