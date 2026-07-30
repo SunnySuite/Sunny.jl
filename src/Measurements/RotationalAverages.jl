@@ -174,7 +174,8 @@ Calculate an average intensity for the reciprocal-space points `qpts` under a
 discrete set of `rotations`. Rotations, in global coordinates, may be given
 either as an axis-angle pair or as a 3×3 rotation matrix. Each rotation is
 weighted according to the elements in `weights`. The function `f` should accept
-a list of rotated q-points and return an [`intensities`](@ref) calculation.
+a list of rotated q-points and return an [`intensities`](@ref),
+[`intensities_static`](@ref), or [`intensities_bands`](@ref) result.
 
 # Example
 
@@ -192,22 +193,39 @@ function domain_average(f, cryst, qpts; rotations, weights)
     isempty(rotations) && error("Rotations must be nonempty list")
     length(rotations) == length(weights) || error("Rotations and weights must be same length")
 
-    R0, Rs... = rotation_in_rlu.(Ref(cryst), rotations)
-    w0, ws... = weights
+    Rs = rotation_in_rlu.(Ref(cryst), rotations)
+    wsum = sum(weights)
 
     qpts = convert(AbstractQPoints, qpts)
     qs0 = copy(qpts.qs)
 
-    qpts.qs .= Ref(R0) .* qs0
+    qpts.qs .= Ref(Rs[1]) .* qs0
     res = f(qpts)
-    res.data .*= w0
 
-    for (R, w) in zip(Rs, ws)
-        qpts.qs .= Ref(R) .* qs0
-        res.data .+= w .* f(qpts).data
+    if !(res isa Union{Intensities, StaticIntensities, BandIntensities})
+        error("Function f must call `intensities`, `intensities_static`, or `intensities_bands`")
     end
 
-    qpts.qs .= qs0
-    res.data ./= sum(weights)
-    return res
+    if res isa BandIntensities
+        # For bands data, domain average is a concatenation of weighted data.
+        disps = [res.disp]
+        datas = [(weights[1] / wsum) .* res.data]
+        for (R, w) in zip(Rs[2:end], weights[2:end])
+            qpts.qs .= Ref(R) .* qs0
+            res = f(qpts)
+            push!(disps, res.disp)
+            push!(datas, (w / wsum) .* res.data)
+        end
+        qpts.qs .= qs0
+        return BandIntensities(cryst, res.qpts, reduce(vcat, disps), reduce(vcat, datas))
+    else
+        # For continuum intensities, domain averaging can happen in-place.
+        res.data .*= weights[1] / wsum
+        for (R, w) in zip(Rs[2:end], weights[2:end])
+            qpts.qs .= Ref(R) .* qs0
+            res.data .+= (w / wsum) .* f(qpts).data
+        end
+        qpts.qs .= qs0
+        return res
+    end
 end
