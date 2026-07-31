@@ -3,9 +3,8 @@
 # This tutorial fits the exchange constants of Ba₃Mn₂O₈ following [Stone et al.,
 # Phys. Rev. Lett. **100**, 237201
 # (2008)](https://doi.org/10.1103/PhysRevLett.100.237201). Strong
-# antiferromagnetic exchange coupling between neighboring spin-1 sites causes
-# entangled into a singlet state. Dynamical spin-spin correlations arise from
-# triplon excitations. Sunny can model this physics within its [entangled
+# antiferromagnetic exchange coupling between neighboring spin-1 sites creates
+# an entangled singlet state. Sunny can model this physics within its [entangled
 # units](@ref entangle_system) formalism.
 
 using Sunny, GLMakie, LinearAlgebra
