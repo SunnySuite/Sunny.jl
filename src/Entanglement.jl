@@ -571,19 +571,20 @@ end
 """
     entangle_system(sys::System, groupings; enforce_symmetry=true)
 
-Create a new [`System`](@ref) with `groupings` of atoms contracted into
-"entangled units". The input `sys` should be in `:SUN` mode with interactions
-already populated. The returned system will contain these same interactions in
-tensor-product form. This formalism is most useful when the couplings within one
-unit are relatively strong compared to the couplings between different units.
+Create a [`System`](@ref) of "entangled units" as defined by the atomic
+`groupings`. The input `sys` should be in `:SUN` mode with interactions already
+populated. The returned system lifts these interactions to the tensor-product
+space within each entangled unit. This formalism is especially useful when the
+couplings within one unit are relatively strong compared to the couplings
+between different units.
 
-Each element of `groupings` contains a list of atomic parts. For example,
-`groupings = [[1, 2], [3, 4]]` would return a system in which atoms `[1, 2]` and
-atoms `[3, 4]` are dimerized. If any entangled unit straddles the cell boundary,
-then all atoms must be paired with cell offsets. For example, replacing `[1, 2]`
-with `[(1, [0, 0, 0]), (2, [-1, 0, 0])]` would indicate that atom `2`
-participates in the dimer via its periodic image in the neighboring cell
-``-𝐚_1``.
+Each element of `groupings` specifies an entangled unit as a list of atoms. For
+example, `groupings = [[1, 2], [3, 4]]` allows dimer entanglement between atoms
+`[1, 2]` and between atoms `[3, 4]`. If any entangled unit straddles the cell
+boundary, then every atom index in `groupings` must include a cell offset. For
+example, replacing `[1, 2]` with `[(1, [0, 0, 0]), (2, [-1, 0, 0])]` would
+indicate that atom `2` participates in the dimer via its periodic image in the
+neighboring cell ``-𝐚_1``.
 
 By default, the grouping of atoms into units must respect all spacegroup
 symmetries. Select `enforce_symmetry=false` to disable this symmetry check.
