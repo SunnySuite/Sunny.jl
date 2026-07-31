@@ -3,10 +3,10 @@
 # This tutorial fits the exchange constants of Ba₃Mn₂O₈ following [Stone et al.,
 # Phys. Rev. Lett. **100**, 237201
 # (2008)](https://doi.org/10.1103/PhysRevLett.100.237201). Strong
-# antiferromagnetic exchange coupling between neighboring spin-1 sites yields
-# effective dimerization into an entangled singlet state. Dynamical spin-spin
-# correlations arise from triplon excitations. Sunny can model this physics
-# within its [entangled units](@ref entangle_system) formalism.
+# antiferromagnetic exchange coupling between neighboring spin-1 sites causes
+# entangled into a singlet state. Dynamical spin-spin correlations arise from
+# triplon excitations. Sunny can model this physics within its [entangled
+# units](@ref entangle_system) formalism.
 
 using Sunny, GLMakie, LinearAlgebra
 
@@ -65,7 +65,7 @@ energy_per_site(esys)
 plot_spins(esys; ghost_radius=8.0)
 
 # We will fit to intensity peak data extracted from Fig. 3 of Stone et al. This
-# data provides one energy for each ``𝐪``-point along a certain path in [H, H,
+# data provides an energy for each ``𝐪``-point along a certain path in [H, H,
 # L] space.
 
 qs = [[0.15, 0.15, 1.5], [0.15, 0.15, 1.5], [0.2, 0.2, 1.5], [0.25, 0.25, 1.5], [0.3, 0.3, 1.5], [1/3, 1/3, 1.5], [1/3, 1/3, 1.5], [1/3, 1/3, 1.5], [0.35, 0.35, 1.5], [0.4, 0.4, 1.5], [0.4, 0.4, 1.5], [0.45, 0.45, 1.5], [0.5, 0.5, 1.5], [0.5, 0.5, 1.5], [0.5, 0.5, 1.5], [0.55, 0.55, 1.5], [0.6, 0.6, 1.5], [0.65, 0.65, 1.5], [2/3, 2/3, 1.5], [0.7, 0.7, 1.5], [0.75, 0.75, 1.5], [0.8, 0.8, 1.5], [0.85, 0.85, 1.5], [0.85, 0.85, 1.5], [0.85, 0.85, 1.5], [0.85, 0.85, 2.0], [0.85, 0.85, 2.5], [0.85, 0.85, 3.0], [0.85, 0.85, 3.0], [0.8, 0.8, 3.0], [0.75, 0.75, 3.0], [0.7, 0.7, 3.0], [2/3, 2/3, 3.0], [0.65, 0.65, 3.0], [0.6, 0.6, 3.0], [0.55, 0.55, 3.0], [0.5, 0.5, 3.0], [0.5, 0.5, 3.0], [0.45, 0.45, 3.0], [0.4, 0.4, 3.0], [0.4, 0.4, 3.0], [0.35, 0.35, 3.0], [0.34, 0.34, 3.0], [1/3, 1/3, 3.0], [0.32, 0.32, 3.0], [0.31, 0.31, 3.0], [0.3, 0.3, 3.0], [0.29, 0.29, 3.0], [0.28, 0.28, 3.0], [0.27, 0.27, 3.0], [0.26, 0.26, 3.0], [0.25, 0.25, 3.0], [0.2, 0.2, 3.0], [0.15, 0.15, 3.0], [0.15, 0.15, 3.0], [0.1, 0.1, 3.0], [0.05, 0.05, 3.0], [0.0, 0.0, 3.0], [0.0, 0.0, 3.0], [0.0, 0.0, 3.25], [0.0, 0.0, 3.5], [0.0, 0.0, 3.75], [0.0, 0.0, 4.0], [0.0, 0.0, 4.25], [0.0, 0.0, 4.5], [0.0, 0.0, 4.75], [0.0, 0.0, 5.0], [0.0, 0.0, 5.75], [0.0, 0.0, 6.25], [0.0, 0.0, 6.5], [0.0, 0.0, 6.75], [0.0, 0.0, 7.0], [0.0, 0.0, 7.25], [0.0, 0.0, 7.5], [0.0, 0.0, 7.75], [0.0, 0.0, 8.0], [0.0, 0.0, 8.25], [0.0, 0.0, 8.5]]
@@ -131,8 +131,8 @@ sqrt.(diag(U) / 2) # [ΔJ0, ΔJ1, ΔJ2, ΔJ4]
 # | ``J_2 - J_3`` | 0.11 ± 0.01      | 0.114              |
 # | ``J_4``       | 0.04 ± 0.02      | 0.037              |
 #
-# Per the [published erratum](https://doi.org/10.1103/PhysRevLett.105.169901) of
-# Stone et al., all fitted exchanges are correctly antiferromagnetic.
+# Per the [published erratum](https://doi.org/10.1103/PhysRevLett.105.169901),
+# all fitted exchanges are correctly antiferromagnetic.
 #
 # Finally, plot the fitted dispersion together with the labeled peak data. The
 # helper [`find_qs_along_path`](@ref) maps each labeled ``𝐪``-point to an index
