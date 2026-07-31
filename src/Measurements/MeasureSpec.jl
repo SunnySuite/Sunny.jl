@@ -64,7 +64,7 @@ function all_dipole_observables(sys::System{0}; apply_g)
 end
 
 function all_dipole_observables(sys::System{N}; apply_g) where {N}
-    @assert isnothing(sys.entanglement)
+    @assert !is_entangled(sys)
 
     S = SVector{3}(spin_matrices_of_dim(; N))
     observables = Array{HermitianC64, 6}(undef, 3, size(eachsite(sys))..., 1)
@@ -117,7 +117,7 @@ See also the Sunny documentation on [Structure Factor Conventions](@ref).
 function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
     # For an entangled system, build the measure for the uncontracted system
     # first, and then transform it to the entangled units.
-    if !isnothing(sys.entanglement)
+    if is_entangled(sys)
         (; uncontracted) = get_entanglement(sys)
         measure_atom = ssf_custom(f, uncontracted; apply_g, formfactors)
         return entangled_measure(measure_atom, sys)

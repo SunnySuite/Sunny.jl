@@ -288,7 +288,7 @@ The [`SCGA`](@ref) calculator returns the thermodynamic average for each site.
 """
 function magnetic_moments(sys::System)
     # For an entangled system, physical moments live on the bare system.
-    if !isnothing(sys.entanglement)
+    if is_entangled(sys)
         bare = get_entanglement(sys).uncontracted
         return magnetic_moments_aux(bare.gs, bare.dipoles)
     end
@@ -488,7 +488,7 @@ end
     sys.coherents[site] = spin.Z
 
     # For an entangled system, sync dipoles in the uncontracted system
-    if !isnothing(sys.entanglement)
+    if is_entangled(sys)
         sync_bare_dipoles_at!(sys, site)
     end
     return
@@ -496,7 +496,7 @@ end
 
 # Recompute spin dipoles from the coherent states.
 function sync_dipoles!(sys::System{N}) where N
-    if isnothing(sys.entanglement)
+    if !is_entangled(sys)
         @. sys.dipoles = expected_spin(sys.coherents)
     else
         @. sys.dipoles = Vec3(NaN, NaN, NaN)

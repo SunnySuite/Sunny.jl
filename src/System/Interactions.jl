@@ -10,7 +10,7 @@ function repopulate_couplings_from_params!(sys::System)
 
     # If `sys` is entangled, then also repopulate its `uncontracted` system,
     # which handles inter-unit bilinear exchange.
-    if !isnothing(sys.entanglement)
+    if is_entangled(sys)
         repopulate_couplings_from_params!(get_entanglement(sys).uncontracted)
     end
 
@@ -41,9 +41,9 @@ function repopulate_couplings_from_params!(sys::System)
         end
     end
 
-    # The net coupling on each bond may arise from multiple source couplings
-    # (this occurs naturally for entangled units). Compress "general"
-    # interactions ∑ₖ aₖ⊗bₖ so that the sum has a minimal set of terms.
+    # The net coupling on each bond may arise from multiple source couplings.
+    # Compress "general" interactions ∑ₖ Aₖ⊗Bₖ so that the sum has a minimal set
+    # of terms.
     for int in ints
         for (k, pc) in enumerate(int.pair)
             (; gen1, gen2, data) = pc.general
@@ -59,8 +59,8 @@ function repopulate_couplings_from_params!(sys::System)
 end
 
 function empty_interactions(mode::Symbol, Na::Int, N::Int)
-    # Cannot use `fill` because the PairCoupling arrays must be
-    # allocated separately for later mutation.
+    # Cannot use `fill` because the PairCoupling arrays must be allocated
+    # separately for later mutation.
     return map(1:Na) do _
         Interactions(empty_anisotropy(mode, N), PairCoupling[])
     end
@@ -201,13 +201,12 @@ function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; demag=1/3)
         @warn "Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV, :angstrom)`."
         μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
     end
-    # For an entangled system, dipole-dipole interactions couple the physical
-    # magnetic moments on the uncontracted system.
-    if is_entangled(sys)
+    if !is_entangled(sys)
+        sys.ewald = Ewald(sys, μ0_μB², Mat3(demag * I))
+    else
+        # For an entangled system, the magnetic moments live on `uncontracted`
         enable_dipole_dipole!(get_entanglement(sys).uncontracted, μ0_μB²; demag)
-        return
     end
-    sys.ewald = Ewald(sys, μ0_μB², Mat3(demag * I))
     return
 end
 
@@ -251,7 +250,7 @@ function set_field_at!(sys::System, B_μB, site)
     site = to_cartesian(site)
     B = Vec3(B_μB)
 
-    if isnothing(sys.entanglement)
+    if !is_entangled(sys)
         sys.extfield[site] = B
     else
         # For an entangled system, `sys.extfield` stays NaN. The Zeeman coupling
@@ -601,7 +600,7 @@ end
 # lets that delegation reach the abstractly-typed `uncontracted::System` (unknown
 # N) without a runtime dispatch; the dipole sector uses no N-dependent state.
 function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, @nospecialize(sys::System))
-    @assert isnothing(sys.entanglement)
+    @assert !is_entangled(sys)
 
     fill!(∇E, zero(Vec3))
 
@@ -689,7 +688,7 @@ function set_energy_grad_coherents!(∇E, Z::Array{CVec{N}, 4}, sys::System{N}) 
     # Dipole sector: accumulate ∇E += (dE/dS ⋅ S) Z, where dE/dS collects
     # {Zeeman, Ewald, bilinear}. For an entangled system this is delegated to
     # the uncontracted system's bare dipoles.
-    if isnothing(sys.entanglement)
+    if !is_entangled(sys)
         dE_dS, dipoles = get_dipole_buffers(sys, 2)
         @. dipoles = expected_spin(Z)
         set_energy_grad_dipoles!(dE_dS, dipoles, sys)

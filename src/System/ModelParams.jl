@@ -149,7 +149,7 @@ function set_param_vals!(sys, labels, vals)
     if !isnothing(sys.origin)
         set_param_vals!(sys.origin, labels, vals)
     end
-    if !isnothing(sys.entanglement)
+    if is_entangled(sys)
         set_param_vals!(get_entanglement(sys).uncontracted, labels, vals)
     end
     foreach(labels, vals) do label, val

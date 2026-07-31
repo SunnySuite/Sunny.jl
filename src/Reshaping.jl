@@ -180,7 +180,6 @@ reshape_supercell(sys, [dims[1] 0 0; 0 dims[2] 0; 0 0 dims[3]])
 See also [`reshape_supercell`](@ref) and [`repeat_periodically`](@ref).
 """
 function resize_supercell(sys::System, dims::NTuple{3,Int})
-    isnothing(sys.entanglement) && !is_homogeneous(sys) && error("Cannot resize inhomogeneous system.")
     return reshape_supercell(sys, diagm(Vec3(dims)))
 end
 
