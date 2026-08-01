@@ -282,7 +282,7 @@ function label_atoms(cryst; ismagnetic, sys)
                 i_ref = Sunny.findfirstval(i_ref -> Sunny.is_related_by_symmetry(cryst, i, i_ref), refatoms)
                 R_site = Sunny.rotation_between_sites(cryst, i, i_ref)
                 push!(ret, Sunny.allowed_g_tensor_string(cryst, i_ref; R_site, prefix="Aniso: ", digits=8))
-            else
+            elseif !Sunny.is_entangled(sys)
                 site = Sunny.map_atom_to_other_system(cryst, i, sys)
                 stvexp = Sunny.get_stevens_expansion_at(sys, site)
                 aniso = Sunny.unrenormalize_quadratic_anisotropy(stvexp, sys, site)
@@ -447,7 +447,11 @@ function Sunny.view_crystal(sys::System; refbonds=10, orthographic=false, ghost_
 end
 
 function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndims, compass, size)
-    interactions = isnothing(sys) ? nothing : Sunny.interactions_homog(something(sys.origin, sys))
+    interactions = if isnothing(sys) || Sunny.is_entangled(sys)
+        nothing
+    else
+        Sunny.interactions_homog(something(sys.origin, sys))
+    end
 
     # Dict that maps atom class to color
     class_colors = build_class_colors(cryst)

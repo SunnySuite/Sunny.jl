@@ -59,8 +59,10 @@ display(fig)
 function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
                      colorfn=nothing, colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
                      ghost_radius=0, ndims=3, dims=nothing)
-    isnothing(dims) || error("Use notation `ndims=$dims` instead of `dims=$dims`")
+    # If system is entangled, plot the uncontracted spins instead
+    sys = Sunny.uncontracted_system(sys)
 
+    isnothing(dims) || error("Use notation `ndims=$dims` instead of `dims=$dims`")
     if ndims == 2
         sys.dims[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
     elseif ndims == 1

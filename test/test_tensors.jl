@@ -15,13 +15,13 @@
 
     # Check factorization: S₁ˣ⊗S₂ˣ + S₁ˣ⊗S₂ʸ == S₁ˣ⊗(S₂ˣ+S₂ʸ)
     B = Si[1] * Sj[1] + Si[1] * Sj[2]
-    D = Sunny.svd_tensor_expansion(B, Ni, Nj)
+    D = Sunny.factorize_tensor_space_operator(B, Ni, Nj)
     @test length(D) == 1
     @test sum(kron(d...) for d in D) ≈ B
 
     # Check complicated SVD decomposition
     B = Si' * randn(3, 3) * Sj + (Si' * randn(3, 3) * Sj)^2
-    D = Sunny.svd_tensor_expansion(B, Ni, Nj)
+    D = Sunny.factorize_tensor_space_operator(B, Ni, Nj)
     @test length(D) == 9 # a nice factorization is always possible
     @test sum(kron(d...) for d in D) ≈ B
 end

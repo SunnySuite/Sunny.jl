@@ -35,8 +35,8 @@ Julia setup is described in the [Getting Started](https://github.com/SunnySuite/
 - **Self-consistent Gaussian approximation** [(SCGA)](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SCGA) for static observables in the paramagnetic-phase, e.g., susceptibility and diffuse scattering.
 - **Long-range dipole-dipole interactions** with Ewald summation and customizable demagnetization tensor ([Pyrochlore Ewald](https://sunnysuite.github.io/Sunny.jl/stable/examples/07_Dipole_Dipole.html)).
 - **Quenched disorder** to model chemical impurities ([Disordered intensities](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html)).
-- **Entangled units** capture local entanglement between strongly-coupled sites ([Ba₃Mn₂O₈ intensities](https://sunnysuite.github.io/Sunny.jl/stable/examples/contributed/entangled_units.html)).
 - **Model fitting tools**. Examples include fitting to magnon bands ([LuVO₃ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW35_LuVO3-fitting.html)), inelastic powder data ([β-Na₂PrO₃ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/11_Powder_fitting.html)), and diffuse scattering data ([MgCr₂O₄ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/10_SCGA_fitting.html)).
+- **Entangled units** to capture the local entanglement between strongly-coupled groups of spins ([Ba₃Mn₂O₈ fitting](https://sunnysuite.github.io/Sunny.jl/dev/examples/12_Entangled_fitting.html)).
 
 See [**Release Notes**](https://sunnysuite.github.io/Sunny.jl/stable/versions) for new features and breaking changes.
 
