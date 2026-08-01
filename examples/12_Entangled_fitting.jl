@@ -41,9 +41,14 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 energy_per_site(sys)
 
-# The true ground state of each spin-1 dimer is the singlet ``(|1,-1⟩ - |0,0⟩ +
-# |-1,1⟩) / \sqrt{3}`` with an energy of ``-J_0`` per site. Use
-# [`entangle_system`](@ref) to capture this dimer physics exactly.
+# The true ground state of each spin-1 dimer is the singlet
+#
+# ```math
+# |\psi\rangle = \frac{|1,-1\rangle - |0,0\rangle + |{-1},1\rangle}{\sqrt{3}}
+# ```
+#
+# with an energy of ``-J_0`` per site. Use [`entangle_system`](@ref) to capture
+# this dimer physics exactly.
 
 dimers = [[1, 2], [3, 4], [5, 6]]
 esys = entangle_system(sys, dimers)
@@ -74,7 +79,7 @@ Es = [[2.133], [2.127], [1.740], [1.349], [1.120], [1.075], [1.070], [1.068], [1
 # Crystal field data fixes the easy-axis anisotropy to ``D = -0.032`` (meV). At
 # weak inter-dimer exchange coupling, an RPA analysis shows that the dispersion
 # is entirely controlled by four parameters ``(J_0, J_1, J_2 - J_3, J_4)``. We
-# arbitrarily fix ``J_3 = 0```.
+# arbitrarily fix ``J_3 = 0``.
 
 set_params!(esys, [:D, :J3], [-0.032, 0])
 
