@@ -36,6 +36,13 @@ end
 # Tensor product of 3-vectors
 (⊗)(a::Vec3,b::Vec3) = reshape(kron(a,b), 3, 3)
 
+# Bare (single-image) point dipole-dipole coupling tensor for a displacement `r`,
+# i.e. the r → 0 limit of the Ewald kernel, without the μ0_μB² prefactor.
+function point_dipole_tensor(r::Vec3)
+    r̂ = normalize(r)
+    return (I - 3(r̂⊗r̂)) / (4π * norm(r)^3)
+end
+
 
 function precompute_dipole_ewald(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3)
     precompute_dipole_ewald_aux(cryst, dims, demag, Vec3(0,0,0), cos, Val{Float64}())
@@ -69,7 +76,7 @@ function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag,
 
     # Precalculate constants
     I₃ = Mat3(I)
-    V = det(latvecs)
+    V = abs(det(latvecs))
     L = cbrt(V)
     # Roughly balances the real and Fourier space costs. Note that σ = 1/(√2 λ)
     σ = L/3
@@ -152,7 +159,9 @@ function precompute_dipole_ewald_aux(cryst::Crystal, dims::NTuple{3,Int}, demag,
 end
 
 
-function ewald_energy(sys::System{N}) where N
+# The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known
+# statically.
+function ewald_energy(@nospecialize(sys::System))
     (; μ, FA, Fμ, plan) = sys.ewald
     dims = size(sys.dipoles)[1:3]
     even_rft_size = dims[1] % 2 == 0
@@ -181,13 +190,14 @@ function ewald_energy(sys::System{N}) where N
 end
 
 # Use FFT to accumulate the entire field dE/dS for long-range dipole-dipole
-# interactions
-function accum_ewald_grad!(∇E, dipoles, sys::System{N}) where N
-    (; ewald, gs) = sys
+# interactions. The @nospecialize(sys) hint satisfies JET when Hilbert size N is
+# not known statically.
+function accum_ewald_grad!(∇E, dipoles, @nospecialize(sys::System))
+    (; gs, ewald) = sys
     (; μ, FA, Fμ, Fϕ, ϕ, plan, ift_plan) = ewald
 
     # Fourier transformed magnetic moments for the provided trial dipoles
-    @. μ = - sys.gs * dipoles
+    @. μ = - gs * dipoles
     mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
 
     # Calculate magneto-potential ϕ in Fourier space. Without @inbounds,
@@ -275,8 +285,7 @@ function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, �
                 (; j) = bond′
                 r = global_displacement(sys.crystal, bond′)
                 iszero(r) && continue
-                r̂ = normalize(r)
-                bilin = (μ0_μB²/4π) * sys.gs[i]' * ((I - 3r̂⊗r̂) / norm(r)^3) * sys.gs[j]
+                bilin = μ0_μB² * sys.gs[i]' * point_dipole_tensor(r) * sys.gs[j]
                 pc = PairCoupling(bond′, 0.0, Mat3(bilin), 0.0, zero(TensorDecomposition))
                 push!(pairs, pc)
             end

@@ -1,6 +1,6 @@
-struct FittingLoss{S}
+struct FittingLoss
     f :: Function
-    sys :: S
+    sys :: System
     labels :: Vector{Symbol}
     hp :: NamedTuple
 end
@@ -94,19 +94,12 @@ function make_loss_fn(f, sys, labels; hp=NamedTuple())
     return FittingLoss(f, sys, labels, hp)
 end
 
-function set_active_labels!(sys::System, labels::Vector{Symbol})
-    sys.active_labels = labels
-    return sys
-end
-
-get_active_labels(sys::System) = sys.active_labels
-
 function (fl::FittingLoss)(vals)
     (; f, sys, labels, hp) = fl
 
     sys = clone_system(sys)
     set_params!(sys, labels, vals)
-    set_active_labels!(sys, labels)
+    sys.active_labels = labels
     try
         if applicable(f, sys, hp)
             return f(sys, hp)
@@ -125,7 +118,7 @@ function CRC.rrule(rc::CRC.RuleConfig, fl::FittingLoss, vals)
 
     sys = clone_system(sys)
     set_params!(sys, labels, vals)
-    set_active_labels!(sys, labels)
+    sys.active_labels = labels
     (L, f_pb) = try
         if applicable(f, sys, hp)
             CRC.rrule_via_ad(rc, f, sys, hp)
@@ -712,7 +705,7 @@ CRC.zero_tangent(t::SystemTangent) = SystemTangent(zero(t.vals))
 CRC.unthunk(t::SystemTangent) = t
 
 function CRC.ProjectTo(sys::System)
-    n = length(get_active_labels(sys))
+    n = length(sys.active_labels)
     function project(Δsys)
         Δsys = CRC.unthunk(Δsys)
         if Δsys isa CRC.NoTangent || Δsys isa CRC.AbstractZero
@@ -734,7 +727,7 @@ end
 function with_params(sys::System, labels::Vector{Symbol}, vals::Vector{<: Real})
     sys = clone_system(sys)
     set_params!(sys, labels, vals)
-    set_active_labels!(sys, labels)
+    sys.active_labels = labels
     return sys
 end
 function CRC.rrule(::typeof(with_params), sys::System, labels, vals)

@@ -12,7 +12,7 @@ function pruned_wave_vector_info(sc::SampledCorrelations, qs)
     end
 
     # Convert to absolute units (for form factors)
-    qabs_rounded = map(m -> sc.crystal.recipvecs * (m ./ sc.sys_dims), ms)
+    qabs_rounded = map(m -> sc.recipvecs * (m ./ Ls), ms)
 
     # List of "starting" pointers i where qabs_rounded[i-1] != qabs_rounded[i],
     # i.e., indices where the desired wave vector is distinct from the previous
@@ -97,24 +97,20 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     qpts = Base.convert(AbstractQPoints, qpts)
     qs_reshaped = [to_reshaped_rlu(sc, q) for q in qpts.qs]
 
-    # Check that form factors are uniform for each observable.
-    for col in eachcol(sc.measure.formfactors)
-        @assert allequal(col) "Observable-dependent form factors not yet supported."
-    end
-    ffs = sc.measure.formfactors[1, :]
+    # SampledCorrelations disallows form factors that vary with observable, so
+    # drop first index. Merge the remaining two (unit, part) indices.
+    ffs = vec(sc.measure.formfactors[1, :, :])
 
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic SWT
     q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
-    crystal = @something sc.origin_crystal sc.crystal
     NCorr  = Val{size(sc.data, 1)}()
-    # NPos = Val{size(sc.data, 2)}()
-    NPos = Val{length(sc.crystal.positions)}()
+    NAtoms = Val{size(sc.data, 2)}()
 
     # Intensities calculation
-    intensities_aux!(intensities, sc.data, sc.crystal, sc.positions, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NPos)
+    intensities_aux!(intensities, sc.data, sc.recipvecs, sc.positions, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NAtoms)
 
     # Convert to a q-space density in original (not reshaped) RLU.
-    intensities .*= det(sc.crystal.recipvecs) / det(crystal.recipvecs)
+    intensities .*= det(sc.recipvecs) / det(sc.origin_crystal.recipvecs)
 
     # Post-processing steps for dynamical correlations 
     if contains_dynamic_correlations(sc) 
@@ -135,23 +131,22 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
 
     return if contains_dynamic_correlations(sc) 
-        Intensities(crystal, qpts, collect(ωs), intensities)
+        Intensities(sc.origin_crystal, qpts, collect(ωs), intensities)
     else
-        StaticIntensities(crystal, qpts, dropdims(intensities; dims=1))
+        StaticIntensities(sc.origin_crystal, qpts, dropdims(intensities; dims=1))
     end
 end
 
-function intensities_aux!(intensities, data, crystal, positions, combiner, ff_atoms, q_idx_info, ωidcs, ::Val{NCorr}, ::Val{NPos}) where {NCorr, NPos}
-    (; qabs, idcs, counts) = q_idx_info 
-    (; recipvecs) = crystal 
+function intensities_aux!(intensities, data, recipvecs, positions, combiner, ff_atoms, q_idx_info, ωidcs, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
+    (; qabs, idcs, counts) = q_idx_info
     qidx = 1
     for (qabs, idx, count) in zip(qabs, idcs, counts)
-        prefactors = prefactors_for_phase_averaging(qabs, recipvecs, view(positions, idx, :), ff_atoms, Val{NCorr}(), Val{NPos}())
+        prefactors = prefactors_for_phase_averaging(qabs, recipvecs, positions, ff_atoms, Val{NCorr}(), Val{NAtoms}())
 
         # Perform phase-averaging over all omega
         for (n, iω) in enumerate(ωidcs)
             elems = zero(SVector{NCorr, ComplexF64})
-            for j in 1:NPos, i in 1:NPos
+            for j in 1:NAtoms, i in 1:NAtoms
                 elems += (prefactors[i] * conj(prefactors[j])) * SVector{NCorr}(view(data, :, i, j, idx, iω))
             end
             val = combiner(qabs, elems)

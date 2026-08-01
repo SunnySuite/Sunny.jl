@@ -60,6 +60,10 @@
     sys2 = resize_supercell(sys, (2, 3, 1))
     @test isapprox(energy_per_site(sys), energy_per_site(sys2); atol=1e-12)
 
+    # Also independent of reshaping, including negative-determinant shapes
+    sys3 = reshape_supercell(sys, [-1 -1 0; 1 -1 0; 0 0 -1])
+    @test isapprox(energy_per_site(sys), energy_per_site(sys3); atol=1e-12)
+
     # Calculate energy gradient using a sum over pairs, or using an FFT-based
     # convolution
     ∇E = [Sunny.ewald_grad_at(sys, site) for site in eachsite(sys)]

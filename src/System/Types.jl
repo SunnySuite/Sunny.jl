@@ -103,6 +103,10 @@ struct Ewald
     ift_plan :: rIFTPlan
 end
 
+# An abstract type to avoid Julia's restriction against circular type
+# dependency. The corresponding concrete type is Entanglement.
+abstract type AbstractEntanglement end
+
 mutable struct System{N}
     const origin           :: Union{Nothing, System{N}} # System for the original chemical cell
     const mode             :: Symbol                    # :SUN, :dipole, or :dipole_uncorrected
@@ -137,6 +141,9 @@ mutable struct System{N}
 
     # Global data
     const rng              :: Random.Xoshiro
+
+    # Optional entanglement metadata
+    entanglement           :: Union{Nothing, AbstractEntanglement}
 end
 
 

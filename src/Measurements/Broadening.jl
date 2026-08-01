@@ -93,7 +93,7 @@ function broaden!(data::AbstractArray{Ret}, bands::BandIntensities{Ret}; energie
     for iq in CartesianIndices(bands.qpts.qs)
         for (ib, b) in enumerate(view(bands.disp, :, iq))
             norm(bands.data[ib, iq]) < cutoff && continue
-            for (iω, ω) in enumerate(energies)
+            @inbounds for (iω, ω) in enumerate(energies)
                 data[iω, iq] += kernel(b, ω) * bands.data[ib, iq]
             end
             # If this broadening is a bottleneck, one can terminate when kernel

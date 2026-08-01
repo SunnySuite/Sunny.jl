@@ -22,20 +22,19 @@
 
         # Test dipole -> ket -> dipole round trip
         n = s * normalize(randn(Sunny.Vec3))
-        Z = Sunny.ket_from_dipole(n, Val(N))
+        Z = Sunny.ket_from_dipole(n, Val{N}())
         @test Sunny.expected_spin(Z) ≈ n
 
         # Test time reversal operator
         Z = randn(Sunny.CVec{N})
-        @test Sunny.flip_ket(Z) ≈ exp(-im*π*S[2]) * conj(Z)
+        @test Sunny.time_reverse_irrep_ket(Z) ≈ exp(-im*π*S[2]) * conj(Z)
     end
 
     # Test action of mul_spin_matrices(B, Z)
     for N = 4:6
-        Λ = randn(ComplexF64, N, N)
         B = randn(Sunny.Vec3)
         Z = randn(Sunny.CVec{N})
-        @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*spin_matrices((N-1)/2)) * Z
+        @test Sunny.mul_spin_matrices(B, Z) ≈ B' * spin_matrices((N-1)/2) * Z
     end
 end
 
