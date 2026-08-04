@@ -78,11 +78,11 @@ function Base.getproperty(u::Units, name::Symbol)
         return getfield(u, name)
     end
 
-    if name in (:meV, :K, :THz, :T)
+    if name in keys(meV_in)
         return meV_in[u.energy] / meV_in[name]
     end
 
-    if name in (:angstrom, :nm)
+    if name in keys(angstrom_in)
         return angstrom_in[u.length] / angstrom_in[name]
     end
 
