@@ -22,6 +22,9 @@ function lanczos_device_batched_ka(
     min_iters::Int,
     resolution::Float64,
     verbose::Bool = false,
+    reduce! = batched_dot_chains_ka!,
+    project! = batched_projection_ka!,
+    wupdate! = batched_w_update_ka!,
 )::Tuple{Matrix{Float64}, Matrix{Float64}, Array{ComplexF64, 3}, Vector{Int}, Vector{Float64}}
 
     N_chains = size(v_batch, 1)
@@ -51,7 +54,7 @@ function lanczos_device_batched_ka(
 
     mulS!(Sv_batch, v_batch)
 
-    batched_dot_chains_ka!(α_chains_dev, v_batch, Sv_batch)
+    reduce!(α_chains_dev, v_batch, Sv_batch)
 
     copyto!(α_chains_host, α_chains_dev)
 
@@ -85,7 +88,7 @@ function lanczos_device_batched_ka(
 
     mulA!(w_batch, Sv_batch)
 
-    batched_dot_chains_ka!(α_chains_dev, w_batch, Sv_batch)
+    reduce!(α_chains_dev, w_batch, Sv_batch)
 
     copyto!(α_chains_host, α_chains_dev)
 
@@ -97,7 +100,7 @@ function lanczos_device_batched_ka(
 
     mulS!(Sw_batch, w_batch)
 
-    batched_projection_ka!(corr_dev, lhs_dev, v_batch)
+    project!(corr_dev, lhs_dev, v_batch)
 
     copyto!(corr_host, corr_dev)
 
@@ -111,7 +114,7 @@ function lanczos_device_batched_ka(
     end
 
     @inbounds for i in 1:max_iters - 1
-        batched_dot_chains_ka!(β²_chains_dev, w_batch, Sw_batch)
+        reduce!(β²_chains_dev, w_batch, Sw_batch)
 
         copyto!(β²_chains_host, β²_chains_dev)
 
@@ -166,7 +169,7 @@ function lanczos_device_batched_ka(
 
         mulA!(w_batch, Svp_batch)
 
-        batched_dot_chains_ka!(α_chains_dev, w_batch, Svp_batch)
+        reduce!(α_chains_dev, w_batch, Svp_batch)
 
         copyto!(α_chains_host, α_chains_dev)
 
@@ -178,13 +181,13 @@ function lanczos_device_batched_ka(
             end
         end
 
-        batched_w_update_ka!(w_batch, α_chains_dev, vp_batch, β_chains_dev, v_batch)
+        wupdate!(w_batch, α_chains_dev, vp_batch, β_chains_dev, v_batch)
 
         mulS!(Sw_batch, w_batch)
 
         copyto!(v_batch, vp_batch)
 
-        batched_projection_ka!(corr_dev, lhs_dev, v_batch)
+        project!(corr_dev, lhs_dev, v_batch)
 
         copyto!(corr_host, corr_dev)
 

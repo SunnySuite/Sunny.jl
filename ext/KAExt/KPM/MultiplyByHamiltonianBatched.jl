@@ -1,3 +1,6 @@
+@inline pow5_ka(x::Float32) = x*x*x*x*x
+@inline pow5_ka(x) = x^5
+
 @kernel inbounds=true function multiply_by_hamiltonian_dipole_batched_kernel_ka!(
     Y, X, sys, incoming, data,
     q_reshaped_chain, regularization, L,
@@ -24,8 +27,8 @@
     c2_me = stevens_coefs[me].c2
     c4_me = stevens_coefs[me].c4
     c6_me = stevens_coefs[me].c6
-    A1 = -6*s_me*c2_me[3] - 80*s_me^3*c4_me[5] - 336*s_me^5*c6_me[7]
-    A2 = 2*s_me*(c2_me[1] + im*c2_me[5]) + 12*s_me^3*(c4_me[3] + im*c4_me[7]) + 32*s_me^5*(c6_me[5] + im*c6_me[9])
+    A1 = -6*s_me*c2_me[3] - 80*s_me^3*c4_me[5] - 336*pow5_ka(s_me)*c6_me[7]
+    A2 = 2*s_me*(c2_me[1] + im*c2_me[5]) + 12*s_me^3*(c4_me[3] + im*c4_me[7]) + 32*pow5_ka(s_me)*(c6_me[5] + im*c6_me[9])
 
     B = gs[1, 1, 1, me]' * extfield[1, 1, 1, me]
     Bprime = -dot(B, local_rotations[me][:, 3])
