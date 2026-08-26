@@ -101,32 +101,45 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     # Add long-range dipole-dipole
     if !isnothing(sys.ewald)
         (; μ0_μB²) = sys.ewald
-        (; ewald_q_plan, ewald_local_transform, ewald_J0_diag) = data
+        (; ewald_q_plan, ewald_local_transform, ewald_J0_diag, ewald_buffers) = data
         @assert !isnothing(ewald_q_plan)
-        reciprocal = dipole_ewald_reciprocal_terms(ewald_q_plan, q_reshaped)
+        buffer = ewald_buffers[Threads.threadid()]
+        reciprocal = dipole_ewald_reciprocal_terms!(buffer.reciprocal_terms, ewald_q_plan, q_reshaped)
 
-        # Loop over sublattice pairs
+        nrecip = length(reciprocal.terms)
+        resize_dipole_ewald_hamiltonian_buffer!(buffer, L, nrecip)
+        (; site_k, site_phase, site_phase_conj) = buffer
+        for (iterm, term) in enumerate(reciprocal.terms)
+            for i in 1:L
+                site_k[i, iterm] = ewald_local_transform[i]' * term.k
+                phase = cis(-term.k⋅ewald_q_plan.Δrs[1, 1, i])
+                site_phase[i, iterm] = phase
+                site_phase_conj[i, iterm] = conj(phase)
+            end
+        end
+
         for i in 1:L, j in 1:L
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy. A symmetric contribution will appear for the bond reversal
             # (i, j) → (j, i).  Note that μ = -μB g S.
-            Aqij = μ0_μB² * dipole_ewald_pair_at(ewald_q_plan, q_reshaped, reciprocal, 1, i, j)
+            Aqij = μ0_μB² * dipole_ewald_nonreciprocal_pair_at(ewald_q_plan, q_reshaped, reciprocal.demag_term, 1, i, j)
             J = ewald_local_transform[i]' * Aqij * ewald_local_transform[j] / 2
 
-            # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
-            Q⁻ = 0.5 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
-            Q⁺ = 0.5 * (J[1, 1] + J[2, 2] + im*(J[1, 2] - J[2, 1]))
-            H11[i, j] += Q⁻
-            H11[j, i] += conj(Q⁻)
-            H22[i, j] += Q⁺
-            H22[j, i] += conj(Q⁺)
+            J11 = J[1, 1]
+            J22 = J[2, 2]
+            J12 = J[1, 2]
+            J21 = J[2, 1]
+            for (iterm, term) in enumerate(reciprocal.terms)
+                vi = site_k[i, iterm]
+                vj = site_k[j, iterm]
+                coeff = (μ0_μB² * term.scale / 2) * site_phase[j, iterm] * site_phase_conj[i, iterm]
+                J11 += coeff * vi[1] * vj[1]
+                J22 += coeff * vi[2] * vj[2]
+                J12 += coeff * vi[1] * vj[2]
+                J21 += coeff * vi[2] * vj[1]
+            end
 
-            P⁻ = 0.5 * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1]))
-            P⁺ = 0.5 * (J[1, 1] - J[2, 2] + im*(J[1, 2] + J[2, 1]))
-            H21[i, j] += P⁻
-            H21[j, i] += conj(P⁺)
-            H12[i, j] += P⁺
-            H12[j, i] += conj(P⁻)
+            add_dipole_J_to_hamiltonian!(H11, H12, H21, H22, i, j, J11, J22, J12, J21)
         end
 
         # Interactions for Jᶻᶻ at wavevector (0,0,0).
@@ -146,6 +159,32 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     for i in 1:2L
         H[i, i] += swt.regularization
     end
+end
+
+function resize_dipole_ewald_hamiltonian_buffer!(buffer::DipoleEwaldHamiltonianBuffer, L, nrecip)
+    if size(buffer.site_k) != (L, nrecip)
+        buffer.site_k = Array{Vec3}(undef, L, nrecip)
+        buffer.site_phase = Array{ComplexF64}(undef, L, nrecip)
+        buffer.site_phase_conj = Array{ComplexF64}(undef, L, nrecip)
+    end
+    return buffer
+end
+
+@inline function add_dipole_J_to_hamiltonian!(H11, H12, H21, H22, i, j, J11, J22, J12, J21)
+    # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
+    Q⁻ = 0.5 * (J11 + J22 - im*(J12 - J21))
+    Q⁺ = 0.5 * (J11 + J22 + im*(J12 - J21))
+    H11[i, j] += Q⁻
+    H11[j, i] += conj(Q⁻)
+    H22[i, j] += Q⁺
+    H22[j, i] += conj(Q⁺)
+
+    P⁻ = 0.5 * (J11 - J22 - im*(J12 + J21))
+    P⁺ = 0.5 * (J11 - J22 + im*(J12 + J21))
+    H21[i, j] += P⁻
+    H21[j, i] += conj(P⁺)
+    H12[i, j] += P⁺
+    H12[j, i] += conj(P⁻)
 end
 
 
