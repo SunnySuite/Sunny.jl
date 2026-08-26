@@ -105,6 +105,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         @assert !isnothing(ewald_q_plan)
         buffer = ewald_buffers[Threads.threadid()]
         reciprocal = dipole_ewald_reciprocal_terms!(buffer.reciprocal_terms, ewald_q_plan, q_reshaped)
+        real_phases = dipole_ewald_real_phases!(buffer.real_phases, ewald_q_plan, q_reshaped)
 
         nrecip = length(reciprocal.terms)
         resize_dipole_ewald_hamiltonian_buffer!(buffer, L, nrecip)
@@ -122,7 +123,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy. A symmetric contribution will appear for the bond reversal
             # (i, j) → (j, i).  Note that μ = -μB g S.
-            Aqij = μ0_μB² * dipole_ewald_nonreciprocal_pair_at(ewald_q_plan, q_reshaped, reciprocal.demag_term, 1, i, j)
+            Aqij = μ0_μB² * dipole_ewald_nonreciprocal_pair_at(ewald_q_plan, real_phases, reciprocal.demag_term, 1, i, j)
             J = ewald_local_transform[i]' * Aqij * ewald_local_transform[j] / 2
 
             J11 = J[1, 1]
