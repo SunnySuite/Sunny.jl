@@ -48,17 +48,22 @@ struct DipoleEwaldRealTerm
     A           :: Mat3
 end
 
+# Full reciprocal term used by q-dependent Ewald tensor materialization.
 struct DipoleEwaldReciprocalTerm
     k :: Vec3
     scale :: Float64
     A :: Mat3
 end
 
+# Lighter reciprocal term for LSWT Hamiltonian assembly, which exploits the
+# rank-one form `scale * k * k'` without materializing the full tensor.
 struct DipoleEwaldReciprocalKernelTerm
     k :: Vec3
     scale :: Float64
 end
 
+# Reusable q-dependent Ewald plan. Expensive q-independent real-space terms are
+# stored once, while q-dependent real-space phases are indexed through `real_ns`.
 struct DipoleEwaldQPlan
     dims          :: NTuple{3, Int}
     demag         :: Mat3

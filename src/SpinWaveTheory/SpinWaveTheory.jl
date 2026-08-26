@@ -1,3 +1,6 @@
+# Per-thread scratch for q-dependent Ewald LSWT assembly. These buffers avoid
+# allocation in powder calculations, where many q points are evaluated in
+# parallel.
 mutable struct DipoleEwaldHamiltonianBuffer
     reciprocal_terms :: Vector{DipoleEwaldReciprocalKernelTerm}
     real_phases      :: Vector{ComplexF64}
