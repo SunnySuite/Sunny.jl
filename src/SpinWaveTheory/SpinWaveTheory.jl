@@ -1,3 +1,17 @@
+mutable struct DipoleEwaldHamiltonianBuffer
+    reciprocal_terms :: Vector{DipoleEwaldReciprocalTerm}
+    site_k           :: Matrix{Vec3}
+    site_phase       :: Matrix{ComplexF64}
+    site_phase_conj  :: Matrix{ComplexF64}
+end
+
+function DipoleEwaldHamiltonianBuffer()
+    return DipoleEwaldHamiltonianBuffer(DipoleEwaldReciprocalTerm[],
+                                        Array{Vec3}(undef, 0, 0),
+                                        Array{ComplexF64}(undef, 0, 0),
+                                        Array{ComplexF64}(undef, 0, 0))
+end
+
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}             # Rotations from global to quantization frame
     observables           :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
@@ -6,6 +20,7 @@ struct SWTDataDipole
     ewald_q_plan          :: Union{Nothing, DipoleEwaldQPlan}
     ewald_local_transform :: Vector{Mat3}
     ewald_J0_diag         :: Vector{Float64}
+    ewald_buffers         :: Vector{DipoleEwaldHamiltonianBuffer}
 end
 
 
@@ -289,9 +304,11 @@ function swt_data!(sys::System{0}, measure)
     ewald_q_plan = nothing
     ewald_local_transform = Mat3[]
     ewald_J0_diag = Float64[]
+    ewald_buffers = DipoleEwaldHamiltonianBuffer[]
     if !isnothing(sys.ewald)
         ewald_q_plan = DipoleEwaldQPlan(sys.crystal, (1, 1, 1), sys.ewald.demag)
         ewald_local_transform = [sqrtS[i] * sys.gs[i] * Rs[i] for i in 1:Na]
+        ewald_buffers = [DipoleEwaldHamiltonianBuffer() for _ in 1:Threads.maxthreadid()]
 
         A0 = reshape(sys.ewald.A, Na, Na)
         ewald_J0_diag = zeros(Float64, Na)
@@ -304,7 +321,7 @@ function swt_data!(sys::System{0}, measure)
     end
 
     return SWTDataDipole(Rs, obs_localized, cs, sqrtS, ewald_q_plan,
-                         ewald_local_transform, ewald_J0_diag)
+                         ewald_local_transform, ewald_J0_diag, ewald_buffers)
 end
 
 # Fourier prefactor for observable μ acting on a flattened unit i of swt.sys,
