@@ -44,8 +44,8 @@ function point_dipole_tensor(r::Vec3)
 end
 
 struct DipoleEwaldRealTerm
-    n :: Vec3
-    A :: Mat3
+    phase_index :: Int
+    A           :: Mat3
 end
 
 struct DipoleEwaldReciprocalTerm
@@ -65,6 +65,7 @@ struct DipoleEwaldQPlan
     kmax²         :: Float64
     cells         :: Vector{CartesianIndex{3}}
     Δrs           :: Array{Vec3, 3}
+    real_ns       :: Vector{Vec3}
     real_terms    :: Array{Vector{DipoleEwaldRealTerm}, 3}
     reciprocal_ms :: Vector{Vec3}
     self_energy   :: Mat3
@@ -99,6 +100,8 @@ function DipoleEwaldQPlan(cryst::Crystal, dims::NTuple{3, Int}, demag::Mat3)
 
     cells = vec(collect(CartesianIndices(dims)))
     Δrs = Array{Vec3, 3}(undef, length(cells), na, na)
+    real_ns = Vec3[]
+    real_n_indices = Dict{NTuple{3, Int}, Int}()
     real_terms = Array{Vector{DipoleEwaldRealTerm}, 3}(undef, length(cells), na, na)
 
     for (icell, cell) in enumerate(cells), j in 1:na, i in 1:na
@@ -112,13 +115,21 @@ function DipoleEwaldQPlan(cryst::Crystal, dims::NTuple{3, Int}, demag::Mat3)
             rvec = Δr + latvecs * n
             r² = rvec⋅rvec
             if 0 < r² <= rmax²
+                key = (n1, n2, n3)
+                phase_index = get(real_n_indices, key, 0)
+                if iszero(phase_index)
+                    push!(real_ns, n)
+                    phase_index = length(real_ns)
+                    real_n_indices[key] = phase_index
+                end
+
                 r = √r²
                 r³ = r²*r
                 rhat = rvec/r
                 erfc0 = erfc(r/(√2*σ))
                 gauss0 = √(2/π) * (r/σ) * exp(-r²/2σ²)
                 A = (1/4π) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
-                push!(terms, DipoleEwaldRealTerm(n, A))
+                push!(terms, DipoleEwaldRealTerm(phase_index, A))
             end
         end
         real_terms[icell, i, j] = terms
@@ -132,7 +143,7 @@ function DipoleEwaldQPlan(cryst::Crystal, dims::NTuple{3, Int}, demag::Mat3)
     self_energy = -I₃/(3(2π)^(3/2)*σ³)
 
     return DipoleEwaldQPlan(dims, demag, latvecs, recipvecs, V, σ, σ³, kmax²,
-                            cells, Δrs, real_terms, reciprocal_ms, self_energy)
+                            cells, Δrs, real_ns, real_terms, reciprocal_ms, self_energy)
 end
 
 
@@ -156,8 +167,9 @@ function precompute_dipole_ewald_at_wavevector!(A::Array{CMat3, 5}, plan::Dipole
     size(A)[4:5] == (na, na) || error("Ewald output atom dimensions do not match plan")
 
     reciprocal = dipole_ewald_reciprocal_terms(plan, q_reshaped)
+    real_phases = dipole_ewald_real_phases(plan, q_reshaped)
     for (icell, cell) in enumerate(cells), j in 1:na, i in 1:na
-        A[cell, i, j] = dipole_ewald_pair_at(plan, q_reshaped, reciprocal, icell, i, j)
+        A[cell, i, j] = dipole_ewald_pair_at(plan, real_phases, reciprocal, icell, i, j)
     end
 
     return A
@@ -176,11 +188,14 @@ function precompute_dipole_ewald_at_wavevectors!(A::Array{CMat3, 6}, plan::Dipol
     size(A, 6) == length(qs) || error("Ewald output q dimension does not match input")
 
     reciprocal_term_buffers = [DipoleEwaldReciprocalTerm[] for _ in 1:Threads.maxthreadid()]
+    real_phase_buffers = [ComplexF64[] for _ in 1:Threads.maxthreadid()]
     Threads.@threads for iq in eachindex(qs)
         q = qs[iq]
-        reciprocal = dipole_ewald_reciprocal_terms!(reciprocal_term_buffers[Threads.threadid()], plan, q)
+        tid = Threads.threadid()
+        reciprocal = dipole_ewald_reciprocal_terms!(reciprocal_term_buffers[tid], plan, q)
+        real_phases = dipole_ewald_real_phases!(real_phase_buffers[tid], plan, q)
         for (icell, cell) in enumerate(cells), j in 1:na, i in 1:na
-            A[cell, i, j, iq] = dipole_ewald_pair_at(plan, q, reciprocal, icell, i, j)
+            A[cell, i, j, iq] = dipole_ewald_pair_at(plan, real_phases, reciprocal, icell, i, j)
         end
     end
 
@@ -218,7 +233,12 @@ function dipole_ewald_reciprocal_terms!(terms::Vector{DipoleEwaldReciprocalTerm}
 end
 
 function dipole_ewald_pair_at(plan::DipoleEwaldQPlan, q_reshaped::Vec3, reciprocal, icell, i, j)
-    acc = dipole_ewald_nonreciprocal_pair_at(plan, q_reshaped, reciprocal.demag_term, icell, i, j)
+    real_phases = dipole_ewald_real_phases(plan, q_reshaped)
+    return dipole_ewald_pair_at(plan, real_phases, reciprocal, icell, i, j)
+end
+
+function dipole_ewald_pair_at(plan::DipoleEwaldQPlan, real_phases::Vector{ComplexF64}, reciprocal, icell, i, j)
+    acc = dipole_ewald_nonreciprocal_pair_at(plan, real_phases, reciprocal.demag_term, icell, i, j)
 
     for term in reciprocal.terms
         Δr = plan.Δrs[icell, i, j]
@@ -229,12 +249,30 @@ function dipole_ewald_pair_at(plan::DipoleEwaldQPlan, q_reshaped::Vec3, reciproc
 end
 
 function dipole_ewald_nonreciprocal_pair_at(plan::DipoleEwaldQPlan, q_reshaped::Vec3, demag_term::Mat3, icell, i, j)
+    real_phases = dipole_ewald_real_phases(plan, q_reshaped)
+    return dipole_ewald_nonreciprocal_pair_at(plan, real_phases, demag_term, icell, i, j)
+end
+
+function dipole_ewald_real_phases(plan::DipoleEwaldQPlan, q_reshaped::Vec3)
+    phases = Vector{ComplexF64}(undef, length(plan.real_ns))
+    return dipole_ewald_real_phases!(phases, plan, q_reshaped)
+end
+
+function dipole_ewald_real_phases!(phases::Vector{ComplexF64}, plan::DipoleEwaldQPlan, q_reshaped::Vec3)
+    resize!(phases, length(plan.real_ns))
+    for i in eachindex(plan.real_ns)
+        phases[i] = cis(2π * dot(q_reshaped, plan.real_ns[i]))
+    end
+    return phases
+end
+
+function dipole_ewald_nonreciprocal_pair_at(plan::DipoleEwaldQPlan, real_phases::Vector{ComplexF64}, demag_term::Mat3, icell, i, j)
     (; Δrs, real_terms, self_energy) = plan
     acc = zero(CMat3)
     Δr = Δrs[icell, i, j]
 
     for term in real_terms[icell, i, j]
-        acc += cis(2π * dot(q_reshaped, term.n)) * term.A
+        acc += real_phases[term.phase_index] * term.A
     end
 
     acc += demag_term
