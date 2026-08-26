@@ -48,6 +48,11 @@ struct DipoleEwaldRealTerm
     A :: Mat3
 end
 
+struct DipoleEwaldReciprocalTerm
+    k :: Vec3
+    A :: Mat3
+end
+
 struct DipoleEwaldQPlan
     dims          :: NTuple{3, Int}
     demag         :: Mat3
@@ -149,8 +154,9 @@ function precompute_dipole_ewald_at_wavevector!(A::Array{CMat3, 5}, plan::Dipole
     na = size(Δrs, 2)
     size(A)[4:5] == (na, na) || error("Ewald output atom dimensions do not match plan")
 
+    reciprocal = dipole_ewald_reciprocal_terms(plan, q_reshaped)
     for (icell, cell) in enumerate(cells), j in 1:na, i in 1:na
-        A[cell, i, j] = dipole_ewald_pair_at(plan, q_reshaped, icell, i, j)
+        A[cell, i, j] = dipole_ewald_pair_at(plan, q_reshaped, reciprocal, icell, i, j)
     end
 
     return A
@@ -170,8 +176,9 @@ function precompute_dipole_ewald_at_wavevectors!(A::Array{CMat3, 6}, plan::Dipol
 
     Threads.@threads for iq in eachindex(qs)
         q = qs[iq]
+        reciprocal = dipole_ewald_reciprocal_terms(plan, q)
         for (icell, cell) in enumerate(cells), j in 1:na, i in 1:na
-            A[cell, i, j, iq] = dipole_ewald_pair_at(plan, q, icell, i, j)
+            A[cell, i, j, iq] = dipole_ewald_pair_at(plan, q, reciprocal, icell, i, j)
         end
     end
 
@@ -179,13 +186,13 @@ function precompute_dipole_ewald_at_wavevectors!(A::Array{CMat3, 6}, plan::Dipol
 end
 
 function dipole_ewald_pair_at(plan::DipoleEwaldQPlan, q_reshaped::Vec3, icell, i, j)
-    (; demag, recipvecs, V, σ, kmax², Δrs, real_terms, reciprocal_ms, self_energy) = plan
-    acc = zero(CMat3)
-    Δr = Δrs[icell, i, j]
+    return dipole_ewald_pair_at(plan, q_reshaped, dipole_ewald_reciprocal_terms(plan, q_reshaped), icell, i, j)
+end
 
-    for term in real_terms[icell, i, j]
-        acc += cis(2π * dot(q_reshaped, term.n)) * term.A
-    end
+function dipole_ewald_reciprocal_terms(plan::DipoleEwaldQPlan, q_reshaped::Vec3)
+    (; demag, recipvecs, V, σ, kmax², reciprocal_ms) = plan
+    terms = DipoleEwaldReciprocalTerm[]
+    demag_term = zero(Mat3)
 
     ϵ² = 1e-16
     q_shift = q_reshaped - round.(q_reshaped)
@@ -193,11 +200,28 @@ function dipole_ewald_pair_at(plan::DipoleEwaldQPlan, q_reshaped::Vec3, icell, i
         k = recipvecs * (m + q_shift)
         k² = k⋅k
         if k² <= ϵ²
-            acc += demag / V
+            demag_term += demag / V
         elseif k² <= kmax²
-            phase = cis(-k⋅Δr)
-            acc += phase * (1/V) * (exp(-σ^2*k²/2) / k²) * (k⊗k)
+            A = (1/V) * (exp(-σ^2*k²/2) / k²) * (k⊗k)
+            push!(terms, DipoleEwaldReciprocalTerm(k, A))
         end
+    end
+
+    return (; demag_term, terms)
+end
+
+function dipole_ewald_pair_at(plan::DipoleEwaldQPlan, q_reshaped::Vec3, reciprocal, icell, i, j)
+    (; Δrs, real_terms, self_energy) = plan
+    acc = zero(CMat3)
+    Δr = Δrs[icell, i, j]
+
+    for term in real_terms[icell, i, j]
+        acc += cis(2π * dot(q_reshaped, term.n)) * term.A
+    end
+
+    acc += reciprocal.demag_term
+    for term in reciprocal.terms
+        acc += cis(-term.k⋅Δr) * term.A
     end
 
     if iszero(Δr)

@@ -4,6 +4,8 @@ struct SWTDataDipole
     stevens_coefs         :: Vector{StevensExpansion} # Rotated onsite coupling as Steven expansion
     sqrtS                 :: Vector{Float64}          # Square root of spin magnitudes
     ewald_q_plan          :: Union{Nothing, DipoleEwaldQPlan}
+    ewald_local_transform :: Vector{Mat3}
+    ewald_J0_diag         :: Vector{Float64}
 end
 
 
@@ -284,9 +286,25 @@ function swt_data!(sys::System{0}, measure)
     # Square root of spin magnitudes
     sqrtS = sqrt.(vec(sys.κs))
 
-    ewald_q_plan = isnothing(sys.ewald) ? nothing : DipoleEwaldQPlan(sys.crystal, (1, 1, 1), sys.ewald.demag)
+    ewald_q_plan = nothing
+    ewald_local_transform = Mat3[]
+    ewald_J0_diag = Float64[]
+    if !isnothing(sys.ewald)
+        ewald_q_plan = DipoleEwaldQPlan(sys.crystal, (1, 1, 1), sys.ewald.demag)
+        ewald_local_transform = [sqrtS[i] * sys.gs[i] * Rs[i] for i in 1:Na]
 
-    return SWTDataDipole(Rs, obs_localized, cs, sqrtS, ewald_q_plan)
+        A0 = reshape(sys.ewald.A, Na, Na)
+        ewald_J0_diag = zeros(Float64, Na)
+        for i in 1:Na, j in 1:Na
+            J0 = ewald_local_transform[i]' * A0[i, j] * ewald_local_transform[j] / 2
+            J0zz = real(J0[3, 3])
+            ewald_J0_diag[i] += J0zz
+            ewald_J0_diag[j] += J0zz
+        end
+    end
+
+    return SWTDataDipole(Rs, obs_localized, cs, sqrtS, ewald_q_plan,
+                         ewald_local_transform, ewald_J0_diag)
 end
 
 # Fourier prefactor for observable μ acting on a flattened unit i of swt.sys,

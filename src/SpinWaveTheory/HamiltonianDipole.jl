@@ -100,31 +100,18 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
     # Add long-range dipole-dipole
     if !isnothing(sys.ewald)
-        (; μ0_μB², A) = sys.ewald
-        (; ewald_q_plan) = data
-        Rs = local_rotations
-
-        # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
-        # precompute_dipole_ewald(sys.crystal, (1,1,1), demag) * μ0_μB²
-        A0 = reshape(A, L, L)
-
-        # Interaction matrix for wavevector q
+        (; μ0_μB²) = sys.ewald
+        (; ewald_q_plan, ewald_local_transform, ewald_J0_diag) = data
         @assert !isnothing(ewald_q_plan)
-        Aq = precompute_dipole_ewald_at_wavevector(ewald_q_plan, q_reshaped) * μ0_μB²
-        Aq = reshape(Aq, L, L)
+        reciprocal = dipole_ewald_reciprocal_terms(ewald_q_plan, q_reshaped)
 
         # Loop over sublattice pairs
         for i in 1:L, j in 1:L
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy. A symmetric contribution will appear for the bond reversal
             # (i, j) → (j, i).  Note that μ = -μB g S.
-            J = gs[i]' * Aq[i, j] * gs[j] / 2
-            J0 = gs[i]' * A0[i, j] * gs[j] / 2
-
-            # Perform same transformation as appears in usual bilinear exchange.
-            # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
-            J = sqrtS[i]*sqrtS[j] * Rs[i]' * J * Rs[j]
-            J0 = sqrtS[i]*sqrtS[j] * Rs[i]' * J0 * Rs[j]
+            Aqij = μ0_μB² * dipole_ewald_pair_at(ewald_q_plan, q_reshaped, reciprocal, 1, i, j)
+            J = ewald_local_transform[i]' * Aqij * ewald_local_transform[j] / 2
 
             # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
             Q⁻ = 0.5 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
@@ -140,12 +127,12 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             H21[j, i] += conj(P⁺)
             H12[i, j] += P⁺
             H12[j, i] += conj(P⁻)
+        end
 
-            # Interactions for Jᶻᶻ at wavevector (0,0,0).
-            H11[i, i] -= J0[3, 3]
-            H11[j, j] -= J0[3, 3]
-            H22[i, i] -= J0[3, 3]
-            H22[j, j] -= J0[3, 3]
+        # Interactions for Jᶻᶻ at wavevector (0,0,0).
+        for i in 1:L
+            H11[i, i] -= ewald_J0_diag[i]
+            H22[i, i] -= ewald_J0_diag[i]
         end
     end
 
