@@ -14,6 +14,11 @@ function DipoleEwaldHamiltonianBuffer()
                                         Array{ComplexF64}(undef, 0, 0))
 end
 
+struct DipoleEwaldLocalTerm
+    phase_index :: Int
+    components  :: SVector{4, Float64}
+end
+
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}             # Rotations from global to quantization frame
     observables           :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
@@ -23,6 +28,9 @@ struct SWTDataDipole
     ewald_local_transform :: Vector{Mat3}
     ewald_J0_diag         :: Vector{Float64}
     ewald_buffers         :: Vector{DipoleEwaldHamiltonianBuffer}
+    ewald_real_local      :: Array{Vector{DipoleEwaldLocalTerm}, 2}
+    ewald_self_local      :: Matrix{SVector{4, Float64}}
+    ewald_demag_local     :: Matrix{SVector{4, Float64}}
 end
 
 
@@ -307,10 +315,29 @@ function swt_data!(sys::System{0}, measure)
     ewald_local_transform = Mat3[]
     ewald_J0_diag = Float64[]
     ewald_buffers = DipoleEwaldHamiltonianBuffer[]
+    ewald_real_local = Array{Vector{DipoleEwaldLocalTerm}, 2}(undef, 0, 0)
+    ewald_self_local = Array{SVector{4, Float64}}(undef, 0, 0)
+    ewald_demag_local = Array{SVector{4, Float64}}(undef, 0, 0)
     if !isnothing(sys.ewald)
+        μ0_μB² = sys.ewald.μ0_μB²
         ewald_q_plan = DipoleEwaldQPlan(sys.crystal, (1, 1, 1), sys.ewald.demag)
         ewald_local_transform = [sqrtS[i] * sys.gs[i] * Rs[i] for i in 1:Na]
         ewald_buffers = [DipoleEwaldHamiltonianBuffer() for _ in 1:Threads.maxthreadid()]
+
+        ewald_real_local = Array{Vector{DipoleEwaldLocalTerm}, 2}(undef, Na, Na)
+        ewald_self_local = zeros(SVector{4, Float64}, Na, Na)
+        ewald_demag_local = Array{SVector{4, Float64}}(undef, Na, Na)
+        for i in 1:Na, j in 1:Na
+            Ti = ewald_local_transform[i]
+            Tj = ewald_local_transform[j]
+            ewald_real_local[i, j] =
+                [DipoleEwaldLocalTerm(term.phase_index, dipole_ewald_local_components(Ti, term.A, Tj, μ0_μB²/2))
+                 for term in ewald_q_plan.real_terms[1, i, j]]
+            if iszero(ewald_q_plan.Δrs[1, i, j])
+                ewald_self_local[i, j] = dipole_ewald_local_components(Ti, ewald_q_plan.self_energy, Tj, μ0_μB²/2)
+            end
+            ewald_demag_local[i, j] = dipole_ewald_local_components(Ti, ewald_q_plan.demag / ewald_q_plan.V, Tj, μ0_μB²/2)
+        end
 
         A0 = reshape(sys.ewald.A, Na, Na)
         ewald_J0_diag = zeros(Float64, Na)
@@ -323,7 +350,13 @@ function swt_data!(sys::System{0}, measure)
     end
 
     return SWTDataDipole(Rs, obs_localized, cs, sqrtS, ewald_q_plan,
-                         ewald_local_transform, ewald_J0_diag, ewald_buffers)
+                         ewald_local_transform, ewald_J0_diag, ewald_buffers,
+                         ewald_real_local, ewald_self_local, ewald_demag_local)
+end
+
+function dipole_ewald_local_components(Ti::Mat3, A::Mat3, Tj::Mat3, scale)
+    J = scale * (Ti' * A * Tj)
+    return SVector{4, Float64}(J[1, 1], J[2, 2], J[1, 2], J[2, 1])
 end
 
 # Fourier prefactor for observable μ acting on a flattened unit i of swt.sys,

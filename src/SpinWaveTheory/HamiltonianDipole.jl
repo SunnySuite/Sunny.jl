@@ -101,12 +101,14 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     # Add long-range dipole-dipole
     if !isnothing(sys.ewald)
         (; μ0_μB²) = sys.ewald
-        (; ewald_q_plan, ewald_local_transform, ewald_J0_diag, ewald_buffers) = data
+        (; ewald_q_plan, ewald_local_transform, ewald_J0_diag, ewald_buffers,
+           ewald_real_local, ewald_self_local, ewald_demag_local) = data
         @assert !isnothing(ewald_q_plan)
         buffer = ewald_buffers[Threads.threadid()]
         sizehint!(buffer.reciprocal_terms, length(ewald_q_plan.reciprocal_ms))
         reciprocal = dipole_ewald_reciprocal_terms!(buffer.reciprocal_terms, ewald_q_plan, q_reshaped)
         real_phases = dipole_ewald_real_phases!(buffer.real_phases, ewald_q_plan, q_reshaped)
+        has_demag = !iszero(reciprocal.demag_term)
 
         nrecip = length(reciprocal.terms)
         resize_dipole_ewald_hamiltonian_buffer!(buffer, L, nrecip)
@@ -124,13 +126,22 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy. A symmetric contribution will appear for the bond reversal
             # (i, j) → (j, i).  Note that μ = -μB g S.
-            Aqij = μ0_μB² * dipole_ewald_nonreciprocal_pair_at(ewald_q_plan, real_phases, reciprocal.demag_term, 1, i, j)
-            J = ewald_local_transform[i]' * Aqij * ewald_local_transform[j] / 2
+            J = ewald_self_local[i, j]
+            has_demag && (J += ewald_demag_local[i, j])
 
-            J11 = J[1, 1]
-            J22 = J[2, 2]
-            J12 = J[1, 2]
-            J21 = J[2, 1]
+            J11 = ComplexF64(J[1])
+            J22 = ComplexF64(J[2])
+            J12 = ComplexF64(J[3])
+            J21 = ComplexF64(J[4])
+            @inbounds for term in ewald_real_local[i, j]
+                phase = real_phases[term.phase_index]
+                c = term.components
+                J11 += phase * c[1]
+                J22 += phase * c[2]
+                J12 += phase * c[3]
+                J21 += phase * c[4]
+            end
+
             @inbounds for (iterm, term) in enumerate(reciprocal.terms)
                 vi = site_k[i, iterm]
                 vj = site_k[j, iterm]
