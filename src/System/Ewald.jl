@@ -260,7 +260,7 @@ end
 
 function dipole_ewald_real_phases!(phases::Vector{ComplexF64}, plan::DipoleEwaldQPlan, q_reshaped::Vec3)
     resize!(phases, length(plan.real_ns))
-    for i in eachindex(plan.real_ns)
+    @inbounds for i in eachindex(plan.real_ns)
         phases[i] = cis(2π * dot(q_reshaped, plan.real_ns[i]))
     end
     return phases
@@ -271,7 +271,7 @@ function dipole_ewald_nonreciprocal_pair_at(plan::DipoleEwaldQPlan, real_phases:
     acc = zero(CMat3)
     Δr = Δrs[icell, i, j]
 
-    for term in real_terms[icell, i, j]
+    @inbounds for term in real_terms[icell, i, j]
         acc += real_phases[term.phase_index] * term.A
     end
 

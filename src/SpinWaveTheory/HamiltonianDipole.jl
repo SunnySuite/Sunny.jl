@@ -104,13 +104,14 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         (; ewald_q_plan, ewald_local_transform, ewald_J0_diag, ewald_buffers) = data
         @assert !isnothing(ewald_q_plan)
         buffer = ewald_buffers[Threads.threadid()]
+        sizehint!(buffer.reciprocal_terms, length(ewald_q_plan.reciprocal_ms))
         reciprocal = dipole_ewald_reciprocal_terms!(buffer.reciprocal_terms, ewald_q_plan, q_reshaped)
         real_phases = dipole_ewald_real_phases!(buffer.real_phases, ewald_q_plan, q_reshaped)
 
         nrecip = length(reciprocal.terms)
         resize_dipole_ewald_hamiltonian_buffer!(buffer, L, nrecip)
         (; site_k, site_phase, site_phase_conj) = buffer
-        for (iterm, term) in enumerate(reciprocal.terms)
+        @inbounds for (iterm, term) in enumerate(reciprocal.terms)
             for i in 1:L
                 site_k[i, iterm] = ewald_local_transform[i]' * term.k
                 phase = cis(-term.k⋅ewald_q_plan.Δrs[1, 1, i])
@@ -130,7 +131,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             J22 = J[2, 2]
             J12 = J[1, 2]
             J21 = J[2, 1]
-            for (iterm, term) in enumerate(reciprocal.terms)
+            @inbounds for (iterm, term) in enumerate(reciprocal.terms)
                 vi = site_k[i, iterm]
                 vj = site_k[j, iterm]
                 coeff = (μ0_μB² * term.scale / 2) * site_phase[j, iterm] * site_phase_conj[i, iterm]
@@ -163,7 +164,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 end
 
 function resize_dipole_ewald_hamiltonian_buffer!(buffer::DipoleEwaldHamiltonianBuffer, L, nrecip)
-    if size(buffer.site_k) != (L, nrecip)
+    if size(buffer.site_k, 1) != L || size(buffer.site_k, 2) < nrecip
         buffer.site_k = Array{Vec3}(undef, L, nrecip)
         buffer.site_phase = Array{ComplexF64}(undef, L, nrecip)
         buffer.site_phase_conj = Array{ComplexF64}(undef, L, nrecip)
