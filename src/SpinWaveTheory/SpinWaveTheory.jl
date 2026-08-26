@@ -1,5 +1,5 @@
 mutable struct DipoleEwaldHamiltonianBuffer
-    reciprocal_terms :: Vector{DipoleEwaldReciprocalTerm}
+    reciprocal_terms :: Vector{DipoleEwaldReciprocalKernelTerm}
     real_phases      :: Vector{ComplexF64}
     site_k           :: Matrix{Vec3}
     site_phase       :: Matrix{ComplexF64}
@@ -7,7 +7,7 @@ mutable struct DipoleEwaldHamiltonianBuffer
 end
 
 function DipoleEwaldHamiltonianBuffer()
-    return DipoleEwaldHamiltonianBuffer(DipoleEwaldReciprocalTerm[],
+    return DipoleEwaldHamiltonianBuffer(DipoleEwaldReciprocalKernelTerm[],
                                         ComplexF64[],
                                         Array{Vec3}(undef, 0, 0),
                                         Array{ComplexF64}(undef, 0, 0),

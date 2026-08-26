@@ -54,6 +54,11 @@ struct DipoleEwaldReciprocalTerm
     A :: Mat3
 end
 
+struct DipoleEwaldReciprocalKernelTerm
+    k :: Vec3
+    scale :: Float64
+end
+
 struct DipoleEwaldQPlan
     dims          :: NTuple{3, Int}
     demag         :: Mat3
@@ -226,6 +231,27 @@ function dipole_ewald_reciprocal_terms!(terms::Vector{DipoleEwaldReciprocalTerm}
             scale = (1/V) * (exp(-σ^2*k²/2) / k²)
             A = scale * (k⊗k)
             push!(terms, DipoleEwaldReciprocalTerm(k, scale, A))
+        end
+    end
+
+    return (; demag_term, terms)
+end
+
+function dipole_ewald_reciprocal_kernel_terms!(terms::Vector{DipoleEwaldReciprocalKernelTerm}, plan::DipoleEwaldQPlan, q_reshaped::Vec3)
+    (; demag, recipvecs, V, σ, kmax², reciprocal_ms) = plan
+    empty!(terms)
+    demag_term = zero(Mat3)
+
+    ϵ² = 1e-16
+    q_shift = q_reshaped - round.(q_reshaped)
+    for m in reciprocal_ms
+        k = recipvecs * (m + q_shift)
+        k² = k⋅k
+        if k² <= ϵ²
+            demag_term += demag / V
+        elseif k² <= kmax²
+            scale = (1/V) * (exp(-σ^2*k²/2) / k²)
+            push!(terms, DipoleEwaldReciprocalKernelTerm(k, scale))
         end
     end
 

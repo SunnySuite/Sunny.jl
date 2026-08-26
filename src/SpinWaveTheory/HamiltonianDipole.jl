@@ -106,7 +106,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         @assert !isnothing(ewald_q_plan)
         buffer = ewald_buffers[Threads.threadid()]
         sizehint!(buffer.reciprocal_terms, length(ewald_q_plan.reciprocal_ms))
-        reciprocal = dipole_ewald_reciprocal_terms!(buffer.reciprocal_terms, ewald_q_plan, q_reshaped)
+        reciprocal = dipole_ewald_reciprocal_kernel_terms!(buffer.reciprocal_terms, ewald_q_plan, q_reshaped)
         real_phases = dipole_ewald_real_phases!(buffer.real_phases, ewald_q_plan, q_reshaped)
         has_demag = !iszero(reciprocal.demag_term)
 
