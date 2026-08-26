@@ -100,7 +100,8 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
     # Add long-range dipole-dipole
     if !isnothing(sys.ewald)
-        (; demag, μ0_μB², A) = sys.ewald
+        (; μ0_μB², A) = sys.ewald
+        (; ewald_q_plan) = data
         Rs = local_rotations
 
         # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
@@ -108,7 +109,8 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         A0 = reshape(A, L, L)
 
         # Interaction matrix for wavevector q
-        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
+        @assert !isnothing(ewald_q_plan)
+        Aq = precompute_dipole_ewald_at_wavevector(ewald_q_plan, q_reshaped) * μ0_μB²
         Aq = reshape(Aq, L, L)
 
         # Loop over sublattice pairs

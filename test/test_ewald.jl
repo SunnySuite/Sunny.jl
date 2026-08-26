@@ -73,3 +73,29 @@
     E = sum((1/2)d⋅b for (d, b) in zip(sys.dipoles, ∇E))
     @test isapprox(energy(sys), E; atol=1e-12)
 end
+
+@testitem "Planned q-dependent Ewald matches direct implementation" begin
+    using LinearAlgebra
+    using Sunny
+
+    latvecs = lattice_vectors(1.1, 0.9, 0.8, 92, 85, 95)
+    positions = [[0, 0.01, 0.01], [0.1, 0.01, 0.01], [0.6, 0.4, 0.5]]
+    cryst = Crystal(latvecs, positions)
+    demag = Sunny.Mat3(I) / 3
+    plan = Sunny.DipoleEwaldQPlan(cryst, (1, 1, 1), demag)
+
+    qs = [
+        Sunny.Vec3(0, 0, 0),
+        Sunny.Vec3(0.2, -0.3, 0.4),
+        Sunny.Vec3(0.999999, 0.1, -0.2),
+    ]
+
+    planned_batch = Sunny.precompute_dipole_ewald_at_wavevectors(plan, qs)
+
+    for (iq, q) in enumerate(qs)
+        direct = Sunny.precompute_dipole_ewald_aux(cryst, (1, 1, 1), demag, q, cis, Val{ComplexF64}())
+        planned = Sunny.precompute_dipole_ewald_at_wavevector(plan, q)
+        @test maximum(norm.(direct .- planned)) < 1e-12
+        @test maximum(norm.(direct .- planned_batch[:, :, :, :, :, iq])) < 1e-12
+    end
+end

@@ -43,6 +43,92 @@ function point_dipole_tensor(r::Vec3)
     return (I - 3(r̂⊗r̂)) / (4π * norm(r)^3)
 end
 
+struct DipoleEwaldRealTerm
+    n :: Vec3
+    A :: Mat3
+end
+
+struct DipoleEwaldQPlan
+    dims          :: NTuple{3, Int}
+    demag         :: Mat3
+    latvecs       :: Mat3
+    recipvecs     :: Mat3
+    V             :: Float64
+    σ             :: Float64
+    σ³            :: Float64
+    kmax²         :: Float64
+    cells         :: Vector{CartesianIndex{3}}
+    Δrs           :: Array{Vec3, 3}
+    real_terms    :: Array{Vector{DipoleEwaldRealTerm}, 3}
+    reciprocal_ms :: Vector{Vec3}
+    self_energy   :: Mat3
+end
+
+function DipoleEwaldQPlan(cryst::Crystal, dims::NTuple{3, Int}, demag::Mat3)
+    na = natoms(cryst)
+
+    # Superlattice vectors and reciprocals for the full system volume.
+    sys_size = diagm(Vec3(dims))
+    latvecs = cryst.latvecs * sys_size
+    recipvecs = cryst.recipvecs / sys_size
+
+    # Precalculate constants. Roughly balances the real and Fourier space costs.
+    I₃ = Mat3(I)
+    V = abs(det(latvecs))
+    L = cbrt(V)
+    σ = L/3
+    σ² = σ*σ
+    σ³ = σ^3
+    rmax = 6√2 * σ
+    rmax² = rmax*rmax
+    kmax = 6√2 / σ
+    kmax² = kmax*kmax
+
+    nmax = map(eachcol(latvecs), eachcol(recipvecs)) do a, b
+        round(Int, rmax / (a⋅normalize(b)) + 1e-6) + 1
+    end
+    mmax = map(eachcol(latvecs), eachcol(recipvecs)) do a, b
+        round(Int, kmax / (b⋅normalize(a)) + 1e-6)
+    end
+
+    cells = vec(collect(CartesianIndices(dims)))
+    Δrs = Array{Vec3, 3}(undef, length(cells), na, na)
+    real_terms = Array{Vector{DipoleEwaldRealTerm}, 3}(undef, length(cells), na, na)
+
+    for (icell, cell) in enumerate(cells), j in 1:na, i in 1:na
+        cell_offset = Vec3(cell[1]-1, cell[2]-1, cell[3]-1)
+        Δr = cryst.latvecs * (cell_offset + cryst.positions[j] - cryst.positions[i])
+        Δrs[icell, i, j] = Δr
+
+        terms = DipoleEwaldRealTerm[]
+        for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]
+            n = Vec3(n1, n2, n3)
+            rvec = Δr + latvecs * n
+            r² = rvec⋅rvec
+            if 0 < r² <= rmax²
+                r = √r²
+                r³ = r²*r
+                rhat = rvec/r
+                erfc0 = erfc(r/(√2*σ))
+                gauss0 = √(2/π) * (r/σ) * exp(-r²/2σ²)
+                A = (1/4π) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
+                push!(terms, DipoleEwaldRealTerm(n, A))
+            end
+        end
+        real_terms[icell, i, j] = terms
+    end
+
+    reciprocal_ms = Vec3[]
+    for m1 in -mmax[1]:mmax[1], m2 in -mmax[2]:mmax[2], m3 in -mmax[3]:mmax[3]
+        push!(reciprocal_ms, Vec3(m1, m2, m3))
+    end
+
+    self_energy = -I₃/(3(2π)^(3/2)*σ³)
+
+    return DipoleEwaldQPlan(dims, demag, latvecs, recipvecs, V, σ, σ³, kmax²,
+                            cells, Δrs, real_terms, reciprocal_ms, self_energy)
+end
+
 
 function precompute_dipole_ewald(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3)
     precompute_dipole_ewald_aux(cryst, dims, demag, Vec3(0,0,0), cos, Val{Float64}())
@@ -50,6 +136,75 @@ end
 
 function precompute_dipole_ewald_at_wavevector(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3, q_reshaped::Vec3)
     precompute_dipole_ewald_aux(cryst, dims, demag, q_reshaped, cis, Val{ComplexF64}())
+end
+
+function precompute_dipole_ewald_at_wavevector(plan::DipoleEwaldQPlan, q_reshaped::Vec3)
+    A = zeros(CMat3, plan.dims..., size(plan.Δrs, 2), size(plan.Δrs, 3))
+    return precompute_dipole_ewald_at_wavevector!(A, plan, q_reshaped)
+end
+
+function precompute_dipole_ewald_at_wavevector!(A::Array{CMat3, 5}, plan::DipoleEwaldQPlan, q_reshaped::Vec3)
+    (; dims, cells, Δrs) = plan
+    size(A)[1:3] == dims || error("Ewald output dimensions do not match plan")
+    na = size(Δrs, 2)
+    size(A)[4:5] == (na, na) || error("Ewald output atom dimensions do not match plan")
+
+    for (icell, cell) in enumerate(cells), j in 1:na, i in 1:na
+        A[cell, i, j] = dipole_ewald_pair_at(plan, q_reshaped, icell, i, j)
+    end
+
+    return A
+end
+
+function precompute_dipole_ewald_at_wavevectors(plan::DipoleEwaldQPlan, qs::AbstractVector{Vec3})
+    A = zeros(CMat3, plan.dims..., size(plan.Δrs, 2), size(plan.Δrs, 3), length(qs))
+    return precompute_dipole_ewald_at_wavevectors!(A, plan, qs)
+end
+
+function precompute_dipole_ewald_at_wavevectors!(A::Array{CMat3, 6}, plan::DipoleEwaldQPlan, qs::AbstractVector{Vec3})
+    (; dims, cells, Δrs) = plan
+    size(A)[1:3] == dims || error("Ewald output dimensions do not match plan")
+    na = size(Δrs, 2)
+    size(A)[4:5] == (na, na) || error("Ewald output atom dimensions do not match plan")
+    size(A, 6) == length(qs) || error("Ewald output q dimension does not match input")
+
+    Threads.@threads for iq in eachindex(qs)
+        q = qs[iq]
+        for (icell, cell) in enumerate(cells), j in 1:na, i in 1:na
+            A[cell, i, j, iq] = dipole_ewald_pair_at(plan, q, icell, i, j)
+        end
+    end
+
+    return A
+end
+
+function dipole_ewald_pair_at(plan::DipoleEwaldQPlan, q_reshaped::Vec3, icell, i, j)
+    (; demag, recipvecs, V, σ, kmax², Δrs, real_terms, reciprocal_ms, self_energy) = plan
+    acc = zero(CMat3)
+    Δr = Δrs[icell, i, j]
+
+    for term in real_terms[icell, i, j]
+        acc += cis(2π * dot(q_reshaped, term.n)) * term.A
+    end
+
+    ϵ² = 1e-16
+    q_shift = q_reshaped - round.(q_reshaped)
+    for m in reciprocal_ms
+        k = recipvecs * (m + q_shift)
+        k² = k⋅k
+        if k² <= ϵ²
+            acc += demag / V
+        elseif k² <= kmax²
+            phase = cis(-k⋅Δr)
+            acc += phase * (1/V) * (exp(-σ^2*k²/2) / k²) * (k⊗k)
+        end
+    end
+
+    if iszero(Δr)
+        acc += self_energy
+    end
+
+    return acc
 end
 
 # Precompute the pairwise interaction matrix A between magnetic moments μ. For
