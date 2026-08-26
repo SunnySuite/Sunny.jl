@@ -164,20 +164,27 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     # Number of wavevectors
     Nq = length(qpts.qs)
 
-    # Temporary storage for pair correlations
+    # Per-thread preallocation
     Nobs = num_observables(measure)
     Ncorr = num_correlations(measure)
-    corr = zeros(ComplexF64, Ncorr)
-
-    # Preallocation
-    T = zeros(ComplexF64, 2L, 2L)
-    H = zeros(ComplexF64, 2L, 2L)
-    u = zeros(ComplexF64, 2L, Nobs)
-    Avec = zeros(ComplexF64, Nobs)
+    nts = Threads.maxthreadid()
+    Ts = [zeros(ComplexF64, 2L, 2L) for _ in 1:nts]
+    Hs = [zeros(ComplexF64, 2L, 2L) for _ in 1:nts]
+    us = [zeros(ComplexF64, 2L, Nobs) for _ in 1:nts]
+    Avecs = [zeros(ComplexF64, Nobs) for _ in 1:nts]
+    corrs = [zeros(ComplexF64, Ncorr) for _ in 1:nts]
     disp = zeros(Float64, L, Nq)
     intensity = zeros(eltype(measure), L, Nq)
 
-    for (iq, q) in enumerate(qpts.qs)
+    Threads.@threads for iq in eachindex(qpts.qs)
+        tid = Threads.threadid()
+        T = Ts[tid]
+        H = Hs[tid]
+        u = us[tid]
+        Avec = Avecs[tid]
+        corr = corrs[tid]
+
+        q = qpts.qs[iq]
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
