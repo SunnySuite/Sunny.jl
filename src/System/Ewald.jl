@@ -75,6 +75,7 @@ struct DipoleEwaldQPlan
     kmax²         :: Float64
     cells         :: Vector{CartesianIndex{3}}
     Δrs           :: Array{Vec3, 3}
+    site_Δrs      :: Vector{Vec3}
     real_ns       :: Vector{Vec3}
     real_terms    :: Array{Vector{DipoleEwaldRealTerm}, 3}
     reciprocal_ms :: Vector{Vec3}
@@ -144,6 +145,7 @@ function DipoleEwaldQPlan(cryst::Crystal, dims::NTuple{3, Int}, demag::Mat3)
         end
         real_terms[icell, i, j] = terms
     end
+    site_Δrs = [Δrs[1, 1, i] for i in 1:na]
 
     reciprocal_ms = Vec3[]
     for m1 in -mmax[1]:mmax[1], m2 in -mmax[2]:mmax[2], m3 in -mmax[3]:mmax[3]
@@ -153,7 +155,7 @@ function DipoleEwaldQPlan(cryst::Crystal, dims::NTuple{3, Int}, demag::Mat3)
     self_energy = -I₃/(3(2π)^(3/2)*σ³)
 
     return DipoleEwaldQPlan(dims, demag, latvecs, recipvecs, V, σ, σ³, kmax²,
-                            cells, Δrs, real_ns, real_terms, reciprocal_ms, self_energy)
+                            cells, Δrs, site_Δrs, real_ns, real_terms, reciprocal_ms, self_energy)
 end
 
 
@@ -243,6 +245,10 @@ function dipole_ewald_reciprocal_terms!(terms::Vector{DipoleEwaldReciprocalTerm}
 end
 
 function dipole_ewald_reciprocal_kernel_terms!(terms::Vector{DipoleEwaldReciprocalKernelTerm}, plan::DipoleEwaldQPlan, q_reshaped::Vec3)
+    return dipole_ewald_reciprocal_kernel_terms!(terms, plan, q_reshaped, 1.0)
+end
+
+function dipole_ewald_reciprocal_kernel_terms!(terms::Vector{DipoleEwaldReciprocalKernelTerm}, plan::DipoleEwaldQPlan, q_reshaped::Vec3, scale_prefactor::Float64)
     (; demag, recipvecs, V, σ, kmax², reciprocal_ms) = plan
     empty!(terms)
     demag_term = zero(Mat3)
@@ -256,7 +262,7 @@ function dipole_ewald_reciprocal_kernel_terms!(terms::Vector{DipoleEwaldReciproc
             demag_term += demag / V
         elseif k² <= kmax²
             scale = (1/V) * (exp(-σ^2*k²/2) / k²)
-            push!(terms, DipoleEwaldReciprocalKernelTerm(k, scale))
+            push!(terms, DipoleEwaldReciprocalKernelTerm(k, scale_prefactor * scale))
         end
     end
 

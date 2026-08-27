@@ -106,7 +106,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         @assert !isnothing(ewald_q_plan)
         buffer = ewald_buffers[Threads.threadid()]
         sizehint!(buffer.reciprocal_terms, length(ewald_q_plan.reciprocal_ms))
-        reciprocal = dipole_ewald_reciprocal_kernel_terms!(buffer.reciprocal_terms, ewald_q_plan, q_reshaped)
+        reciprocal = dipole_ewald_reciprocal_kernel_terms!(buffer.reciprocal_terms, ewald_q_plan, q_reshaped, μ0_μB² / 2)
         real_phases = dipole_ewald_real_phases!(buffer.real_phases, ewald_q_plan, q_reshaped)
         has_demag = !iszero(reciprocal.demag_term)
 
@@ -116,7 +116,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         @inbounds for (iterm, term) in enumerate(reciprocal.terms)
             for i in 1:L
                 site_k[i, iterm] = ewald_local_transform[i]' * term.k
-                phase = cis(-term.k⋅ewald_q_plan.Δrs[1, 1, i])
+                phase = cis(-term.k⋅ewald_q_plan.site_Δrs[i])
                 site_phase[i, iterm] = phase
                 site_phase_conj[i, iterm] = conj(phase)
             end
@@ -145,7 +145,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             @inbounds for (iterm, term) in enumerate(reciprocal.terms)
                 vi = site_k[i, iterm]
                 vj = site_k[j, iterm]
-                coeff = (μ0_μB² * term.scale / 2) * site_phase[j, iterm] * site_phase_conj[i, iterm]
+                coeff = term.scale * site_phase[j, iterm] * site_phase_conj[i, iterm]
                 J11 += coeff * vi[1] * vj[1]
                 J22 += coeff * vi[2] * vj[2]
                 J12 += coeff * vi[1] * vj[2]
