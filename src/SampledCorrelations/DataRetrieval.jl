@@ -78,25 +78,24 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     if !isnothing(kT) && kT <= 0
         error("Positive `kT` required for classical-to-quantum corrections, or set `kT=nothing` to disable.")
     end
-    if !isnothing(kernel) && !contains_dynamic_correlations(sc)
-        error("Kernel broadening requires dynamical correlation data.")
-    end
-    if !isnothing(kernel) && energies isa Symbol
-        error("An explicit list of `energies` is required when `kernel` is provided.")
+
+    dynamic = contains_dynamic_correlations(sc)
+    broadening = !isnothing(kernel)
+
+    if broadening
+        dynamic || error("Kernel broadening requires dynamical correlation data.")
+        energies isa Symbol && error("An explicit list of `energies` is required when `kernel` is provided.")
     end
 
     # Determine energy information. If a broadening `kernel` is given, the
     # full raw energy grid (including negative energies) is retrieved as the
     # source data for the convolution, and `energies` instead specifies the
     # desired output grid, exactly as for SpinWaveTheory.
-    (ωs, ωidcs) = if !isnothing(kernel)
+    (ωs, ωidcs) = if broadening || energies == :available_with_negative
         ωs = available_energies(sc; negative_energies=true)
         (ωs, axes(ωs, 1))
     elseif energies == :available
         ωs = available_energies(sc; negative_energies=false)
-        (ωs, axes(ωs, 1))
-    elseif energies == :available_with_negative
-        ωs = available_energies(sc; negative_energies=true)
         (ωs, axes(ωs, 1))
     else
         rounded_energy_information(sc, energies)
@@ -121,8 +120,8 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     # Convert to a q-space density in original (not reshaped) RLU.
     intensities .*= det(sc.recipvecs) / det(sc.origin_crystal.recipvecs)
 
-    # Post-processing steps for dynamical correlations 
-    if contains_dynamic_correlations(sc) 
+    # Post-processing steps for dynamical or static intensities
+    if dynamic
         # Convert time axis to a density.
         n_all_ω = size(sc.samplebuf, 6)
         intensities ./= (n_all_ω * sc.Δω)
@@ -135,20 +134,18 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
                 intensities[:, i] .*= c2q
             end
         end
-    end
 
-    intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
-
-    if !isnothing(kernel)
-        energies = collect(Float64, energies)
-        data = broaden(collect(Float64, ωs), intensities; energies, kernel, Δω=sc.Δω)
-        return Intensities(sc.origin_crystal, qpts, energies, data)
-    end
-
-    return if contains_dynamic_correlations(sc)
-        Intensities(sc.origin_crystal, qpts, collect(ωs), intensities)
+        # Reshape data into final form and broaden, if requested
+        intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
+        if broadening
+            energies = collect(Float64, energies)
+            data = broaden(collect(Float64, ωs), intensities; energies, kernel, Δω=sc.Δω)
+            return Intensities(sc.origin_crystal, qpts, energies, data)
+        end
+        return Intensities(sc.origin_crystal, qpts, collect(ωs), intensities)
     else
-        StaticIntensities(sc.origin_crystal, qpts, dropdims(intensities; dims=1))
+        intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
+        return StaticIntensities(sc.origin_crystal, qpts, dropdims(intensities; dims=1))
     end
 end
 

@@ -131,11 +131,11 @@ end
 # SampledCorrelations) rather than a per-wavevector dispersion. 
 function broaden!(data::AbstractArray{Ret}, ωs::AbstractVector, is::AbstractArray{Ret}; energies, kernel::AbstractBroadening, Δω) where Ret
     energies = collect(Float64, energies)
-    issorted(energies) || error("energies must be sorted")
+    issorted(energies) || error("Keyword `energies` must be a sorted array")
 
     nω = length(energies)
     nq = size(is)[2:end]
-    (nω, nq...) == size(data) || error("Argument data must have size ($nω × $(join(nq, "×")))")
+    (nω, nq...) == size(data) || error("Argument `data` must have size ($nω×$(join(nq, "×")))")
 
     cutoff = 1e-12 * Statistics.quantile(norm.(vec(is)), 0.95)
 
