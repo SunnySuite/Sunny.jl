@@ -153,10 +153,13 @@ end
 
 # Perform an intensity calculation for two special ``𝐪``-points in reciprocal
 # lattice units (RLU). A classical-to-quantum rescaling of normal mode
-# occupations will be performed according to the temperature `kT`. The large
-# statistical noise could be reduced by averaging over more thermal samples.
+# occupations will be performed according to the temperature `kT`. We apply the
+# same empirical broadening used in the previous [spin wave tutorial](@ref "3.
+# Multi-flavor spin wave simulations of FeI₂"). Statistical noise could be
+# reduced by averaging over more thermal samples.
 
-res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, langevin.kT)
+kernel = lorentzian(fwhm=0.3)
+res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, langevin.kT, kernel)
 fig = lines(res.energies, res.data[:, 1]; axis=(xlabel="Energy (meV)", ylabel="Intensity"), label="(0,0,0)")
 lines!(res.energies, res.data[:, 2]; label="(π,π,π)")
 axislegend()
@@ -175,7 +178,7 @@ qs = [[0,   0, 0],  # List of wave vectors that define a path
       [0,   1, 0],
       [0,   0, 0]] 
 qpath = q_space_path(cryst, qs, 500)
-res = intensities(sc, qpath; energies, langevin.kT)
+res = intensities(sc, qpath; energies, langevin.kT, kernel)
 plot_intensities(res; units, colorrange=(0.0, 1.0), title="Intensities at T = 2.3 K")
 
 # One can also view the intensity along a [`q_space_grid`](@ref) for a fixed
@@ -183,5 +186,5 @@ plot_intensities(res; units, colorrange=(0.0, 1.0), title="Intensities at T = 2.
 # over all available energies.
 
 grid = q_space_grid(cryst, [1, 0, 0], range(-1.5, 1.5, 300), [0, 1, 0], (-1.5, 1.5); orthogonalize=true)
-res = intensities(sc, grid; energies=[3.5], langevin.kT)
+res = intensities(sc, grid; energies=[3.5], langevin.kT, kernel)
 plot_intensities(res; title="Intensity slice at ω = 3.5 meV")
