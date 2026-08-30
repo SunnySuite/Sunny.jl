@@ -125,3 +125,35 @@ function broaden(bands::BandIntensities; energies, kernel)
     broaden!(data, bands; energies, kernel)
     return Intensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
 end
+
+# Like broaden! for BandIntensities, but for intensities defined on a fixed
+# reference energy grid `ωs` shared by every wavevector (as extracted from
+# SampledCorrelations) rather than a per-wavevector dispersion. 
+function broaden!(data::AbstractArray{Ret}, ωs::AbstractVector, is::AbstractArray{Ret}; energies, kernel::AbstractBroadening, Δω) where Ret
+    energies = collect(Float64, energies)
+    issorted(energies) || error("energies must be sorted")
+
+    nω = length(energies)
+    nq = size(is)[2:end]
+    (nω, nq...) == size(data) || error("Argument data must have size ($nω × $(join(nq, "×")))")
+
+    cutoff = 1e-12 * Statistics.quantile(norm.(vec(is)), 0.95)
+
+    for iq in CartesianIndices(nq)
+        for (iω0, ω0) in enumerate(ωs)
+            x = is[iω0, iq]
+            norm(x) < cutoff && continue
+            @inbounds for (iω, ω) in enumerate(energies)
+                data[iω, iq] += kernel(ω0, ω) * x * Δω
+            end
+        end
+    end
+
+    return data
+end
+
+function broaden(ωs::AbstractVector, is::AbstractArray{Ret}; energies, kernel::AbstractBroadening, Δω) where Ret
+    data = zeros(Ret, length(energies), size(is)[2:end]...)
+    broaden!(data, ωs, is; energies, kernel, Δω)
+    return data
+end
