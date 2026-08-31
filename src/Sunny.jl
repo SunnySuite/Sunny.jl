@@ -125,8 +125,9 @@ include("SampledCorrelations/CorrelationUtils.jl")
 include("SampledCorrelations/CorrelationSampling.jl")
 include("SampledCorrelations/PhaseAveraging.jl")
 include("SampledCorrelations/DataRetrieval.jl")
-export SampledCorrelations, SampledCorrelationsStatic, add_sample!, clone_correlations,
-    merge_correlations
+include("SampledCorrelations/SampledCorrelationsQPoints.jl")
+export SampledCorrelations, SampledCorrelationsStatic, SampledCorrelationsQPoints,
+    add_sample!, clone_correlations, merge_correlations
 
 include("SCGA/NewtonBacktracking.jl")
 include("SCGA/SCGA.jl")
