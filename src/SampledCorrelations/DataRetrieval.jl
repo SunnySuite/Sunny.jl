@@ -72,8 +72,7 @@ end
 
 contains_dynamic_correlations(sc) = !isnan(sc.Δω)
 
-# Documented under intensities function for SWT. TODO: As a hack, this function
-# is also being used as the back-end to intensities_static.
+# Documented under `intensities` function for SWT. 
 function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
     if !isnothing(kT) && kT <= 0
         error("Positive `kT` required for classical-to-quantum corrections, or set `kT=nothing` to disable.")
@@ -87,10 +86,10 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
         energies isa Symbol && error("An explicit list of `energies` is required when `kernel` is provided.")
     end
 
-    # Determine energy information. If a broadening `kernel` is given, the
-    # full raw energy grid (including negative energies) is retrieved as the
-    # source data for the convolution, and `energies` instead specifies the
-    # desired output grid (as for SpinWaveTheory).
+    # Determine energies and energy indices needed to perform the intensities
+    # calculation. Note that these may be distinct from the user requested
+    # `energies`, though the final returned energies will always correspond to
+    # the user request.
     (ωs, ωidcs) = if broadening || energies == :available_with_negative
         ωs = available_energies(sc; negative_energies=true)
         (ωs, axes(ωs, 1))
@@ -137,12 +136,13 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
 
         # Reshape data into final form and broaden, if requested
         intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
-        if broadening
+        return if broadening
             energies = collect(Float64, energies)
             data = broaden(collect(Float64, ωs), intensities; energies, kernel, Δω=sc.Δω)
-            return Intensities(sc.origin_crystal, qpts, energies, data)
+            Intensities(sc.origin_crystal, qpts, energies, data)
+        else
+            Intensities(sc.origin_crystal, qpts, collect(ωs), intensities)
         end
-        return Intensities(sc.origin_crystal, qpts, collect(ωs), intensities)
     else
         intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
         return StaticIntensities(sc.origin_crystal, qpts, dropdims(intensities; dims=1))
