@@ -166,4 +166,21 @@ end
     # Compare with reference
     data_golden = [33.52245944537883 31.523781055757002; 16.76122972268928 16.188214427928443; 1.6337100022968968e-14 5.3112747876921045; 1.590108516238891e-13 1.8852219123773621; -1.5194916032483394e-14 0.06400012935688847; -6.217248937900877e-15 -0.01803103943766904; 7.863406895322359e-14 -0.04445301974061088; 7.014086281484114e-14 0.0025512102338097653; 3.195591939212742e-14 -0.02515685630480813; 3.6201681383269686e-14 0.023924996100518413]
     @test res.data ≈ data_golden
+
+    # Selected-q sampling should match full-grid sampling at the same rounded q
+    # points while using much less storage for path calculations.
+    sys_full = System(Sunny.diamond_crystal(), [1 => Moment(s=3/2, g=2)], :dipole; dims=(2, 3, 4), seed=101)
+    set_exchange!(sys_full, 0.6498, Bond(1, 3, [0,0,0]))
+    randomize_spins!(sys_full)
+    sys_qpts = clone_system(sys_full)
+    qs = [[0.0, 0.0, 0.0], [-0.2, 0.4, -0.1], [0.8, 0.4, -0.1]]
+    energies = range(0.0, 5.5, 10)
+    measure = ssf_perp(sys_full)
+    sc_full = SampledCorrelations(sys_full; energies, dt=0.12, measure)
+    sc_qpts = SampledCorrelationsQPoints(sys_qpts, qs; energies, dt=0.12, measure=ssf_perp(sys_qpts))
+    add_sample!(sc_full, sys_full)
+    add_sample!(sc_qpts, sys_qpts)
+    res_full = intensities(sc_full, qs; energies=:available, kT=nothing)
+    res_qpts = intensities(sc_qpts; energies=:available, kT=nothing)
+    @test res_qpts.data ≈ res_full.data
 end
