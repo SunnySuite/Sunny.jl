@@ -175,7 +175,8 @@ function clone_system(sys::System{N}) where N
         # At the moment, clone_ewald is unavailable, so instead rebuild the
         # Ewald data structures from scratch. This might be fixed eventually.
         # See https://github.com/JuliaMath/FFTW.jl/issues/261.
-        enable_dipole_dipole!(ret, ewald.μ0_μB²; ewald.demag)
+        (; μ0_μB², demag) = ewald.cache
+        enable_dipole_dipole!(ret, μ0_μB²; demag)
     end
 
     return ret

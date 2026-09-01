@@ -89,9 +89,31 @@ const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
 const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
 const rIFTPlan = FFTW.AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
 
+# Reusable cache for building the Ewald interaction tensor A at many wavevectors
+# q. The expensive q-independent pieces are precomputed once: the real-space
+# tensors, tagged by their lattice shift n, and the reciprocal grid points m.
+# For each q, `ewald_interaction_tensor(cache, q)` then only applies phases and
+# evaluates the (pair-independent) reciprocal-space tensors.
+struct EwaldTensorCache
+    # Construction inputs
+    dims        :: NTuple{3, Int}
+    cryst       :: Crystal                             # Reference cell (lattice vectors and atom positions)
+    μ0_μB²      :: Float64                             # Strength of dipole-dipole interactions
+    demag       :: Mat3                                # Demagnetization factor
+    # Ewald splitting length scale, balancing real- and reciprocal-space costs.
+    # Implicit in how both the `ns` and `ms` shortlists below were built.
+    σ²          :: Float64
+    # Reciprocal-space part: grid points span m ∈ -mmax[a]:mmax[a] per axis,
+    # truncated to the sphere kmax² (the reciprocal cutoff).
+    mmax        :: NTuple{3, Int}
+    kmax²       :: Float64
+    # Real-space part (with σ already baked into the tensors)
+    ns          :: Vector{Vec3}                        # Distinct real-space lattice shifts
+    real_terms  :: Array{Vector{Tuple{Int, Mat3}}, 5}  # (index into `ns`, tensor), [cell, i, j]
+end
+
 struct Ewald
-    μ0_μB²   :: Float64               # Strength of dipole-dipole interactions
-    demag    :: Mat3                  # Demagnetization factor
+    cache    :: EwaldTensorCache      # q-independent pieces for building A(q)
     A        :: Array{Mat3, 5}        # Interaction matrices in real-space         [offset+1,i,j]
     μ        :: Array{Vec3, 4}        # Magnetic moments μ = g s                   [cell,i]
     ϕ        :: Array{Vec3, 4}        # Cross correlation, ϕ = A⋆μ                 [cell,i]

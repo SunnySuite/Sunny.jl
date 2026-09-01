@@ -2,14 +2,20 @@
 function Ewald(sys::System{N}, μ0_μB², demag) where N
     (; crystal, dims) = sys
 
-    A = precompute_dipole_ewald(crystal, dims, demag) * μ0_μB²
+    # Collect pieces to build the Ewald interaction tensor A(q) cheaply. This
+    # step can be a bottleneck for spin wave theory.
+    cache = EwaldTensorCache(crystal, dims, μ0_μB², demag)
 
+    # Build and store the interaction tensor A(q=0). The imaginary part cancels
+    # in the symmetric sum over ±k, so keep only the real part.
+    A = real.(ewald_interaction_tensor(cache, zero(Vec3)))
+    Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...) # dims: [α,β,cell,i,j]
+    FA = FFTW.rfft(Ar, 3:5) # FFT on cell indices
+
+    # Scratch space for calculating interactions in Fourier space
     na = natoms(crystal)
     μ = zeros(Vec3, dims..., na)
     ϕ = zeros(Vec3, dims..., na)
-
-    Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...) # dims: [α,β,cell,i,j]
-    FA = FFTW.rfft(Ar, 3:5) # FFT on cell indices
     sz_rft = size(FA)[3:5]  # First FT dimension (dimension 3) will be ~ halved
     Fμ = zeros(ComplexF64, 3, sz_rft..., na)
     Fϕ = zeros(ComplexF64, 3, sz_rft..., na)
@@ -18,7 +24,7 @@ function Ewald(sys::System{N}, μ0_μB², demag) where N
     plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
     ift_plan = FFTW.plan_irfft(Fμ, dims[1], 2:4; flags=FFTW.MEASURE)
 
-    return Ewald(μ0_μB², demag, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
+    return Ewald(cache, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
 end
 
 # Ideally, this would clone all mutable state within Ewald. Note that `A`, `FA`
@@ -29,12 +35,12 @@ end
 # https://github.com/JuliaMath/FFTW.jl/issues/261.
 function clone_ewald(ewald::Ewald)
     error("Not supported")
-    (; μ0_μB², demag, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan) = ewald
-    return Ewald(μ0_μB², demag, A, copy(μ), copy(ϕ), FA, copy(Fμ), copy(Fϕ), copy(plan), copy(ift_plan))
+    (; cache, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan) = ewald
+    return Ewald(cache, A, copy(μ), copy(ϕ), FA, copy(Fμ), copy(Fϕ), copy(plan), copy(ift_plan))
 end
 
-# Tensor product of 3-vectors
-(⊗)(a::Vec3,b::Vec3) = reshape(kron(a,b), 3, 3)
+# Tensor (outer) product of 3-vectors, as a statically-sized Mat3
+(⊗)(a::Vec3,b::Vec3) = a * b'
 
 # Bare (single-image) point dipole-dipole coupling tensor for a displacement `r`,
 # i.e. the r → 0 limit of the Ewald kernel, without the μ0_μB² prefactor.
@@ -45,32 +51,13 @@ end
 
 @inline cell_offset(cell) = Vec3(cell[1]-1, cell[2]-1, cell[3]-1)
 
-# Reusable plan for building the Ewald interaction matrix A at many wavevectors
-# q. The expensive q-independent pieces are precomputed once: the real-space
-# tensors, tagged by their lattice shift n, and the reciprocal grid points m.
-# For each q, `precompute_dipole_ewald_at_wavevector(plan, q)` then only applies
-# phases and evaluates the (pair-independent) reciprocal-space tensors.
-struct DipoleEwaldPlan
-    dims        :: NTuple{3, Int}
-    cryst       :: Crystal                             # Reference cell (lattice vectors and atom positions)
-    ns          :: Vector{Vec3}                        # Distinct real-space lattice shifts
-    real_terms  :: Array{Vector{Tuple{Int, Mat3}}, 5}  # (index into `ns`, tensor), [cell, i, j]
-    ms          :: Vector{Vec3}                        # Reciprocal grid points
-    recipvecs   :: Mat3
-    demag       :: Mat3
-    V           :: Float64
-    σ²          :: Float64
-    kmax²       :: Float64
-    self_energy :: Mat3
-end
-
-function DipoleEwaldPlan(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3)
+function EwaldTensorCache(cryst::Crystal, dims::NTuple{3,Int}, μ0_μB², demag::Mat3)
     na = natoms(cryst)
 
     # Superlattice vectors and reciprocals for the full system volume
     sys_size = diagm(Vec3(dims))
     latvecs = cryst.latvecs * sys_size
-    recipvecs = cryst.recipvecs / sys_size
+    recipvecs = cryst.recipvecs / sys_size  # rebuilt in `ewald_interaction_tensor`
 
     # Precalculate constants
     I₃ = Mat3(I)
@@ -118,102 +105,105 @@ function DipoleEwaldPlan(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3)
         real_terms[cell, i, j] = terms
     end
 
-    # Fourier-space part is q-dependent. Will sum over k vectors, indexed by m.
-    ms = vec([Vec3(m1, m2, m3) for m1 = -mmax[1]:mmax[1], m2 = -mmax[2]:mmax[2], m3 = -mmax[3]:mmax[3]])
-
-    # Per-site self-interaction tensor
-    self_energy = -I₃ / (3(2π)^(3/2)*σ^3)
-
-    return DipoleEwaldPlan(dims, cryst, ns, real_terms, ms, recipvecs, demag, V, σ², kmax^2, self_energy)
+    # The Fourier-space part is q-dependent; it sums over the reciprocal grid
+    # m ∈ -mmax[a]:mmax[a], rebuilt on demand in `ewald_interaction_tensor`.
+    return EwaldTensorCache(dims, cryst, μ0_μB², demag, σ², Tuple(mmax), kmax^2, ns, real_terms)
 end
 
-# Materialize the Ewald matrix A[cell, i, j] at wavevector `q_reshaped`. Matches
-# `precompute_dipole_ewald_at_wavevector(cryst, dims, demag, q_reshaped)`.
-function precompute_dipole_ewald_at_wavevector(plan::DipoleEwaldPlan, q_reshaped::Vec3)
-    (; dims, cryst, ns, real_terms, ms, recipvecs, demag, V, σ², kmax², self_energy) = plan
-    (; latvecs, positions) = cryst
+# Materialize the Ewald interaction tensor A[cell, i, j] at wavevector
+# `q_reshaped`, from the q-independent pieces held in `cache`. For q_reshaped =
+# 0, this yields the usual Ewald energy, E = μᵢ Aᵢⱼ μⱼ / 2. Nonzero q_reshaped
+# is useful in spin wave theory. Physically, this amounts to a modification of
+# the periodic boundary conditions, such that μ(q) can be incommensurate with
+# the magnetic cell. In all cases, the energy is E = μᵢ(-q) Aᵢⱼ(-q) μⱼ(q) / 2 in
+# Fourier space, where q should be interpreted as a Fourier transform of the
+# cell offset. The returned tensor includes the `μ0_μB²` prefactor held in
+# `cache`.
+#
+# The tensor obeys the invariant A[off, i, j] = A[-off, j, i]', where `off` is
+# the cell offset. Reversing the pair and offset maps the displacement Δr → -Δr,
+# under which every term is symmetric and even (real-space ∝ I, r̂⊗r̂;
+# reciprocal ∝ k⊗k summed over ±k). Hence at q = 0 the tensor is real (callers
+# discard the roundoff-level imaginary part). The lone caveat is the demag
+# surface term, added pair-independently, so this requires `demag` symmetric.
+function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
+    (; dims, cryst, μ0_μB², demag, σ², mmax, kmax², ns, real_terms) = cache
+    (; positions) = cryst
     na = natoms(cryst)
-    # For sites site1=(cell1, i) and site2=(cell2, j) offset by an amount
-    # (off = cell2-cell1), the pair-energy is (s1 ⋅ A[off, i, j] ⋅ s2). Julia
-    # arrays start at one, so we index A using (cell = off .+ 1).
+    # Derived quantities for the full system volume: superlattice reciprocals,
+    # cell volume, and the per-site self-interaction tensor.
+    recipvecs = cryst.recipvecs / diagm(Vec3(dims))
+    V = abs(det(cryst.latvecs)) * prod(dims)
+    self_energy = -Mat3(I) / (3(2π)^(3/2) * σ²^(3/2))
+    q0 = q_reshaped - round.(q_reshaped)
     A = zeros(CMat3, dims..., na, na)
-
-    # Real-space phases, one per distinct lattice shift n.
-    real_phases = [cis(2π * dot(q_reshaped, n)) for n in ns]
+    cell0 = oneunit(CartesianIndex{3})  # the zero-offset cell (isone allocates)
 
     #####################################################
     ## Fourier space part
-    # Reciprocal-space tensors depend on q but not on the sublattice pair, so
-    # evaluate them once. The tensor scale*(k⊗k) is real; only the per-pair phase
-    # is complex. `demag_term` collects the k → 0 surface term Eₛ = μ₀ M⋅N M / 2V,
-    # giving rise to a demagnetization effect. Net magnetization M is associated
-    # with mode k = 0; the demag factor tensor N (`demag`) depends on sample
-    # geometry and has trace 1 in vacuum background. See S. W. DeLeeuw et al.,
-    # Proc. R. Soc. Lond. A 373, 27-56 (1980) and Ballenegger, J. Chem. Phys.
-    # 140, 161102 (2014).
+    # With k = recipvecs (m + q0), the phase cis(-k⋅Δr) of a displacement
+    # Δr = latvecs (off + rⱼ - rᵢ) factorizes over the three axes, since
+    # recipvecsᵀ⋅latvecs = 2π I. So tabulate the 1D per-axis phases e^{-2πi(m+q0)x}
+    # (for site fractions x = rᵢ/dims and cell fractions x = off/dims) and take
+    # products; each surviving mode then costs only `na` products, no
+    # transcendentals. Running the mode loop outside the pairs lets the
+    # zero-offset diagonals A[1,i,i] share the Fourier sum Σₖ Aₖ (as |siteφᵢ| = 1).
+    # The k → 0 mode contributes the demag surface term Eₛ = μ₀ M⋅N M / 2V (only
+    # when q0 = 0); the factor tensor N (`demag`) has trace 1 in vacuum. See
+    # S. W. DeLeeuw et al., Proc. R. Soc. Lond. A 373, 27-56 (1980) and
+    # Ballenegger, J. Chem. Phys. 140, 161102 (2014).
+    zero_idx = mmax .+ 1  # index of m = 0 in the per-axis phase tables
+    siteφ_1d = ntuple(a -> [cis(-2π*(m+q0[a]) * positions[i][a]/dims[a]) for i in 1:na, m in -mmax[a]:mmax[a]], 3)
+    cellφ_1d = ntuple(a -> [cis(-2π*(m+q0[a]) * (c-1)/dims[a]) for c in 1:dims[a], m in -mmax[a]:mmax[a]], 3)
+    siteφ = zeros(ComplexF64, na)
+    diagF = zero(Mat3)
     demag_term = zero(Mat3)
-    ks = Vec3[]
-    q_shift = q_reshaped - round.(q_reshaped)
-    for m in ms
-        k = recipvecs * (m + q_shift)
+    for m1 = -mmax[1]:mmax[1], m2 = -mmax[2]:mmax[2], m3 = -mmax[3]:mmax[3]
+        k = recipvecs * (Vec3(m1, m2, m3) + q0)
         k² = k⋅k
         if k² <= 1e-16
             demag_term += demag / V
-        elseif k² <= kmax²
-            push!(ks, k)
+            continue
+        end
+        k² <= kmax² || continue
+        Aₖ = ((1/V) * exp(-σ²*k²/2) / k²) * (k⊗k)  # real, symmetric, pair-independent
+        diagF += Aₖ
+        t1, t2, t3 = m1+zero_idx[1], m2+zero_idx[2], m3+zero_idx[3]
+        @inbounds for i in 1:na
+            siteφ[i] = siteφ_1d[1][i, t1] * siteφ_1d[2][i, t2] * siteφ_1d[3][i, t3]
+        end
+        @inbounds for cell in CartesianIndices(dims)
+            cellφ = cellφ_1d[1][cell[1], t1] * cellφ_1d[2][cell[2], t2] * cellφ_1d[3][cell[3], t3]
+            for j in 1:na, i in 1:na
+                cell == cell0 && i >= j && continue  # zero-offset: fill i<j, mirror later; diagonal via diagF
+                A[cell, i, j] += (cellφ * conj(siteφ[i]) * siteφ[j]) * Aₖ
+            end
         end
     end
 
-    # The reciprocal tensors scale*(k⊗k) are real and independent of the pair. The
-    # phase cis(-k⋅Δr) factorizes over the cell offset and the two sites, since
-    # Δr = R_c + rⱼ - rᵢ. Tabulating cell and site phases turns the O(ncells⋅na²)
-    # transcendental `cis` calls into O(ncells + na) per k.
-    Aks = [(1/V) * (exp(-σ²*(k⋅k)/2) / (k⋅k)) * (k⊗k) for k in ks]
-    site_phase = [cis(-k⋅(latvecs*p)) for p in positions, k in ks]
-    cell_phase = stack((cis(-k⋅(latvecs*cell_offset(c))) for c in CartesianIndices(dims)) for k in ks)
-
+    #####################################################
+    ## Real-space part (q-independent tensors cached in `real_terms`), plus the
+    # self-energy and demag terms. For sites site1=(cell1, i) and site2=(cell2, j)
+    # offset by (off = cell2-cell1), the pair-energy is (s1 ⋅ A[off, i, j] ⋅ s2);
+    # Julia arrays start at one, so we index A using (cell = off .+ 1). The
+    # zero-offset block A[1,i,j] = A[1,j,i]' is Hermitian at any q (its phase
+    # factorizes as conj(siteφᵢ)⋅siteφⱼ, independent of the k-grid), so build only
+    # its i ≤ j triangle and mirror. Nonzero offsets are reached only at q = 0
+    # System construction.
+    real_phases = [cis(2π * dot(q_reshaped, n)) for n in ns]
     @inbounds for cell in CartesianIndices(dims), j in 1:na, i in 1:na
-        acc = CMat3(demag_term)
+        zero_off = cell == cell0
+        zero_off && i > j && continue
+        acc = A[cell, i, j] + demag_term
         for (idx, Aⁿ) in real_terms[cell, i, j]
             acc += real_phases[idx] * Aⁿ
         end
-        for t in eachindex(Aks)
-            acc += (cell_phase[cell, t] * site_phase[j, t] * conj(site_phase[i, t])) * Aks[t]
-        end
-        if isone(cell) && i == j
-            acc += self_energy
-        end
-        A[cell, i, j] = acc
+        zero_off && i == j && (acc += self_energy + diagF)
+        A[cell, i, j] = μ0_μB² * acc
+        zero_off && i != j && (A[cell, j, i] = A[cell, i, j]')
     end
-
     return A
 end
-
-
-# Precompute the pairwise interaction matrix A between magnetic moments μ. For
-# q_reshaped = 0, this yields the usual Ewald energy, E = μᵢ Aᵢⱼ μⱼ / 2. Nonzero
-# q_reshaped is useful in spin wave theory. Physically, this amounts to a
-# modification of the periodic boundary conditions, such that μ(q) can be
-# incommensurate with the magnetic cell. In all cases, the energy is E = μᵢ(-q)
-# Aᵢⱼ(-q) μⱼ(q) / 2 in Fourier space, where q should be interpreted as a Fourier
-# transform of the cell offset. Both entry points build a `DipoleEwaldPlan` and
-# materialize A from it; to evaluate many wavevectors, build the plan once and
-# call `precompute_dipole_ewald_at_wavevector(plan, q)` directly.
-function precompute_dipole_ewald_at_wavevector(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3, q_reshaped::Vec3)
-    precompute_dipole_ewald_at_wavevector(DipoleEwaldPlan(cryst, dims, demag), q_reshaped)
-end
-
-# At q = 0 the interaction matrix is real; the imaginary part cancels in the
-# symmetric sum over ±k, so discard the (roundoff-level) remainder. It obeys the
-# invariant A[off, i, j] = A[-off, j, i]', where `off` is the cell offset (see
-# indexing note at the call sites): reversing the pair and offset maps the
-# displacement Δr → -Δr, under which every term is symmetric and even (real-space
-# ∝ I, r̂⊗r̂; reciprocal ∝ k⊗k summed over ±k). The lone caveat is the demag
-# surface term, added pair-independently, so this requires `demag` symmetric.
-function precompute_dipole_ewald(cryst::Crystal, dims::NTuple{3,Int}, demag::Mat3)
-    real.(precompute_dipole_ewald_at_wavevector(cryst, dims, demag, zero(Vec3)))
-end
-
 
 # The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known
 # statically.
