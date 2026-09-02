@@ -137,7 +137,7 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
     # vacuum. See S. W. DeLeeuw et al., Proc. R. Soc. Lond. A 373, 27-56 (1980)
     # and Ballenegger, J. Chem. Phys. 140, 161102 (2014). The same q0_is_zero flag
     # drives both the demag term and the mode skip below, so they stay consistent.
-    q0_is_zero = iszero(q0)
+    q0_is_zero = norm(q0) < 1e-16
     demag_term = q0_is_zero ? demag / V : zero(Mat3)
 
     #####################################################
@@ -155,34 +155,34 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
     cellφ_1d = ntuple(3) do a
         [cis(-2π*(m+q0[a]) * (c-1)/dims[a]) for c in 1:dims[a], m in centered(-mmax[a]:mmax[a])]
     end
-    # On the zero-offset diagonal (i = j) the phase is identically 1 (cellφ = 1 and
-    # conj(siteφᵢ)·siteφᵢ = 1), so its Fourier value is the same mode sum ∑ₖ Aₖ for
-    # every site — independent of cell and pair. Accumulate it once as `diagF` (a
-    # single register add per mode, vs `na` scattered writes into A), skip those
-    # entries in the inner loop, and write `diagF` to the diagonal afterward.
-    diagF = zero(CMat3)
+
+    # The Fourier contribution to the diagonal of A is ∑ₖ Aₖ, independent of
+    # cell and pair indices. As an optimization, write this `diag_part` after
+    # the Fourier loop has completed.
+    diag_part = zero(Mat3)
+
     siteφ = zeros(ComplexF64, na)
     for m1 = -mmax[1]:mmax[1], m2 = -mmax[2]:mmax[2], m3 = -mmax[3]:mmax[3]
         # The m = 0 mode at q0 = 0 is the singular k = 0 term (demag stands in for it).
         q0_is_zero && all(iszero, (m1, m2, m3)) && continue
         k = recipvecs * (Vec3(m1, m2, m3) + q0)
         k² = k⋅k
-        k² <= kmax² || continue  # reciprocal-space cutoff
-        Aₖ = ((1/V) * exp(-σ²*k²/2) / k²) * (k⊗k)  # real, symmetric, pair-independent
-        diagF += Aₖ
+        k² <= kmax² || continue
+        Aₖ = ((1/V) * exp(-σ²*k²/2) / k²) * (k⊗k)
+        diag_part += Aₖ
         @inbounds for i in 1:na
             siteφ[i] = siteφ_1d[1][i, m1] * siteφ_1d[2][i, m2] * siteφ_1d[3][i, m3]
         end
         @inbounds for cell in CartesianIndices(dims)
             cellφ = cellφ_1d[1][cell[1], m1] * cellφ_1d[2][cell[2], m2] * cellφ_1d[3][cell[3], m3]
             for j in 1:na, i in 1:imax(cell, j)
-                is_zero_offset(cell) && i == j && continue  # constant; written from diagF below
+                is_zero_offset(cell) && i == j && continue  # written via diag_part instead
                 A[cell, i, j] += (cellφ * conj(siteφ[i]) * siteφ[j]) * Aₖ
             end
         end
     end
     @inbounds for i in 1:na
-        A[1, 1, 1, i, i] = diagF
+        A[1, 1, 1, i, i] = diag_part
     end
 
     #####################################################
