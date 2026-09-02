@@ -89,27 +89,20 @@ const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
 const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
 const rIFTPlan = FFTW.AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
 
-# Reusable cache for building the Ewald interaction tensor A at many wavevectors
-# q. The expensive q-independent pieces are precomputed once: the real-space
-# tensors, tagged by their lattice shift n, and the reciprocal grid points m.
-# For each q, `ewald_interaction_tensor(cache, q)` then only applies phases and
-# evaluates the (pair-independent) reciprocal-space tensors.
+# Precalculated real-space terms to be used in `ewald_interaction_tensor`. This
+# data significantly accelerates spin wave calculations that run over q.
 struct EwaldTensorCache
-    # Construction inputs
-    dims        :: NTuple{3, Int}
-    cryst       :: Crystal                             # Reference cell (lattice vectors and atom positions)
-    μ0_μB²      :: Float64                             # Strength of dipole-dipole interactions
-    demag       :: Mat3                                # Demagnetization factor
-    # Ewald splitting length scale, balancing real- and reciprocal-space costs.
-    # Implicit in how both the `ns` and `ms` shortlists below were built.
-    σ²          :: Float64
-    # Reciprocal-space part: grid points span m ∈ -mmax[a]:mmax[a] per axis,
-    # truncated to the sphere kmax² (the reciprocal cutoff).
-    mmax        :: NTuple{3, Int}
-    kmax²       :: Float64
-    # Real-space part (with σ already baked into the tensors)
-    ns          :: Vector{Vec3}                        # Distinct real-space lattice shifts
-    real_terms  :: Array{Vector{Tuple{Int, Mat3}}, 5}  # (index into `ns`, tensor), [cell, i, j]
+    dims        :: NTuple{3, Int}  # Lattice of cells
+    cryst       :: Crystal         # Reference unit cell
+    μ0_μB²      :: Float64         # Strength of dipole-dipole interactions
+    demag       :: Mat3            # Demagnetization factor
+    σ²          :: Float64         # Parameter that splits real/Fourier-space costs
+
+    mmax        :: NTuple{3, Int}  # Grid of Fourier modes
+    kmax²       :: Float64         # Fourier cutoff (inverse length)
+
+    nmax        :: NTuple{3, Int}  # Grid of real-space cells
+    real_terms  :: Array{Vector{Tuple{NTuple{3, Int}, Mat3}}, 5}  # [cell, i, j] -> (shift n, interaction)
 end
 
 struct Ewald
