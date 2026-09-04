@@ -100,50 +100,65 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
     # Add long-range dipole-dipole
     if !isnothing(sys.ewald)
-        (; demag, μ0_μB², A) = sys.ewald
-        Rs = local_rotations
+        (; μ0_μB²) = sys.ewald
+        (; ewald_q_plan, ewald_local_transform, ewald_J0_diag, ewald_buffers,
+           ewald_real_local, ewald_self_local, ewald_demag_local) = data
+        @assert !isnothing(ewald_q_plan)
+        buffer = ewald_buffers[Threads.threadid()]
+        sizehint!(buffer.reciprocal_terms, length(ewald_q_plan.reciprocal_ms))
+        reciprocal = dipole_ewald_reciprocal_kernel_terms!(buffer.reciprocal_terms, ewald_q_plan, q_reshaped, μ0_μB² / 2)
+        real_phases = dipole_ewald_real_phases!(buffer.real_phases, ewald_q_plan, q_reshaped)
+        has_demag = !iszero(reciprocal.demag_term)
 
-        # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
-        # precompute_dipole_ewald(sys.crystal, (1,1,1), demag) * μ0_μB²
-        A0 = reshape(A, L, L)
+        nrecip = length(reciprocal.terms)
+        resize_dipole_ewald_hamiltonian_buffer!(buffer, L, nrecip)
+        (; site_k, site_phase, site_phase_conj) = buffer
+        @inbounds for (iterm, term) in enumerate(reciprocal.terms)
+            for i in 1:L
+                site_k[i, iterm] = ewald_local_transform[i]' * term.k
+                phase = cis(-term.k⋅ewald_q_plan.site_Δrs[i])
+                site_phase[i, iterm] = phase
+                site_phase_conj[i, iterm] = conj(phase)
+            end
+        end
 
-        # Interaction matrix for wavevector q
-        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
-        Aq = reshape(Aq, L, L)
-
-        # Loop over sublattice pairs
         for i in 1:L, j in 1:L
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy. A symmetric contribution will appear for the bond reversal
             # (i, j) → (j, i).  Note that μ = -μB g S.
-            J = gs[i]' * Aq[i, j] * gs[j] / 2
-            J0 = gs[i]' * A0[i, j] * gs[j] / 2
+            J = ewald_self_local[i, j]
+            has_demag && (J += ewald_demag_local[i, j])
 
-            # Perform same transformation as appears in usual bilinear exchange.
-            # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
-            J = sqrtS[i]*sqrtS[j] * Rs[i]' * J * Rs[j]
-            J0 = sqrtS[i]*sqrtS[j] * Rs[i]' * J0 * Rs[j]
+            J11 = ComplexF64(J[1])
+            J22 = ComplexF64(J[2])
+            J12 = ComplexF64(J[3])
+            J21 = ComplexF64(J[4])
+            @inbounds for term in ewald_real_local[i, j]
+                phase = real_phases[term.phase_index]
+                c = term.components
+                J11 += phase * c[1]
+                J22 += phase * c[2]
+                J12 += phase * c[3]
+                J21 += phase * c[4]
+            end
 
-            # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
-            Q⁻ = 0.5 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
-            Q⁺ = 0.5 * (J[1, 1] + J[2, 2] + im*(J[1, 2] - J[2, 1]))
-            H11[i, j] += Q⁻
-            H11[j, i] += conj(Q⁻)
-            H22[i, j] += Q⁺
-            H22[j, i] += conj(Q⁺)
+            @inbounds for (iterm, term) in enumerate(reciprocal.terms)
+                vi = site_k[i, iterm]
+                vj = site_k[j, iterm]
+                coeff = term.scale * site_phase[j, iterm] * site_phase_conj[i, iterm]
+                J11 += coeff * vi[1] * vj[1]
+                J22 += coeff * vi[2] * vj[2]
+                J12 += coeff * vi[1] * vj[2]
+                J21 += coeff * vi[2] * vj[1]
+            end
 
-            P⁻ = 0.5 * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1]))
-            P⁺ = 0.5 * (J[1, 1] - J[2, 2] + im*(J[1, 2] + J[2, 1]))
-            H21[i, j] += P⁻
-            H21[j, i] += conj(P⁺)
-            H12[i, j] += P⁺
-            H12[j, i] += conj(P⁻)
+            add_dipole_J_to_hamiltonian!(H11, H12, H21, H22, i, j, J11, J22, J12, J21)
+        end
 
-            # Interactions for Jᶻᶻ at wavevector (0,0,0).
-            H11[i, i] -= J0[3, 3]
-            H11[j, j] -= J0[3, 3]
-            H22[i, i] -= J0[3, 3]
-            H22[j, j] -= J0[3, 3]
+        # Interactions for Jᶻᶻ at wavevector (0,0,0).
+        for i in 1:L
+            H11[i, i] -= ewald_J0_diag[i]
+            H22[i, i] -= ewald_J0_diag[i]
         end
     end
 
@@ -157,6 +172,32 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     for i in 1:2L
         H[i, i] += swt.regularization
     end
+end
+
+function resize_dipole_ewald_hamiltonian_buffer!(buffer::DipoleEwaldHamiltonianBuffer, L, nrecip)
+    if size(buffer.site_k, 1) != L || size(buffer.site_k, 2) < nrecip
+        buffer.site_k = Array{Vec3}(undef, L, nrecip)
+        buffer.site_phase = Array{ComplexF64}(undef, L, nrecip)
+        buffer.site_phase_conj = Array{ComplexF64}(undef, L, nrecip)
+    end
+    return buffer
+end
+
+@inline function add_dipole_J_to_hamiltonian!(H11, H12, H21, H22, i, j, J11, J22, J12, J21)
+    # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
+    Q⁻ = 0.5 * (J11 + J22 - im*(J12 - J21))
+    Q⁺ = 0.5 * (J11 + J22 + im*(J12 - J21))
+    H11[i, j] += Q⁻
+    H11[j, i] += conj(Q⁻)
+    H22[i, j] += Q⁺
+    H22[j, i] += conj(Q⁺)
+
+    P⁻ = 0.5 * (J11 - J22 - im*(J12 + J21))
+    P⁺ = 0.5 * (J11 - J22 + im*(J12 + J21))
+    H21[i, j] += P⁻
+    H21[j, i] += conj(P⁺)
+    H12[i, j] += P⁺
+    H12[j, i] += conj(P⁻)
 end
 
 
