@@ -151,7 +151,7 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
 
     # If the system is entangled, then we also need to update its internal data.
     if is_entangled(sys)
-        rebuild_entanglement_for_reshaping!(new_sys)
+        rebuild_entanglement_for_reshaping!(new_sys, sys)
     end
 
     return new_sys

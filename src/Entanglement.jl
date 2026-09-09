@@ -683,16 +683,15 @@ end
 # Rebuild the entanglement metadata for a contracted `sys` that has just been
 # reshaped. This requires reshaping the uncontracted system, a rebuild of the
 # units mapping, and a re-contraction of Ewald interactions.
-function rebuild_entanglement_for_reshaping!(sys::System)
-    ent = get_entanglement(sys.origin::System)
-    orig_uncontracted = ent.uncontracted
-    orig_units = ent.units
-
-    # Reshape the uncontracted system to match the reshaping of `sys`.
+function rebuild_entanglement_for_reshaping!(sys::System, old_sys::System)
+    # The caller will have already reshaped old_sys → sys as entangled systems.
+    # Now perform the same reshaping on the "uncontracted" system counterparts.
+    old_uncontracted = get_entanglement(old_sys).uncontracted
     shape = Mat3(orig_crystal(sys).latvecs \ sys.crystal.latvecs)
-    uncontracted_cryst = reshape_crystal(orig_crystal(orig_uncontracted), shape)
-    uncontracted = reshape_supercell_aux(orig_uncontracted, uncontracted_cryst, sys.dims)
+    uncontracted_cryst = reshape_crystal(orig_crystal(old_uncontracted), shape)
+    uncontracted = reshape_supercell_aux(old_uncontracted, uncontracted_cryst, sys.dims)
 
+    orig_units = get_entanglement(sys.origin::System).units
     nunits = natoms(sys.crystal)
     nparts = length(first(orig_units))
     Na = natoms(uncontracted.crystal)
