@@ -72,22 +72,29 @@ end
 
 contains_dynamic_correlations(sc) = !isnan(sc.Δω)
 
-# Documented under intensities function for SWT. TODO: As a hack, this function
-# is also being used as the back-end to intensities_static.
+# Documented under `intensities` function for SWT. 
 function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
     if !isnothing(kT) && kT <= 0
         error("Positive `kT` required for classical-to-quantum corrections, or set `kT=nothing` to disable.")
     end
-    if !isnothing(kernel)
-        error("Kernel post-processing not yet available for `SampledCorrelations`.")
+
+    dynamic = contains_dynamic_correlations(sc)
+    broadening = !isnothing(kernel)
+
+    if broadening
+        dynamic || error("Kernel broadening requires dynamical correlation data.")
+        energies isa Symbol && error("An explicit list of `energies` is required when `kernel` is provided.")
     end
 
-    # Determine energy information
-    (ωs, ωidcs) = if energies == :available
-        ωs = available_energies(sc; negative_energies=false)
-        (ωs, axes(ωs, 1))
-    elseif energies == :available_with_negative
+    # Determine energies and energy indices needed to perform the intensities
+    # calculation. Note that these may be distinct from the user requested
+    # `energies`, though the final returned energies will always correspond to
+    # the user request.
+    (ωs, ωidcs) = if broadening || energies == :available_with_negative
         ωs = available_energies(sc; negative_energies=true)
+        (ωs, axes(ωs, 1))
+    elseif energies == :available
+        ωs = available_energies(sc; negative_energies=false)
         (ωs, axes(ωs, 1))
     else
         rounded_energy_information(sc, energies)
@@ -112,8 +119,8 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     # Convert to a q-space density in original (not reshaped) RLU.
     intensities .*= det(sc.recipvecs) / det(sc.origin_crystal.recipvecs)
 
-    # Post-processing steps for dynamical correlations 
-    if contains_dynamic_correlations(sc) 
+    # Post-processing steps for dynamical or static intensities
+    if dynamic
         # Convert time axis to a density.
         n_all_ω = size(sc.samplebuf, 6)
         intensities ./= (n_all_ω * sc.Δω)
@@ -126,14 +133,19 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
                 intensities[:, i] .*= c2q
             end
         end
-    end
 
-    intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
-
-    return if contains_dynamic_correlations(sc) 
-        Intensities(sc.origin_crystal, qpts, collect(ωs), intensities)
+        # Reshape data into final form and broaden, if requested
+        intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
+        return if broadening
+            energies = collect(Float64, energies)
+            data = broaden(collect(Float64, ωs), intensities; energies, kernel, Δω=sc.Δω)
+            Intensities(sc.origin_crystal, qpts, energies, data)
+        else
+            Intensities(sc.origin_crystal, qpts, collect(ωs), intensities)
+        end
     else
-        StaticIntensities(sc.origin_crystal, qpts, dropdims(intensities; dims=1))
+        intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
+        return StaticIntensities(sc.origin_crystal, qpts, dropdims(intensities; dims=1))
     end
 end
 
@@ -178,36 +190,4 @@ end
 function intensities_static(sc::SampledCorrelationsStatic, qpts)
     intensities(sc.parent, qpts; kT=nothing, energies=:available)
 end
-
-
-#=
-"""
-    broaden_energy(sc::SampledCorrelations, vals, kernel::Function; negative_energies=false)
-
-Performs a real-space convolution along the energy axis of an array of
-intensities. Assumes the format of the intensities array corresponds to what
-would be returned by [`intensities_interpolated`](@ref). `kernel` must be a function that
-takes two numbers: `kernel(ω, ω₀)`, where `ω` is a frequency, and `ω₀` is the
-center frequency of the kernel. Sunny provides [`lorentzian`](@ref)
-for the most common use case:
-
-```
-newvals = broaden_energy(sc, vals, (ω, ω₀) -> lorentzian06(fwhm=0.2)(ω-ω₀))
-```
-"""
-function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_energies=false)
-    dims = size(is)
-    ωvals = available_energies(sc; negative_energies)
-    out = zero(is)
-    for (ω₀i, ω₀) in enumerate(ωvals)
-        for (ωi, ω) in enumerate(ωvals)
-            for qi in CartesianIndices(dims[1:end-1])
-                out[qi,ωi] += is[qi,ω₀i]*kernel(ω, ω₀)*sc.Δω
-            end
-        end
-    end
-    return out
-end
-=#
-
 
