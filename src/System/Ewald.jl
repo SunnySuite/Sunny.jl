@@ -140,10 +140,12 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
     # Calculating these phases over the full m grid would be expensive, so
     # factorize their (m1, m2, m3) parts as 1D arrays.
     siteφ_1d = ntuple(3) do a
-        [cis(-2π*(m+q0[a]) * positions[i][a]/dims[a]) for i in 1:na, m in centered(-mmax[a]:mmax[a])]
+        [cis(-2π*(m+q0[a]) * positions[i][a]/dims[a])
+         for i in 1:na, m in OffsetArrays.centered(-mmax[a]:mmax[a])]
     end
     cellφ_1d = ntuple(3) do a
-        [cis(-2π*(m+q0[a]) * (c-1)/dims[a]) for c in 1:dims[a], m in centered(-mmax[a]:mmax[a])]
+        [cis(-2π*(m+q0[a]) * (c-1)/dims[a])
+         for c in 1:dims[a], m in OffsetArrays.centered(-mmax[a]:mmax[a])]
     end
 
     # The Fourier contribution to the diagonal of A is ∑ₖ Aₖ, independent of
@@ -179,7 +181,7 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
 
     # Assemble cached real_terms, applying q-dependent phase factors
     real_phases = ntuple(3) do a
-        [cis(2π * q_reshaped[a] * n) for n in centered(-nmax[a]:nmax[a])]
+        [cis(2π * q_reshaped[a] * n) for n in OffsetArrays.centered(-nmax[a]:nmax[a])]
     end
     @inbounds for cell in CartesianIndices(dims), j in 1:na, i in 1:imax(cell, j)
         acc = A[cell, i, j] + demag_term
