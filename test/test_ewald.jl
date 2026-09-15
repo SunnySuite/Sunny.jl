@@ -73,3 +73,34 @@
     E = sum((1/2)d⋅b for (d, b) in zip(sys.dipoles, ∇E))
     @test isapprox(energy(sys), E; atol=1e-12)
 end
+
+@testitem "Hermitian interaction tensor" begin
+    using LinearAlgebra
+
+    # Test the symmetry A_q(-off, j, i) = A_q(off, i, j)' of the Ewald
+    # interaction tensor, where off denotes a cell offset. Note that the return
+    # value of `ewald_interaction_tensor` is actually indexed as A_q[n1, n2, n3,
+    # i, j], corresponding to the cell offset (n1-1, n2-1, n3-1). The general
+    # case q ≠ 0 and dims > 1 is not exercised in current Sunny, but may become
+    # relevant for future FFT-based Ewald support of SpinWaveTheoryKPM (this
+    # will require an enlarged dynamical matrix D, with matrix-free projection
+    # onto the quantization axis).
+    latvecs = lattice_vectors(1.1, 0.9, 0.8, 92, 85, 95)
+    cryst = Crystal(latvecs, [[0, 0.01, 0.01], [0.3, 0.1, 0.2]], 1)
+    dims = (3, 2, 2)
+    sys = System(cryst, [1 => Moment(s=1,g=2), 2 => Moment(s=1,g=2)], :dipole; dims)
+    R = randn(3, 3); enable_dipole_dipole!(sys, 1.3; demag=R'R)
+    na = Sunny.natoms(cryst)
+
+    for q in (Sunny.Vec3(0, 0, 0), Sunny.Vec3(0.37, 0, 0.11))
+        A = Sunny.ewald_interaction_tensor(sys.ewald.cache, q)
+        q0 = q - round.(q)
+        err = maximum(CartesianIndices(dims)) do cell
+            off = cell.I .- 1
+            wrap = CartesianIndex(mod.(.-off, dims) .+ 1)
+            s = Sunny.Vec3((off .+ (wrap.I .- 1)) .÷ dims)
+            maximum(maximum(abs, A[cell,i,j]' - cis(2π*dot(q0,s)) * A[wrap,j,i]) for i in 1:na, j in 1:na)
+        end
+        @test err < 1e-13
+    end
+end

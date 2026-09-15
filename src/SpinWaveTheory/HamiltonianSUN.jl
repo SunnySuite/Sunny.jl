@@ -134,21 +134,21 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
 
     if !isnothing(usys.ewald)
         (; gs, ewald) = usys
-        (; demag, μ0_μB², A) = ewald
+        (; cache, A) = ewald
         Nbare = natoms(usys.crystal)
 
-        # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
-        # precompute_dipole_ewald(usys.crystal, (1,1,1), demag) * μ0_μB²
+        # Interaction matrix for wavevector (0,0,0), equivalently:
+        # real.(ewald_interaction_tensor(cache, zero(Vec3)))
         A0 = reshape(A, Nbare, Nbare)
         # Interaction matrix for wavevector q
-        Aq = precompute_dipole_ewald_at_wavevector(usys.crystal, (1,1,1), demag, q_reshaped) * μ0_μB²
+        Aq = ewald_interaction_tensor(cache, q_reshaped)
         Aq = reshape(Aq, Nbare, Nbare)
 
         # For an entangled system, `contract_ewald!` has already stripped
         # intra-unit couplings in A0 and shifted them to an onsite coupling. The
         # same stripping must be done for the freshly computed Aq.
         if is_entangled(sys)
-            for (; ai, aj, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, μ0_μB²)
+            for (; ai, aj, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, cache.μ0_μB²)
                 Aq[ai, aj] -= Adir
             end
         end

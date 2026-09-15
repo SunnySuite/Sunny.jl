@@ -89,9 +89,24 @@ const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
 const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
 const rIFTPlan = FFTW.AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
 
+# Precalculated real-space terms to be used in `ewald_interaction_tensor`. This
+# data significantly accelerates spin wave calculations that run over q.
+struct EwaldTensorCache
+    dims        :: NTuple{3, Int}  # Lattice of cells
+    cryst       :: Crystal         # Reference unit cell
+    μ0_μB²      :: Float64         # Strength of dipole-dipole interactions
+    demag       :: Mat3            # Demagnetization factor
+    σ²          :: Float64         # Parameter that splits real/Fourier-space costs
+
+    mmax        :: NTuple{3, Int}  # Grid of Fourier modes
+    kmax²       :: Float64         # Fourier cutoff (inverse length)
+
+    nmax        :: NTuple{3, Int}  # Grid of real-space cells
+    real_terms  :: Array{Vector{Tuple{NTuple{3, Int}, Mat3}}, 5}  # [cell, i, j] -> (shift n, interaction)
+end
+
 struct Ewald
-    μ0_μB²   :: Float64               # Strength of dipole-dipole interactions
-    demag    :: Mat3                  # Demagnetization factor
+    cache    :: EwaldTensorCache      # q-independent pieces for building A(q)
     A        :: Array{Mat3, 5}        # Interaction matrices in real-space         [offset+1,i,j]
     μ        :: Array{Vec3, 4}        # Magnetic moments μ = g s                   [cell,i]
     ϕ        :: Array{Vec3, 4}        # Cross correlation, ϕ = A⋆μ                 [cell,i]

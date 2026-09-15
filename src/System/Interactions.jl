@@ -197,6 +197,7 @@ See also [`modify_exchange_with_truncated_dipole_dipole!`](@ref).
     requires scanning over all other spins in the system.
 """
 function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; demag=1/3)
+    issymmetric(demag) || error("Demagnetization tensor must be symmetric")
     if isnothing(μ0_μB²)
         @warn "Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV, :angstrom)`."
         μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
