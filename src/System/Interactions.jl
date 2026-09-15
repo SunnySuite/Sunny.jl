@@ -393,7 +393,7 @@ function local_energy_change(sys::System, site, state::SpinState)
 
         # Bilinear (dipole sector, both modes)
         J = pc.bilin
-        ΔE += dot(ΔS, J, Sⱼ)
+        ΔE += dot(ΔS, J*Sⱼ)
 
         # Biquadratic. Dipole sector (quadrupole of S) in dipole mode, else
         # coherent sector (quadrupole of Z).
@@ -509,7 +509,7 @@ function dipole_sector_energy_aux(int::Interactions, @nospecialize(sys::System),
             Sᵢ = sys.dipoles[siteᵢ]
             Sⱼ = sys.dipoles[siteⱼ]
 
-            E += dot(Sᵢ, pc.bilin, Sⱼ)
+            E += dot(Sᵢ, pc.bilin*Sⱼ)
             sys.mode == :SUN && continue
 
             E += pc.scalar
