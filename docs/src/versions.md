@@ -11,6 +11,8 @@
   illustrates fitting of the dimerized magnet Ba₃Mn₂O₈ to intensity bands data.
 * Large speedups of spin-wave theory with long-range dipole-dipole interactions
   ([#514](@ref)).
+* Fix reshaping of entangled systems with inhomogeneous per-spin state
+  ([#513](@ref)).
 
 ## v0.9.2
 (Jul 13, 2026)
