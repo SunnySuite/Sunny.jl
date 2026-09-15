@@ -372,7 +372,8 @@ function contract_ewald!(sys::System, uncontracted::System, units)
     isnothing(uncontracted.ewald) && return
 
     (; gs, crystal) = uncontracted
-    (; A, FA, μ0_μB²) = uncontracted.ewald :: Ewald
+    (; A, FA, cache) = uncontracted.ewald :: Ewald
+    (; μ0_μB²) = cache
     dims_A = size(A)[1:3]
 
     # Subtract intra-unit couplings from uncontracted interaction matrix A.

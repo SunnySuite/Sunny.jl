@@ -6,9 +6,11 @@
 * Enhancements to simulations with entangled units. The new
   [`entangle_system`](@ref) function is officially supported, offers improved
   integration with other Sunny features, and in some cases runs significantly
-  faster.
+  faster ([#496](@ref)).
 * New [Tutorial 12](@ref "12. Fitting to the dispersion of a dimerized magnet")
   illustrates fitting of the dimerized magnet Ba₃Mn₂O₈ to intensity bands data.
+* Large speedups of spin-wave theory with long-range dipole-dipole interactions
+  ([#514](@ref)).
 * Fix reshaping of entangled systems with inhomogeneous per-spin state
   ([#513](@ref)).
 

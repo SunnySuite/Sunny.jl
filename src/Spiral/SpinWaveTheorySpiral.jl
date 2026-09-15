@@ -76,8 +76,8 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
     end
 
     if !isnothing(sys.ewald)
-        (; demag, μ0_μB²) = sys.ewald
-        Aq = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), demag, -q_reshaped) * μ0_μB²
+        (; cache) = sys.ewald
+        Aq = ewald_interaction_tensor(cache, -q_reshaped)
         Aq = reshape(Aq, Na, Na)
         for i in 1:Na, j in 1:Na
             Jq[i, j] += gs[i]' * Aq[i, j] * gs[j]

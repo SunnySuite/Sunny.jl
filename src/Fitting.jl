@@ -477,14 +477,16 @@ function bands_transport_loss(E, E0, X0; σ, ϵ, maxiter)
     # occupations γ at large C.
     C_compress = f.(C_shift)
 
-    # M×(K+1) kernel for use in optimal transport. The final column is a "sink"
-    # to absorb unused modes in the case of M > K. Its numerical value is
-    # arbitrary (no effect on γ).
-    C = hcat(C_compress, zeros(M))
-
     # Use the Sinkhorn algorithm to fractionally assign modes to peaks.
-    μ = ones(M)              # mass for SWT modes
-    ν = vcat(ones(K), M - K) # mass for labeled peaks (leftover goes to sink)
+    μ = ones(M) # mass for SWT modes
+    ν = ones(K) # mass for labeled peaks
+    C = C_compress
+    # If M = K, then every mode will be assigned to a peak. If M > K, then we
+    # need a "sink" column of C to absorb the M - K unassigned modes.
+    if M > K
+        C = hcat(C, zeros(M)) # uniform cost for mode assignment to sink
+        ν = vcat(ν, M - K)    # leftover mass to be assigned to sink
+    end
     γ = sinkhorn_simple(μ, ν, C, ϵ; maxiter)
 
     # Calculate the squared error for the smooth assignments γ. It is essential
