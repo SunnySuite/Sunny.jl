@@ -139,12 +139,16 @@ function broaden!(data::AbstractArray{Ret}, ωs::AbstractVector, is::AbstractArr
 
     cutoff = 1e-12 * Statistics.quantile(norm.(vec(is)), 0.95)
 
-    for iq in CartesianIndices(nq)
-        for (iω0, ω0) in enumerate(ωs)
+    kernelbuf = zeros(nω)
+    for (iω0, ω0) in enumerate(ωs)
+        @inbounds for (iω, ω) in enumerate(energies)
+            kernelbuf[iω] = kernel(ω0, ω)
+        end
+        for iq in CartesianIndices(nq)
             x = is[iω0, iq]
             norm(x) < cutoff && continue
-            @inbounds for (iω, ω) in enumerate(energies)
-                data[iω, iq] += kernel(ω0, ω) * x * Δω
+            @inbounds for iω in 1:nω
+                data[iω, iq] += kernelbuf[iω] * x * Δω
             end
         end
     end
