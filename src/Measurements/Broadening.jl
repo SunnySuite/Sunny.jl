@@ -147,7 +147,7 @@ function broaden!(data::AbstractArray{Ret}, ωs::AbstractVector, is::AbstractArr
         for iq in CartesianIndices(nq)
             x = is[iω0, iq]
             norm(x) < cutoff && continue
-            @inbounds for iω in 1:nω
+            for iω in 1:nω
                 data[iω, iq] += kernelbuf[iω] * x * Δω
             end
         end
