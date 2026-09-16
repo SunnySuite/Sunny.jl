@@ -244,7 +244,7 @@ correction factor ``|βω (1 + n_B(ω))|`` that undoes the occupation factor for
 the classical Boltzmann distribution and applies the quantum thermal occupation
 factor. The special choice `kT = nothing` will suppress the classical-to-quantum
 correction factor, and yield statistics consistent with the classical Boltzmann
-distribution. If a `kernel` is provided, it will be used to peroform a
+distribution. If a `kernel` is provided, it will be used to perform a
 convolution along the energy axis on top of any intrinsic broadening already
 present in the correlation data. In this case, `energies` must be an explicit
 list specifying the desired output energies, exactly as for `SpinWaveTheory`.
