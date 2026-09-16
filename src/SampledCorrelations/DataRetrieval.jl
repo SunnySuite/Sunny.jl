@@ -90,7 +90,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     # Determine energy information. If a broadening `kernel` is given, the
     # full raw energy grid (including negative energies) is retrieved as the
     # source data for the convolution, and `energies` instead specifies the
-    # desired output grid, exactly as for SpinWaveTheory.
+    # desired output grid (as for SpinWaveTheory).
     (ωs, ωidcs) = if broadening || energies == :available_with_negative
         ωs = available_energies(sc; negative_energies=true)
         (ωs, axes(ωs, 1))
