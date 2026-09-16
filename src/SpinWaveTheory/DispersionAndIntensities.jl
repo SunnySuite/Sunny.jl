@@ -238,13 +238,18 @@ the Bose function.
 
 Intensities can also be calculated for `SampledCorrelations` associated with
 classical spin dynamics. In this case, thermal broadening will already be
-present, and the line-broadening `kernel` becomes optional. Conversely, the
+present, and the line-broadening `kernel` may be omitted. Conversely, the
 parameter `kT` becomes required. If positive, it will introduce an intensity
 correction factor ``|βω (1 + n_B(ω))|`` that undoes the occupation factor for
 the classical Boltzmann distribution and applies the quantum thermal occupation
 factor. The special choice `kT = nothing` will suppress the classical-to-quantum
 correction factor, and yield statistics consistent with the classical Boltzmann
-distribution.
+distribution. If a `kernel` is provided, for example, to simulate instrumental
+energy resolution, it will be convolved along the energy axis on top of any
+intrinsic broadening already present in the correlation data, using the full
+available energy range as the source data. In this case, `energies` must be an
+explicit list specifying the desired output energies, exactly as for
+`SpinWaveTheory`.
 """
 function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
     return broaden(intensities_bands(swt, qpts; kT); energies, kernel)
