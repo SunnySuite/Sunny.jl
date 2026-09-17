@@ -11,8 +11,10 @@
   illustrates fitting of the dimerized magnet Ba₃Mn₂O₈ to intensity bands data.
 * Large speedups of spin-wave theory with long-range dipole-dipole interactions
   ([#514](@ref)).
-* Fix reshaping of entangled systems with inhomogeneous per-spin state
-  ([#513](@ref)).
+* Energy kernel broadening supported in [`SampledCorrelations`](@ref)
+  ([#507](@ref)).
+* One-dimensional paths supported in [`q_space_grid`](@ref). The ``(H, K, L)``
+  slice is labeled on the ``x``-axis uniformly ([516](@ref)).
 
 ## v0.9.2
 (Jul 13, 2026)
