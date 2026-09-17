@@ -1,0 +1,221 @@
+data_2008132
+_publ_contact_author
+; Professor Mark T Weller
+  Department of Chemistry
+  University of Southampton
+  Highfield
+  Southampton
+  SO17 1BJ
+;
+_publ_section_title
+;
+ Ba~3~Mn~2~O~8~ determined from neutron powder diffraction
+;
+_journal_issue                   2
+_journal_name_full               'Acta Crystallographica Section C'
+_journal_page_first              154
+_journal_page_last               156
+_journal_paper_doi               10.1107/S0108270198011871
+_journal_volume                  55
+_journal_year                    1999
+_chemical_formula_moiety         'Ba3 Mn2 O8'
+_chemical_formula_sum            'Ba3 Mn2 O8'
+_chemical_formula_weight         649.891
+_space_group_IT_number           166
+_symmetry_cell_setting           trigonal
+_symmetry_space_group_name_Hall  '-R 3 2"'
+_symmetry_space_group_name_H-M   'R -3 m :H'
+_audit_creation_method           'from EXP file using GSAS2CIF'
+_cell_angle_alpha                90.0
+_cell_angle_beta                 90.0
+_cell_angle_gamma                120.0
+_cell_formula_units_Z            3
+_cell_length_a                   5.710728(16)
+_cell_length_b                   5.710728(16)
+_cell_length_c                   21.44383(10)
+_cell_measurement_reflns_used    'whole diffractogram'
+_cell_measurement_temperature    295
+_cell_volume                     605.642(4)
+_computing_structure_refinement  'GSAS (Larson & von Dreele, 1994)'
+_diffrn_ambient_temperature      295
+_diffrn_measurement_device
+;
+High Resolution Powder Diffractometer (HRPD) at ISIS
+;
+_diffrn_measurement_method
+'Measurement method: neutron scattering, time-of-flight'
+_diffrn_radiation_probe          neutron
+_diffrn_radiation_type           neutron
+_diffrn_reflns_number            347
+_exptl_crystal_colour            'dark green'
+_exptl_crystal_description       powder
+_refine_ls_goodness_of_fit_obs   1.70
+_refine_ls_number_parameters     26
+_refine_ls_R_factor_obs          0.064
+_refine_ls_shift/su_max          0.001
+_refine_ls_wR_factor_obs         0.070
+_[local]_cod_data_source_file    br1210.cif
+_[local]_cod_data_source_block   Ba3Mn2O8_publ
+_[local]_cod_cif_authors_sg_H-M  'R -3 m'
+_cod_depositor_comments
+;
+The following automatic conversions were performed:
+'_geom_bond_publ_flag' value 'No' changed to 'no' according to
+'/home/saulius/struct/CIF-dictionaries/cif_core.dic' dictionary named
+'cif_core.dic' version 2.4.1 from 2010-06-29 (5 times).
+
+Automatic conversion script
+Id: cif_fix_enum 1527 2010-12-29 10:47:43Z saulius 
+;
+_cod_original_cell_volume        605.64
+_cod_database_code               2008132
+loop_
+_symmetry_equiv_pos_as_xyz
++x,+y,+z
+-y,x-y,+z
+y-x,-x,+z
+y-x,+y,+z
+-y,-x,+z
++x,x-y,+z
+-x,-y,-z
++y,y-x,-z
+x-y,+x,-z
+x-y,-y,-z
++y,+x,-z
+-x,y-x,-z
++x+1/3,+y+2/3,+z+2/3
+-y+1/3,x-y+2/3,+z+2/3
+y-x+1/3,-x+2/3,+z+2/3
+y-x+1/3,+y+2/3,+z+2/3
+-y+1/3,-x+2/3,+z+2/3
++x+1/3,x-y+2/3,+z+2/3
+-x+2/3,-y+1/3,-z+1/3
++y+2/3,y-x+1/3,-z+1/3
+x-y+2/3,+x+1/3,-z+1/3
+x-y+2/3,-y+1/3,-z+1/3
++y+2/3,+x+1/3,-z+1/3
+-x+2/3,y-x+1/3,-z+1/3
++x+2/3,+y+1/3,+z+1/3
+-y+2/3,x-y+1/3,+z+1/3
+y-x+2/3,-x+1/3,+z+1/3
+y-x+2/3,+y+1/3,+z+1/3
+-y+2/3,-x+1/3,+z+1/3
++x+2/3,x-y+1/3,+z+1/3
+-x+1/3,-y+2/3,-z+2/3
++y+1/3,y-x+2/3,-z+2/3
+x-y+1/3,+x+2/3,-z+2/3
+x-y+1/3,-y+2/3,-z+2/3
++y+1/3,+x+2/3,-z+2/3
+-x+1/3,y-x+2/3,-z+2/3
+loop_
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_U_iso_or_equiv
+_atom_site_thermal_displace_type
+_atom_site_occupancy
+Ba1 0 0 0 0.0149(5) Uiso 1
+Mn1 0 0 0.40708(10) 0.0094(5) Uiso 1
+Ba2 0 0 0.20692(6) 0.0082(4) Uiso 1
+O1 0.16175(12) 0.3235(2) 0.56538(4) 0.0134(2) Uiso 1
+O2 0 0 0.32914(7) 0.0257(4) Uiso 1
+loop_
+_atom_type_symbol
+Ba
+Mn
+O
+loop_
+_geom_angle_atom_site_label_1
+_geom_angle_atom_site_label_2
+_geom_angle_atom_site_label_3
+_geom_angle
+_geom_angle_publ_flag
+Ba2 Ba1 Ba2 180.0 no
+Ba2 Ba1 Ba2 129.427(15) no
+Ba2 Ba1 Ba2 50.573(15) no
+Ba2 Ba1 O1 38.00(2) no
+Ba2 Ba1 O1 142.00(2) no
+Ba2 Ba1 O2 142.00(9) no
+Ba2 Ba1 Ba2 83.97(2) no
+Ba2 Ba1 Ba2 96.03(2) no
+Ba2 Ba1 O1 137.582(10) no
+Ba2 Ba1 O1 91.42(3) no
+Ba2 Ba1 O1 42.418(10) no
+Ba2 Ba1 O1 88.58(3) no
+O1 Ba1 O1 64.45(4) no
+O1 Ba1 O1 179.980000 no
+O1 Ba1 O1 115.55(4) no
+O1 Ba1 O2 115.55(6) no
+O1 Ba1 O1 180.00000 no
+O1 Ba1 O2 64.446(18) no
+Ba2 Mn1 Ba2 110.03(4) no
+Ba2 Mn1 O1 56.22(2) no
+Ba2 Mn1 O1 140.83(12) no
+Ba2 Mn1 O2 108.91(4) no
+O1 Mn1 O1 108.67(8) no
+O1 Mn1 O2 110.26(8) no
+Ba1 Ba2 Mn1 108.91(4) no
+Ba1 Ba2 Ba2 62.37(4) no
+Ba1 Ba2 O1 100.69(3) no
+Ba1 Ba2 O1 36.84(3) no
+Ba1 Ba2 Mn1 55.17(3) no
+Ba1 Ba2 Mn1 121.66(5) no
+Ba1 Ba2 Ba2 67.06(2) no
+Ba1 Ba2 Ba2 129.548(18) no
+Ba1 Ba2 O1 82.49(3) no
+Ba1 Ba2 O1 39.77(2) no
+Ba1 Ba2 O1 123.09(4) no
+Ba1 Ba2 O1 166.27(4) no
+Ba1 Ba2 O1 106.063(16) no
+Ba1 Ba2 O2 50.573(15) no
+Mn1 Ba2 Mn1 110.03(4) no
+Mn1 Ba2 Ba2 74.41(2) no
+Mn1 Ba2 Ba2 171.28(7) no
+Mn1 Ba2 O1 29.20(2) no
+Mn1 Ba2 O1 137.47(5) no
+Mn1 Ba2 O1 87.46(3) no
+Mn1 Ba2 O1 122.89(4) no
+Mn1 Ba2 O1 72.07(4) no
+Mn1 Ba2 O2 71.09(4) no
+Ba2 Ba2 Ba2 100.21(5) no
+Ba2 Ba2 O1 94.08(2) no
+Ba2 Ba2 O1 48.67(2) no
+Ba2 Ba2 O1 147.91(4) no
+Ba2 Ba2 O1 99.21(6) no
+Ba2 Ba2 O1 50.45(3) no
+Ba2 Ba2 O2 117.6(4) no
+O1 Ba2 O1 158.54(6) no
+O1 Ba2 O1 116.642(19) no
+O1 Ba2 O1 60.76(5) no
+O1 Ba2 O1 56.95(5) no
+O1 Ba2 O1 99.12(3) no
+O1 Ba2 O1 68.48(4) no
+O1 Ba2 O1 130.81(4) no
+O1 Ba2 O2 79.31(3) no
+O1 Ba2 O1 62.57(5) no
+O1 Ba2 O2 143.16(3) no
+Ba1 O1 Mn1 107.75(8) no
+Ba1 O1 Ba2 105.16(4) no
+Ba1 O1 Ba2 97.81(3) no
+Mn1 O1 Ba2 147.10(10) no
+Mn1 O1 Ba2 94.58(3) no
+Ba2 O1 Ba2 80.88(3) no
+Ba2 O1 Ba2 158.54(6) no
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_distance
+_geom_bond_publ_flag
+Ba1 Mn1 3.6567(9) no
+Ba1 Ba2 4.4371(14) no
+Ba1 Ba2 4.2685(9) no
+Mn1 O1 1.7055(13) y
+Mn1 O2 1.671(3) y
+Ba1 O1 2.7563(10) y
+Ba1 O2 3.29831(5) y
+Ba2 Mn1 3.4852(9) no
+Ba2 Ba2 3.7216(13) no
+Ba2 O1 2.9062(3) y
+Ba2 O1 2.8304(16) y
+Ba2 O2 2.621(2) y
