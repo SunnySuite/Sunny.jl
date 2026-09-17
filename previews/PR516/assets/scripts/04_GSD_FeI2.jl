@@ -74,7 +74,8 @@ for _ in 1:2
     add_sample!(sc, sys)
 end
 
-res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, langevin.kT)
+kernel = lorentzian(fwhm=0.3)
+res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, langevin.kT, kernel)
 fig = lines(res.energies, res.data[:, 1]; axis=(xlabel="Energy (meV)", ylabel="Intensity"), label="(0,0,0)")
 lines!(res.energies, res.data[:, 2]; label="(π,π,π)")
 axislegend()
@@ -87,9 +88,9 @@ qs = [[0,   0, 0],  # List of wave vectors that define a path
       [0,   1, 0],
       [0,   0, 0]]
 qpath = q_space_path(cryst, qs, 500)
-res = intensities(sc, qpath; energies, langevin.kT)
+res = intensities(sc, qpath; energies, langevin.kT, kernel)
 plot_intensities(res; units, colorrange=(0.0, 1.0), title="Intensities at T = 2.3 K")
 
 grid = q_space_grid(cryst, [1, 0, 0], range(-1.5, 1.5, 300), [0, 1, 0], (-1.5, 1.5); orthogonalize=true)
-res = intensities(sc, grid; energies=[3.5], langevin.kT)
+res = intensities(sc, grid; energies=[3.5], langevin.kT, kernel)
 plot_intensities(res; title="Intensity slice at ω = 3.5 meV")
