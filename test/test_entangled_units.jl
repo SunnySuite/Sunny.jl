@@ -37,6 +37,20 @@
         @test energy_per_site(esys2) ≈ E0
     end
 
+    # A field and nonzero-dipole state applied *after* entangling must survive
+    # reshaping. The sharp case is reshaping an already-reshaped system `r`.
+    set_field!(esys, [0, 0, 3])
+    for u in eachsite(esys)
+        set_coherent!(esys, [1, 0, 0, 0], u)   # |↑↑⟩, nonzero ⟨Sᶻ⟩
+    end
+    E0f = energy_per_site(esys)
+    for shape in shapes
+        r = reshape_supercell(esys, shape)
+        @test energy_per_site(r) ≈ E0f
+        set_field!(r, [0, 0, 7])
+        @test energy_per_site(reshape_supercell(r, [3 0 0; 0 1 0; 0 0 1])) ≈ energy_per_site(r)
+    end
+
     # State set on the (reshaped) bare system prior to entangling — external
     # field and spin dipoles, including per-site overrides — is transferred to
     # the entangled system rather than reverting to the original chemical cell.
@@ -76,6 +90,16 @@ end
     # Check equivalence of dispersion calculations
     qs = [[0.1, 0, 0], [0.25, 0, 0], [0.3, 0.2, 0]]
     disp(s) = sort(dispersion(SpinWaveTheory(s; measure=nothing), qs); dims=1)
+    disp_b = disp(bsys)
+    @test disp(esys)[1:size(disp_b, 1), :] ≈ disp_b
+
+    # In-field: the Zeeman term is set on the entangled system after construction
+    # and lives on the uncontracted clone. It must survive the reshape inside
+    # `SpinWaveTheory`; equivalence with the bare system confirms it is carried.
+    for s in (esys, bsys)
+        set_field!(s, [0, 0, 3])
+        minimize_energy!(s)
+    end
     disp_b = disp(bsys)
     @test disp(esys)[1:size(disp_b, 1), :] ≈ disp_b
 end
