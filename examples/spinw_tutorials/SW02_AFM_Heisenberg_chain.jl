@@ -32,12 +32,11 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys; ndims=2, ghost_radius=8)
 
-# Perform a [`SpinWaveTheory`](@ref) calculation for a path between ``[0,0,0]``
-# and ``[1,0,0]`` in RLU.
+# Perform a [`SpinWaveTheory`](@ref) calculation for a path along ``[H, 0, 0]``
+# with ``H ∈ [0, 1]`` in RLU.
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-qs = [[0,0,0], [1,0,0]]
-path = q_space_path(cryst, qs, 401)
+path = q_space_grid(cryst, [1, 0, 0], range(0, 1, 401))
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 

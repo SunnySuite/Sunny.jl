@@ -6,6 +6,14 @@
 
     path = q_space_path(cryst, [[0, 0, 0], [1, 0, 0], [1, 1, 1]], 50; labels=["A", "B", "C"])
     @test path.xticks == ([1, 33, 50], ["A", "B", "C"])
+    @test find_qs_along_path([[0.1, 0, 0], [1, 1, 1]], path) ≈ [4.2, 50]
+
+    grid = q_space_grid(cryst, [1, 0, 0], range(-2, 2, 10); offset=[0, 0, 0.5])
+    @test grid isa Sunny.QGrid{1}
+    @test collect(grid.axes) ≈ [[1.0, 0.0, 0.0]]
+    @test size(grid.qs) == (10,)
+    @test grid.qs[begin] ≈ [-2, 0, 0.5] && grid.qs[end] ≈ [2, 0, 0.5]
+    @test find_qs_along_path([[-1, 0, 0.5], [1.5, 0, 0.5]], grid) ≈ [-1, 1.5]
 
     grid = q_space_grid(cryst, [1, 0, 0], range(0, 1, 10), [0, 1, 0], range(0, 1, 3))
     @test collect(grid.axes) ≈ [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]

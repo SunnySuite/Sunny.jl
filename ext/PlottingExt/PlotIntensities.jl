@@ -63,6 +63,46 @@ function heatmap_aux!(ax, x, y, data; opts...)
     end
 end
 
+# Per-axis coefficient ranges
+function grid_ranges(grid::Sunny.QGrid)
+    return range.(grid.coefs_lo, grid.coefs_hi, size(grid.qs))
+end
+
+function grid_aspect_ratio(cryst::Crystal, grid::Sunny.QGrid{2})
+    # Aspect ratio for global distances
+    Δq_global = cryst.recipvecs * (grid.qs[end] - grid.qs[begin])
+    e1, e2 = normalize.(Ref(cryst.recipvecs) .* grid.axes)
+    abs(dot(e1, e2)) < 1e-12 || error("Cannot yet plot non-orthogonal grid")
+    return (Δq_global ⋅ e1) / (Δq_global ⋅ e2)
+end
+
+# Converts a QGrid to axis labels. The first label spells out the full
+# wavevector, while subsequent labels are bare symbols. For example, ("H in
+# [H-K/2, K, 0] (r.l.u.)", "K").
+function grid_axis_labels(grid::Sunny.QGrid{D}) where D
+    (; axes, offset) = grid
+
+    varidxs = [findmax(abs.(a))[2] for a in axes]
+    if D >= 2 && varidxs[2] == varidxs[1]
+        varidxs[2] = mod1(varidxs[2] + 1, 3)
+    end
+    symbols = ntuple(k -> ("H", "K", "L")[varidxs[k]], D)
+
+    slots = map(1:3) do j
+        terms = String[]
+        for (axis, sym) in zip(axes, symbols)
+            term = Sunny.scaled_symbol_string(axis[j], sym)
+            isempty(term) || push!(terms, term)
+        end
+        abs(offset[j]) > 1e-12 && push!(terms, Sunny.number_to_math_string(offset[j]))
+        isempty(terms) ? "0" : replace(join(terms, "+"), "+-" => "-")
+    end
+    q_str = "[" * join(slots, ", ") * "] (r.l.u.)"
+
+    return ntuple(k -> k == 1 ? "$(symbols[1]) in $q_str" : symbols[k], D)
+end
+
+
 """
     plot_intensities!(panel, res; opts...)
 
@@ -85,8 +125,8 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
                                  ylims=nothing, fwhm=nothing, title="", axis=NamedTuple())
     unit_energy, ylabel = get_unit_energy(units, into)
     axis = (; title, axis...)
- 
-    if res.qpts isa Sunny.QPath 
+
+    if res.qpts isa Union{Sunny.QPath, Sunny.QGrid{1}}
         mindisp, maxdisp = extrema(res.disp)
         ylims = @something ylims (min(0, mindisp), 1.1*maxdisp) ./ unit_energy
         ebounds = ylims .* unit_energy
@@ -99,55 +139,26 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
         colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity, allpositive)
         colormap = @something colormap (allpositive ? reverse_thermal_fade : blue_white_red_fade)
         colorrange = @something colorrange colorrange_suggest
+        limits = (nothing, ylims)
 
-        xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, limits=(nothing, ylims), axis...)
-        heatmap_aux!(ax, (1, size(data, 2)), ylims, data'; colorrange, colormap, interpolate)
+        if res.qpts isa Sunny.QPath
+            xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
+            ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, limits, axis...)
+            xs = 1:size(data, 2)
+        else
+            xlabel = grid_axis_labels(res.qpts)[1]
+            ax = Makie.Axis(panel; xlabel, ylabel, limits, axis...)
+            xs = grid_ranges(res.qpts)[1]
+        end
+        heatmap_aux!(ax, (first(xs), last(xs)), ylims, data'; colorrange, colormap, interpolate)
         for i in axes(res.disp, 1)
-            Makie.lines!(ax, res.disp[i,:]/unit_energy; color=(:lightskyblue3, 0.75))
+            Makie.lines!(ax, xs, res.disp[i,:]/unit_energy; color=(:lightskyblue3, 0.75))
         end
         return ax
     else
         error("Cannot plot type $(typeof(res.qpts))")
     end
 end
-
-function grid_aspect_ratio(cryst::Crystal, grid::Sunny.QGrid{2})
-    # Aspect ratio for global distances
-    Δq_global = cryst.recipvecs * (grid.qs[end] - grid.qs[begin])
-    e1, e2 = normalize.(Ref(cryst.recipvecs) .* grid.axes)
-    abs(dot(e1, e2)) < 1e-12 || error("Cannot yet plot non-orthogonal grid")
-    return (Δq_global ⋅ e1) / (Δq_global ⋅ e2)
-end
-
-function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
-    (; axes, offset) = grid
-
-    varidxs = [findmax(abs.(a))[2] for a in axes]
-    if varidxs[2] == varidxs[1]
-        varidxs[2] = mod1(varidxs[2] + 1, 3)
-    end
-    varstrs = ("H", "K", "L")
-
-    labels = map(axes, varstrs[varidxs]) do axis, c
-        elems = map(axis) do x
-            if abs(x) < 1e-12
-                "0"
-            else
-                Sunny.coefficient_to_math_string(x)*c
-            end
-        end
-        return "[" * join(elems, ", ") * "]"
-    end
-
-    if norm(offset) > 1e-12
-        label1 = labels[begin] * " + " * Sunny.vec3_to_string(offset)
-        labels = (label1, labels[2:end]...)
-    end
-
-    return labels
-end
-
 
 function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colormap=nothing, colorrange=nothing,
                                  saturation=0.9, allpositive=true, interpolate=false, units=nothing, into=nothing,
@@ -166,13 +177,21 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
         hm = heatmap_aux!(ax, (1, size(data, 2)), extrema(energies)./unit_energy, data'; colormap, colorrange, interpolate)
         Makie.Colorbar(panel[1, 2], hm)
         return ax
+    elseif qpts isa Sunny.QGrid{1}
+        unit_energy, ylabel = get_unit_energy(units, into)
+        xlabel = grid_axis_labels(qpts)[1]
+        xs = grid_ranges(qpts)[1]
+        ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, limits=(nothing, ylims), axis...)
+        hm = heatmap_aux!(ax, (first(xs), last(xs)), extrema(energies)./unit_energy, data'; colormap, colorrange, interpolate)
+        Makie.Colorbar(panel[1, 2], hm)
+        return ax
     elseif qpts isa Sunny.QGrid{2}
         if isone(length(energies))
             aspect = grid_aspect_ratio(crystal, qpts)
-            xlabel, ylabel = suggest_labels_for_grid(qpts)
-            (xbounds, ybounds) = zip(qpts.coefs_lo, qpts.coefs_hi)
+            xlabel, ylabel = grid_axis_labels(qpts)
+            (xs, ys) = grid_ranges(qpts)
             ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axis...)
-            hm = heatmap_aux!(ax, xbounds, ybounds, dropdims(data; dims=1); colormap, colorrange, interpolate)
+            hm = heatmap_aux!(ax, xs, ys, dropdims(data; dims=1); colormap, colorrange, interpolate)
             Makie.Colorbar(panel[1, 2], hm)
             return ax
         else
@@ -198,13 +217,19 @@ function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; c
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel="Intensity", qpts.xticks, xticklabelrotation, limits=(nothing, ylims), axis...)
         Makie.lines!(ax, data)
         return ax
+    elseif qpts isa Sunny.QGrid{1}
+        ylims = @something ylims colorrange (colorrange_suggest .* 1.1)
+        xlabel = grid_axis_labels(qpts)[1]
+        ax = Makie.Axis(panel; xlabel, ylabel="Intensity", limits=(nothing, ylims), axis...)
+        Makie.lines!(ax, grid_ranges(qpts)[1], data)
+        return ax
     elseif qpts isa Sunny.QGrid{2}
         colorrange = @something colorrange colorrange_suggest
         aspect = grid_aspect_ratio(crystal, qpts)
-        xlabel, ylabel = suggest_labels_for_grid(qpts)
-        (xbounds, ybounds) = zip(qpts.coefs_lo, qpts.coefs_hi)
+        xlabel, ylabel = grid_axis_labels(qpts)
+        (xs, ys) = grid_ranges(qpts)
         ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axis...)
-        hm = heatmap_aux!(ax, xbounds, ybounds, data; colormap, colorrange, interpolate)
+        hm = heatmap_aux!(ax, xs, ys, data; colormap, colorrange, interpolate)
         Makie.Colorbar(panel[1, 2], hm)
         return ax
     else

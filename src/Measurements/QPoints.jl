@@ -55,7 +55,8 @@ units (RLU), consecutive samples are spaced uniformly in the global
 (inverse-length) Cartesian coordinate system. Optional `labels` can be
 associated with each special q-point, and will be used in plotting functions.
 
-See also [`q_space_grid`](@ref).
+For a straight-line path, a 1D [`q_space_grid`](@ref) may be considered instead,
+and leads to an alternative labeling of the ``x``-axis in plots.
 """
 function q_space_path(cryst::Crystal, qs, n; labels=nothing)
     length(qs) >= 2 || error("Include at least two wavevectors in list qs.")
@@ -102,32 +103,40 @@ function q_space_path(cryst::Crystal, qs, n; labels=nothing)
 end
 
 """
+    q_space_grid(cryst::Crystal, axis1, range1; offset=[0,0,0])
     q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=[0,0,0], orthogonalize=false)
     q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range3; orthogonalize=false)
 
-Returns a 2D or 3D grid of q-points with uniform spacing. The volume shape is
-defined by `(axis1, axis2, ...)` in reciprocal lattice units (RLU). Elements of
-`(range1, range2, ...)` provide coefficients ``c_i`` used to define grid
-positions,
+Construct a q-point grid with shape `(axis1, axis2, ...)`. The corresponding
+`(range1, range2, ...)` data yields coefficients `(c1, c2, …)` that define the
+grid positions in reciprocal lattice units (RLU),
 
 ```julia
     offset + c1 * axis1 + c2 * axis2 + ...
 ```
 
-A nonzero `offset` is allowed only in the 2D case. 
+A nonzero `offset` is allowed only in the 1D and 2D cases.
 
 The first range parameter, `range1`, must be a regularly spaced list of
 coefficients, e.g., `range1 = range(lo1, hi1, n)`. Subsequent range parameters
 may be a pair of bounds, without grid spacing information. For example, by
 selecting `range2 = (lo2, hi2)`, an appropriate step-size will be inferred to
-provide an approximately uniform sampling density in global Cartesian
-coordinates.
+provide an approximately uniform density in global Cartesian coordinates.
 
 Setting `orthogonalize=true` will project `axis2` and `axis3` such that all axes
 become orthogonal in global Cartesian ``𝐪`` coordinates.
 
-To specify a 1D grid, use [`q_space_path`](@ref) instead.
+Use instead [`q_space_path`](@ref) for a multi-segment 1D path.
 """
+function q_space_grid(cryst::Crystal, axis1, range1; offset=zero(Vec3))
+    norm(axis1) > 1e-12 || error("Axis must be nonzero")
+    axis1 = Vec3(axis1)
+    offset = Vec3(offset)
+    qs = [c1 * axis1 + offset for c1 in range1]
+    coef_lo, coef_hi = (first(range1), last(range1))
+    return QGrid{1}(qs, (axis1,), (coef_lo,), (coef_hi,), offset)
+end
+
 function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(Vec3), orthogonalize=false)
     rank(hcat(axis1, axis2); rtol=1e-12) == 2 || error("Axes are linearly dependent")
 
@@ -246,11 +255,24 @@ end
 """
     find_qs_along_path(qs, path; tol=1e-12)
 
-Return fractional indices of wavevectors `qs` within a [`q_space_path`](@ref).
-The `qs` must be in sorted order along the direction of the `path`.
-Consequently, the returned indices are non-decreasing.
+Find coordinates for wavevectors `qs` that appear sequentially along a
+[`q_space_path`](@ref) or a 1D [`q_space_grid`](@ref). The input `qs` must be
+ordered so that the output coordinates are non-decreasing. These coordinates can
+be used for drawing on top of a [`plot_intensities`](@ref) figure.
 """
-function find_qs_along_path(qs, path; tol=1e-12)
+function find_qs_along_path(qs, grid::QGrid{1}; tol=1e-12)
+    v1, v2 = grid.qs[begin], grid.qs[end]
+    clo, chi = grid.coefs_lo[1], grid.coefs_hi[1]
+    return map(Vec3.(qs)) do q
+        t = fractional_position_along_segment(q, v1, v2; tol)
+        if isnan(t) || !(-tol ≤ t ≤ 1+tol)
+            error("Failed to find q=$(vec3_to_string(q)) in grid at tol=$tol")
+        end
+        return clo + clamp(t, 0, 1) * (chi - clo)
+    end
+end
+
+function find_qs_along_path(qs, path::QPath; tol=1e-12)
     indices = Float64[]
     npts = length(qs)
     nsegments = length(path.qs) - 1

@@ -51,11 +51,11 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
-# Calculate the spectrum along path [ξ, 1, 0]
+# Calculate the spectrum along the path ``[H, 1, 0]``.
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-qs = [[0, 1, 0], [2, 1, 0]]
-path = q_space_path(cryst, qs, 400)
+Hs = range(0, 2, 400)
+path = q_space_grid(cryst, [1, 0, 0], Hs; offset=[0, 1, 0])
 res = intensities_bands(swt, path)
 fig = Figure(size=(768, 300))
 plot_intensities!(fig[1, 1], res; units)
@@ -69,25 +69,23 @@ plot_intensities!(fig[1, 1], res; units)
 # custom plot.
 
 data_sorted = sort(res.data; dims=1, by= >(1e-12))
-ax = Axis(fig[1, 2], xlabel="Momentum (r.l.u.)", ylabel="Intensity",
-          xticks=res.qpts.xticks, xticklabelrotation=π/6)
-lines!(ax, data_sorted[end, :]; label="Lower band")
-lines!(ax, data_sorted[end-1, :]; label="Upper band")
+ax = Axis(fig[1, 2], xlabel="H", ylabel="Intensity")
+lines!(ax, Hs, data_sorted[end, :]; label="Lower band")
+lines!(ax, Hs, data_sorted[end-1, :]; label="Upper band")
 axislegend(ax)
 fig
 
-# Make the same plots along path [0, 1, ξ]
+# Make the same plots along the path ``[0, 1, L]``.
 
-qs =  [[0, 1, 0], [0, 1, 2]]
-path = q_space_path(cryst, qs, 400)
+Ls = range(0, 2, 400)
+path = q_space_grid(cryst, [0, 0, 1], Ls; offset=[0, 1, 0])
 res = intensities_bands(swt, path)
 fig = Figure(size=(768, 300))
 plot_intensities!(fig[1, 1], res; units)
 
 data_sorted = sort(res.data; dims=1, by=x->abs(x)>1e-12)
-ax = Axis(fig[1, 2], xlabel="Momentum (r.l.u.)", ylabel="Intensity",
-          xticks=res.qpts.xticks, xticklabelrotation=π/6)
-lines!(ax, data_sorted[end, :]; label="Lower band")
-lines!(ax, data_sorted[end-1, :]; label="Upper band")
+ax = Axis(fig[1, 2], xlabel="L", ylabel="Intensity")
+lines!(ax, Ls, data_sorted[end, :]; label="Lower band")
+lines!(ax, Ls, data_sorted[end-1, :]; label="Upper band")
 axislegend(ax)
 fig
