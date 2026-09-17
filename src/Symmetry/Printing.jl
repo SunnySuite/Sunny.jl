@@ -98,31 +98,30 @@ function coefficient_to_math_string(x::T; digits=4, tol=1e-12) where T <: Real
     end
 end
 
+# Format a coefficient times a symbol compactly, e.g. (-1/2, "x") → "-x/2".
+# Returns the empty string if coeff is below tol.
+function scaled_symbol_string(coeff, sym; digits=4, tol=1e-12)
+    abs(coeff) < tol && return ""
+    if is_integer(1/coeff; tol)
+        s = coeff > 0 ? "" : "-"
+        denom = round(Int, abs(1/coeff))
+        return s * sym * (isone(denom) ? "" : "/$denom")
+    else
+        return coefficient_to_math_string(coeff; digits, tol) * sym
+    end
+end
+
 # Converts a list of basis elements for a J matrix into a nice string summary
 function coupling_basis_strings(coup_basis; digits, tol=1e-12) :: Matrix{String}
     J = [String[] for _ in 1:3, _ in 1:3]
     for (letter, basis_mat) in coup_basis
         for idx in eachindex(basis_mat)
-            coeff = basis_mat[idx]
-            if abs(coeff) > tol
-                if is_integer(1/coeff; tol)
-                    s = coeff > 0 ? "" : "-"
-                    denom = round(Int, abs(1/coeff))
-                    denom_str = isone(denom) ? "" : "/$denom"
-                    push!(J[idx], s * letter * denom_str)
-                else
-                    coeff_str = coefficient_to_math_string(coeff; digits, tol)
-                    push!(J[idx], coeff_str * letter)
-                end
-            end
+            term = scaled_symbol_string(basis_mat[idx], string(letter); digits, tol)
+            isempty(term) || push!(J[idx], term)
         end
     end
     return map(J) do terms
-        if isempty(terms)
-            "0"
-        else
-            replace(join(terms, "+"), "+-" => "-")
-        end
+        isempty(terms) ? "0" : replace(join(terms, "+"), "+-" => "-")
     end
 end
 
