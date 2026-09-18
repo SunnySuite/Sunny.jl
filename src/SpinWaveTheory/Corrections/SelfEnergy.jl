@@ -73,7 +73,7 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts, energies; η, grid)
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
     terms3 = cubic_monomials(swt)
-    ps = self_energy_grid(grid)
+    ps = loop_grid(grid)
 
     ret = zeros(ComplexF64, 2L, 2L, length(energies), length(qpts.qs))
     for (iq, q) in enumerate(qpts.qs)
@@ -123,7 +123,7 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid)
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
     terms3 = cubic_monomials(swt)
-    ps = self_energy_grid(grid)
+    ps = loop_grid(grid)
     disp = dispersion(swt, qpts)
 
     Σ = zeros(ComplexF64, 2L, 2L, L)
@@ -141,14 +141,6 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid)
     return reshape(ret, L, size(qpts.qs)...)
 end
 
-# Grid points are offset by half a step, which avoids the Goldstone wavevector of
-# an ordered structure, where the integrand is finite but each of its two channels
-# diverges.
-function self_energy_grid(grid)
-    return [Vec3((i - 1/2) / grid[1], (j - 1/2) / grid[2], (k - 1/2) / grid[3])
-            for i in 1:grid[1], j in 1:grid[2], k in 1:grid[3]]
-end
-
 # Accumulates into `Σ[:, :, iω]` the Nambu self-energy at wavevector `k` and
 # frequency `ωs[iω]`, averaged over the wavevectors `ps` of the loop integral. `Σ`
 # is `2L×2L×length(ωs)`.
@@ -160,11 +152,24 @@ end
 # solves, and a quarter of the work. Because the frozen source denominator
 # `source_freqs[m, m′] + |ε_𝐩[a]| + |ε_{𝐤-𝐩}[b]|` is strictly positive, the channel
 # needs no regulator, and its contribution is exactly Hermitian.
-function accum_cubic_self_energy!(Σ, swt::SpinWaveTheory, terms3, k, ωs, ps, η; source_freqs=nothing)
+#
+# Supplying `bin_width` evaluates the remaining frequency dependence by binning the
+# decay measure instead of by a frequency loop inside the wavevector loop, as
+# Corrections.jl describes. It changes nothing about the interface — the result is
+# still the self-energy at each of `ωs` — but the cost of the wavevector loop stops
+# scaling with `length(ωs)`, at the price of an O((bin_width/Γ)²) error. It requires
+# `source_freqs`, so that the measure being binned is the nonnegative one, and η = 0,
+# the regulator being carried by the imaginary part of `ωs` instead.
+function accum_cubic_self_energy!(Σ, swt::SpinWaveTheory, terms3, k, ωs, ps, η; source_freqs=nothing, bin_width=nothing)
     L = nbands(swt)
     # Rows and columns of Σ̂ to accumulate: the particle block alone, or all of them
     M = isnothing(source_freqs) ? 2L : L
     @assert size(Σ) == (M, M, length(ωs))
+    if !isnothing(bin_width)
+        (!isnothing(source_freqs) && iszero(η)) || error("Keyword `bin_width` requires `source_freqs`, and η = 0")
+    end
+    # Masses of the binned decay measure, ρ[b] sitting at pair energy (b-1)*bin_width
+    ρ = Matrix{ComplexF64}[]
     H = zeros(ComplexF64, 2L, 2L)
     Ts = ntuple(_ -> zeros(ComplexF64, 2L, 2L), 3)
     U = zeros(ComplexF64, 2L, 2L, 2L)
@@ -198,16 +203,39 @@ function accum_cubic_self_energy!(Σ, swt::SpinWaveTheory, terms3, k, ωs, ps, �
             else
                 # The numerator is one rank-one matrix for all frequencies
                 for m′ in 1:M, m in 1:M
-                    R[m, m′] = (m > L ? -1 : 1) * conj(u[m]) * u[m′]
+                    R[m, m′] = (a > L ? -18 : 18) * (m > L ? -1 : 1) * conj(u[m]) * u[m′]
                 end
-                for (iω, ω) in enumerate(ωs)
-                    # Retarded frequencies lie just above the real axis, in both
-                    # channels; the source channel resonates only for ω < 0.
-                    c = (a > L ? -18 : 18) / (ω - x + im*η)
+                if isnothing(bin_width)
+                    for (iω, ω) in enumerate(ωs)
+                        # Retarded frequencies lie just above the real axis, in both
+                        # channels; the source channel resonates only for ω < 0.
+                        c = 1 / (ω - x + im*η)
+                        for m′ in 1:M, m in 1:M
+                            Σ[m, m′, iω] += c * R[m, m′]
+                        end
+                    end
+                else
+                    (bin, f) = bin_index(x, bin_width)
+                    while length(ρ) < bin + 1
+                        push!(ρ, zeros(ComplexF64, M, M))
+                    end
                     for m′ in 1:M, m in 1:M
-                        Σ[m, m′, iω] += c * R[m, m′]
+                        ρ[bin][m, m′]   += (1 - f) * R[m, m′]
+                        ρ[bin+1][m, m′] += f * R[m, m′]
                     end
                 end
+            end
+        end
+    end
+
+    # Frequency dependence of the binned decay measure, deferred to here so that the
+    # wavevector loop above costs nothing per frequency
+    for bin in eachindex(ρ)
+        iszero(ρ[bin]) && continue
+        for (iω, ω) in enumerate(ωs)
+            c = 1 / (ω - (bin - 1) * bin_width)
+            for m′ in 1:M, m in 1:M
+                Σ[m, m′, iω] += c * ρ[bin][m, m′]
             end
         end
     end
