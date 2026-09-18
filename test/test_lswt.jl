@@ -772,7 +772,7 @@ end
     randomize_spins!(sys)
     minimize_energy!(sys)
     swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
-    res = Sunny.intensities_two_magnon(swt, [[0.3, 0.2, 0]]; energies=range(0, 10, 21), kernel=lorentzian(fwhm=0.5), maxevals=1000)
+    res = Sunny.intensities_two_magnon(swt, [[0.3, 0.2, 0]]; energies=range(0, 10, 21), kernel=lorentzian(fwhm=0.5), grid=(8, 8, 1))
     @test maximum(abs, res.data) < 1e-25
 
     # Nothing else in the 1/s expansion is nonzero for this state either. The
@@ -812,7 +812,7 @@ end
         nq = 4
         qs = vec([[(a - 0.5)/nq, (b - 0.5)/nq, 0] for a in 1:nq, b in 1:nq])
         energies = range(-2, 16, 181)
-        res = Sunny.intensities_two_magnon(swt, qs; energies, kernel=gaussian(fwhm=0.4), maxevals=4000)
+        res = Sunny.intensities_two_magnon(swt, qs; energies, kernel=gaussian(fwhm=0.4), grid=(16, 16, 1))
         return sum(res.data) * step(energies) / length(qs) / ref - 1
     end
 
@@ -834,6 +834,23 @@ end
     # A transverse field cants the moments away from ẑ, exercising the local
     # frame rotations
     @test abs(sum_rule_error(square_afm(; field=[1.5, 0, 0]))) < 1e-3
+
+    # The sum rules above constrain the total weight, which converges exponentially
+    # here, but not its distribution in energy. This gates the shape, and with it
+    # both the loop `grid` and the binning of the pair energy. Quadrupling
+    # `bin_width` above its default of `fwhm/32` costs sixteen times the error, that
+    # error being O(bin_width²), and only then becomes comparable to the grid's.
+    let
+        sys = square_afm(; field=[1.5, 0, 0])
+        swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
+        qs = [[0.3, 0.2, 0], [0.5, 0.1, 0]]
+        energies = range(-2, 16, 181)
+        kernel = gaussian(fwhm=0.4)
+        ref = Sunny.intensities_two_magnon(swt, qs; energies, kernel, grid=(32, 32, 1)).data
+        err(res) = maximum(abs, res.data - ref) / maximum(abs, ref)
+        @test err(Sunny.intensities_two_magnon(swt, qs; energies, kernel, grid=(16, 16, 1))) < 1e-3
+        @test err(Sunny.intensities_two_magnon(swt, qs; energies, kernel, grid=(32, 32, 1), bin_width=0.4/8)) < 3e-3
+    end
 
     # Weights of the three channels into which the quantum sum rule decomposes, all
     # per site and in units where a trace measure is used, so that no local frame
@@ -897,7 +914,7 @@ end
         # point requires its own momentum-space integral.
         qs2 = vec([[(a - 0.5)/4, (b - 0.5)/4, 0] for a in 1:4, b in 1:4])
         energies = range(-2, 16, 181)
-        res = Sunny.intensities_two_magnon(swt, qs2; energies, kernel=gaussian(fwhm=0.4), maxevals=4000)
+        res = Sunny.intensities_two_magnon(swt, qs2; energies, kernel=gaussian(fwhm=0.4), grid=(16, 16, 1))
         longitudinal = sum(res.data) * step(energies) / length(qs2)
 
         return (; harm = harm / length(qs), transverse = transverse / length(qs),
@@ -1819,6 +1836,23 @@ end
     @test imag(Σ[3]) ≈ imag(Σs[2][3]) / 2 rtol=0.01
     @test imag(Σ[1]) / imag(Σs[2][1]) > 0.85
 
+    # Binning the decay measure in the pair energy is a choice of quadrature, not a
+    # change of interface, so it must reproduce the frequency loop it replaces. The
+    # error is second order in the bin width relative to the regulator Γ, which here
+    # is carried by the imaginary part of the frequencies.
+    L = Sunny.nbands(swt)
+    terms3 = Sunny.cubic_monomials(swt)
+    ps = Sunny.loop_grid((24, 24, 1))
+    ε = dispersion(swt, q)[:]
+    onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
+    ωs = range(0, 2, 21) .+ im*0.06
+    Σ2 = map((nothing, 0.06/16)) do bin_width
+        Sunny.accum_cubic_self_energy!(zeros(ComplexF64, L, L, length(ωs)), swt, terms3,
+                                       Sunny.to_reshaped_rlu(sys, q[1]), ωs, ps, 0.0;
+                                       source_freqs=onshell, bin_width)
+    end
+    @test maximum(abs, Σ2[2] - Σ2[1]) / maximum(abs, Σ2[1]) < 1e-3
+
     # The corrected structure factor is a spectral function in its own right, not
     # merely one to the order worked to. Because the Dyson equation is solved in the
     # particle block, with the source channel of the self-energy frozen on shell, its
@@ -1861,8 +1895,10 @@ end
     # the step is a fraction of fwhm. The residual 0.17% is the truncated tail.
     energies = range(-20, 24, 1101)
     kernel = lorentzian(; fwhm)
-    res = Sunny.intensities_corrected(swt2, qs2; energies, kernel, grid=(12, 12, 1), opts...)
-    transverse = res.data - Sunny.intensities_two_magnon(swt2, qs2; energies, kernel, opts...).data
+    grid = (12, 12, 1)
+    res = Sunny.intensities_corrected(swt2, qs2; energies, kernel, grid, opts...)
+    # The same `grid` makes the longitudinal channel cancel exactly
+    transverse = res.data - Sunny.intensities_two_magnon(swt2, qs2; energies, kernel, grid).data
     @test all(≥(0), res.data)
     @test all(vec(maximum(transverse; dims=1)) .< refs ./ (π * fwhm/2))
     @test vec(sum(transverse; dims=1)) * step(energies) ≈ refs rtol=5e-3
