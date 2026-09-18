@@ -85,6 +85,28 @@
 # frequency integral of the spectral function of G_pp is the identity, so the magnon
 # poles may move and broaden but Σ_n |ũ[n, μ]|² of Observables.jl remains exactly the
 # whole transverse weight, which is what the sum rule requires.
+#
+# Two of the momentum integrals here depend on frequency: the cubic self-energy of
+# SelfEnergy.jl and the two-magnon continuum of TwoMagnon.jl. Both have the form
+#
+#     ∫d𝐤 Σ_{n₁n₂} V(𝐤, n₁, n₂) g(ω, x(𝐤, n₁, n₂)),
+#
+# with V ⪰ 0 independent of frequency and all the frequency dependence in a kernel
+# g of the single scalar pair energy x — a Cauchy denominator 1/(ω - x) in the first
+# case, the resolution kernel in the second. Both are therefore evaluated by
+# accumulating V into bins of x on the uniform grid of `loop_grid`, and applying g
+# afterwards. The wavevector loop then costs nothing per frequency, and it is what
+# makes Im Σ̂_pp ⪯ 0 a property of the quadrature rather than an accident of it:
+# `bin_index` splits each contribution between two neighbouring bins with weights
+# that are nonnegative by construction, so a sum of positive semidefinite V stays
+# positive semidefinite bin by bin, on any grid and at any s.
+#
+# The price is a discretization of x. Splitting a mass linearly between neighbours
+# preserves both the zeroth and the first moment of the binned measure exactly, so
+# the large-ω tail Σ̂ → (Σ_b ρ_b)/ω is untouched and the ∫dω A = I sum rule above
+# survives binning identically; the leading error is O(Δ²) times the curvature of g,
+# hence O((Δ/Γ)²), which a bin width Δ = fwhm/32 puts some fifty times below the
+# error of the wavevector grid itself.
 
 # Errors unless `swt` describes a model for which the 1/s corrections in this
 # directory are implemented.
@@ -102,4 +124,22 @@ function check_corrections_supported(swt::SpinWaveTheory)
             iszero(pc.biquad) || error("1/s corrections do not yet support biquadratic exchange.")
         end
     end
+end
+
+# Wavevectors of the loop integrals over the magnetic Brillouin zone. Grid points
+# are offset by half a step, which avoids the Goldstone wavevector of an ordered
+# structure, where the integrand is finite but each of its two channels diverges.
+function loop_grid(grid)
+    return [Vec3((i - 1/2) / grid[1], (j - 1/2) / grid[2], (k - 1/2) / grid[3])
+            for i in 1:grid[1], j in 1:grid[2], k in 1:grid[3]]
+end
+
+# Index `b` and interpolation weight `f` for scattering a pair energy `x ≥ 0` into
+# bins centered at (b - 1)Δ, b = 1, 2, …: a mass m at x becomes (1-f)m in bin b and
+# f m in bin b+1. See the discussion of binning above; the caller grows its own
+# accumulator to length b+1.
+function bin_index(x, Δ)
+    t = max(x, 0) / Δ
+    b = 1 + floor(Int, t)
+    return (b, t - (b - 1))
 end
