@@ -18,7 +18,7 @@ import Printf: Printf, @printf, @sprintf
 import Random: Random, randn!
 import SpecialFunctions: erf, erfc
 import Statistics
-import StaticArrays: SVector, SMatrix, SArray, SA
+import StaticArrays: SVector, SMatrix, SArray, SA, setindex
 
 # Specific to Symmetry/
 import Brillouin
@@ -107,6 +107,14 @@ include("SpinWaveTheory/HamiltonianDipole.jl")
 include("SpinWaveTheory/HamiltonianSUN.jl")
 include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
+include("SpinWaveTheory/Corrections/Corrections.jl")
+include("SpinWaveTheory/Corrections/Vertices.jl")
+include("SpinWaveTheory/Corrections/HartreeFock.jl")
+include("SpinWaveTheory/Corrections/Tadpole.jl")
+include("SpinWaveTheory/Corrections/SelfEnergy.jl")
+include("SpinWaveTheory/Corrections/Observables.jl")
+include("SpinWaveTheory/Corrections/TwoMagnon.jl")
+include("SpinWaveTheory/Corrections/CorrectedIntensities.jl")
 export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands,
     intensities_static
 
