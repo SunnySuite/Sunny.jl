@@ -37,6 +37,11 @@ function slot_permutations(K::Int)
     return [(p[1:i-1]..., K, p[i:end]...) for p in slot_permutations(K-1) for i in 1:K]
 end
 
+# Cached for the K of interest, because `vertex!` needs them in the innermost loop
+# of a momentum-space integration, where rebuilding the list costs more than the
+# rest of the call.
+const SLOT_PERMUTATIONS = ntuple(slot_permutations, 4)
+
 # In a local frame where the classical dipole points along ẑ, the
 # Holstein-Primakoff expansion reads
 #
@@ -458,10 +463,10 @@ function vertex!(U::Array{ComplexF64, K}, terms::Vector{BosonMonomial{K}},
                  scratch::Array{ComplexF64, K}=similar(U)) where K
     @assert all(x -> abs(x - round(x)) < 1e-12, sum(qs)) "Vertex momenta must sum to zero"
     N = size(U, 1)
-    # The recursion in `slot_permutations` is over a value rather than a type, so
-    # its result must be annotated for the loop below to be type stable. That loop
-    # is the innermost one of a momentum-space integration.
-    perms = slot_permutations(K)::Vector{NTuple{K, Int}}
+    # The cache is indexed by a value rather than a type, so the lookup must be
+    # annotated for the loop below to be type stable. That loop is the innermost one
+    # of a momentum-space integration.
+    perms = SLOT_PERMUTATIONS[K]::Vector{NTuple{K, Int}}
 
     # Coefficient of the operator product ∏ₜ x_{𝐤ₜ}[aₜ]. Zero offsets are common
     # and carry no phase, so they are given none.
