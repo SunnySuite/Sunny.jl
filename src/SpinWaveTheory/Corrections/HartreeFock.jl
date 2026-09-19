@@ -78,12 +78,18 @@ end
 #
 # The extra quadratic terms `terms2` allow the correlations to be evaluated in the
 # already corrected ground state, as required for self-consistency.
-function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; opts...)
+function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; rtol=nothing, maxevals=nothing)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     T = zeros(ComplexF64, 2L, 2L)
 
-    (gs, _) = hcubature((0, 0, 0), (1, 1, 1); opts...) do q
+    # HCubature stops once `err ≤ max(atol, rtol * norm(gs))`, so an `rtol` of zero
+    # directs it to converge as far as `maxevals` allows. The correlations are
+    # dimensionless occupations of order one, which is why `atol` may be set equal to
+    # `rtol`: the accuracy is then measured against max(norm(gs), 1), and mean fields
+    # that vanish by symmetry converge at once instead of exhausting the budget.
+    (gs, err) = hcubature((0, 0, 0), (1, 1, 1); rtol=@something(rtol, 0), atol=@something(rtol, 0),
+                          maxevals=@something(maxevals, typemax(Int))) do q
         q_reshaped = Vec3(q)
         dynamical_matrix!(H, swt, q_reshaped)
         accum_quadratic!(H, terms2, q_reshaped)
@@ -91,6 +97,19 @@ function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; opts...)
         U = view(T, :, 1:L)
         return [cis(-2π * dot(q_reshaped, Vec3(Δ))) * dot(view(U, nambu_conj(a′, L), :), view(U, a, :))
                 for (a, a′, Δ) in ckeys]
+    end
+
+    # Adaptive integration stops either on the `rtol` target or on the evaluation
+    # budget, and the caller cannot tell which without the error estimate. A
+    # near-singular integrand exhausts the budget instead of converging: the
+    # correlations diverge at the Goldstone wavevector of an ordered structure,
+    # integrably but with slow subdivision.
+    if !isnothing(rtol) && err > rtol * max(norm(gs), 1)
+        @warn """Mean-field momentum integrals reached relative accuracy \
+                 $(round(err / max(norm(gs), 1), sigdigits=2)) within the budget of $maxevals \
+                 evaluations, short of the target `rtol = $rtol`. Raise `maxevals` \
+                 (`mean_field_maxevals` in `intensities_corrected`) or loosen the \
+                 tolerance.""" maxlog=1
     end
 
     return gs
@@ -129,7 +148,7 @@ function hartree_fock_decoupling(terms::Vector{BosonMonomial{4}}, g)
 end
 
 """
-    hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damping=0, opts...)
+    hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damping=0, rtol, maxevals)
 
 Decouples the four-boson term of the Holstein-Primakoff expansion into a
 mean-field correction to the quadratic (LSWT) Hamiltonian. The correction is
@@ -142,11 +161,12 @@ Larger values iterate to self-consistency, stopping when the mean fields move by
 less than `tol`. A nonzero `damping` in `[0, 1)` mixes in the previous iterate,
 which can stabilize the iteration.
 
-A keyword argument `rtol`, `atol`, or `maxevals` is required to control the
-accuracy of momentum-space integration.
+The mean fields are integrated over the Brillouin zone by adaptive cubature. At
+least one of `rtol` (a relative accuracy target) or `maxevals` (a budget of
+integrand evaluations) is required to control it.
 """
-function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damping=0, opts...)
-    any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")
+function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damping=0, rtol=nothing, maxevals=nothing)
+    isnothing(rtol) && isnothing(maxevals) && error("Must specify `rtol` or `maxevals` to control momentum-space integration.")
     check_corrections_supported(swt)
 
     L = nbands(swt)
@@ -158,7 +178,7 @@ function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damp
     iters = 0
 
     for iter in 1:maxiters
-        gs′ = nambu_correlations(swt, ckeys, terms2; opts...)
+        gs′ = nambu_correlations(swt, ckeys, terms2; rtol, maxevals)
         iter > 1 && (gs′ = damping*gs + (1-damping)*gs′)
         converged = iter > 1 && norm(gs′ - gs) < tol
         gs = gs′
