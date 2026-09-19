@@ -94,8 +94,8 @@
 # with V ⪰ 0 independent of frequency and all the frequency dependence in a kernel
 # g of the single scalar pair energy x — a Cauchy denominator 1/(ω - x) in the first
 # case, the resolution kernel in the second. Both are therefore evaluated by
-# accumulating V into bins of x on the uniform grid of `loop_grid`, and applying g
-# afterwards. The wavevector loop then costs nothing per frequency, and it is what
+# accumulating V into bins of x on the uniform grid of `loop_wavevectors`, and applying
+# g afterwards. The wavevector loop then costs nothing per frequency, and it is what
 # makes Im Σ̂_pp ⪯ 0 a property of the quadrature rather than an accident of it:
 # `bin_index` splits each contribution between two neighbouring bins with weights
 # that are nonnegative by construction, so a sum of positive semidefinite V stays
@@ -129,9 +129,47 @@ end
 # Wavevectors of the loop integrals over the magnetic Brillouin zone. Grid points
 # are offset by half a step, which avoids the Goldstone wavevector of an ordered
 # structure, where the integrand is finite but each of its two channels diverges.
-function loop_grid(grid)
-    return [Vec3((i - 1/2) / grid[1], (j - 1/2) / grid[2], (k - 1/2) / grid[3])
-            for i in 1:grid[1], j in 1:grid[2], k in 1:grid[3]]
+function loop_wavevectors(dims)
+    return [Vec3((i - 1/2) / dims[1], (j - 1/2) / dims[2], (k - 1/2) / dims[3])
+            for i in 1:dims[1], j in 1:dims[2], k in 1:dims[3]]
+end
+
+# Dimensions of the loop grid needed to reach a relative accuracy `tol` at regulator
+# `η`. Every frequency-dependent integrand here is a function of the pair energy
+# x(𝐤) = ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so what the grid must do is resolve x
+# to within η. That fixes the scaling: the number of points along a direction goes as
+# the range that x sweeps along that direction divided by η, estimated below by the
+# range that each band sweeps along a line, doubled because the pair energy involves
+# two magnons. A direction along which the magnons do not disperse needs no grid.
+#
+# The dependence on `tol`, and the prefactor, are calibrated rather than derived.
+# Convergence is algebraic and not exponential, because the dispersion is itself
+# non-analytic at the Goldstone wavevectors of an ordered structure. Measured on the
+# triangular-lattice antiferromagnet, the error in the integrated weight falls as
+# n^-1.6, but with a factor-of-two scatter about that trend, since how closely the grid
+# approaches a near-singular point depends on n arithmetically rather than smoothly.
+# The prefactor therefore carries margin: at the default tol = 0.01 the grid comes out a
+# little finer than the one hand-tuned for Fig. 2 of Mourigal et al., and the achieved
+# error in the integrated weight is around half of `tol`. Note what tightening costs.
+# The number of points grows as 1/√tol per dimension, so a tenfold tighter tolerance is
+# a tenfold longer calculation in two dimensions.
+function auto_loop_grid(swt::SpinWaveTheory, η, tol)
+    ncoarse = 8
+    L = nbands(swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    T = zeros(ComplexF64, 2L, 2L)
+    ε = zeros(L, ncoarse, ncoarse, ncoarse)
+    for i in 1:ncoarse, j in 1:ncoarse, k in 1:ncoarse
+        q = Vec3((i - 1/2)/ncoarse, (j - 1/2)/ncoarse, (k - 1/2)/ncoarse)
+        dynamical_matrix!(H, swt, q)
+        view(ε, :, i, j, k) .= view(bogoliubov!(T, H), 1:L)
+    end
+
+    return ntuple(3) do d
+        r = maximum(maximum(ε; dims=d+1) - minimum(ε; dims=d+1))
+        # The denominator is 0.8η at the default tolerance, and shrinks as √tol
+        2r < η ? 1 : max(4, ceil(Int, 2r / (8η * √tol)))
+    end
 end
 
 # Index `b` and interpolation weight `f` for scattering a pair energy `x ≥ 0` into
