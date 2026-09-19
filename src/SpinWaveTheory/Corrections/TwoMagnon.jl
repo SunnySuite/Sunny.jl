@@ -59,7 +59,7 @@ function intensities_two_magnon(swt::SpinWaveTheory, qpts; energies, kernel::Abs
     # transverse components are linear in b at leading order.
     pref = zeros(ComplexF64, Nobs, Na)
 
-    ps = loop_grid(grid)
+    ps = loop_wavevectors(grid)
     # Masses of the binned pair-energy measure, ρs[iq][b] sitting at energy (b-1)*bin_width
     ρs = [eltype(measure)[] for _ in qpts.qs]
 

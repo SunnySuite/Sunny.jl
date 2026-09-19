@@ -780,11 +780,11 @@ end
     # collinear structure has no cubic vertex. So the corrected intensities must
     # reduce to those of linear spin wave theory, which is itself exact here, the
     # polarized state and its one-magnon excitations being eigenstates.
-    energies = range(0, 10, 51)
-    kernel = lorentzian(fwhm=0.4)
+    energies = range(0, 10, 101)
+    η = 0.2
     qs = [[0.3, 0.2, 0], [0.5, 0, 0]]
-    res = Sunny.intensities_corrected(swt, qs; energies, kernel, grid=(6, 6, 1), maxevals=1000)
-    @test res.data ≈ intensities(swt, qs; energies, kernel).data atol=1e-12
+    res = Sunny.intensities_corrected(swt, qs; energies, η, loop_grid=(6, 6, 1), mean_field_maxevals=1000)
+    @test res.data ≈ intensities(swt, qs; energies, kernel=lorentzian(fwhm=2η)).data atol=1e-12
 
     # Because Sᶻ = s - b†b is exact in the local frame, the two-magnon spectrum
     # must saturate the longitudinal sum rule ⟨(δSᶻ)²⟩ = n(1+n) + |Δ|², where
@@ -1842,7 +1842,7 @@ end
     # is carried by the imaginary part of the frequencies.
     L = Sunny.nbands(swt)
     terms3 = Sunny.cubic_monomials(swt)
-    ps = Sunny.loop_grid((24, 24, 1))
+    ps = Sunny.loop_wavevectors((24, 24, 1))
     ε = dispersion(swt, q)[:]
     onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
     ωs = range(0, 2, 21) .+ im*0.06
@@ -1856,7 +1856,7 @@ end
     # The corrected structure factor is a spectral function in its own right, not
     # merely one to the order worked to. Because the Dyson equation is solved in the
     # particle block, with the source channel of the self-energy frozen on shell, its
-    # denominator has imaginary part at least Γ = fwhm/2, so the intensity is
+    # denominator has imaginary part at least the regulator η, so the intensity is
     # non-negative and no taller than a resolution-limited peak of the same weight;
     # and because that denominator grows as ωI, the transverse weight of each 𝐪 is
     # exactly the static weight of the corrected observables. All three properties
@@ -1864,12 +1864,14 @@ end
     # 𝐪 = [0.476, 0, 0] a mirror pole is pushed up through ω = 0, giving intensities
     # of -2.8 and +3.6 against a bound of 2.3, and at 𝐪 = [0.375, 0.125, 0] the
     # weight comes out 27% low. The momentum-space integrals need no great accuracy
-    # here: the identities hold for any self-energy and any observable amplitudes.
-    opts = (; maxevals=20000)
+    # here: the identities hold for any self-energy and any observable amplitudes. The
+    # options below are those that `tol` selects, so the reference weight is built from
+    # the same mean fields as the spectrum.
+    opts = (; rtol=0.01, maxevals=100_000)
     swt2 = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
     L = Sunny.nbands(swt2)
     Ncells = Sunny.nsites(sys) / Sunny.natoms(cryst)
-    fwhm = 0.12
+    η = 0.06
     qs2 = [[0.476, 0, 0], [0.375, 0.125, 0]]
 
     # Static weight Σ_{n ≤ L} ũ[n, μ] conj(ũ[n, ν]), contracted exactly as
@@ -1892,14 +1894,15 @@ end
     end
 
     # A Lorentzian tail needs range rather than resolution, so the window is wide and
-    # the step is a fraction of fwhm. The residual 0.17% is the truncated tail.
-    energies = range(-20, 24, 1101)
-    kernel = lorentzian(; fwhm)
+    # the step is a fraction of η. The residual 0.17% is the truncated tail.
+    energies = range(-20, 24, 1501)
     grid = (12, 12, 1)
-    res = Sunny.intensities_corrected(swt2, qs2; energies, kernel, grid, opts...)
-    # The same `grid` makes the longitudinal channel cancel exactly
+    res = Sunny.intensities_corrected(swt2, qs2; energies, η, tol=opts.rtol,
+                                      loop_grid=grid, mean_field_maxevals=opts.maxevals)
+    # The same `grid` and bin width make the longitudinal channel cancel exactly
+    kernel = lorentzian(fwhm=2η)
     transverse = res.data - Sunny.intensities_two_magnon(swt2, qs2; energies, kernel, grid).data
     @test all(≥(0), res.data)
-    @test all(vec(maximum(transverse; dims=1)) .< refs ./ (π * fwhm/2))
+    @test all(vec(maximum(transverse; dims=1)) .< refs ./ (π * η))
     @test vec(sum(transverse; dims=1)) * step(energies) ≈ refs rtol=5e-3
 end

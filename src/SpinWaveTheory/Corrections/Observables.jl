@@ -58,7 +58,7 @@
 # it. See "1/s correction to the observable amplitudes".
 
 """
-    observable_corrections(swt::SpinWaveTheory; v=nothing, opts...)
+    observable_corrections(swt::SpinWaveTheory; v=nothing, rtol, maxevals)
 
 Correction of relative order ``1/s`` to the amplitude for a magnon to be created
 by each observable. Two effects contribute at this order: the cubic term of the
@@ -68,11 +68,12 @@ displacement `v` of [`tadpole_correction`](@ref), and is omitted if `v` is
 `nothing`. Returns the coefficients `δc[a, μ]` of the one-boson operators, labeled
 as in [`accum_observable_corrections!`](@ref), which is what applies them.
 
-A keyword argument `rtol`, `atol`, or `maxevals` is required to control the
-accuracy of momentum-space integration.
+The onsite correlations are integrated over the Brillouin zone by adaptive
+cubature. At least one of `rtol` (a relative accuracy target) or `maxevals` (a
+budget of integrand evaluations) is required to control it.
 """
-function observable_corrections(swt::SpinWaveTheory; v=nothing, opts...)
-    any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")
+function observable_corrections(swt::SpinWaveTheory; v=nothing, rtol=nothing, maxevals=nothing)
+    isnothing(rtol) && isnothing(maxevals) && error("Must specify `rtol` or `maxevals` to control momentum-space integration.")
     check_corrections_supported(swt)
 
     (; measure, data) = swt
@@ -84,7 +85,7 @@ function observable_corrections(swt::SpinWaveTheory; v=nothing, opts...)
     # the onsite correlations ⟨b†ᵢbᵢ⟩ and ⟨bᵢbᵢ⟩ are needed, and no wavevector
     # dependence survives.
     ckeys = [[(L+i, i, (0, 0, 0)) for i in 1:L]; [(i, i, (0, 0, 0)) for i in 1:L]]
-    gs = nambu_correlations(swt, ckeys, BosonMonomial{2}[]; opts...)
+    gs = nambu_correlations(swt, ckeys, BosonMonomial{2}[]; rtol, maxevals)
 
     δc = zeros(ComplexF64, 2L, Nobs)
     for i in 1:L
