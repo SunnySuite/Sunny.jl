@@ -33,15 +33,17 @@ const CUBIC_PAIRINGS = ((1, 2, 3), (1, 3, 2), (2, 3, 1))
 # state. Cell offsets do not appear in the result: the surviving operator is
 # summed over all cells, so only the offset difference within the contracted pair
 # matters.
-function tadpole_vector(terms::Vector{BosonMonomial{3}}, g, L)
+function tadpole_vector(terms::Vector{BosonMonomial{3}}, g, L, tol)
     ℓ = zeros(ComplexF64, 2L)
     for (; c, as, ns) in terms, (p, q, r) in CUBIC_PAIRINGS
         ℓ[as[r]] += c * g(as[p], as[q], ns[q] - ns[p])
     end
-    # Hermiticity of the underlying operator. The tolerance must be absolute as
-    # well as relative, because symmetry can make ℓ vanish identically, leaving
-    # only the noise of the momentum-space integration.
-    @assert norm(ℓ[L+1:2L] - conj(ℓ[1:L])) < 1e-8 * max(norm(ℓ), 1)
+    # Hermiticity of the underlying operator. It holds only for exact mean fields, so
+    # the tolerance is set by the accuracy of their momentum integrals; an error in
+    # the contraction would instead appear at O(1). The tolerance must be absolute as
+    # well as relative, because symmetry can make ℓ vanish identically, leaving only
+    # the noise of the momentum-space integration.
+    @assert norm(ℓ[L+1:2L] - conj(ℓ[1:L])) < tol * max(norm(ℓ), 1)
     return ℓ
 end
 
@@ -79,7 +81,10 @@ function tadpole_correction(swt::SpinWaveTheory; rtol=nothing, maxevals=nothing)
     terms3 = cubic_monomials(swt)
     ckeys = correlation_keys(L, terms3)
     gs = nambu_correlations(swt, ckeys, BosonMonomial{2}[]; rtol, maxevals)
-    ℓ = tadpole_vector(terms3, correlation_lookup(ckeys, gs, L), L)
+    # Scale of the noise that the mean-field integrals leave in the exact identities
+    # asserted below, which hold only in the limit of exact integration.
+    noise = max(@something(rtol, 1e-3), 1e-8)
+    ℓ = tadpole_vector(terms3, correlation_lookup(ckeys, gs, L), L, noise)
 
     # An onsite anisotropy sources the displacement directly, at the same order. Its
     # one-boson word is proportional to the classical energy gradient, so like the
@@ -109,7 +114,7 @@ function tadpole_correction(swt::SpinWaveTheory; rtol=nothing, maxevals=nothing)
     H = zeros(ComplexF64, 2L, 2L)
     dynamical_matrix!(H, swt, zero(Vec3))
     w = -pinv(H; rtol=1e-6) * [ℓ[nambu_conj(a, L)] for a in 1:2L]
-    @assert norm(w[L+1:2L] - conj(w[1:L])) < 1e-8 * max(norm(w), 1)
+    @assert norm(w[L+1:2L] - conj(w[1:L])) < noise * max(norm(w), 1)
 
     # Correction to H₂, from each cubic monomial with one leg displaced. Slot r
     # carries the displacement; slots (p, q) remain as operators, in order.
@@ -119,7 +124,7 @@ function tadpole_correction(swt::SpinWaveTheory; rtol=nothing, maxevals=nothing)
     # Half the linear response, the usual energy gain of a displaced harmonic
     # system, since at the stationary point w† H₀ w = -Σ_a ℓ[a] w[a].
     δE = sum(ℓ .* w) / 2
-    @assert abs(imag(δE)) < 1e-9 * max(abs(δE), 1)
+    @assert abs(imag(δE)) < noise * max(abs(δE), 1)
 
     # In the local frame ⟨S⁺⟩ = σ ⟨b⟩ = σ v with σ = √(2s), so the moment tilts
     # away from ẑ by (Sˣ, Sʸ) = σ (Re v, Im v), to leading order in 1/s.
