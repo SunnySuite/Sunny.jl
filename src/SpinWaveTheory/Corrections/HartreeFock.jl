@@ -159,7 +159,17 @@ smaller than the LSWT Hamiltonian by a factor of order ``1/s``. Returns
 With `maxiters=1` the mean fields are those of the uncorrected LSWT ground state.
 Larger values iterate to self-consistency, stopping when the mean fields move by
 less than `tol`. A nonzero `damping` in `[0, 1)` mixes in the previous iterate,
-which can stabilize the iteration.
+which can stabilize the iteration, and may be required: undamped, the corrected
+Hamiltonian can leave the positive-definite cone, after which the momentum
+integrals fail.
+
+Self-consistency resums one class of higher-order diagrams and drops others of the
+same order. It is therefore uncontrolled, and improved agreement with experiment is
+not evidence of convergence. In particular it violates the Ward identity of a
+broken continuous symmetry, and so gaps a mode that should be exactly gapless; with
+`maxiters=1` that cancellation is instead respected. Prefer to judge convergence of
+the ``1/s`` expansion from the gap between [`static_self_energy`](@ref) and
+[`corrected_dispersion`](@ref), which differ at the first neglected order.
 
 The mean fields are integrated over the Brillouin zone by adaptive cubature. At
 least one of `rtol` (a relative accuracy target) or `maxevals` (a budget of
@@ -187,7 +197,10 @@ function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damp
         converged && break
     end
 
-    @assert abs(imag(δE)) < 1e-9 * max(abs(δE), 1)
+    # δE is real only once the mean fields are exact, so its imaginary part measures
+    # the error of their momentum integrals and shrinks with `rtol`. A mistake in the
+    # Wick decoupling, which is what this checks for, would instead appear at O(1).
+    @assert abs(imag(δE)) < max(@something(rtol, 1e-3), 1e-9) * max(abs(δE), 1)
     return (; terms2, δE = real(δE) / nsites(uncontracted_system(swt.sys)), iters)
 end
 
