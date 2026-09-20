@@ -1316,6 +1316,31 @@ end
     # ⟨H₄⟩ is of order s⁰, so the energy correction is s-independent
     @test all(r -> isapprox(r[2], 0.01247369; atol=1e-8), res)
 
+    # Repeat on the honeycomb lattice, where the two sublattices are the two atoms
+    # of the chemical cell rather than a reshaped supercell, so that the mean field
+    # is tested on a genuinely multi-atom basis. Oguchi's constant is again
+    # 1 - ⟨√(1-|γ_𝐪|²)⟩ with γ_𝐪 = (1 + e^{i q₁} + e^{i q₂})/3, whose value
+    # 0.209841695 was obtained by direct quadrature.
+    function neel_honeycomb(s)
+        cryst = Crystal(lattice_vectors(1, 1, 3, 90, 90, 120), [[1/3, 2/3, 0], [2/3, 1/3, 0]])
+        sys = System(cryst, [1 => Moment(; s, g=1)], :dipole)
+        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+        set_dipole!(sys, [0, 0, +1], (1, 1, 1, 1))
+        set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
+        @assert energy_per_site(sys) ≈ -3s^2/2
+        return sys
+    end
+
+    res = map((1/2, 1, 2)) do s
+        swt = SpinWaveTheory(neel_honeycomb(s); measure=nothing)
+        (; terms2, δE) = Sunny.hartree_fock_correction(swt; rtol=1e-6)
+        Zc = Sunny.corrected_dispersion(swt, qs, terms2) ./ dispersion(swt, qs)
+        @test maximum(abs, Zc .- Zc[1]) < 1e-7
+        return (2s * (Zc[1] - 1), δE)
+    end
+    @test all(r -> isapprox(r[1], 0.20984170; atol=1e-7), res)
+    @test all(r -> isapprox(r[2], 0.01651258; atol=1e-8), res)
+
     # The onsite correlation ⟨b†ᵢbᵢ⟩ must reproduce Sunny's independent
     # calculation of the moment reduction, and the commutator ⟨bᵢb†ᵢ⟩ - ⟨b†ᵢbᵢ⟩
     # must come out to one.
@@ -1395,7 +1420,7 @@ end
     terms3 = Sunny.cubic_monomials(swt)
     ckeys = Sunny.correlation_keys(L, terms3)
     gs = Sunny.nambu_correlations(swt, ckeys, Sunny.BosonMonomial{2}[]; rtol=1e-8)
-    ℓ = Sunny.tadpole_vector(terms3, Sunny.correlation_lookup(ckeys, gs, L), L)
+    ℓ = Sunny.tadpole_vector(terms3, Sunny.correlation_lookup(ckeys, gs, L), L, 1e-6)
     H3 = sum(t -> t.c * prod(bop, t.as), terms3)
     H3mf = sum(a -> ℓ[a] * bop(a), 1:2L)
     Ls = [bop(a) for a in 1:2L]
@@ -1519,7 +1544,7 @@ end
     terms3 = Sunny.cubic_monomials(swt)
     ckeys = Sunny.correlation_keys(L, terms3)
     gs = Sunny.nambu_correlations(swt, ckeys, Sunny.BosonMonomial{2}[]; rtol=1e-8)
-    ℓ = Sunny.tadpole_vector(terms3, Sunny.correlation_lookup(ckeys, gs, L), L)
+    ℓ = Sunny.tadpole_vector(terms3, Sunny.correlation_lookup(ckeys, gs, L), L, 1e-6)
     H3 = sum(t -> t.c * prod(bop, t.as), terms3) - sum(a -> ℓ[a] * bop(a), 1:2L)
 
     τ₃ = Diagonal([ones(L); -ones(L)])

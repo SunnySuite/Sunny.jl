@@ -114,8 +114,14 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
                              of η/2 or less adds little cost."""
     end
 
+    # Self-consistent HF can be enabled with maxiters > 1. Note, however, that
+    # this resummation is an uncontrolled approximation, e.g. violates Ward
+    # identity and can gap Goldstone modes.
+    #
+    #   hartree_fock_correction(swt; maxiters=100, damping=0.5, rtol=tol, ...)
+
     tad = tadpole_correction(swt; rtol=tol, maxevals=mean_field_maxevals)
-    terms2 = [hartree_fock_correction(swt; rtol=tol, maxevals=mean_field_maxevals).terms2
+    terms2 = [hartree_fock_correction(swt; maxiters=1, rtol=tol, maxevals=mean_field_maxevals).terms2
               tad.terms2
               anisotropy_correction(swt).terms2]
     δc = observable_corrections(swt; v=tad.v, rtol=tol, maxevals=mean_field_maxevals)
