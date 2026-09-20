@@ -178,9 +178,28 @@ function accum_cubic_self_energy!(Σ, swt::SpinWaveTheory, terms3, k, ωs, ps, �
     R = zeros(ComplexF64, M, M)
     Σsrc = zeros(ComplexF64, L, L)
 
-    # The external leg is independent of the loop wavevector
-    dynamical_matrix!(H, swt, -k)
-    bogoliubov!(Ts[3], H)
+    # The external leg is independent of the loop wavevector. Indexing its slot by
+    # `nambu_conj(m, L)` below asks for the operator adjoint to the mode m that the Dyson
+    # equation propagates, and an independent `bogoliubov!` at -k supplies that only up to
+    # a phase per band, nothing tying the eigenvectors of one call to those of another.
+    # Use instead the exact Nambu symmetry of the dynamical matrix, P H(k)ᵗ P = H(-k),
+    # where P is the index swap a ↦ nambu_conj(a, L); it follows from H22(k) = H11(-k)ᵗ
+    # and H12(k) = H12(-k)ᵗ. That makes T3 = P conj(T(k)) P para-unitary and a
+    # diagonalizer of H(-k), carrying the energies -P ε(k) that `bogoliubov!` would itself
+    # return there, and its column `nambu_conj(m, L)` is by construction the adjoint of
+    # column m of T(k). Note that -P ε(k) is not -ε(k): the last L entries returned by
+    # `bogoliubov!` at k are minus the energies at -k, so the two halves of the spectrum
+    # are unrelated unless the magnons are reciprocal. A phase left free here would
+    # rescale the off-diagonal elements of Σ̂ relative to the mean fields and to the
+    # observables of Observables.jl, which are expressed in the columns of T(k)
+    # themselves, and degenerate bands fare worse still, two calls being free to choose
+    # different bases within a degenerate block. The loop below overwrites `Ts[1]`, so it
+    # serves as scratch for T(k) here.
+    dynamical_matrix!(H, swt, k)
+    bogoliubov!(Ts[1], H)
+    for b in 1:2L, a in 1:2L
+        Ts[3][a, b] = conj(Ts[1][nambu_conj(a, L), nambu_conj(b, L)])
+    end
 
     for p in ps
         dynamical_matrix!(H, swt, p)
