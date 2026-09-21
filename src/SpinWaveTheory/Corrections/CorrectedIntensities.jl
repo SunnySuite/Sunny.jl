@@ -100,7 +100,6 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
     qpts = convert(AbstractQPoints, qpts)
 
     loop_grid = @something loop_grid auto_loop_grid(swt, η, tol)
-    ps = loop_wavevectors(loop_grid)
     # Discretization of the pair energy, whose error is O((bin_width/η)²). The cap of
     # η/16 is what `intensities_two_magnon` defaults to, and is already negligible.
     bin_width = η * min(1/16, sqrt(tol))
@@ -134,7 +133,8 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
 
     # Buffers are allocated per wavevector rather than reused, which is what makes the
     # loop below safe to thread. The cost is negligible beside the wavevector loop of
-    # `accum_cubic_self_energy!` inside.
+    # `accum_cubic_self_energy!` inside. The loop grid is also rebuilt per wavevector,
+    # its offset depending on 𝐪 for the reason `loop_wavevectors` explains.
     function calc_iq!(iq)
         T = zeros(ComplexF64, 2L, 2L)
         H = zeros(ComplexF64, 2L, 2L)
@@ -159,6 +159,7 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
         # diagonal to the ω = ε_𝐪n of Mourigal et al.; the off-diagonal choice is an
         # ambiguity of relative order 1/s.
         onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
+        ps = loop_wavevectors(loop_grid, q_reshaped)
         accum_cubic_self_energy!(Σ3, swt, terms3, q_reshaped, energies .+ im*η, ps, 0.0; source_freqs=onshell, bin_width)
 
         # Conjugated amplitudes conj(ũ) = T† u, including the 1/s correction to the
@@ -208,7 +209,7 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
             "median $(r2(Γs[cld(end, 2)])), 90th pct $(r2(Γs[ceil(Int, 0.9end)])), against η = $(r2(η))"
         println("""
             intensities_corrected with tol = $tol
-              loop grid       $(join(loop_grid, "×")) = $(length(ps)) wavevectors
+              loop grid       $(join(loop_grid, "×")) = $(prod(loop_grid)) wavevectors
               bin width       $(r2(bin_width))
               on-shell -Im Σ  $report""")
     end
