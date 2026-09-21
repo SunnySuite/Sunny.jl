@@ -126,11 +126,25 @@ function check_corrections_supported(swt::SpinWaveTheory)
     end
 end
 
-# Wavevectors of the loop integrals over the magnetic Brillouin zone. Grid points
-# are offset by half a step, which avoids the Goldstone wavevector of an ordered
-# structure, where the integrand is finite but each of its two channels diverges.
-function loop_wavevectors(dims)
-    return [Vec3((i - 1/2) / dims[1], (j - 1/2) / dims[2], (k - 1/2) / dims[3])
+# Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
+# integrand that pairs a line at 𝐩 with one at 𝐪-𝐩. Both lines are singular at the
+# zone centre, the Goldstone wavevector of the magnetic cell, where the integrand
+# itself is finite but each of its channels diverges, so the grid must avoid that
+# point in 𝐩 and in 𝐪-𝐩 alike. Offsetting by half a step does only the former. In
+# units of a step, and per dimension, the forbidden offsets are 0, which puts 𝐩 on the
+# zone centre, and t = dims*𝐪 mod 1, which puts 𝐪-𝐩 there. Sit at the midpoint of the
+# larger of the two arcs between them, which keeps a quarter step of clearance on both
+# lines and reduces to the half step when 𝐪 is commensurate with the grid.
+#
+# Without this the loop integral develops a spurious divergent contribution from a
+# single grid point whenever dims*𝐪 has a half-integer component. It is easy to miss,
+# because it afflicts isolated wavevectors of a path rather than all of them.
+function loop_wavevectors(dims, q_reshaped=zero(Vec3))
+    offsets = ntuple(3) do d
+        t = mod(dims[d] * q_reshaped[d], 1)
+        t < 1/2 ? (t + 1)/2 : t/2
+    end
+    return [Vec3((i - 1 + offsets[1]) / dims[1], (j - 1 + offsets[2]) / dims[2], (k - 1 + offsets[3]) / dims[3])
             for i in 1:dims[1], j in 1:dims[2], k in 1:dims[3]]
 end
 

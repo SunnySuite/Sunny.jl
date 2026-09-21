@@ -59,13 +59,13 @@ function intensities_two_magnon(swt::SpinWaveTheory, qpts; energies, kernel::Abs
     # transverse components are linear in b at leading order.
     pref = zeros(ComplexF64, Nobs, Na)
 
-    ps = loop_wavevectors(grid)
     # Masses of the binned pair-energy measure, ρs[iq][b] sitting at energy (b-1)*bin_width
     ρs = [eltype(measure)[] for _ in qpts.qs]
 
     for (iq, q) in enumerate(qpts.qs)
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
+        ps = loop_wavevectors(grid, q_reshaped)
         for μ in 1:Nobs, i in 1:Na
             O = (data::SWTDataDipole).observables[μ, i]
             pref[μ, i] = conj(observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)) * O[3]
