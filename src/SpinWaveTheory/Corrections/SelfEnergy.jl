@@ -73,11 +73,11 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts, energies; η, grid)
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
     terms3 = cubic_monomials(swt)
-    ps = loop_wavevectors(grid)
 
     ret = zeros(ComplexF64, 2L, 2L, length(energies), length(qpts.qs))
     for (iq, q) in enumerate(qpts.qs)
         k = to_reshaped_rlu(swt.sys, q)
+        ps = loop_wavevectors(grid, k)
         accum_cubic_self_energy!(view(ret, :, :, :, iq), swt, terms3, k, energies, ps, η)
     end
 
@@ -123,7 +123,6 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid)
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
     terms3 = cubic_monomials(swt)
-    ps = loop_wavevectors(grid)
     disp = dispersion(swt, qpts)
 
     Σ = zeros(ComplexF64, 2L, 2L, L)
@@ -132,7 +131,8 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid)
         # Each band is evaluated at its own frequency, so the matrices for all L
         # frequencies are built and only their diagonals are kept.
         ωs = view(disp, :, iq)
-        accum_cubic_self_energy!(fill!(Σ, 0), swt, terms3, to_reshaped_rlu(swt.sys, q), ωs, ps, η)
+        k = to_reshaped_rlu(swt.sys, q)
+        accum_cubic_self_energy!(fill!(Σ, 0), swt, terms3, k, ωs, loop_wavevectors(grid, k), η)
         for n in 1:L
             ret[n, iq] = Σ[n, n, n]
         end

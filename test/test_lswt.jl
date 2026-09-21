@@ -837,9 +837,11 @@ end
 
     # The sum rules above constrain the total weight, which converges exponentially
     # here, but not its distribution in energy. This gates the shape, and with it
-    # both the loop `grid` and the binning of the pair energy. Quadrupling
-    # `bin_width` above its default of `fwhm/32` costs sixteen times the error, that
-    # error being O(bin_width²), and only then becomes comparable to the grid's.
+    # both the loop `grid` and the binning of the pair energy. The reference grid is
+    # converged: it agrees with a 128×128 one to 3e-5, so the figures below are the
+    # errors of the coarse grid and of the coarse binning themselves, and they come
+    # out comparable. Quadrupling `bin_width` above its default of `fwhm/32` costs
+    # sixteen times the error, that error being O(bin_width²).
     let
         sys = square_afm(; field=[1.5, 0, 0])
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
@@ -848,7 +850,7 @@ end
         kernel = gaussian(fwhm=0.4)
         ref = Sunny.intensities_two_magnon(swt, qs; energies, kernel, grid=(32, 32, 1)).data
         err(res) = maximum(abs, res.data - ref) / maximum(abs, ref)
-        @test err(Sunny.intensities_two_magnon(swt, qs; energies, kernel, grid=(16, 16, 1))) < 1e-3
+        @test err(Sunny.intensities_two_magnon(swt, qs; energies, kernel, grid=(16, 16, 1))) < 3e-3
         @test err(Sunny.intensities_two_magnon(swt, qs; energies, kernel, grid=(32, 32, 1), bin_width=0.4/8)) < 3e-3
     end
 
@@ -1947,6 +1949,16 @@ end
     Σ = Sunny.cubic_self_energy(swt, q; η=0.01, grid=(48, 48, 1))[:]
     @test imag(Σ[3]) ≈ imag(Σs[2][3]) / 2 rtol=0.01
     @test imag(Σ[1]) / imag(Σs[2][1]) > 0.85
+
+    # The loop grid must keep both internal lines, 𝐩 and 𝐪-𝐩, off the zone centre,
+    # where the cubic vertex diverges. Offsetting by half a step does that only for
+    # 𝐩: 𝐪 = [0, 1/4, 0] is [1/4, 1/4, 0] in the reshaped cell, so at nk = 26 the
+    # reflected grid hits the zone centre exactly, and one point out of 26² then
+    # dominates the integral. Nothing about this 𝐪 is singular, so grids on either
+    # side of it must agree; a fixed half-step offset instead gave +1.07 - 0.23im for
+    # the first band, wrong even in sign, and -2.82 for the second.
+    Σgrid = [Sunny.cubic_self_energy(swt, [[0, 1/4, 0]]; η=0.02, grid=(nk, nk, 1))[:] for nk in (24, 26, 96)]
+    @test all(Σ -> isapprox(Σ, [-0.655 - 0.086im, -0.996 - 0.040im, -0.996 - 0.040im]; atol=0.012), Σgrid)
 
     # Binning the decay measure in the pair energy is a choice of quadrature, not a
     # change of interface, so it must reproduce the frequency loop it replaces. The
