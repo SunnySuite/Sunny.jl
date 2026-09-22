@@ -854,6 +854,36 @@ end
         @test err(Sunny.intensities_two_magnon(swt, qs; energies, kernel, grid=(32, 32, 1), bin_width=0.4/8)) < 3e-3
     end
 
+    # Orientation of the μν pair in the four channels of `corrected_channels`. Every
+    # combiner used above (`ssf_trace`, `ssf_perp`) puts zero weight on off-diagonal
+    # `corr_pairs` and on imaginary parts, so a μν transpose — which for a Hermitian S
+    # is a complex conjugation — is invisible to all of them, as are the rotation and
+    # sum-rule checks, the latter being homogeneous in the interference. This measure
+    # sees it, on the triangular antiferromagnet where Im Sˣʸ is genuinely nonzero:
+    # `direct` must agree with `intensities_two_magnon` in sign, not just in magnitude.
+    let
+        cryst = Crystal(lattice_vectors(1, 1, 10, 90, 90, 120), [[0, 0, 0]])
+        sys = System(cryst, [1 => Moment(s=1/2, g=2)], :dipole)
+        set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
+        sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
+        randomize_spins!(sys)
+        minimize_energy!(sys)
+        swt = SpinWaveTheory(sys; measure=ssf_custom((q, ssf) -> imag(ssf[1, 2]), sys; apply_g=false))
+
+        η = 0.15
+        qs = [[0.3, 0.2, 0], [1/6, 1/6, 0], [0.5, 0, 0], [0.12, 0.37, 0]]
+        energies = range(0, 4, 121)
+        grid = (16, 16, 1)
+        direct = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=grid).direct
+        tm = Sunny.intensities_two_magnon(swt, qs; energies, kernel=lorentzian(fwhm=2η),
+                                          grid, bin_width=η/16)
+        # A transpose would double the deviation rather than leave round-off, the two
+        # differing in sign, so compare element by element against the scale.
+        scale = maximum(abs, tm.data)
+        @test scale > 1e-2   # the measure is not trivially zero
+        @test maximum(abs, direct - tm.data) < 1e-12 * scale
+    end
+
     # Weights of the three channels into which the quantum sum rule decomposes, all
     # per site and in units where a trace measure is used, so that no local frame
     # projection survives. The transverse channel obeys an identity sharper than the
@@ -1479,6 +1509,106 @@ end
     Σm = Sunny.cubic_self_energy(swt, [[0, 0, 0]], [0.5]; η=1e-10, grid=(1, 1, 1))[:, :, 1, 1]
     @test τ₃ * Σm ≈ (τ₃ * Σm)' atol=1e-9
 
+    # Both amplitudes for the observable to create a pair of magnons, against exact
+    # matrix elements in the same Fock space. This is what pins their relative phase,
+    # on which the interference of `corrected_channels` depends and nothing else does:
+    # each squared amplitude is invariant under a phase on either one separately, so
+    # the two diagonal blocks of the measure, and `intensities_two_magnon` with them,
+    # are blind to an error here. So are the sum rule and the rotation-invariance
+    # checks elsewhere, both being homogeneous in the interference. A sign error was
+    # found this way, `pair_amplitude` having returned the amplitude of +b†b where
+    # Sᶻ = s - b†b carries a minus.
+    #
+    # The comparison needs a two-magnon state and the operator that reaches it. For a
+    # normalized pair |ab⟩ = y_a†y_b†|0⟩/√(1+δ_ab), each of Sunny's amplitudes is
+    # conj(⟨ab|·|·⟩) up to the combinatorial factor √(2/(1+δ_ab)) by which the
+    # symmetrized state differs from Sunny's sum over ordered pairs.
+    # The readout is the full S^{μν} tensor, so that every component is reachable and
+    # nothing is protected by the scalar sum rule that a trace measure enjoys.
+    swt2m = SpinWaveTheory(sys; measure=ssf_custom((q, ssf) -> ssf, sys; apply_g=false))
+    Nobs = Sunny.num_observables(swt2m.measure)
+    u2 = zeros(ComplexF64, 2L, Nobs)
+    q2m = [0.23, -0.41, 0.17]
+    qr2 = Sunny.to_reshaped_rlu(sys, q2m)
+    qg2 = Sunny.orig_crystal(sys).recipvecs * q2m
+    Sunny.set_swt_observable_vectors!(u2, swt2m, qr2, qg2)
+    pref2 = zeros(ComplexF64, Nobs, L)
+    Sunny.pair_amplitude_prefactors!(pref2, swt2m, qr2, qg2)
+
+    # Observable A_ν(q) as a linear form in the Nambu vector. The index swap is forced,
+    # not chosen: `intensities_bands` forms Avec[μ] = dot(u[:,μ], T[:,n]) for the left
+    # amplitude ⟨0|A†|n⟩, so A = Σ_a u[ā] x_a. The `nambu_correlations` block above
+    # fixes the state, so nothing here is free, and the transverse amplitude must come
+    # out equal to Sunny's own w = T†u.
+    Aodd = [sum(a -> u2[Sunny.nambu_conj(a, L), ν] * bop(a), 1:2L) for ν in 1:Nobs]
+    # The longitudinal part, -Σᵢ prefᵢ b†ᵢbᵢ. `pref` carries the conjugated Fourier
+    # phase, so it is conjugated back to describe the same operator as `Aodd`.
+    Aeven = [-sum(i -> conj(pref2[ν, i]) * bop(L+i) * bop(i), 1:L) for ν in 1:Nobs]
+
+    ψ1 = [Y[m]' * ψ for m in 1:L]
+    @test [dot(ψ1[n], Aodd[ν] * ψ) for n in 1:L, ν in 1:Nobs] ≈ (T0' * u2)[1:L, :] atol=1e-10
+
+    U3m = zeros(ComplexF64, 2L, 2L, 2L)
+    T3m = [conj(T0[Sunny.nambu_conj(a, L), Sunny.nambu_conj(b, L)]) for a in 1:2L, b in 1:2L]
+    Sunny.vertex!(U3m, terms3, ntuple(_ -> zero(Sunny.Vec3), 3), (T0, T0, T3m), similar(U3m))
+    for a in 1:L, b in 1:L
+        ψpair = (Y[a]' * (Y[b]' * ψ)) / sqrt(1 + (a == b))
+        c = sqrt(2 / (1 + (a == b)))
+        # Magnon-mediated route: the pair is reached from one magnon through H₃, with
+        # its Wick contraction removed as above. Fixes the √18 and the external leg.
+        @test [dot(ψpair, (H3 - H3mf) * ψ1[m]) for m in 1:L] ≈
+              c * [conj(√18 * U3m[a, b, Sunny.nambu_conj(m, L)]) for m in 1:L] atol=1e-9
+        # Direct route, including the sign of Sᶻ = s - b†b
+        @test [dot(ψpair, Aeven[ν] * ψ) for ν in 1:Nobs] ≈
+              c * [conj(Sunny.pair_amplitude(pref2, T0, T0, a, b, ν, L)) for ν in 1:Nobs] atol=1e-10
+    end
+
+    # Both routes at once, which is the quantity the interference actually depends on.
+    # The checks above fix each amplitude against the same state, but a phase convention
+    # shared by both would cancel from each separately and survive here, so the coherent
+    # sum is compared against first-order perturbation theory for ⟨ab|A_ν|0⟩: the even
+    # part reaches the pair directly, the odd part reaches it through a one-magnon
+    # intermediate, and only the relative phase makes the two add correctly. The routes
+    # are comparable and interfere destructively here — 0.058 against 0.154 summing to
+    # 0.103 for the worst pair — so a wrong relative sign cannot hide.
+    w2m = T0' * u2
+    for a in 1:L, b in 1:L
+        ψpair = (Y[a]' * (Y[b]' * ψ)) / sqrt(1 + (a == b))
+        c = sqrt(2 / (1 + (a == b)))
+        x = ε[a] + ε[b]
+        mediated(ν) = sum(1:L) do m
+            conj(w2m[m, ν]) * √18 * U3m[a, b, Sunny.nambu_conj(m, L)] / (x - ε[m])
+        end
+        both = [dot(ψpair, Aeven[ν] * ψ) +
+                sum(m -> dot(ψpair, (H3 - H3mf) * ψ1[m]) * dot(ψ1[m], Aodd[ν] * ψ) / (x - ε[m]), 1:L)
+                for ν in 1:Nobs] ./ c
+        @test both ≈ [conj(Sunny.pair_amplitude(pref2, T0, T0, a, b, ν, L) + mediated(ν))
+                      for ν in 1:Nobs] atol=1e-10
+    end
+
+    # The same, but read out of the measure that `corrected_channels` actually consumes,
+    # in its own storage convention, so that the blocks are certified as stored rather
+    # than as rederived here. Linear bin splitting preserves the zeroth and first moments
+    # of the measure exactly, so those two moments pin it without replicating the binning.
+    # The 12 block is the interference, which no published calculation constrains; it
+    # saturates its Cauchy-Schwarz bound to 0.97 here, so this is a sharp test of it.
+    ρ2m = Matrix{ComplexF64}[]
+    onshell2m = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
+    Sunny.accum_pair_measure!(ρ2m, swt2m, terms3, qr2, [zero(Sunny.Vec3)];
+                              source_freqs=onshell2m, bin_width=1e-3, pref=pref2)
+    (M0, M1) = (sum(ρ2m), sum(((i, r),) -> (i - 1) * 1e-3 * r, enumerate(ρ2m)))
+    (E0, E1) = (zeros(ComplexF64, L+Nobs, L+Nobs), zeros(ComplexF64, L+Nobs, L+Nobs))
+    for a in 1:L, b in 1:L
+        ψpair = (Y[a]' * (Y[b]' * ψ)) / sqrt(1 + (a == b))
+        c = sqrt(2 / (1 + (a == b)))
+        y = conj([[dot(ψpair, (H3 - H3mf) * ψ1[m]) for m in 1:L];
+                  [dot(ψpair, Aeven[ν] * ψ) for ν in 1:Nobs]]) ./ c
+        E0 .+= y * y'
+        E1 .+= (ε[a] + ε[b]) .* (y * y')
+    end
+    @test M0 ≈ E0 atol=1e-10
+    @test M1 ≈ E1 atol=1e-9
+
     # Those shifts are dominated by the decay channel, so the source channel is
     # pinned separately by the second-order correction to the vacuum energy, to
     # which only it contributes. Three magnons are created and destroyed, and the
@@ -1884,7 +2014,7 @@ end
     using LinearAlgebra
 
     # Nearest-neighbor triangular-lattice antiferromagnet at s = 1/2, the model of
-    # Chernyshev and Zhitomirsky, PRB 79, 144416 (2009). Its 120° order fits in a
+    # arXiv:0901.4803. Its 120° order fits in a
     # three-site cell, which is small enough for the cubic self-energy to be
     # affordable. The state is built explicitly rather than by minimization, so
     # that the chirality is fixed.
@@ -1908,8 +2038,8 @@ end
     q = [[1/2, 0, 0]]
     @test dispersion(swt, q)[:] ≈ [√2.5, √2.5, 1] atol=1e-6
 
-    # The same dispersion in closed form over the whole zone: Eq. (11) of Mourigal,
-    # Fuhrman, Chernyshev and Zhitomirsky, PRB 88, 094407 (2013), written in the
+    # The same dispersion in closed form over the whole zone: Eq. (11) of
+    # arXiv:1306.1231, written in the
     # reciprocal lattice units of the original one-site cell. The three-site cell
     # folds 𝐪 together with 𝐪 ± 𝐊, so each wavevector gates all three bands at
     # once, and with them the folding convention.
@@ -1970,12 +2100,14 @@ end
     ε = dispersion(swt, q)[:]
     onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
     ωs = range(0, 2, 21) .+ im*0.06
-    Σ2 = map((nothing, 0.06/16)) do bin_width
-        Sunny.accum_cubic_self_energy!(zeros(ComplexF64, L, L, length(ωs)), swt, terms3,
-                                       Sunny.to_reshaped_rlu(sys, q[1]), ωs, ps, 0.0;
-                                       source_freqs=onshell, bin_width)
+    k = Sunny.to_reshaped_rlu(sys, q[1])
+    Σloop = Sunny.accum_cubic_self_energy!(zeros(ComplexF64, L, L, length(ωs)), swt, terms3,
+                                           k, ωs, ps, 0.0; source_freqs=onshell)
+    Σbin = let ρ = Matrix{ComplexF64}[]
+        Σsrc = Sunny.accum_pair_measure!(ρ, swt, terms3, k, ps; source_freqs=onshell, bin_width=0.06/16)
+        Sunny.pair_self_energy!(zeros(ComplexF64, L, L, length(ωs)), ρ, Σsrc, ωs, 0.06/16)
     end
-    @test maximum(abs, Σ2[2] - Σ2[1]) / maximum(abs, Σ2[1]) < 1e-3
+    @test maximum(abs, Σbin - Σloop) / maximum(abs, Σloop) < 1e-3
 
     # The corrected structure factor is a spectral function in its own right, not
     # merely one to the order worked to. Because the Dyson equation is solved in the
@@ -2021,14 +2153,27 @@ end
     # the step is a fraction of η. The residual 0.17% is the truncated tail.
     energies = range(-20, 24, 1501)
     grid = (12, 12, 1)
-    res = Sunny.intensities_corrected(swt2, qs2; energies, η, tol=opts.rtol,
-                                      loop_grid=grid, mean_field_maxevals=opts.maxevals)
-    # The same `grid` and bin width make the longitudinal channel cancel exactly
-    kernel = lorentzian(fwhm=2η)
-    transverse = res.data - Sunny.intensities_two_magnon(swt2, qs2; energies, kernel, grid).data
-    @test all(≥(0), res.data)
+    chans = Sunny.corrected_channels(swt2, qs2; energies, η, tol=opts.rtol,
+                                     loop_grid=grid, mean_field_maxevals=opts.maxevals)
+    # The two weight identities are properties of the transverse spectral function, so
+    # the channels built from it are taken on their own; the pair channels created
+    # directly by the observable carry weight of their own, and their interference with
+    # the transverse ones sums to zero only over the whole zone.
+    transverse = chans.pole + chans.cont
+    @test all(≥(0), chans.pole + chans.cont + chans.cross + chans.direct)
     @test all(vec(maximum(transverse; dims=1)) .< refs ./ (π * η))
     @test vec(sum(transverse; dims=1)) * step(energies) ≈ refs rtol=5e-3
+
+    # The interference is invisible to a trace measure integrated over the zone: 𝐒·𝐒 is
+    # a scalar, so its expansion in bosons has no term linking an odd number of them to
+    # an even one, and the cancellation is exact for every ω once Σ_𝐪 restores momentum
+    # conservation. It is the only check that constrains the *relative phase* of the two
+    # routes to a pair, a phase that each channel alone is free of. The window must
+    # reach below ω = 0, or a pair at x ≈ 0 contributes just half of its Lorentzian.
+    qs4 = vec([[i, j, 0] ./ 6 for i in 0:5, j in 0:5])
+    chans4 = Sunny.corrected_channels(swt2, qs4; energies=range(-4, 12, 161), η=0.3,
+                                      loop_grid=(6, 6, 1), mean_field_maxevals=opts.maxevals)
+    @test abs(sum(chans4.cross)) < 1e-3 * sum(chans4.direct)
 
     # The same lattice made easy-plane and put in a tilted field, so that the canting
     # leaves the three sublattices inequivalent. That is what makes the off-diagonal

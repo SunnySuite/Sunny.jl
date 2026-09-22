@@ -1,7 +1,11 @@
-# Reproduce Fig. 4 of Mourigal, Fuhrman, Chernyshev and Zhitomirsky, PRB 88, 094407
-# (2013) = arXiv:1306.1231v3: the total dynamical structure factor Sᵗᵒᵗ(𝐪, ω) of the
-# triangular-lattice Heisenberg antiferromagnet including the corrections of order 1/s,
-# for s = 1/2 and s = 3/2, along the path K-Γ-M-Y₁.
+# Reproduce Fig. 4 of Mourigal, Fuhrman, Chernyshev and Zhitomirsky, PRB 88,
+# 094407 (2013) [arXiv:1306.1231]. Calculates the dynamical structure factor of
+# the triangular-lattice Heisenberg antiferromagnet, including 1/s corrections.
+#
+# Sunny makes one small correction to the reference calculation: it retains
+# interference between transverse and longitudinal channels. For this model, the
+# correction removes a small fraction of the two-magnon weight, which itself is
+# small compared to the quasiparticle branch intensities.
 
 using Sunny, LinearAlgebra, Printf, Statistics
 using GLMakie
@@ -38,7 +42,7 @@ for (i, s) in enumerate((1/2, 3/2))
 
     qpts = [[2/3, -1/3, 0], [0, 0, 0], [1/2, 0, 0], [1/6, 1/6, 0], [0, 1/4, 0]]
     labels=["K", "Γ", "M", "Y₁", "Y"]
-    path = q_space_path(cryst, qpts, 200; labels)
+    path = q_space_path(cryst, qpts, 400; labels)
     energies = 0:(η/4):(20s/3)
 
     res = Sunny.intensities_corrected(swt, path; energies, η, tol=0.01, threaded=true, verbose=true)

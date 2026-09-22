@@ -1,49 +1,39 @@
-# Dynamical spin structure factor including the O(1/s) corrections assembled by
-# the rest of this module. Conventions, including the Dyson equation solved here,
-# are collected in Corrections.jl.
+# Dynamical spin structure factor including the O(1/s) corrections assembled by the rest of
+# this module. Conventions, including the Dyson equation solved here, are collected in
+# Corrections.jl.
 #
-# The transverse channel is resummed rather than corrected term by term. Solving
-# the Dyson equation at each frequency shifts the magnon poles by the static mean
-# fields and the real part of the cubic self-energy, gives them the width supplied
-# by its imaginary part, and — because the same self-energy appears in the
-# resummation — moves the weight that a decaying magnon loses into the continuum
-# where it decays. An additive treatment would instead double count it, once in the
-# unit-area line shape of the pole and once in the continuum.
+# The transverse channel is resummed rather than corrected term by term, which is what
+# moves the weight a decaying magnon loses into the continuum where it decays; an additive
+# treatment would double count it, once in the unit-area line shape of the pole and once in
+# the continuum. Nor is the two-magnon channel simply added, a pair being reachable both
+# from the longitudinal part of the observable directly and from its transverse part
+# through the cubic vertex. The structure factor is therefore
 #
-# The longitudinal channel of TwoMagnon.jl is a separate observable, even in the
-# boson number rather than odd, so it is still added. Its weight is of order s⁰
-# already, and correcting it would be a higher-order calculation.
+#     S(𝐪, ω) = (η/π)|ũᵗG|² + Σ_bins lor(ω - x_bin) |ũᵗG √18v + β|²,
 #
-# Only what the truncation can keep analytic is resummed, which fixes both the
-# equation solved and the treatment of the source channel. The equation is projected
-# onto the L×L particle block, as in Eq. (12) of Mourigal et al., rather than
-# inverting the full Nambu denominator and keeping the particle block of the
-# solution; the source channel of the self-energy is frozen on shell, as SelfEnergy.jl
-# explains. What remains of the frequency dependence is then a sum of terms
-# R/(ω - x + iΓ) with R ⪰ 0 and x real, whose imaginary part is negative
-# semidefinite, and the resulting spectral function A = -Im D⁻¹/π satisfies two
-# properties exactly, at any s and on any wavevector grid:
+# a quasiparticle peak plus pairs whose creation amplitude is the coherent sum of the two
+# routes. Expanding the second term gives the three channels that `corrected_channels`
+# returns alongside the first: `cont`, the weight transferred from a decaying magnon;
+# `direct`, the two-magnon continuum of TwoMagnon.jl; and `cross`, their interference. All
+# three read the same binned measure, so separating them costs nothing. Only the first two
+# moments of the pair amplitude are of order 1/s and below; the continuum's own 1/s
+# correction is not attempted.
 #
-#   * Im D = ηI - Im Σ ⪰ ηI ≻ 0, so D is nonsingular for every real frequency, A is
-#     positive semidefinite, and ‖A‖ ≤ 1/(πη). No feature can be sharper or taller
-#     than the regulator allows.
-#   * D → ωI at large frequency, so ∫dω A = I, and the transverse weight of each 𝐪
-#     is exactly the static weight Σ_n |ũ_n|² of the corrected observables. Weight is
-#     conserved identically, rather than up to the order worked to.
+# Resumming only what the truncation keeps analytic fixes both the equation solved — the
+# projection onto the particle block, described in Corrections.jl — and the treatment of
+# the source channel, frozen on shell as SelfEnergy.jl explains. The remaining frequency
+# dependence is then a sum of R/(ω - x + iΓ) with R ⪰ 0 and x real, so Im D = ηI - Im Σ ⪰
+# ηI ≻ 0 and the spectral function A = -Im D⁻¹/π is positive semidefinite with ‖A‖ ≤ 1/πη,
+# while D → ωI at large ω gives ∫dω A = I: the transverse weight of each 𝐪 stays exactly
+# the static Σ_n |ũ_n|² of the corrected observables, at any s and on any grid.
 #
-# Neither survives the full Nambu inversion at s = 1/2: the discarded blocks carry
-# poles at ω = -ε_{-𝐪n}, which a correction comparable to ε can push up through zero,
-# and the near-singular direction then reaches the particle block through the
-# anomalous blocks of the self-energy.
-#
-# The η above is the regulator of the analytic continuation, and it is a numerical
-# parameter rather than a physical one. Because a retarded function is analytic in the
-# upper half plane, evaluating it at ω + iη is the same as convolving its spectrum
-# with a Lorentzian of half-width η, and the shift is applied to the self-energy as
-# well as to the Dyson denominator. Its role is to give the Dirac deltas of the loop
-# integrand a finite width, so that a finite wavevector grid can resolve them; the
-# grid and the bin width of the pair energy are then both set relative to η.
-# Instrumental resolution is a separate convolution, left to the caller.
+# The η above regulates the analytic continuation and is numerical rather than physical.
+# Because a retarded function is analytic in the upper half plane, evaluating it at ω + iη
+# convolves its spectrum with a Lorentzian of half-width η; the shift is applied to the
+# self-energy as well as to the Dyson denominator. Its role is to give the Dirac deltas of
+# the loop integrand a finite width, so that a finite wavevector grid can resolve them, and
+# both that grid and the pair-energy bin width are set relative to it. Instrumental
+# resolution is a separate convolution, left to the caller.
 
 """
     intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
@@ -56,8 +46,10 @@ mean fields of [`hartree_fock_correction`](@ref) and [`tadpole_correction`](@ref
 together with the real part of [`cubic_self_energy`](@ref). They are broadened by
 minus its imaginary part, which is to say that magnons able to decay into two
 magnons have a finite lifetime, and the weight they lose appears in the continuum
-into which they decay. Added to this is the longitudinal two-magnon continuum of
-[`intensities_two_magnon`](@ref).
+into which they decay. Included as well is the two-magnon continuum of
+[`intensities_two_magnon`](@ref), which the observable creates directly, together
+with its interference with the continuum a decaying magnon feeds. The two are not
+separately observable, a pair of magnons being reachable either way.
 
 The regulator `η`, with units of energy, is required. It gives every Dirac delta a
 finite width, so that the momentum integrals below can be performed on a finite
@@ -82,9 +74,32 @@ nothing, and a warning is issued if they are spaced more coarsely.
 
 Set `threaded=true` to parallelize over `qpts`, and `verbose=true` to print the
 selected parameters together with the linewidths that resulted.
+
+The four contributions summed here can be obtained separately from
+`Sunny.corrected_channels`, which takes the same arguments and returns `pole`, `cont`,
+`cross` and `direct`. That is the way to compare against published calculations, which
+omit the interference `cross`: their convention is `pole + cont + direct`.
 """
-function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
-                               mean_field_maxevals=100_000, threaded=false, verbose=false)
+function intensities_corrected(swt::SpinWaveTheory, qpts; kwargs...)
+    (; cryst, qpts, energies, pole, cont, cross, direct) = corrected_channels(swt, qpts; kwargs...)
+    data = pole + cont + cross + direct
+    return Intensities(cryst, qpts, energies, reshape(data, length(energies), size(qpts.qs)...))
+end
+
+# Workhorse of `intensities_corrected`, which returns the sum of the channels described
+# above. They are kept apart here because each is separately meaningful: `pole` is the
+# quasiparticle peak, and `cont`, `cross` and `direct` are the three blocks of the
+# squared pair-creation amplitude — magnon-mediated, interference, and direct, the last
+# being what `intensities_two_magnon` returns on its own. Each is a matrix over
+# (energy, wavevector). Also returned are `specfunc`, the magnon spectral matrix before
+# contraction with observables, and `disp`, the harmonic energies.
+#
+# Keeping them apart is also how `cross` is toggled: it has no counterpart in the published
+# 1/s calculations, so `pole + cont + direct` is their convention and the sum that
+# `intensities_corrected` forms is ours. See Corrections.jl.
+function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
+                            mean_field_maxevals=100_000, threaded=false, verbose=false,
+                            spectral=false)
     check_corrections_supported(swt)
     η > 0 || error("Regulator `η` must be positive.")
 
@@ -127,9 +142,17 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
     terms3 = cubic_monomials(swt)
 
     Ĩ = Diagonal([ones(L); -ones(L)])
-    ret = zeros(eltype(measure), length(energies), length(qpts.qs))
+    chans = (; pole = zeros(eltype(measure), length(energies), length(qpts.qs)),
+               cont = zeros(eltype(measure), length(energies), length(qpts.qs)),
+               cross = zeros(eltype(measure), length(energies), length(qpts.qs)),
+               direct = zeros(eltype(measure), length(energies), length(qpts.qs)))
     # Decay rate of each magnon at its own pole, for the `verbose` report
     linewidths = fill(NaN, L, length(qpts.qs))
+    # Magnon spectral matrix A = -Im G_pp/π in the Bogoliubov basis, whose diagonal is the
+    # A₁₁ of arXiv:1306.1231, which applies the observable factors outside it. Opt-in, because
+    # holding every frequency of every wavevector costs L² times the channels themselves.
+    specfunc = spectral ? zeros(ComplexF64, L, L, length(energies), length(qpts.qs)) : nothing
+    disp = zeros(Float64, L, length(qpts.qs))
 
     # Buffers are allocated per wavevector rather than reused, which is what makes the
     # loop below safe to thread. The cost is negligible beside the wavevector loop of
@@ -141,26 +164,29 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
         δH = zeros(ComplexF64, 2L, 2L)
         u = zeros(ComplexF64, 2L, Nobs)
         Σ3 = zeros(ComplexF64, L, L, length(energies))
+        pref = zeros(ComplexF64, Nobs, L)
         corr = zeros(ComplexF64, num_correlations(measure))
 
         q = qpts.qs[iq]
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
         ε = excitations!(T, H, swt, q)
-
-        # The longitudinal channel, to which the transverse one is added below
-        res2 = intensities_two_magnon(swt, [q]; energies, kernel=lorentzian(fwhm=2η), grid=loop_grid, bin_width)
-        view(ret, :, iq) .= vec(res2.data)
+        view(disp, :, iq) .= view(ε, 1:L)
 
         accum_quadratic!(fill!(δH, 0), terms2, q_reshaped)
         Σstat = Ĩ * transpose(T' * δH * T)
         # Frequencies at which to freeze the source channel. Averaging the two
         # external legs keeps the frozen contribution Hermitian, and reduces on the
-        # diagonal to the ω = ε_𝐪n of Mourigal et al.; the off-diagonal choice is an
+        # diagonal to the ω = ε_𝐪n of arXiv:1306.1231; the off-diagonal choice is an
         # ambiguity of relative order 1/s.
         onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
         ps = loop_wavevectors(loop_grid, q_reshaped)
-        accum_cubic_self_energy!(Σ3, swt, terms3, q_reshaped, energies .+ im*η, ps, 0.0; source_freqs=onshell, bin_width)
+        # One pass over the loop wavevectors serves the self-energy and both parts of
+        # the pair amplitude, which must share Bogoliubov matrices; see Corrections.jl.
+        pair_amplitude_prefactors!(pref, swt, q_reshaped, q_global)
+        ρ = Matrix{ComplexF64}[]
+        Σsrc = accum_pair_measure!(ρ, swt, terms3, q_reshaped, ps; source_freqs=onshell, bin_width, pref)
+        pair_self_energy!(Σ3, ρ, Σsrc, energies .+ im*η, bin_width)
 
         # Conjugated amplitudes conj(ũ) = T† u, including the 1/s correction to the
         # observables themselves. Their harmonic part, conj(ũ[n, μ]), is the
@@ -169,15 +195,45 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
         accum_observable_corrections!(u, swt, q_reshaped, q_global, δc)
         w = T' * u
 
+        # Blocks of the binned measure after broadening to a single frequency: the
+        # magnon-mediated pair amplitude squared, its interference with the direct
+        # amplitude, and that one squared.
+        Mω = zeros(ComplexF64, L + Nobs, L + Nobs)
+        mm = view(Mω, 1:L, 1:L)
+        md = view(Mω, 1:L, L+1:L+Nobs)
+        dd = view(Mω, L+1:L+Nobs, L+1:L+Nobs)
+
+        # Contracts an amplitude product over observable pairs into one channel
+        function accum_channel!(accum, iω, f)
+            map!(f, corr, measure.corr_pairs)
+            accum[iω, iq] = measure.combiner(q_global, corr)
+        end
+
         for (iω, ω) in enumerate(energies)
             # Dyson equation for the block that propagates physical magnons. The
             # metric Ĩ is the identity there, so it does not appear.
             G = inv((ω + im*η)*I - Diagonal(view(ε, 1:L)) - view(Σstat, 1:L, 1:L) - view(Σ3, :, :, iω))
-            A = (G - G') / 2im
-            map!(corr, measure.corr_pairs) do (μ, ν)
-                -dot(view(w, 1:L, μ), A, view(w, 1:L, ν)) / (π * Ncells)
+            # Amplitude for observable μ to create a magnon of band n which then
+            # propagates to frequency ω, conj(z[n, μ]) = (ũ_μᵗ G)[n]. Every channel
+            # below is a contraction of it, either with itself, giving the
+            # quasiparticle peak, or with the pair amplitudes of the measure.
+            z = G' * view(w, 1:L, :)
+            isnothing(specfunc) || (view(specfunc, :, :, iω, iq) .= (G' - G) ./ (2im * π))
+
+            fill!(Mω, 0)
+            for bin in eachindex(ρ)
+                Mω .+= ((η/π) / ((ω - (bin - 1) * bin_width)^2 + η^2)) .* ρ[bin]
             end
-            ret[iω, iq] += measure.combiner(q_global, corr)
+
+            accum_channel!(chans.pole, iω, ((μ, ν),) ->
+                (η/π) * dot(view(z, :, μ), view(z, :, ν)) / Ncells)
+            accum_channel!(chans.cont, iω, ((μ, ν),) ->
+                dot(view(z, :, μ), mm, view(z, :, ν)) / Ncells)
+            # The cross term of the squared amplitude above, read plainly.
+            accum_channel!(chans.cross, iω, ((μ, ν),) ->
+                (dot(view(z, :, μ), view(md, :, ν)) +
+                 conj(dot(view(z, :, ν), view(md, :, μ)))) / Ncells)
+            accum_channel!(chans.direct, iω, ((μ, ν),) -> dd[μ, ν] / Ncells)
         end
 
         for n in 1:L
@@ -214,6 +270,6 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
               on-shell -Im Σ  $report""")
     end
 
-    return Intensities(cryst, qpts, energies, reshape(ret, length(energies), size(qpts.qs)...))
+    return (; cryst, qpts, energies, chans..., specfunc, disp)
 end
 
