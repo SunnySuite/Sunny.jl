@@ -61,7 +61,7 @@ function xxz_fig3(; s=1/2, Δ=0.9, hfrac=0.2, η=0.005, npath=400, tol=0.01, ωm
                         labels=["M", "K′", "Γ", "K", "M", "Γ"])
     energies = range(0, ωmax, 1 + ceil(Int, 2ωmax/η))
 
-    t = @elapsed res = Sunny.intensities_corrected(swt, path; energies, η, tol, threaded=true, verbose=true)
+    t = @elapsed res = Sunny.corrected_intensities(swt, path; energies, η, tol, threaded=true, verbose=true)
     @printf("%.0f s for %d 𝐪 × %d ω on %d threads\n", t, npath, length(energies), Threads.nthreads())
 
     fig = Figure(size=(1000, 500), fontsize=15)
