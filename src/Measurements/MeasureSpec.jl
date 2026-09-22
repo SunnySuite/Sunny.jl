@@ -1,6 +1,29 @@
+# Verify that `combiner` is real-linear in its correlation argument (i.e.,
+# linear in the space of Hermitian inputs). This property allows calculators to
+# apply `combiner` prior to performing other summations.
+function test_combiner_linearity(combiner, corr_pairs)
+    # Random correlation data of the kind a combiner actually receives.
+    function randn_corr(corr_pairs)
+        return [μ == ν ? complex(randn(Float64)) : randn(ComplexF64) for (μ, ν) in corr_pairs]
+    end
+
+    for q in [randn(Vec3) for _ in 1:10]
+        c1 = randn_corr(corr_pairs)
+        c2 = randn_corr(corr_pairs)
+        islinear = try
+            combiner(q, c1 + c2) ≈ combiner(q, c1) + combiner(q, c2)
+        catch
+            # Some q are illegal, e.g. outside a Blume-Maleev scattering plane
+            continue
+        end
+        islinear || error("Detected a nonlinear combiner function")
+    end
+end
+
 # Op is the type of a local observable operator. Either a Vec3 representing
 # `op⋅S` (:dipole mode) or a HermitianC64 representing the N×N matrix directly
-# (:SUN mode). The "parts" index is needed for entangled units.
+# (:SUN mode). The "parts" index and `offsets` field is needed for entangled
+# units.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     observables :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × nunits × nparts)
     formfactors :: Array{FormFactor, 3}   # (nobs × nunits × nparts)
@@ -11,6 +34,7 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     function MeasureSpec(observables::Array{Op, 6}, corr_pairs, combiner::F, formfactors::Array{FormFactor, 3}; offsets=nothing) where {Op, F}
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
+        test_combiner_linearity(combiner, corr_pairs)
         nobs    = size(observables, 1)
         nunits  = size(observables, 5)
         nparts  = size(observables, 6)

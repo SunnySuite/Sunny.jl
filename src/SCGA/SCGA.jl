@@ -417,7 +417,7 @@ end
 
 # Evaluate pullback for d = combiner(q_global, corr) given cotangent Δd,
 # assuming linearity in corr.
-function combiner_ad(rc::CRC.RuleConfig, combiner, q_global, corr, Δd)
+function combiner_ad(combiner, q_global, corr, Δd)
     Δcorr = similar(corr)
     e = zeros(Float64, length(corr))
     for i in 1:length(corr)
@@ -426,17 +426,11 @@ function combiner_ad(rc::CRC.RuleConfig, combiner, q_global, corr, Δd)
         Δcorr[i] = dot(combiner(q_global, e), Δd)
     end
 
-    # Test correctness of adjoint. Use Float64 for elements of r because some
-    # combiners (like in ssf_trace) require a real input.
+    # Test correctness of the adjoint, which depends on real-linearity of the
+    # combiner. The probe must be real; a complex one may fail for a combiner
+    # that is real- but not complex-linear, such as the `ssf_perp` contraction.
     r = randn(Float64, length(corr))
-    matches = dot(Δd, combiner(q_global, r)) ≈ dot(Δcorr, r)
-
-    # Fall back to much slower AD if needed
-    if !matches
-        @warn "Combiner appears nonlinear; falling back to generic AD"
-        _, pullback = CRC.rrule_via_ad(rc, combiner, q_global, corr)
-        _, _, Δcorr = pullback(Δd)
-    end
+    @assert dot(Δd, combiner(q_global, r)) ≈ dot(Δcorr, r) "Detected nonlinear combiner"
 
     return Δcorr
 end
@@ -519,7 +513,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             ### BACKWARD CALCULATION
 
             # Pullback on: data = measure.combiner(corr)
-            Δcorr = combiner_ad(rc, measure.combiner, q_global, corr, Δd)
+            Δcorr = combiner_ad(measure.combiner, q_global, corr, Δd)
             Δcorr = CRC.unthunk(Δcorr)
             if Δcorr isa CRC.NoTangent || Δcorr isa CRC.AbstractZero || isnothing(Δcorr)
                 return
