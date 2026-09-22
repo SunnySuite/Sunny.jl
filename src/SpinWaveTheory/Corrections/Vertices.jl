@@ -57,26 +57,21 @@ const SLOT_PERMUTATIONS = ntuple(slot_permutations, 4)
 # must not be replaced by σ(√(1-1/2s) - 1), the exact coefficient of the word
 # b†bb, even though the latter represents S⁺ better and is exact at s = 1/2.
 #
-# The rule is not bookkeeping hygiene; it is what makes continuous symmetries
-# exact. The truncated substitution above satisfies [S⁺, S⁻] = 2Sᶻ only up to
-# O(1/s²), so it represents su(2) — and hence commutes with the generator of a
-# symmetry that the ordered structure breaks — only through the order retained.
-# Since the energy of a rotated structure is exactly rotation invariant, each
-# coefficient of its 1/s expansion is separately invariant, and a calculation that
-# keeps every term of one order and none of the next inherits that invariance
-# exactly. Retaining a partial set of higher-order terms does not: it perturbs the
-# quadratic form at a protected zero mode, where a gap grows like the square root
-# of that perturbation, so an O(1/s²) error becomes an O(1/s) gap — as large as
-# the correction itself.
+# The rule is what makes continuous symmetries exact, not bookkeeping hygiene. The
+# truncated substitution above satisfies [S⁺, S⁻] = 2Sᶻ only up to O(1/s²), so it
+# represents su(2) — and hence commutes with the generator of a symmetry the ordered
+# structure breaks — only through the order retained. Since the energy of a rotated
+# structure is exactly invariant, each coefficient of its 1/s expansion is separately
+# invariant, and a calculation keeping every term of one order and none of the next
+# inherits that exactly. A partial set of higher-order terms does not: it perturbs the
+# quadratic form at a protected zero mode, where a gap grows as the square root of the
+# perturbation, so an O(1/s²) error becomes an O(1/s) gap — as large as the correction.
 #
-# Both failure modes have been measured. Using the exact b†bb coefficient above
-# destroys the O(1/s) band shift of the square-lattice antiferromagnet, which is a
-# thirty-fold cancellation between the longitudinal and transverse parts of H₄
-# (each about 4.7 in the units where Oguchi's total is 0.158): the few percent that
-# separates the two coefficients at s = 4 changes the shift by 100% and spoils its
-# exact independence of 𝐪. Symmetrically, expanding an onsite anisotropy exactly
-# rather than to the order prescribed above gaps out the Goldstone mode of an
-# easy-plane ferromagnet; see `anisotropy_words`.
+# Both failure modes have been measured. The exact b†bb coefficient destroys the O(1/s)
+# band shift of the square-lattice antiferromagnet, a thirty-fold cancellation between the
+# longitudinal and transverse parts of H₄, and spoils its exact independence of 𝐪.
+# Expanding an onsite anisotropy exactly gaps out the Goldstone mode of an easy-plane
+# ferromagnet; see `anisotropy_words`.
 #
 # Writing a bilinear coupling in the raising/lowering basis,
 #
@@ -201,39 +196,35 @@ const GRADED_INV_RCS = map(inv, rcs_factors(monomial(2, 1/2)))
 #     `swt_hamiltonian_dipole!` — so the sub-leading power x^{2k-n-2} is returned;
 #   * for n = 3, 4 nothing is already present, so the leading power is returned.
 #
-# Reading off a fixed power per word is what makes this construction manifestly
-# consistent with the truncated vertices of `cubic_monomials` and
-# `quartic_monomials`, and no separate subtraction of the LSWT terms is needed.
+# Reading off a fixed power per word keeps this construction consistent with the truncated
+# vertices of `cubic_monomials` and `quartic_monomials`, so no separate subtraction of the
+# LSWT terms is needed.
 #
-# Sunny stores an anisotropy as coefficients of the Stevens operators 𝒪_k^q. In mode
-# :dipole those coefficients carry the renormalization `rcs_factors`, chosen so that
-# the classical energy function reproduces the exact expectation value of the quantum
-# operator in a spin coherent state. Dividing it out recovers the operator that the
-# user supplied, which is the object to expand; because the factor is itself a series
-# in 1/s, it must be divided out order by order. Mode :dipole_uncorrected instead
-# uses the stored coefficients directly, lifting the user's classical polynomial to
-# the quantum operator with the same Stevens coefficients. That lift is a convention:
-# a classical polynomial determines an operator only up to terms of relative order
-# 1/s, which is the order computed here.
+# Sunny stores an anisotropy as coefficients of the Stevens operators 𝒪_k^q. In mode :dipole
+# those carry the renormalization `rcs_factors`, chosen so that the classical energy
+# reproduces the exact expectation value in a spin coherent state; dividing it out recovers
+# the operator the user supplied, and because the factor is itself a series in 1/s it must
+# be divided out order by order. Mode :dipole_uncorrected instead uses the stored
+# coefficients directly, lifting the user's classical polynomial to the operator with the
+# same Stevens coefficients. That lift is a convention, a classical polynomial determining
+# an operator only up to the relative order 1/s computed here.
 #
-# For n ≤ 2 the entire result is therefore two scalars times the leading word L that
-# LSWT already holds, which "1/s correction to cubic and quartic vertices" gates
-# exactly against `swt_hamiltonian_dipole!`:
+# For n ≤ 2 the result is therefore two scalars times the leading word L that LSWT already
+# holds, gated against `swt_hamiltonian_dipole!` in the test suite:
 #
-#   * The lift above rescales every such word by -binomial(k, 2)/2s, which is the
-#     leading deviation of `rcs_factors` from unity, and applies in mode
-#     :dipole_uncorrected only. Mode :dipole is the more accurate choice precisely
-#     because λ_k removes it, leaving the classical energy, its gradient, and A1
-#     with no correction at all.
-#   * A boson coherent state is not a spin coherent state: their amplitudes on one
-#     spin deviation agree, but on two they differ by √(1 - 1/2s). LSWT reads the
-#     anomalous A2 off the classical energy and so gets it too small by that factor,
-#     which both modes correct by a further +L/4s.
+#   * The lift rescales every such word by -binomial(k, 2)/2s, the leading deviation of
+#     `rcs_factors` from unity, in mode :dipole_uncorrected only. Mode :dipole is the more
+#     accurate choice precisely because λ_k removes it, leaving the classical energy, its
+#     gradient, and A1 with no correction at all.
+#   * A boson coherent state is not a spin coherent state: their amplitudes on one spin
+#     deviation agree, but on two they differ by √(1 - 1/2s). LSWT reads the anomalous A2
+#     off the classical energy and so gets it too small by that factor, which both modes
+#     correct by a further +L/4s.
 #
-# In mode :dipole that leaves A2 as the only correction to LSWT below three bosons.
-# In particular the one-boson word is proportional to the classical energy gradient
-# in both modes, so an onsite anisotropy sources `tadpole_correction` only away from
-# the classical minimum, and never in mode :dipole.
+# In mode :dipole that leaves A2 as the only correction below three bosons. The one-boson
+# word is proportional to the classical energy gradient in both modes, so an onsite
+# anisotropy sources `tadpole_correction` only away from the classical minimum, and never in
+# mode :dipole.
 function anisotropy_words(swt::SpinWaveTheory, i::Int)
     (; sys, data) = swt
     stvexp = data.stevens_coefs[i]

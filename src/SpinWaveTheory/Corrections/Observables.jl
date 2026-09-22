@@ -54,8 +54,7 @@
 # which sum to s(s+1) identically, for any state. The two terms of order s cancel
 # between the transverse weight and the ordered moment, which is why LSWT already
 # satisfies the sum rule to relative order 1/s; the entire content of the next
-# order is the -⟨n̂²⟩ above, and the contraction of the cubic word is what produces
-# it. See "1/s correction to the observable amplitudes".
+# order is the -⟨n̂²⟩ above, and the contraction of the cubic word produces it.
 
 """
     observable_corrections(swt::SpinWaveTheory; v=nothing, rtol, maxevals)
