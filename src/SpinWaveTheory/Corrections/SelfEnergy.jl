@@ -2,7 +2,7 @@
 # theory, it shifts magnon energies at the same O(1/s) as the mean-field decoupling of H₄
 # in HartreeFock.jl and must be included alongside it, but unlike those corrections it is
 # frequency dependent and complex, its imaginary part describing decay into the two-magnon
-# continuum of TwoMagnon.jl. Conventions are collected in Corrections.jl.
+# continuum. Conventions are collected in Corrections.jl.
 #
 # Both channels there come from one contraction of H₃ at the momenta (𝐩, 𝐤-𝐩, -𝐤). The third
 # slot carries the Nambu index L+n, creating the external magnon of band n at 𝐤; the first
@@ -83,7 +83,7 @@ correction to the magnon energy of relative order ``1/s``, and should be added t
 the mean-field corrections of [`hartree_fock_correction`](@ref) and
 [`tadpole_correction`](@ref), which enter at the same order. Minus the imaginary
 part is the half-width of the magnon peak, arising from decay into the
-two-magnon continuum of [`intensities_two_magnon`](@ref).
+two-magnon continuum, which [`intensities_corrected`](@ref) resolves.
 
 The self-energy vanishes identically for a collinear magnetic structure. It is
 otherwise given by an integral over the magnetic Brillouin zone, which is
