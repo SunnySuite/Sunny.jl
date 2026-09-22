@@ -74,7 +74,8 @@
 #
 # with V ⪰ 0 independent of frequency and all the frequency dependence in a
 # kernel g of the scalar pair energy x — a Cauchy denominator 1/(ω - x) in
-# SelfEnergy.jl, a resolution kernel in TwoMagnon.jl. So V is accumulated into
+# SelfEnergy.jl, a Lorentzian of half-width η in the two-magnon channel of
+# CorrectedIntensities.jl. So V is accumulated into
 # bins of x on the uniform grid of `loop_wavevectors` and g applied afterwards.
 # That makes Im Σ̂_pp ⪯ 0 a property of the quadrature: `bin_index` splits each
 # contribution between neighbouring bins with nonnegative weights, so a sum of
@@ -111,22 +112,32 @@
 # calculations on a dimer model with arbitrary anisotropic interactions and
 # readouts.
 
-# Errors unless `swt` describes a model for which the 1/s corrections in this
-# directory are implemented.
-function check_corrections_supported(swt::SpinWaveTheory)
+# Why the 1/s corrections of this directory are unavailable for `swt`, or `nothing`
+# if they are available. Returned rather than thrown so that a caller offering a
+# correct but weaker result in the unsupported cases, such as `corrected_dipoles`,
+# can ask without catching.
+function corrections_unsupported_reason(swt::SpinWaveTheory)
     (; sys) = swt
+    @assert sys.mode in (:dipole, :dipole_uncorrected, :SUN)
 
-    sys.mode == :SUN && error("1/s corrections are not yet implemented in :SUN mode.")
-    @assert sys.mode in (:dipole, :dipole_uncorrected)
-    is_entangled(sys) && error("1/s corrections are not supported for entangled units.")
-    isnothing(sys.ewald) || error("1/s corrections do not yet support long-range dipole-dipole interactions.")
+    sys.mode == :SUN && return "are not yet implemented in :SUN mode"
+    is_entangled(sys) && return "are not supported for entangled units"
+    isnothing(sys.ewald) || return "do not yet support long-range dipole-dipole interactions"
 
     for int in sys.interactions_union
         for pc in int.pair
             pc.isculled && break
-            iszero(pc.biquad) || error("1/s corrections do not yet support biquadratic exchange.")
+            iszero(pc.biquad) || return "do not yet support biquadratic exchange"
         end
     end
+    return nothing
+end
+
+# Errors unless `swt` describes a model for which the 1/s corrections in this
+# directory are implemented.
+function check_corrections_supported(swt::SpinWaveTheory)
+    reason = corrections_unsupported_reason(swt)
+    isnothing(reason) || error("1/s corrections $reason.")
 end
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
@@ -182,8 +193,8 @@ end
 # in T(-𝐩) and T(𝐩-𝐪) follows from the Nambu symmetry of SelfEnergy.jl, but
 # would come from independent diagonalizations, whose free per-band phase the
 # interference cannot tolerate. The leading minus sign, that of Sᶻ = s - b†b,
-# cancels in the |β|² that `intensities_two_magnon` forms but is the whole sign
-# of the interference.
+# cancels in the |β|² of the direct channel but is the whole sign of the
+# interference.
 function pair_amplitude(pref, T1, T2, a, b, μ, L)
     return -sum(1:L) do i
         pref[μ, i] * (T1[i, a]*T2[L+i, b] + T1[L+i, a]*T2[i, b])
@@ -198,6 +209,18 @@ function pair_amplitude_prefactors!(pref, swt::SpinWaveTheory, q_reshaped, q_glo
         pref[μ, i] = conj(observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)) * O[3]
     end
     return pref
+end
+
+# Applies `f` to each index, optionally in parallel. The wavevector loops of this
+# module allocate their buffers per iteration so that they may be threaded.
+function foreach_maybe_threaded(f, threaded, indices)
+    if threaded
+        Threads.@threads for i in indices
+            f(i)
+        end
+    else
+        foreach(f, indices)
+    end
 end
 
 # Dimensions of the loop grid needed to reach a relative accuracy `tol` at
