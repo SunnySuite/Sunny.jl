@@ -20,23 +20,9 @@
 # values is what produces artifacts; the defaults warn rather than guess again.
 #
 # Their A₁₁ is the diagonal Nambu component of the *magnon* propagator: Eq. (14) applies
-# the (u_𝐪 ± v_𝐪)² and Λ± factors outside it, so what is plotted is the particle block
-# of the Bogoliubov-basis Green function, which is exactly the object
-# `intensities_corrected` contracts with observable vectors. Their model has one branch
-# per wavevector over the whole zone, while our three-site cell folds 𝐪 together with
-# 𝐪 ± 𝐐, 𝐐 = [1/3, 1/3, 0]; the branch belonging to 𝐪 itself is the one whose harmonic
-# energy is ε_𝐪, so it is picked out by matching.
-#
-# The Dyson assembly is duplicated from CorrectedIntensities.jl rather than called,
-# because A₁₁ is not exposed by the public routine and evaluating it here lets the total
-# structure factor be built from the same self-energy instead of paying for it twice.
-# The duplication must be kept in step: the equation is solved in the L×L particle
-# block, and the source channel of the self-energy is frozen at its on-shell frequency.
-# Both are what keep A₁₁ non-negative and bounded by 1/πΓ; see the comments in
-# CorrectedIntensities.jl and SelfEnergy.jl. `compute` cross-checks itself against
-# `intensities_corrected` at two wavevectors, and with a shared loop grid, bin width and
-# mean-field tolerance the two agree exactly, so any drift in the duplication shows up
-# immediately.
+# the (u_𝐪 ± v_𝐪)² and Λ± factors outside it, so what is plotted is the particle block of
+# the Bogoliubov-basis Green function, which `corrected_channels` returns as `specfunc`
+# alongside the observable-contracted channels.
 
 using Sunny, LinearAlgebra, Printf, Statistics, Serialization
 using CairoMakie
@@ -92,10 +78,6 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
     nk < 6/fwhm && @warn "Loop grid too coarse for this broadening; expect speckle" nk
 
     (; swt, cryst) = htaf(s)
-    sys = swt.sys
-    (; measure) = swt
-    L = Sunny.nbands(swt)
-    Ncells = Sunny.nsites(sys) / Sunny.natoms(cryst)
 
     # K = ordering wavevector = zone corner; M = edge midpoint; Y₁ = M + 𝐐, the point
     # the paper singles out as the "blow-out" region of strong decay
@@ -104,86 +86,43 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
     path = q_space_path(cryst, [Kpt, [0, 0, 0], Mpt, Mpt + Kpt], npath; labels=["K", "Γ", "M", "Y₁"])
     qs = collect(path.qs)
     energies = collect(range(0, ωmax, nw))
-    kernel = lorentzian(; fwhm)
+    εref = [ε11(q, s) for q in qs]
 
     say(@sprintf("computing s = %.2f, fwhm = %.3f: %d 𝐪 × %d ω, loop grid %d², %d threads",
                  s, fwhm, npath, nw, nk, Threads.nthreads()))
     t0 = time()
 
-    # Mean-field corrections, all 𝐪-independent
-    tad = Sunny.tadpole_correction(swt; OPTS...)
-    terms2 = [Sunny.hartree_fock_correction(swt; OPTS...).terms2
-              tad.terms2
-              Sunny.anisotropy_correction(swt).terms2]
-    δc = Sunny.observable_corrections(swt; v=tad.v, OPTS...)
-    terms3 = Sunny.cubic_monomials(swt)
-    ps = Sunny.loop_wavevectors((nk, nk, 1))
-
-    Asel = zeros(nw, npath)      # spectral function of the branch belonging to 𝐪
-    Aall = zeros(nw, npath)      # trace over the folded bands, for the artifact detector
-    Strans = zeros(nw, npath)    # transverse structure factor
-    Slong = zeros(nw, npath)     # two-magnon continuum
-    εref = [ε11(q, s) for q in qs]
-    amin = fill(Inf, npath)      # least eigenvalue of A, which must be ≥ 0
-
-    Threads.@threads for iq in eachindex(qs)
-        q = qs[iq]
-        q_reshaped = Sunny.to_reshaped_rlu(sys, q)
-        q_global = cryst.recipvecs * q
-
-        T = zeros(ComplexF64, 2L, 2L)
-        H = zeros(ComplexF64, 2L, 2L)
-        δH = zeros(ComplexF64, 2L, 2L)
-        u = zeros(ComplexF64, 2L, Sunny.num_observables(measure))
-        Σ3 = zeros(ComplexF64, L, L, nw)
-        corr = zeros(ComplexF64, Sunny.num_correlations(measure))
-
-        ε = Sunny.excitations!(T, H, swt, q)
-        Sunny.accum_quadratic!(δH, terms2, q_reshaped)
-        Σstat = Diagonal([ones(L); -ones(L)]) * transpose(T' * δH * T)
-        onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
-        Sunny.accum_cubic_self_energy!(Σ3, swt, terms3, q_reshaped, energies .+ im*Γ, ps, 0.0;
-                                       source_freqs=onshell, bin_width=Γ/16)
-
-        Sunny.set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
-        Sunny.accum_observable_corrections!(u, swt, q_reshaped, q_global, δc)
-        w = T' * u
-
-        # The folded band belonging to 𝐪 itself, identified by its harmonic energy
-        n = argmin(abs.(view(ε, 1:L) .- εref[iq]))
-
-        for (iω, ω) in enumerate(energies)
-            G = inv((ω + im*Γ)*I - Diagonal(view(ε, 1:L)) - view(Σstat, 1:L, 1:L) - view(Σ3, :, :, iω))
-            A = (G - G') / 2im
-            Asel[iω, iq] = -real(A[n, n]) / π
-            Aall[iω, iq] = -real(tr(A)) / π
-            amin[iq] = min(amin[iq], minimum(eigvals(Hermitian(-A/π))))
-            map!(corr, measure.corr_pairs) do (μ, ν)
-                -dot(view(w, 1:L, μ), A, view(w, 1:L, ν)) / (π * Ncells)
-            end
-            Strans[iω, iq] = real(measure.combiner(q_global, corr))
-        end
-
-        Slong[:, iq] = Sunny.intensities_two_magnon(swt, [q]; energies, kernel, grid=(nk, nk, 1)).data
-    end
+    res = Sunny.corrected_channels(swt, path; energies, η=Γ, tol=OPTS.rtol,
+                                   loop_grid=(nk, nk, 1), mean_field_maxevals=OPTS.maxevals,
+                                   threaded=true, spectral=true)
     t_spec = time() - t0
 
-    # Guard on the duplicated assembly: same loop grid, so agreement is to round-off
-    dev = maximum([1 + npath ÷ 3, 1 + 2npath ÷ 3]) do iq
-        r = Sunny.intensities_corrected(swt, [qs[iq]]; energies, η=Γ, tol=OPTS.rtol,
-                                        loop_grid=(nk, nk, 1), mean_field_maxevals=OPTS.maxevals)
-        mine = Strans[:, iq] + Slong[:, iq]
-        maximum(abs, vec(r.data) - mine) / maximum(abs, mine)
+    # Their A₁₁ is one branch of the unfolded model, while our three-site cell folds 𝐪
+    # together with 𝐪 ± 𝐐; the branch belonging to 𝐪 itself is the one whose harmonic
+    # energy is ε_𝐪, so it is picked out by matching.
+    Asel = zeros(nw, npath)      # spectral function of the branch belonging to 𝐪
+    Aall = zeros(nw, npath)      # trace over the folded bands, for the artifact detector
+    amin = fill(Inf, npath)      # least eigenvalue of A, which must be ≥ 0
+    for iq in 1:npath
+        n = argmin(abs.(view(res.disp, :, iq) .- εref[iq]))
+        for iω in 1:nw
+            A = Hermitian(view(res.specfunc, :, :, iω, iq))
+            Asel[iω, iq] = real(A[n, n])
+            Aall[iω, iq] = real(tr(A))
+            amin[iq] = min(amin[iq], minimum(eigvals(A)))
+        end
     end
+    # Transverse weight and two-magnon continuum. The interference belongs to neither, so
+    # it is kept aside rather than folded into one of them; `render` sums all three.
+    Strans = real(res.pole + res.cont)
+    Slong = real(res.direct)
+    Scross = real(res.cross)
 
-    say(@sprintf("  spectra %.0f s, cross-check %.0f s; \
-                  least eigenvalue of A %+.2e, peak A₁₁ %.2f (bound 1/πΓ = %.2f), \
-                  assembly matches to %.1e",
-                 t_spec, time() - t0 - t_spec,
-                 minimum(amin), maximum(Asel), 1/(π*Γ), dev))
+    say(@sprintf("  spectra %.0f s; least eigenvalue of A %+.2e, peak A₁₁ %.2f (bound 1/πΓ = %.2f)",
+                 t_spec, minimum(amin), maximum(Asel), 1/(π*Γ)))
 
-    data = (; s, fwhm, nk, npath, nw, energies, Asel, Aall, Strans, Slong, εref,
-              xticks = path.xticks, amin, dev)
+    data = (; s, fwhm, nk, npath, nw, energies, Asel, Aall, Strans, Slong, Scross, εref,
+              xticks = path.xticks, amin)
     mkpath("$DIR/cache")
     serialize(file, data)
     return data
@@ -242,7 +181,7 @@ end
 # saturates.
 function render(d; file="$DIR/fig2.png")
     nq = length(d.εref)
-    Stot = d.Strans + d.Slong
+    Stot = d.Strans + d.Slong + d.Scross
     bad = suspect_columns(d)
 
     fig = Figure(size=(1150, 470), fontsize=15)
