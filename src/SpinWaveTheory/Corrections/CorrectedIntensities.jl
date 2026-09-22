@@ -43,7 +43,7 @@
 # resolution is a separate convolution, left to the caller.
 
 """
-    intensities_corrected(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
+    corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
                           mean_field_maxevals=100_000, threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including corrections
@@ -91,13 +91,15 @@ The three contributions summed here can be obtained separately from
 calculations, which omit the interference `cross`: their convention is
 `transverse + direct`.
 """
-function intensities_corrected(swt::SpinWaveTheory, qpts; kwargs...)
-    (; cryst, qpts, energies, transverse, cross, direct) = corrected_channels(swt, qpts; kwargs...)
+function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
+                               mean_field_maxevals=100_000, threaded=false, verbose=false)
+    (; cryst, qpts, energies, transverse, cross, direct) = corrected_channels(
+        swt, qpts; energies, η, tol, loop_grid, mean_field_maxevals, threaded, verbose)
     data = transverse + cross + direct
     return Intensities(cryst, qpts, energies, reshape(data, length(energies), size(qpts.qs)...))
 end
 
-# Workhorse of `intensities_corrected`, which returns the sum of the channels
+# Workhorse of `corrected_intensities`, which returns the sum of the channels
 # described above. They are kept apart here because each is separately
 # meaningful: `transverse` is the resummed magnon pole, `direct` is the
 # two-magnon continuum the observable creates on its own, and `cross` is their
@@ -107,7 +109,7 @@ end
 #
 # Keeping them apart is also how `cross` is toggled: it has no counterpart in
 # the published 1/s calculations, so `transverse + direct` is their convention
-# and the sum that `intensities_corrected` forms is ours. See Corrections.jl.
+# and the sum that `corrected_intensities` forms is ours. See Corrections.jl.
 function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
                             mean_field_maxevals=100_000, threaded=false, verbose=false,
                             spectral=false)
@@ -145,7 +147,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     # this resummation is an uncontrolled approximation, e.g. violates Ward
     # identity and can gap Goldstone modes.
     #
-    #   hartree_fock_correction(swt; maxiters=100, damping=0.5, rtol=tol, ...)
+    #   hartree_fock_correction(swt; maxiters=100, damping=0.5, tol, ...)
 
     # Everything the cubic vertex generates — the self-energy, its interference with
     # the direct pair amplitude, and the tadpole — vanishes with it, as happens for a
@@ -159,12 +161,12 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     cubic = !cubic_vertex_vanishes(swt, terms3)
     cubic || empty!(terms3)
 
-    tad = cubic ? tadpole_correction(swt; rtol=tol, maxevals=mean_field_maxevals) : nothing
-    terms2 = [hartree_fock_correction(swt; maxiters=1, rtol=tol, maxevals=mean_field_maxevals).terms2
+    tad = cubic ? tadpole_correction(swt; tol, maxevals=mean_field_maxevals) : nothing
+    terms2 = [hartree_fock_correction(swt; maxiters=1, tol, maxevals=mean_field_maxevals).terms2
               isnothing(tad) ? BosonMonomial{2}[] : tad.terms2
               anisotropy_correction(swt).terms2]
     δc = observable_corrections(swt; v = isnothing(tad) ? nothing : tad.v,
-                                rtol=tol, maxevals=mean_field_maxevals)
+                                tol, maxevals=mean_field_maxevals)
 
     chans = (; transverse = zeros(eltype(measure), length(energies), length(qpts.qs)),
                cross = zeros(eltype(measure), length(energies), length(qpts.qs)),
@@ -294,7 +296,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         report = isempty(Γs) ? "none of the LSWT poles lie within `energies`" :
             "median $(r2(Γs[cld(end, 2)])), 90th pct $(r2(Γs[ceil(Int, 0.9end)])), against η = $(r2(η))"
         println("""
-            intensities_corrected with tol = $tol
+            corrected_intensities with tol = $tol
               loop grid       $(join(loop_grid, "×")) = $(prod(loop_grid)) wavevectors
               bin width       $(r2(bin_width))
               on-shell -Im Σ  $report""")
