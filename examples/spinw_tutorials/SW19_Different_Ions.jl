@@ -73,4 +73,4 @@ fig
 # -0.137`` and ``δS ≈ -0.578`` apply to the Cu and Fe ions, respectively. The
 # larger correction on Fe is due to the relatively weak interchain coupling.
 
-Sunny.magnetization_lswt_correction_dipole(swt; atol=1e-4)
+Sunny.dipole_shortening(swt; tol=1e-4)

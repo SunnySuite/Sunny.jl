@@ -41,8 +41,8 @@ Sys.isapple() && @eval using AppleAccelerate
 
 const DIR = @__DIR__
 # Momentum integrals for the mean fields. These are the values that `tol = 0.01` puts
-# into `intensities_corrected`, so the cross-check below compares like with like.
-const OPTS = (; rtol = 0.01, maxevals = 100_000)
+# into `corrected_intensities`, so the cross-check below compares like with like.
+const OPTS = (; tol = 0.01, maxevals = 100_000)
 
 say(args...) = (println(args...); flush(stdout))
 
@@ -92,7 +92,7 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
                  s, fwhm, npath, nw, nk, Threads.nthreads()))
     t0 = time()
 
-    res = Sunny.corrected_channels(swt, path; energies, η=Γ, tol=OPTS.rtol,
+    res = Sunny.corrected_channels(swt, path; energies, η=Γ, tol=OPTS.tol,
                                    loop_grid=(nk, nk, 1), mean_field_maxevals=OPTS.maxevals,
                                    threaded=true, spectral=true)
     t_spec = time() - t0

@@ -78,17 +78,17 @@ end
 #
 # The extra quadratic terms `terms2` allow the correlations to be evaluated in the
 # already corrected ground state, as required for self-consistency.
-function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; rtol=nothing, maxevals=nothing)
+function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; tol=nothing, maxevals=nothing)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     T = zeros(ComplexF64, 2L, 2L)
 
-    # HCubature stops once `err ≤ max(atol, rtol * norm(gs))`, so an `rtol` of zero
+    # HCubature stops once `err ≤ max(atol, rtol * norm(gs))`, so a `tol` of zero
     # directs it to converge as far as `maxevals` allows. The correlations are
     # dimensionless occupations of order one, which is why `atol` may be set equal to
-    # `rtol`: the accuracy is then measured against max(norm(gs), 1), and mean fields
+    # `tol`: the accuracy is then measured against max(norm(gs), 1), and mean fields
     # that vanish by symmetry converge at once instead of exhausting the budget.
-    (gs, err) = hcubature((0, 0, 0), (1, 1, 1); rtol=@something(rtol, 0), atol=@something(rtol, 0),
+    (gs, err) = hcubature((0, 0, 0), (1, 1, 1); rtol=@something(tol, 0), atol=@something(tol, 0),
                           maxevals=@something(maxevals, typemax(Int))) do q
         q_reshaped = Vec3(q)
         dynamical_matrix!(H, swt, q_reshaped)
@@ -99,16 +99,16 @@ function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; rtol=nothing, ma
                 for (a, a′, Δ) in ckeys]
     end
 
-    # Adaptive integration stops either on the `rtol` target or on the evaluation
+    # Adaptive integration stops either on the `tol` target or on the evaluation
     # budget, and the caller cannot tell which without the error estimate. A
     # near-singular integrand exhausts the budget instead of converging: the
     # correlations diverge at the Goldstone wavevector of an ordered structure,
     # integrably but with slow subdivision.
-    if !isnothing(rtol) && err > rtol * max(norm(gs), 1)
+    if !isnothing(tol) && err > tol * max(norm(gs), 1)
         @warn """Mean-field momentum integrals reached relative accuracy \
                  $(round(err / max(norm(gs), 1), sigdigits=2)) within the budget of $maxevals \
-                 evaluations, short of the target `rtol = $rtol`. Raise `maxevals` \
-                 (`mean_field_maxevals` in `intensities_corrected`) or loosen the \
+                 evaluations, short of the target `tol = $tol`. Raise `maxevals` \
+                 (`mean_field_maxevals` in `corrected_intensities`) or loosen the \
                  tolerance.""" maxlog=1
     end
 
@@ -148,7 +148,7 @@ function hartree_fock_decoupling(terms::Vector{BosonMonomial{4}}, g)
 end
 
 """
-    hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damping=0, rtol, maxevals)
+    hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, scf_tol=1e-8, damping=0, tol, maxevals)
 
 Decouples the four-boson term of the Holstein-Primakoff expansion into a
 mean-field correction to the quadratic (LSWT) Hamiltonian. The correction is
@@ -158,7 +158,7 @@ smaller than the LSWT Hamiltonian by a factor of order ``1/s``. Returns
 
 With `maxiters=1` the mean fields are those of the uncorrected LSWT ground state.
 Larger values iterate to self-consistency, stopping when the mean fields move by
-less than `tol`. A nonzero `damping` in `[0, 1)` mixes in the previous iterate,
+less than `scf_tol`. A nonzero `damping` in `[0, 1)` mixes in the previous iterate,
 which can stabilize the iteration, and may be required: undamped, the corrected
 Hamiltonian can leave the positive-definite cone, after which the momentum
 integrals fail.
@@ -172,11 +172,11 @@ the ``1/s`` expansion from the gap between [`static_self_energy`](@ref) and
 [`corrected_dispersion`](@ref), which differ at the first neglected order.
 
 The mean fields are integrated over the Brillouin zone by adaptive cubature. At
-least one of `rtol` (a relative accuracy target) or `maxevals` (a budget of
+least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
 integrand evaluations) is required to control it.
 """
-function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damping=0, rtol=nothing, maxevals=nothing)
-    isnothing(rtol) && isnothing(maxevals) && error("Must specify `rtol` or `maxevals` to control momentum-space integration.")
+function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, scf_tol=1e-8, damping=0, tol=nothing, maxevals=nothing)
+    isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
     check_corrections_supported(swt)
 
     L = nbands(swt)
@@ -188,9 +188,9 @@ function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damp
     iters = 0
 
     for iter in 1:maxiters
-        gs′ = nambu_correlations(swt, ckeys, terms2; rtol, maxevals)
+        gs′ = nambu_correlations(swt, ckeys, terms2; tol, maxevals)
         iter > 1 && (gs′ = damping*gs + (1-damping)*gs′)
-        converged = iter > 1 && norm(gs′ - gs) < tol
+        converged = iter > 1 && norm(gs′ - gs) < scf_tol
         gs = gs′
         (terms2, δE) = hartree_fock_decoupling(terms4, correlation_lookup(ckeys, gs, L))
         iters = iter
@@ -198,9 +198,9 @@ function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, tol=1e-8, damp
     end
 
     # δE is real only once the mean fields are exact, so its imaginary part measures
-    # the error of their momentum integrals and shrinks with `rtol`. A mistake in the
+    # the error of their momentum integrals and shrinks with `tol`. A mistake in the
     # Wick decoupling, which is what this checks for, would instead appear at O(1).
-    @assert abs(imag(δE)) < max(@something(rtol, 1e-3), 1e-9) * max(abs(δE), 1)
+    @assert abs(imag(δE)) < max(@something(tol, 1e-3), 1e-9) * max(abs(δE), 1)
     return (; terms2, δE = real(δE) / nsites(uncontracted_system(swt.sys)), iters)
 end
 
