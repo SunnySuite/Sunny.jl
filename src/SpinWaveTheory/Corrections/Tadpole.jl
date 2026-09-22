@@ -53,7 +53,7 @@ end
 Computes the shift of the ordered magnetic structure caused by zero-point
 fluctuations, which appears at relative order ``1/s``. An example is the change
 in canting angle of an antiferromagnet in an applied field. Returns
-`(; terms2, δE, dipoles)`, where `terms2` is a correction to the quadratic
+`(; terms2, δE, dipoles, v)`, where `terms2` is a correction to the quadratic
 Hamiltonian that can be passed to [`corrected_dispersion`](@ref), `δE` is a
 correction to the energy per site, `dipoles` are the corrected classical dipoles
 of the magnetic cell, and `v` is the underlying boson displacement, which
