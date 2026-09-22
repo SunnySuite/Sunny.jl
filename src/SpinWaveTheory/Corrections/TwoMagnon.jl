@@ -41,16 +41,14 @@ function intensities_two_magnon(swt::SpinWaveTheory, qpts; energies, kernel::Abs
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
 
-    @assert sys.dims == (1, 1, 1)
-    Na = nsites(sys)
-    Ncells = Na / natoms(cryst)
     L = nbands(swt)
     Nobs = num_observables(measure)
-    Ncorr = num_correlations(measure)
+    # Number of chemical cells in the magnetic cell
+    Ncells = nsites(sys) / natoms(cryst)
 
     Avec = zeros(ComplexF64, Nobs)
-    corr = zeros(ComplexF64, Ncorr)
-    pref = zeros(ComplexF64, Nobs, Na)
+    corr = zeros(ComplexF64, num_correlations(measure))
+    pref = zeros(ComplexF64, Nobs, L)
 
     # Masses of the binned pair-energy measure, ρs[iq][b] sitting at energy (b-1)*bin_width
     ρs = [eltype(measure)[] for _ in qpts.qs]
@@ -73,10 +71,7 @@ function intensities_two_magnon(swt::SpinWaveTheory, qpts; energies, kernel::Abs
                     Avec[μ] * conj(Avec[ν]) / Ncells
                 end
                 val = measure.combiner(q_global, corr) / length(ps)
-                (bin, f) = bin_index(ε1[n₁] + ε2[n₂], bin_width)
-                while length(ρ) < bin + 1
-                    push!(ρ, zero(eltype(measure)))
-                end
+                (bin, f) = bin_index!(ρ, ε1[n₁] + ε2[n₂], bin_width, () -> zero(eltype(measure)))
                 ρ[bin] += (1 - f) * val
                 ρ[bin+1] += f * val
             end

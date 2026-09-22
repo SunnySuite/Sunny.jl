@@ -369,7 +369,9 @@ function cubic_monomials(swt::SpinWaveTheory)
         end
     end
 
-    return [terms; anisotropy_monomials(swt, Val{3}())]
+    # Merged because this list is contracted once per loop wavevector, which is the
+    # innermost loop of the whole calculation.
+    return merge_monomials([terms; anisotropy_monomials(swt, Val{3}())])
 end
 
 # Monomials of H₄, the four-boson term, which is smaller than H₂ by s^(-1). Since
