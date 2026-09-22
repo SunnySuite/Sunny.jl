@@ -114,7 +114,7 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
     end
     # Transverse weight and two-magnon continuum. The interference belongs to neither, so
     # it is kept aside rather than folded into one of them; `render` sums all three.
-    Strans = real(res.pole + res.cont)
+    Strans = real(res.transverse)
     Slong = real(res.direct)
     Scross = real(res.cross)
 

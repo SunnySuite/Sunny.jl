@@ -854,7 +854,7 @@ end
         @test err(Sunny.intensities_two_magnon(swt, qs; energies, kernel, grid=(32, 32, 1), bin_width=0.4/8)) < 3e-3
     end
 
-    # Orientation of the μν pair in the four channels of `corrected_channels`. Every
+    # Orientation of the μν pair in the channels of `corrected_channels`. Every
     # combiner used above (`ssf_trace`, `ssf_perp`) puts zero weight on off-diagonal
     # `corr_pairs` and on imaginary parts, so a μν transpose — which for a Hermitian S
     # is a complex conjugation — is invisible to all of them, as are the rotation and
@@ -2093,7 +2093,9 @@ end
     # Binning the decay measure in the pair energy is a choice of quadrature, not a
     # change of interface, so it must reproduce the frequency loop it replaces. The
     # error is second order in the bin width relative to the regulator Γ, which here
-    # is carried by the imaginary part of the frequencies.
+    # is carried by the imaginary part of the frequencies. The reference is written out
+    # term by term, straight from the formula at the head of SelfEnergy.jl, so that
+    # nothing but `foreach_cubic_line` is shared with the implementation under test.
     L = Sunny.nbands(swt)
     terms3 = Sunny.cubic_monomials(swt)
     ps = Sunny.loop_wavevectors((24, 24, 1))
@@ -2101,8 +2103,19 @@ end
     onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
     ωs = range(0, 2, 21) .+ im*0.06
     k = Sunny.to_reshaped_rlu(sys, q[1])
-    Σloop = Sunny.accum_cubic_self_energy!(zeros(ComplexF64, L, L, length(ωs)), swt, terms3,
-                                           k, ωs, ps, 0.0; source_freqs=onshell)
+    Σloop = let Σ = zeros(ComplexF64, L, L, length(ωs))
+        Sunny.foreach_cubic_line(swt, terms3, k, ps, L) do a, _b, u, x, _T1, _T2
+            for m′ in 1:L, m in 1:L
+                R = 18 * conj(u[m]) * u[m′]
+                # The source channel a > L is frozen at its on-shell frequency, hence
+                # is ω-independent and enters with the opposite sign
+                for iω in eachindex(ωs)
+                    Σ[m, m′, iω] += a > L ? -R / (onshell[m, m′] - x) : R / (ωs[iω] - x)
+                end
+            end
+        end
+        Σ ./ length(ps)
+    end
     Σbin = let ρ = Matrix{ComplexF64}[]
         Σsrc = Sunny.accum_pair_measure!(ρ, swt, terms3, k, ps; source_freqs=onshell, bin_width=0.06/16)
         Sunny.pair_self_energy!(zeros(ComplexF64, L, L, length(ωs)), ρ, Σsrc, ωs, 0.06/16)
@@ -2156,11 +2169,11 @@ end
     chans = Sunny.corrected_channels(swt2, qs2; energies, η, tol=opts.rtol,
                                      loop_grid=grid, mean_field_maxevals=opts.maxevals)
     # The two weight identities are properties of the transverse spectral function, so
-    # the channels built from it are taken on their own; the pair channels created
-    # directly by the observable carry weight of their own, and their interference with
-    # the transverse ones sums to zero only over the whole zone.
-    transverse = chans.pole + chans.cont
-    @test all(≥(0), chans.pole + chans.cont + chans.cross + chans.direct)
+    # that channel is taken on its own; the pair channel created directly by the
+    # observable carries weight of its own, and their interference sums to zero only
+    # over the whole zone.
+    (; transverse) = chans
+    @test all(≥(0), transverse + chans.cross + chans.direct)
     @test all(vec(maximum(transverse; dims=1)) .< refs ./ (π * η))
     @test vec(sum(transverse; dims=1)) * step(energies) ≈ refs rtol=5e-3
 
