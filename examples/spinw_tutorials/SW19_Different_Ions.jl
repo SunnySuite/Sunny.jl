@@ -66,11 +66,12 @@ plot_intensities!(fig[2, 2], res; units, title="Fe-Fe correlations")
 
 fig
 
-# Calculate quantum corrections ``δS`` to spin magnitude, which arise from the
-# zero-point energy of the spin waves. The outputs are ordered following the
-# [`Site`](@ref) indexing scheme for the system `sys`: `(cell1, cell2, cell3,
-# sublattice)`, with left-most indices fastest. The two corrections ``δS ≈
-# -0.137`` and ``δS ≈ -0.578`` apply to the Cu and Fe ions, respectively. The
-# larger correction on Fe is due to the relatively weak interchain coupling.
+# Calculate the zero-point density of magnons ``n``, which quantifies the
+# quantum correction to each spin magnitude, ``⟨S^z⟩ = s - n``. The outputs are
+# ordered following the [`Site`](@ref) indexing scheme for the system `sys`:
+# `(cell1, cell2, cell3, sublattice)`, with left-most indices fastest. The two
+# densities ``n ≈ 0.137`` and ``n ≈ 0.578`` apply to the Cu and Fe ions,
+# respectively. The larger correction on Fe is due to the relatively weak
+# interchain coupling.
 
-Sunny.dipole_shortening(swt; tol=1e-4)
+Sunny.boson_density(swt; tol=1e-4)
