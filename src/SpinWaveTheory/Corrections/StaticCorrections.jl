@@ -9,20 +9,20 @@
 
 Energy per site of the magnetic structure, corrected at relative order ``1/s``,
 where ``s`` is the spin magnitude in dipole mode, or ``1/λ`` for the
-representation label ``λ`` in SU(N) mode. If the classical energy is ``J s²``, the
-correction appears at order ``J s``.
+representation label ``λ`` in SU(N) mode. If the classical energy is ``J s²``,
+the correction appears at order ``J s``.
 
-The correction is the zero-point energy of the harmonic magnons,
-``(1/2) Σ_n ∫d³q ω(𝐪, n)`` over the first magnetic Brillouin zone, less the
-uniform ``𝐪 = 0`` term that the Holstein-Primakoff normal ordering leaves behind,
-together with the constant that [`anisotropy_correction`](@ref) generates from an
-onsite coupling. The last of these vanishes identically in `:dipole` mode, where
+The correction is the zero-point energy of the harmonic magnons, ``(1/2) Σ_n
+∫d³q ω(𝐪, n)`` over the first magnetic Brillouin zone, less the uniform ``𝐪 =
+0`` term that the Holstein-Primakoff normal ordering leaves behind, together
+with the constant that [`anisotropy_correction`](@ref) generates from an onsite
+coupling. The last of these vanishes identically in `:dipole` mode, where
 `rcs_factors` makes the classical energy exact.
 
 Not included are the corrections of [`tadpole_correction`](@ref) and
-[`hartree_fock_correction`](@ref), which are smaller by a further power of ``1/s``
-and so belong to the next order. To include them, add their `δE` fields to this
-result.
+[`hartree_fock_correction`](@ref), which are smaller by a further power of
+``1/s`` and so belong to the next order. To include them, add their `δE` fields
+to this result.
 
 The Brillouin-zone integral is performed by adaptive cubature, controlled by at
 least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
@@ -60,117 +60,102 @@ function corrected_energy_per_site(swt::SpinWaveTheory; tol=nothing, maxevals=no
     return swt.classical_energy + δE₁ + δE₂ + δE₃
 end
 
-# Reduction in the magnitude of each classical dipole, for :SUN mode
-function dipole_shortening_sun(swt::SpinWaveTheory; tol, maxevals)
-    (; sys, data) = swt
-
-    # This correction measures the reduction of the classical dipole moment along
-    # its own direction. It is undefined for an entangled system, whose ordered
-    # object is a unit's product-space state (e.g. a dimer singlet has zero net
-    # dipole), not a spin-(N-1)/2 dipole.
-    is_entangled(sys) && error("Magnetization correction is not supported for entangled units.")
-
-    N = sys.Ns[1]
-    Natoms = natoms(sys.crystal)
-    L = (N - 1) * Natoms
-
-    H = zeros(ComplexF64, 2L, 2L)
-    V = zeros(ComplexF64, 2L, 2L)
-
-    # Construct angular momentum operators O = n⋅S aligned with quantization
-    # axis, where S are the bare spin matrices and n = normalize(dipoles[i]).
-    S = SVector{3}(spin_matrices_of_dim(; N))
-    O = zeros(ComplexF64, N, N, Natoms)
-    for i in 1:Natoms
-        n = normalize(swt.sys.dipoles[i])
-        U = data.local_unitaries[i]
-        O[:, :, i] += U' * (n' * S) * U
-        @assert O[N, N, i] ≈ norm(swt.sys.dipoles[i])
-    end
-
-    (δS, _) = hcubature((0, 0, 0), (1, 1, 1); rtol=tol, maxevals) do q
-        swt_hamiltonian_SUN!(H, swt, q)
-        bogoliubov!(V, H)
-        ret = zeros(Natoms)
-        for band in L+1:2L
-            v = reshape(view(V, :, band), N-1, Natoms, 2)
-            for i in 1:Natoms, α in 1:N-1, β in 1:N-1
-                ret[i] -= real((O[N, N, i]*δ(α, β) - O[α, β, i]) * conj(v[α, i, 1]) * v[β, i, 1])
-            end
-        end
-        return SVector{Natoms}(ret)
-    end
-
-    return δS
-end
-
-# Reduction in the magnitude of each classical dipole, for :dipole mode
-function dipole_shortening_dipole(swt::SpinWaveTheory; tol, maxevals)
-    L = nbands(swt)
-    H = zeros(ComplexF64, 2L, 2L)
-    V = zeros(ComplexF64, 2L, 2L)
-
-    (δS, _) = hcubature((0, 0, 0), (1, 1, 1); rtol=tol, maxevals) do q
-        swt_hamiltonian_dipole!(H, swt, Vec3(q))
-        bogoliubov!(V, H)
-        return SVector{L}(-norm2(view(V, L+i, 1:L)) for i in 1:L)
-    end
-
-    return δS
-end
-
-# Reduction in the magnitude of each classical dipole of the magnetic cell, caused
-# by zero-point fluctuations and appearing at relative order 1/s. One negative
-# number per site. In :dipole and :dipole_uncorrected mode the classical magnitude
-# is constrained to be spin-s, whereas in :SUN mode it may already be smaller than
-# s because of anisotropic interactions. This shortens each dipole without
-# reorienting it; the tilt at the same order is the tadpole's, and
-# `corrected_dipoles` combines the two.
-function dipole_shortening(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
-    opts = (; tol=@something(tol, 0), maxevals=@something(maxevals, typemax(Int)))
-
-    (; sys) = swt
-    if sys.mode == :SUN
-        return dipole_shortening_sun(swt; opts...)
-    else
-        @assert sys.mode in (:dipole, :dipole_uncorrected)
-        return dipole_shortening_dipole(swt; opts...)
-    end
-end
-
 """
-    corrected_dipoles(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
+    boson_density(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
 
-Classical dipoles of the magnetic cell, corrected at relative order ``1/s``.
-Zero-point fluctuations act on the ordered structure in two independent ways at
-this order, and both are applied here: each dipole is shortened along its own
-direction, and the structure is tilted by the zero-point pressure of
-[`tadpole_correction`](@ref), whose canonical example is the change in canting
-angle of an antiferromagnet in an applied field.
+Zero-point density of Holstein-Primakoff bosons, ``n_i = Σ_α ⟨b^†_{iα}
+b_{iα}⟩``, summed over the flavors ``α`` carried by each site of the magnetic
+cell. This is the small parameter that controls the ``1/s`` expansion: every
+correction in this module is a power of ``n``, so ``n ≪ 1`` is the statement
+that the expansion is converging, and ``n`` of order one means it is not.
 
-The tilt vanishes for a collinear structure, and requires the cubic vertex, which
-is available for a narrower class of models than the shortening is; see
-[`tadpole_correction`](@ref). Where it is unavailable the dipoles are returned
-shortened but untilted, which is still correct at this order for any structure the
-tilt would not move.
+Use this as the health check for a spin-wave calculation. In `:dipole` mode
+there is one boson per site, and ``n_i`` is also the shortening of the classical
+dipole: ``⟨S^z_i⟩ = s - n_i`` is the ordered moment that sets the elastic Bragg
+intensity, as [`corrected_magnetic_moments`](@ref) uses it. In `:SUN` mode there
+are ``N-1`` bosons per site and the two readings part company, because the
+depletion of a general ``N``-level state is not a reduction of a dipole length;
+``n`` remains the controlled parameter, and is well defined even where the
+ordered state carries no dipole at all, as for a quadrupolar state.
 
-The Brillouin-zone integrals are performed by adaptive cubature, controlled by at
+The Brillouin-zone integral is performed by adaptive cubature, controlled by at
 least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
 integrand evaluations).
 """
-function corrected_dipoles(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
+function boson_density(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
+    isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
+
+    L = nbands(swt)
+    nf = nflavors(swt)
+    # ⟨b†_a b_a⟩ for every boson of the magnetic cell, in the Nambu labeling that
+    # `nambu_correlations` expects
+    gs = nambu_correlations(swt, [(L+a, a, (0, 0, 0)) for a in 1:L],
+                            BosonMonomial{2}[]; tol, maxevals)
+    # Bosons are laid out as (flavor, atom) with flavor fastest, so each site owns a
+    # contiguous run of `nf` flavors.
+    return [sum(α -> real(gs[(i-1)*nf + α]), 1:nf) for i in 1:div(L, nf)]
+end
+
+"""
+    corrected_magnetic_moments(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
+
+Magnetic moments ``μ = -g 𝐒`` in units of the Bohr magneton, corrected at
+relative order ``1/s``, for each site of the magnetic cell. Compare to the
+classical [`magnetic_moments`](@ref), which this reduces to when the correction
+is switched off.
+
+Zero-point fluctuations act on the ordered structure in two independent ways at
+this order, and both are applied here: each dipole is shortened along its own
+direction by the boson depletion of [`boson_density`](@ref), and the structure
+is tilted by the zero-point pressure of [`tadpole_correction`](@ref), whose
+canonical example is the change in canting angle of an antiferromagnet in an
+applied field. Summing these moments over the magnetic cell gives the uniform
+magnetization, so a sweep over [`set_field!`](@ref) yields a corrected ``M`` vs.
+``H`` curve. Because an anisotropic ``g`` need not commute with the tilt, ``μ``
+and ``𝐒`` are corrected by different amounts; use `boson_density` for a
+statement about the spin magnitude itself.
+
+The tilt vanishes for a collinear structure, and requires the cubic vertex,
+which is available for a narrower class of models than the shortening is; see
+[`tadpole_correction`](@ref). Where it is unavailable the moments are returned
+shortened but untilted, which is still correct at this order for any structure
+the tilt would not move.
+
+Unavailable in `:SUN` mode, where the local state is not maximal weight, so
+nothing constrains the correction to ``⟨𝐒⟩`` to lie along ``⟨𝐒⟩``: it acquires
+a transverse part that can reorient the dipole by degrees, and a radial
+shortening does not describe it. Use [`boson_density`](@ref) there to gauge the
+expansion.
+
+The Brillouin-zone integrals are performed by adaptive cubature, controlled by
+at least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
+integrand evaluations).
+"""
+function corrected_magnetic_moments(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
     isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
 
     (; sys) = swt
-    δS = dipole_shortening(swt; tol, maxevals)
+    sys.mode == :SUN && error("""`corrected_magnetic_moments` is unavailable in :SUN mode, where the \
+                                 correction to ⟨𝐒⟩ is not purely radial. Use `boson_density` to gauge \
+                                 the 1/s expansion.""")
+    @assert sys.mode in (:dipole, :dipole_uncorrected)
+
+    # With one boson per site, the zero-point depletion of the dipole is the
+    # boson occupation itself: ⟨Sᶻ_i⟩ = s - ⟨b†_i b_i⟩.
+    δS = -boson_density(swt; tol, maxevals)
     # `tadpole_correction` already returns dipoles of the classical magnitude,
-    # rotated but not shortened, so the two corrections compose by scaling.
+    # rotated but not shortened, so the two corrections compose by scaling. Its
+    # tilt is exactly norm-preserving, which is what makes the two operations
+    # commute.
     dipoles = if isnothing(corrections_unsupported_reason(swt))
         tadpole_correction(swt; tol, maxevals).dipoles
     else
-        # One dipole per element of δS, which is a site of the magnetic cell; note
-        # that in :SUN mode this is not `nbands(swt)`.
+        # One dipole per element of δS, which is a site of the magnetic cell
         [sys.dipoles[1, 1, 1, i] for i in eachindex(δS)]
     end
-    return map((d, δ) -> (1 + δ/norm(d)) * d, dipoles, δS)
+    # Shaped like `magnetic_moments`, i.e. indexed by `Site`. The leading dims
+    # are (1, 1, 1) because `SpinWaveTheory` flattens any supercell into its
+    # cell.
+    μs = map((g, d, δ) -> -g * (1 + δ/norm(d)) * d, vec(sys.gs), dipoles, δS)
+    return reshape(μs, 1, 1, 1, length(μs))
 end
