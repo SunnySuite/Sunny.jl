@@ -1,3 +1,204 @@
+# Tests of the 1/s corrections to linear spin wave theory, in two tiers. The items
+# marked `skip=true` each check one piece of the derivation against a private
+# reimplementation: that is what to reach for when a result is in question, rather
+# than what to run on every commit. They must still pass, so flip the keyword to
+# `false` to run one, and flip it back. A literal `skip=true` is honored before the
+# test item's module is created, so a skipped item costs nothing at all.
+#
+# The default tier pins end-to-end output, checks the invariants that need no
+# reference implementation, and certifies the whole boson expansion against exact
+# diagonalization, so that a question of correctness remains decidable without it.
+
+# Models and truncated Fock spaces shared by both tiers. A `@testmodule` is
+# evaluated once per `run_tests` call, rather than once per test item.
+@testmodule CorrectionModels begin
+    using Sunny, LinearAlgebra, SparseArrays
+
+    # ---- One generic three-site cluster ----
+
+    # Three sites give three bands, enough for off-diagonal elements of Σ̂; a
+    # triclinic cell with generic positions leaves no site symmetry, so every
+    # Stevens word is allowed; unequal spins exercise the per-site factors σᵢ/σⱼ;
+    # and a generic field cants the moments out of collinearity, without which Σ̂
+    # would vanish identically. Every bond has zero offset, so the Hamiltonian is
+    # 𝐪-independent and a single grid point integrates the self-energy exactly.
+    # Ferromagnetic exchange is what keeps the Fock space affordable, the anomalous
+    # mixing being ⟨n̂⟩ ≈ 0.004 here where a canted antiferromagnet of any `s` would
+    # put it near 0.3.
+    const cluster_cryst = Crystal(lattice_vectors(1, 1.1, 1.2, 80, 90, 100),
+                                  [[0, 0, 0], [0.45, 0.05, 0.1], [0.1, 0.4, 0.05]], 1)
+    const cluster_Js = [diagm([-0.6, -0.6, -1.3]), diagm([-1.4, -0.7, -0.7]),
+                        -0.1*[1 0.3 -0.2; 0.25 1 0.15; -0.15 0.1 1]]
+    const cluster_B = [0.48, -0.32, 0.8]
+
+    # Onsite anisotropy for the cluster, with every Stevens coefficient carrying a
+    # factor s^-k so that the classical energy landscape is held fixed as `s` varies,
+    # making the rate at which a residual vanishes meaningful. The order-6 word needs
+    # s ≥ 3 to be nonzero. `stevens_matrices` carries the spin as a type parameter, so
+    # without `@nospecialize` this recompiles for every `s` that any test uses.
+    cluster_aniso(@nospecialize(O), s, i) = ((0.3*O[2, 0] + 0.15*O[2, 1])/s^2 + (0.02*O[4, 2] - 0.01*O[4, -3])/s^4 +
+                                             0.004*O[6, i]/s^6)
+
+    # The `aniso` switch is a `Bool` rather than a function or `nothing`, so that this
+    # and `cluster_errors` each compile one specialization instead of one per call site.
+    function cluster(ss; mode=:dipole, aniso=false)
+        sys = System(cluster_cryst, [i => Moment(s=ss[i], g=1) for i in 1:3], mode)
+        for (n, (i, j)) in enumerate([(1, 2), (2, 3), (1, 3)])
+            set_exchange!(sys, cluster_Js[n], Bond(i, j, [0, 0, 0]))
+        end
+        set_field!(sys, cluster_B)
+        aniso && for i in 1:3
+            set_onsite_coupling!(sys, cluster_aniso(stevens_matrices(mode == :dipole ? ss[i] : Inf), ss[i], i), i)
+        end
+        # Deterministic, and converged to a torque of 1e-11 from this start
+        polarize_spins!(sys, cluster_B)
+        minimize_energy!(sys; jitter=0)
+        return sys
+    end
+
+    # ---- Exact diagonalization in a truncated boson Fock space ----
+
+    # Boson operators on a truncated Fock space of `n` sites, labeled by the Nambu
+    # index of a `BosonMonomial`: `a ≤ n` annihilates on site `a`, `a > n` creates.
+    # Sparse, because the cluster above acts on 7³ states.
+    function fock_ops(dims)
+        n = length(dims)
+        op(O, i) = reduce(kron, (k == i ? O : sparse(1.0I, dims[k], dims[k]) for k in 1:n))
+        b(i) = spdiagm(1 => [√float(k) for k in 1:dims[i]-1])
+        return a -> ComplexF64.(a <= n ? op(b(a), a) : op(b(a-n)', a-n))
+    end
+
+    # Normal-ordered quadratic Hamiltonian, read off from Sunny's own dynamical
+    # matrix at 𝐪 = 0, together with that matrix. Any `terms2` are added to it,
+    # which is how the anisotropy correction to H₂ enters.
+    function fock_quadratic(swt, bop, dim; terms2=nothing)
+        L = Sunny.nbands(swt)
+        H = zeros(ComplexF64, 2L, 2L)
+        Sunny.dynamical_matrix!(H, swt, zero(Sunny.Vec3))
+        isnothing(terms2) || Sunny.accum_quadratic!(H, terms2, zero(Sunny.Vec3))
+        H2 = spzeros(ComplexF64, dim, dim)
+        for i in 1:L, j in 1:L
+            H2 .+= ((H[i, j] + H[L+j, L+i])/2) * bop(L+i)*bop(j) +
+                   (H[i, L+j]/2) * bop(L+i)*bop(L+j) + (H[L+i, j]/2) * bop(i)*bop(j)
+        end
+        return (H, H2)
+    end
+
+    expand(bop, terms, dim) = sum(t -> t.c * prod(bop, t.as), terms; init=spzeros(ComplexF64, dim, dim))
+
+    # Exact retarded Green function of the cluster, in the quasi-particle operators
+    # y = T⁻¹x = τ₃T†τ₃x, from which the self-energy follows as
+    # Σ̂ = ω - diag(ε) - (Gτ₃)⁻¹, returned for each of the `ωs`. A complex frequency
+    # keeps every denominator away from a pole, so the comparison is independent of
+    # broadening.
+    function cluster_self_energy(H2, Hpert, bop, T0, ε, λ, ωs)
+        L = size(T0, 1) ÷ 2
+        τ₃ = Diagonal([ones(L); -ones(L)])
+        Y = [sum(a -> (τ₃ * T0' * τ₃)[m, a] * bop(a), 1:2L) for m in 1:2L]
+        (Es, ψs) = eigen(Hermitian(Matrix(H2 + λ*Hpert)))
+        ΔE = Es .- Es[1]
+        us = [ψs' * (Y[m]' * ψs[:, 1]) for m in 1:2L]   # ⟨0|y_m|j⟩
+        vs = [ψs' * (Y[m] * ψs[:, 1]) for m in 1:2L]    # ⟨0|y_m†|j⟩
+        return map(ωs) do ω
+            G = [sum(@. us[m]*conj(us[m′])/(ω - ΔE) - conj(vs[m])*vs[m′]/(ω + ΔE))
+                 for m in 1:2L, m′ in 1:2L]
+            return (ω*I - Diagonal(ε) - inv(G * τ₃)) / λ^2
+        end
+    end
+
+    # ---- Square lattice ----
+
+    const square_cryst = Sunny.square_crystal(; c=3)
+
+    # Square-lattice antiferromagnet, optionally canted by a field. Sunny's Zeeman
+    # coupling is +𝐁⋅𝐒, so the moments cant away from the field, with cos θ = -B/8s.
+    # At B = 0 the structure is collinear Néel.
+    function canted_square(s, B; mode=:dipole)
+        sys = System(square_cryst, [1 => Moment(; s, g=1)], mode)
+        set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
+        set_field!(sys, [0, 0, B])
+        sys = reshape_supercell(sys, [1 1 0; 1 -1 0; 0 0 1])
+        θ = acos(-B / 8s)
+        set_dipole!(sys, [+sin(θ), 0, cos(θ)], (1, 1, 1, 1))
+        set_dipole!(sys, [-sin(θ), 0, cos(θ)], (1, 1, 1, 2))
+        @assert energy_per_site(sys) ≈ -2s^2 - B^2/16
+        return sys
+    end
+
+    # Square-lattice antiferromagnet carrying everything at once: a generic field
+    # that cants the two sublattices inequivalently, so that Σ̂ is genuinely
+    # off-diagonal, and an anisotropy that is diagonal in the global frame but in
+    # neither local frame, so that it contributes to every vertex. Its bonds connect
+    # distinct cells, which is the one thing the zero-offset `cluster` cannot reach.
+    # The ordered state is hard coded: `minimize_energy!` reproduces it only to
+    # 1e-9, and an adaptive cubature amplifies that into the last digits of a
+    # pinned intensity.
+    function anisotropic_square()
+        s = 2.0
+        sys = System(square_cryst, [1 => Moment(; s, g=1)], :dipole)
+        set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
+        O = stevens_matrices(s)
+        set_onsite_coupling!(sys, (0.4*O[2, 0] + 0.1*O[4, 0] + 0.05*O[4, 4])/s^2, 1)
+        set_field!(sys, [1.1, 0.3, 0.7])
+        sys = reshape_supercell(sys, [1 1 0; 1 -1 0; 0 0 1])
+        set_dipole!(sys, [0.8612292608182394, -1.772409186125766, 0.34183305464432445], (1, 1, 1, 1))
+        set_dipole!(sys, [-1.082911766624903, 1.6076190866688223, -0.492811300482684], (1, 1, 1, 2))
+        @assert energy_per_site(sys) ≈ -8.303053064914755 atol=1e-12
+        return sys
+    end
+
+    # Easy-axis Néel order on the square lattice, whose gap makes every momentum
+    # integral converge exponentially.
+    function square_afm(; field)
+        sys = System(square_cryst, [1 => Moment(s=1.0, g=1)], :dipole_uncorrected)
+        set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
+        set_onsite_coupling!(sys, S -> -0.5*S[3]^2, 1)
+        set_field!(sys, field)
+        sys = reshape_supercell(sys, [1 1 0; 1 -1 0; 0 0 1])
+        set_dipole!(sys, [0, 0, +1], (1, 1, 1, 1))
+        set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
+        minimize_energy!(sys)
+        return sys
+    end
+
+    # ---- Triangular lattice ----
+
+    # Triangular-lattice antiferromagnet in a three-site cell, small enough for the
+    # cubic self-energy to be affordable. Isotropic and in zero field, this is the
+    # s = 1/2 model of arXiv:0901.4803 in its 120° state. Given an easy-plane
+    # anisotropy and a tilted field it instead cants into a state with three
+    # inequivalent sublattices, which is what makes the off-diagonal elements of Σ̂
+    # large. The state is built explicitly rather than minimized, so that the
+    # chirality of the former and the degenerate direction of the latter are fixed.
+    const tri_cryst = Sunny.triangular_crystal(; a=1.0, c=10.0)
+    const tri_ds = [[0.120272, -0.449974, -0.181818], [-0.465766, -0.002090, -0.181818],
+                    [0.112161, 0.452064, -0.181818]]
+
+    function triangular(; Δ=1.0, field=nothing, φ=0, g=2)
+        sys = System(tri_cryst, [1 => Moment(s=1/2, g=g)], :dipole)
+        set_exchange!(sys, diagm([1.0, 1.0, Δ]), Bond(1, 1, [1, 0, 0]))
+        sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
+        R = [cos(φ) -sin(φ) 0; sin(φ) cos(φ) 0; 0 0 1]
+        if isnothing(field)
+            Q = tri_cryst.recipvecs * [1/3, 1/3, 0]
+            for site in eachsite(sys)
+                θ = dot(Q, global_positions(sys)[site])
+                set_dipole!(sys, [cos(θ), sin(θ), 0], site)
+            end
+            @assert energy_per_site(sys) ≈ -1.5 * (1/2)^2
+        else
+            set_field!(sys, R * field)
+            for i in 1:3
+                set_dipole!(sys, R * tri_ds[i], (1, 1, 1, i))
+            end
+            minimize_energy!(sys)
+            @assert energy_per_site(sys) ≈ -0.51131313 atol=1e-8
+        end
+        return sys
+    end
+end
+
+
 @testitem "LSWT correction to classical energy" begin
     J = 1
     s = 1
@@ -72,8 +273,10 @@ end
         polarize_spins!(sys, [0, 1, 0])
         sys = repeat_periodically_as_spiral(sys, (3, 3, 1); k=[2/3, -1/3, 0], axis=[0, 0, 1])
         swt = SpinWaveTheory(sys; measure=nothing)
-        # Calculate first 3 digits for faster testing
-        δS = Sunny.dipole_shortening(swt; tol=1e-3)[1]
+        # Calculate first 3 digits for faster testing. At s = 1/2 there is one
+        # boson per site in either mode, so the density is the dipole
+        # shortening.
+        δS = -Sunny.boson_density(swt; tol=1e-3)[1]
 
         return isapprox(δS_ref, δS, atol=1e-3)
     end
@@ -103,115 +306,36 @@ end
     D = 1.42
     gab, gcc = 2.18, 1.93
     g = diagm([gab, gab, gcc])
-    x = 1/2 - D/(8*(2J₁+J₁′))
 
-    sys = System(cryst, [1 => Moment(; s, g)], :SUN; dims=(1, 1, 2), seed=0)
-    set_exchange!(sys, diagm([J₁, J₁, J₁*Δ]),  Bond(1, 2, [0, 0, 0]))
-    set_exchange!(sys, diagm([J₁′, J₁′, J₁′*Δ′]), Bond(1, 1, [0, 0, 1]))
-    set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
+    # Easy-plane anisotropy shrinks the classical dipole in :SUN mode, but cannot in
+    # :dipole mode, where |𝐒| is pinned to s. The two therefore have different
+    # classical states and different boson densities.
+    for (mode, d_ref, n_ref) in [(:dipole, 1.0, 0.113839), (:SUN, 0.772087, 0.042901)]
+        sys = System(cryst, [1 => Moment(; s, g)], mode; dims=(1, 1, 2), seed=0)
+        set_exchange!(sys, diagm([J₁, J₁, J₁*Δ]),  Bond(1, 2, [0, 0, 0]))
+        set_exchange!(sys, diagm([J₁′, J₁′, J₁′*Δ′]), Bond(1, 1, [0, 0, 1]))
+        set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 
-    randomize_spins!(sys)
-    minimize_energy!(sys; maxiters=1000)
-    swt = SpinWaveTheory(sys; measure=nothing)
+        randomize_spins!(sys)
+        minimize_energy!(sys; maxiters=1000)
+        swt = SpinWaveTheory(sys; measure=nothing)
 
-    δS = Sunny.dipole_shortening(swt; tol=1e-2)[1]
-
-    M_cl  = 2*√((1-x)*x)
-    # Paper reported M_ref = 2.79, but actual result is closer to 2.78
-    M_ref = 2.78
-    @test isapprox(M_ref, (M_cl+δS)*√3*gab, atol=1e-2)
+        @test norm(sys.dipoles[1]) ≈ d_ref atol=1e-6
+        @test Sunny.boson_density(swt; tol=1e-5)[1] ≈ n_ref atol=1e-6
+    end
 end
 
 
-@testitem "1/s corrections against exact diagonalization" begin
+@testitem "1/s corrections against exact diagonalization" setup=[CorrectionModels] begin
     using LinearAlgebra, SparseArrays
-
-    # One generic cluster serves every exact-diagonalization check below. Three
-    # sites give three bands, enough for off-diagonal elements of Σ̂; a triclinic
-    # cell with generic positions leaves no site symmetry, so every Stevens word
-    # is allowed; unequal spins exercise the per-site factors σᵢ/σⱼ; and a
-    # generic field cants the moments out of collinearity, without which Σ̂ would
-    # vanish identically. Every bond has zero offset, so the Hamiltonian is
-    # 𝐪-independent and a single grid point integrates the self-energy exactly.
-    # Ferromagnetic exchange is what keeps the Fock space affordable, the
-    # anomalous mixing being ⟨n̂⟩ ≈ 0.004 here where a canted antiferromagnet of
-    # any `s` would put it near 0.3.
-    cryst = Crystal(lattice_vectors(1, 1.1, 1.2, 80, 90, 100),
-                    [[0, 0, 0], [0.45, 0.05, 0.1], [0.1, 0.4, 0.05]], 1)
-    Js = [diagm([-0.6, -0.6, -1.3]), diagm([-1.4, -0.7, -0.7]),
-          -0.1*[1 0.3 -0.2; 0.25 1 0.15; -0.15 0.1 1]]
-    B = [0.48, -0.32, 0.8]
-
-    function cluster(ss; mode=:dipole, aniso=nothing)
-        sys = System(cryst, [i => Moment(s=ss[i], g=1) for i in 1:3], mode)
-        for (n, (i, j)) in enumerate([(1, 2), (2, 3), (1, 3)])
-            set_exchange!(sys, Js[n], Bond(i, j, [0, 0, 0]))
-        end
-        set_field!(sys, B)
-        isnothing(aniso) || for i in 1:3
-            set_onsite_coupling!(sys, aniso(stevens_matrices(mode == :dipole ? ss[i] : Inf), ss[i], i), i)
-        end
-        # Deterministic, and converged to a torque of 1e-11 from this start
-        polarize_spins!(sys, B)
-        minimize_energy!(sys; jitter=0)
-        return sys
-    end
-
-    # Boson operators on a truncated Fock space of `n` sites, labeled by the Nambu
-    # index of a `BosonMonomial`: `a ≤ n` annihilates on site `a`, `a > n` creates.
-    # Sparse, because the cluster below acts on 7³ states.
-    function fock_ops(dims)
-        n = length(dims)
-        op(O, i) = reduce(kron, (k == i ? O : sparse(1.0I, dims[k], dims[k]) for k in 1:n))
-        b(i) = spdiagm(1 => [√float(k) for k in 1:dims[i]-1])
-        return a -> ComplexF64.(a <= n ? op(b(a), a) : op(b(a-n)', a-n))
-    end
-
-    # Normal-ordered quadratic Hamiltonian, read off from Sunny's own dynamical
-    # matrix at 𝐪 = 0, together with that matrix. Any `terms2` are added to it,
-    # which is how the anisotropy correction to H₂ enters below.
-    function fock_quadratic(swt, bop, dim; terms2=nothing)
-        L = Sunny.nbands(swt)
-        H = zeros(ComplexF64, 2L, 2L)
-        Sunny.dynamical_matrix!(H, swt, zero(Sunny.Vec3))
-        isnothing(terms2) || Sunny.accum_quadratic!(H, terms2, zero(Sunny.Vec3))
-        H2 = spzeros(ComplexF64, dim, dim)
-        for i in 1:L, j in 1:L
-            H2 .+= ((H[i, j] + H[L+j, L+i])/2) * bop(L+i)*bop(j) +
-                   (H[i, L+j]/2) * bop(L+i)*bop(L+j) + (H[L+i, j]/2) * bop(i)*bop(j)
-        end
-        return (H, H2)
-    end
-
-    expand(bop, terms, dim) = sum(t -> t.c * prod(bop, t.as), terms; init=spzeros(ComplexF64, dim, dim))
-
-    # Exact retarded Green function of the cluster, in the quasi-particle operators
-    # y = T⁻¹x = τ₃T†τ₃x, from which the self-energy follows as
-    # Σ̂ = ω - diag(ε) - (Gτ₃)⁻¹, returned for each of the `ωs`. A complex frequency
-    # keeps every denominator away from a pole, so the comparison is independent of
-    # broadening.
-    function cluster_self_energy(H2, Hpert, bop, T0, ε, λ, ωs)
-        L = size(T0, 1) ÷ 2
-        τ₃ = Diagonal([ones(L); -ones(L)])
-        Y = [sum(a -> (τ₃ * T0' * τ₃)[m, a] * bop(a), 1:2L) for m in 1:2L]
-        (Es, ψs) = eigen(Hermitian(Matrix(H2 + λ*Hpert)))
-        ΔE = Es .- Es[1]
-        us = [ψs' * (Y[m]' * ψs[:, 1]) for m in 1:2L]   # ⟨0|y_m|j⟩
-        vs = [ψs' * (Y[m] * ψs[:, 1]) for m in 1:2L]    # ⟨0|y_m†|j⟩
-        return map(ωs) do ω
-            G = [sum(@. us[m]*conj(us[m′])/(ω - ΔE) - conj(vs[m])*vs[m′]/(ω + ΔE))
-                 for m in 1:2L, m′ in 1:2L]
-            return (ω*I - Diagonal(ε) - inv(G * τ₃)) / λ^2
-        end
-    end
-
+    using .CorrectionModels: cluster, cluster_aniso, fock_ops, fock_quadratic, expand, anisotropic_square
 
     # ---- The boson expansion against the exact cluster Hamiltonian ----
 
     # Compares the whole Holstein-Primakoff expansion, order by order in the boson
     # number, against exact diagonalization in the *spin* Hilbert space, so that the
     # truncation of the series is itself what is under test.
-    function cluster_errors(ss; mode=:dipole, aniso=nothing)
+    function cluster_errors(ss; mode=:dipole, aniso=false)
         sys = cluster(ss; mode, aniso)
         # Regularization would otherwise leak into the quadratic coefficients
         swt = SpinWaveTheory(sys; measure=nothing, regularization=0)
@@ -230,8 +354,8 @@ end
         for i in 1:3
             Bi = Rs[i]' * (sys.gs[1, 1, 1, i]' * sys.extfield[1, 1, 1, i])
             Hex .+= sum(a -> Bi[a] * S(a, i), 1:3)
-            isnothing(aniso) && continue
-            A = Hermitian(Matrix(aniso(stevens_matrices(ss[i]), ss[i], i)))
+            aniso || continue
+            A = Hermitian(Matrix(cluster_aniso(stevens_matrices(ss[i]), ss[i], i)))
             Hex .+= op(Matrix(Sunny.rotate_operator(A, Rs[i])), i)
         end
         # Each bond appears twice, once culled
@@ -273,9 +397,11 @@ end
                   quartic = norm(R[n2, n2]) / norm(H4[n2, n2]),
                   # Largest residual over every element four bosons can reach, which
                   # is the only available measure once anisotropy makes each word
-                  # truncated rather than exact
-                  reachable = maximum(abs(R[a, b]) for a in axes(R, 1), b in axes(R, 2)
-                                      if all(ms(a) .+ ms(b) .<= 4)) / norm(Hex),
+                  # truncated rather than exact. A structural zero can never be the
+                  # maximum, so only the stored entries are scanned; sweeping all
+                  # dim² pairs instead costs more than every Sunny call here combined.
+                  reachable = maximum((abs(v) for (a, b, v) in zip(findnz(R)...)
+                                       if all(ms(a) .+ ms(b) .<= 4)); init=0.0) / norm(Hex),
                   coherent = max(abs(3δE), norm(H1)) / norm(Hex),
                   hermiticity = (norm(H3 - H3') + norm(H4 - H4')) / (norm(H3) + norm(H4)))
     end
@@ -294,22 +420,20 @@ end
     end
     @test 0.4 < rs[2] / rs[1] < 0.6
 
-    # Now an onsite anisotropy on every site, whose Stevens coefficients carry a
-    # factor s^-k so that the classical energy landscape is held fixed as `s` varies,
-    # making the rate at which the residual vanishes meaningful. Here the words are
-    # truncated rather than exact — one order in 1/s is kept per word — so what is
-    # left over is the next order. Requiring it to vanish faster than 1/s, the size
-    # of the retained correction itself, pins every retained coefficient: an error at
-    # the order kept would leave a residual of the same size as the correction, and
-    # duplicating a term that LSWT already holds would leave one of order unity.
-    # Mode :dipole renormalizes the stored Stevens coefficients and
-    # :dipole_uncorrected does not, so both are checked.
-    aniso(O, s, i) = ((0.3*O[2, 0] + 0.15*O[2, 1])/s^2 + (0.02*O[4, 2] - 0.01*O[4, -3])/s^4 +
-                      0.004*O[6, i]/s^6)
-
+    # Now `cluster_aniso` on every site. Here the words are truncated rather than
+    # exact — one order in 1/s is kept per word — so what is left over is the next
+    # order. Requiring it to vanish faster than 1/s, the size of the retained
+    # correction itself, pins every retained coefficient: an error at the order kept
+    # would leave a residual of the same size as the correction, and duplicating a
+    # term that LSWT already holds would leave one of order unity. Mode :dipole
+    # renormalizes the stored Stevens coefficients and :dipole_uncorrected does not,
+    # so both are checked.
     for mode in (:dipole, :dipole_uncorrected)
-        # s ≥ 3 is required for the order-6 word to be nonzero
-        es = [cluster_errors(f .* (3, 3, 3); mode, aniso) for f in (1, 4/3)]
+        # Every spin tuple here is `NTuple{3,Float64}`, matching the exchange-only
+        # case above; mixing in an integer tuple would specialize `cluster_errors` a
+        # second time, which costs more in compilation than the whole block does in
+        # arithmetic.
+        es = [cluster_errors(f .* (3.0, 3.0, 3.0); mode, aniso=true) for f in (1.0, 4/3)]
         @test es[1].hermiticity < 1e-12
         @test es[1].reachable < 0.02
         @test es[2].reachable < 0.5 * es[1].reachable
@@ -322,9 +446,534 @@ end
     end
 
 
+    # ---- Symmetries of the vertex at every slot count ----
+
+    # Invariances that need no reference tensor, checked on the one model whose bonds
+    # connect distinct cells, so that the Fourier phases the zero-offset cluster above
+    # cannot reach are exercised. The contraction against an explicit reference tensor
+    # is in the derivation tier.
+    swt = SpinWaveTheory(anisotropic_square(); measure=nothing)
+    L = Sunny.nbands(swt)
+    q(x, y) = Sunny.Vec3(x, y, 0)
+    cases = ((Sunny.cubic_monomials(swt), (q(0.13, 0.29), q(0.41, -0.07), q(-0.54, -0.22))),
+             (Sunny.quartic_monomials(swt), (q(0.13, 0.29), q(0.41, -0.07), q(-0.22, 0.35), q(-0.32, -0.57))))
+    for (terms, qs) in cases
+        K = length(qs)
+        Ts = Sunny.bogoliubov_matrices(swt, qs)
+        buf() = zeros(ComplexF64, ntuple(_ -> 2L, K))
+        U = Sunny.vertex!(buf(), terms, qs, Ts)
+
+        # Permuting the (momentum, band) slots together leaves the vertex invariant
+        for p in Sunny.slot_permutations(K)
+            Up = Sunny.vertex!(buf(), terms, ntuple(t -> qs[p[t]], K), ntuple(t -> Ts[p[t]], K))
+            @test permutedims(Up, invperm(collect(p))) ≈ U
+        end
+
+        # Hermiticity of the underlying operator implies U(-𝐤; n̄) = conj(U(𝐤; n)),
+        # where n̄ = n + L exchanges creation and annihilation. Only the magnitudes
+        # are compared, because `bogoliubov!` fixes the phase of each band
+        # independently at 𝐤 and -𝐤.
+        Um = Sunny.vertex(swt, terms, ntuple(t -> -qs[t], K))
+        bar(n) = mod1(n + L, 2L)
+        @test abs.(U) ≈ [abs(Um[CartesianIndex(map(bar, Tuple(i)))]) for i in CartesianIndices(U)]
+    end
+end
+
+
+@testitem "1/s corrections on a lattice" setup=[CorrectionModels] begin
+    using LinearAlgebra
+    using .CorrectionModels: canted_square
+
+    # Default accuracy for the momentum integrals, enough for the checks below that
+    # compare against a reference value: the tightest of them, Oguchi's ζ, comes out
+    # 2e-8 from its reference here, thirty times inside the `atol` asserted, and
+    # tightening to 1e-6 does not move any error below while it doubles the cost.
+    # Checks that instead compare two corrections computed from the same quadrature,
+    # or extract a ratio from them, loosen it individually.
+    tol = 1e-5
+
+    # ---- Oguchi's Z_c, on a supercell and on a multi-atom basis ----
+
+    # For a collinear structure the cubic vertex vanishes, so the mean field is the
+    # entire O(1/s) shift of the dispersion, and it is a uniform rescaling by Oguchi's
+    # Z_c = 1 + ζ/2s [Prog. Theor. Phys. 13, 148 (1960)]. Both the uniformity in 𝐪 and
+    # the 1/s scaling are strong tests of the four-boson coefficients; the numerical
+    # values of ζ test their overall normalization. Two values of `s` suffice for the
+    # scaling, and ⟨H₄⟩ being of order s⁰ makes the energy correction s-independent.
+    # The two lattices differ in how the sublattices arise: a reshaped supercell for
+    # the square, and the two atoms of the chemical cell for the honeycomb, whose
+    # ζ = 1 - ⟨√(1-|γ_𝐪|²)⟩ with γ_𝐪 = (1 + e^{iq₁} + e^{iq₂})/3 was obtained by
+    # direct quadrature.
+    function neel_honeycomb(s)
+        sys = System(Sunny.hexagonal_crystal(; c=3), [1 => Moment(; s, g=1)], :dipole)
+        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+        set_dipole!(sys, [0, 0, +1], (1, 1, 1, 1))
+        set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
+        @assert energy_per_site(sys) ≈ -3s^2/2
+        return sys
+    end
+
+    qs = [[0.1, 0, 0], [0.3, 0.17, 0], [0.5, 0, 0], [0.13, -0.4, 0.22]]
+    for (model, ζ, δE₀, ss) in ((s -> canted_square(s, 0), 0.1579474, 0.01247369, (1/2, 2)),
+                                (neel_honeycomb, 0.20984170, 0.01651258, (1/2,)))
+        for s in ss
+            swt = SpinWaveTheory(model(s); measure=nothing)
+            (; terms2, δE) = Sunny.hartree_fock_correction(swt; tol)
+            Zc = Sunny.corrected_dispersion(swt, qs, terms2) ./ dispersion(swt, qs)
+            @test maximum(abs, Zc .- Zc[1]) < 1e-6
+            @test 2s * (Zc[1] - 1) ≈ ζ atol=1e-6
+            @test δE ≈ δE₀ atol=1e-7
+        end
+    end
+
+    # ---- What a collinear structure switches off ----
+
+    # The ordered moment of the square-lattice antiferromagnet at s = 1/2 is the
+    # textbook ⟨S⟩ = 0.3034, i.e. a boson density of 0.1966 (QMC gives 0.307).
+    # Self-consistency is inert for this collinear antiferromagnet, where the
+    # mean field merely rescales H₂ and so leaves the Bogoliubov transformation,
+    # hence the mean fields themselves, unchanged. And every cubic monomial
+    # carries a transverse component of the exchange in the local frame, so the
+    # cubic vertex, the self-energy and the tadpole all vanish identically, the
+    # last because the cubic monomials are proportional to a transverse
+    # effective field that vanishes at a classical minimum.
+    swt = SpinWaveTheory(canted_square(1/2, 0); measure=nothing)
+    @test Sunny.boson_density(swt; tol=1e-4)[1] ≈ 0.19656 atol=1e-5
+    @test norm(Sunny.corrected_magnetic_moments(swt; tol=1e-4)[1]) ≈ 0.303437 atol=1e-6
+    # Para-unitarity of the Bogoliubov transform: ⟨bᵢb†ᵢ⟩ - ⟨b†ᵢbᵢ⟩ = 1
+    L = Sunny.nbands(swt)
+    gs = Sunny.nambu_correlations(swt, [(L+1, 1, (0, 0, 0)), (1, L+1, (0, 0, 0))],
+                                  Sunny.BosonMonomial{2}[]; tol=1e-4)
+    @test gs[2] - gs[1] ≈ 1 atol=1e-10
+    @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, grid=(6, 6, 1))) < 1e-12
+    Zcs = map(maxiters -> Sunny.corrected_dispersion(swt, [[0.3, 0.1, 0]],
+                  Sunny.hartree_fock_correction(swt; maxiters, scf_tol=1e-9, tol=1e-4).terms2), (1, 100))
+    @test Zcs[1] ≈ Zcs[2] atol=1e-7
+    # The tadpole vanishes term by term, at 1e-34, so `tol` is irrelevant to it
+    tad = Sunny.tadpole_correction(swt; tol=1e-3)
+    @test all(t -> abs(t.c) < 1e-12, tad.terms2)
+    @test abs(tad.δE) < 1e-12
+    @test tad.dipoles ≈ [[1, 0, 0], [-1, 0, 0]] / 2
+
+    # `corrected_magnetic_moments` both shortens each moment (|μ| = 1 → 0.886) and
+    # tilts it by the tadpole (0.42° away from the field here), and is shaped and
+    # signed like `magnetic_moments`, i.e. μ = -g𝐒 indexed by `Site`.
+    let
+        sys = canted_square(1, 3)
+        swt = SpinWaveTheory(sys; measure=nothing)
+        corrected = Sunny.corrected_magnetic_moments(swt; tol=1e-5)
+        @test size(corrected) == size(magnetic_moments(sys)) == (1, 1, 1, 2)
+        @test vec(corrected) ≈ [[-0.8240908, 0, 0.3264180], [0.8240908, 0, 0.3264180]] atol=1e-6
+    end
+
+    # Maximal-weight coherent states make this SU(N) system equivalent to the dipole
+    # one, so the boson densities agree despite counting N-1 bosons per site instead of
+    # one. The moments must refuse in :SUN mode, where the correction to ⟨𝐒⟩ is not
+    # purely radial.
+    #
+    # FIXME -- once `corrected_magnetic_moments` handles :SUN mode, assert the corrected
+    # moments here instead of the refusal, including the transverse part.
+    let
+        swt = SpinWaveTheory(canted_square(1, 3; mode=:SUN); measure=nothing)
+        swt′ = SpinWaveTheory(canted_square(1, 3); measure=nothing)
+        @test Sunny.boson_density(swt; tol=1e-6) ≈ Sunny.boson_density(swt′; tol=1e-6) rtol=1e-5
+        @test_throws ErrorException Sunny.corrected_magnetic_moments(swt; tol=1e-3)
+    end
+
+    # ---- Goldstone modes survive every correction ----
+
+    # Near a protected zero mode each correction separately diverges like 1/ε, the
+    # Bogoliubov matrix doing so, which makes their cancellation stringent; it is the
+    # product ε × shift that must vanish. Two symmetries are gated, and they switch on
+    # different corrections.
+    #
+    # Rotation about the field axis leaves the canted structure a zero mode at 𝐪 = 0,
+    # and there all three of mean field, tadpole and cubic self-energy contribute. What
+    # remains is the discretization error of the self-energy integral, falling off
+    # like 1/nk.
+    # What is checked is the cancellation between the static shift and the self-energy,
+    # both of which the quadrature affects together, so a loose `tol` leaves the ratio
+    # below unchanged in its first three digits
+    swt = SpinWaveTheory(canted_square(1, 3); measure=nothing)
+    t2 = [Sunny.hartree_fock_correction(swt; tol=1e-4).terms2
+          Sunny.tadpole_correction(swt; tol=1e-4).terms2]
+    δ = Sunny.static_self_energy(swt, [[0, 0, 0]], t2)[2]
+    @test δ > 1e3
+    rs = map(nk -> (δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=0.005, grid=(nk, nk, 1))[2])) / δ, (16, 32))
+    @test rs[1] ≈ 2 * rs[2] rtol=0.01
+    @test rs[2] < 0.02
+
+    # The second symmetry is broken only by an onsite anisotropy. Every term below is
+    # invariant under rotation about ẑ, so the in-plane moment of this easy-plane
+    # ferromagnet leaves a zero mode at 𝐪 = 0, while the cubic and linear vertices
+    # vanish identically by that same symmetry. That leaves `anisotropy_correction` to
+    # cancel the mean field on its own -- which it can only do because `anisotropy_words`
+    # keeps exactly one order in 1/s per word. Since a perturbation of the quadratic
+    # form opens a gap like its square root, expanding the anisotropy exactly instead,
+    # thereby injecting a partial set of O(1/s²) terms, would gap the mode at O(1/s).
+    for mode in (:dipole, :dipole_uncorrected)
+        s = 2.0
+        sys = System(Sunny.square_crystal(; c=3), [1 => Moment(; s, g=1)], mode)
+        set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
+        O = stevens_matrices(mode == :dipole ? s : Inf)
+        set_onsite_coupling!(sys, (0.5*O[2, 0] - 0.2*O[4, 0]/s^2) / (3s^2), 1)
+        set_dipole!(sys, [1, 0, 0], (1, 1, 1, 1))
+        sw = SpinWaveTheory(sys; measure=nothing)
+        @test maximum(abs(t.c) for t in Sunny.cubic_monomials(sw)) < 1e-12
+        @test maximum(abs(t.c) for t in Sunny.anisotropy_monomials(sw, Val{1}()); init=0.0) < 1e-12
+        ε = dispersion(sw, [[0, 0, 0]])[1]
+        mf = Sunny.hartree_fock_correction(sw; tol).terms2
+        resid(t2) = Sunny.static_self_energy(sw, [[0, 0, 0]], t2)[1] * ε
+        @test abs(resid([mf; Sunny.anisotropy_correction(sw).terms2])) < 1e-7 < abs(resid(mf))
+    end
+end
+
+@testitem "1/s corrections to intensities" setup=[CorrectionModels] begin
+    using LinearAlgebra
+    using .CorrectionModels: triangular, square_afm, square_cryst
+
+    sys = triangular()
+    swt = SpinWaveTheory(sys; measure=nothing)
+    L = Sunny.nbands(swt)
+
+    # ---- Harmonic results, and the folding convention ----
+
+    # The energy per site is -0.5388 J, and the magnon energy at the M point of the
+    # original lattice is 2Js, the lowest of the three folded bands. Both Γ and K fold
+    # onto 𝐪 = 0, where the harmonic dispersion vanishes, so all three bands are
+    # gapless there. Over the whole zone the dispersion is Eq. (11) of arXiv:1306.1231,
+    # written in the reciprocal lattice units of the original one-site cell; the
+    # three-site cell folds 𝐪 together with 𝐪 ± 𝐊, so each wavevector gates all three
+    # bands at once, and with them the folding convention.
+    @test Sunny.corrected_energy_per_site(swt; tol=1e-4) ≈ -0.53881 atol=1e-4
+    q = [[1/2, 0, 0]]
+    @test dispersion(swt, q)[:] ≈ [√2.5, √2.5, 1] atol=1e-6
+    γ(q) = (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*(q[1] + q[2]))) / 3
+    ε11(q) = 3 * (1/2) * sqrt(max(0, (1 - γ(q)) * (1 + 2γ(q))))
+    K = [1/3, 1/3, 0]
+    @test all([[h, k, 0] for h in 0.1:0.4:0.9, k in 0.1:0.4:0.9]) do q
+        isapprox(sort(dispersion(swt, [q])[:]), sort([ε11(q + n*K) for n in -1:1]); atol=1e-6)
+    end
+
+    # ---- The cubic self-energy on a lattice ----
+
+    # Being a symmetric energy minimum, the 120° structure cannot be tilted by
+    # zero-point fluctuations. Unlike the collinear case the cubic monomials are
+    # individually nonzero, so their cancellation here tests their relative phases.
+    tad = Sunny.tadpole_correction(swt; tol=1e-3)
+    @test maximum(t -> abs(t.c), tad.terms2) < 1e-6
+    @test abs(tad.δE) < 1e-12
+
+    terms2 = [Sunny.hartree_fock_correction(swt; tol=1e-3).terms2; tad.terms2]
+    δ = Sunny.static_self_energy(swt, q, terms2)[:]
+    Σs = map(nk -> Sunny.cubic_self_energy(swt, q; η=0.02, grid=(nk, nk, 1))[:], (24, 48))
+
+    # The self-energy converges like 1/nk, so a Richardson step gives the O(1/s) magnon
+    # energy at the M point. It falls 27% below the harmonic value, most of that coming
+    # from the cubic self-energy rather than the mean-field shift.
+    εs = [1 + δ[3] + real(Σ[3]) for Σ in Σs]
+    @test 2εs[2] - εs[1] ≈ 0.7316 atol=2e-3
+
+    # Because the harmonic dispersion vanishes at Γ and K, the lower edge of the
+    # two-magnon continuum touches the one-magnon branch at every wavevector, and a
+    # magnon acquires a width only where the branch lies strictly inside the continuum.
+    # There the width survives η → 0, as it does for the top of the band here, where
+    # 2Γ/ε extrapolates to about 0.2, of the order of the maximum ~0.3 that the
+    # reference reports. The M-point magnon instead sits on the boundary, and its
+    # apparent width is entirely the Lorentzian tail of the regularization, falling off
+    # like η.
+    Σ = Sunny.cubic_self_energy(swt, q; η=0.01, grid=(48, 48, 1))[:]
+    @test imag(Σ[3]) ≈ imag(Σs[2][3]) / 2 rtol=0.01
+    @test imag(Σ[1]) / imag(Σs[2][1]) > 0.85
+
+    # ---- The corrected spectral function ----
+
+    # The corrected structure factor is a spectral function in its own right, not
+    # merely one to the order worked to. Because the Dyson equation is solved in the
+    # particle block, with the source channel of the self-energy frozen on shell, its
+    # denominator has imaginary part at least the regulator η, so the intensity is
+    # non-negative and no taller than a resolution-limited peak of the same weight; and
+    # because that denominator grows as ωI, the transverse weight of each 𝐪 is exactly
+    # the static weight of the corrected observables. All three properties are violated
+    # at s = 1/2 by inverting the full Nambu denominator instead: near 𝐪 = [0.476, 0, 0]
+    # a mirror pole is pushed up through ω = 0, giving intensities of -2.8 and +3.6
+    # against a bound of 2.3, and at 𝐪 = [0.375, 0.125, 0] the weight comes out 27% low.
+    # The momentum-space integrals need no great accuracy here: the identities hold for
+    # any self-energy and any observable amplitudes. The options below are those that
+    # `tol` selects, so the reference weight is built from the same mean fields as the
+    # spectrum.
+    opts = (; tol=0.01, maxevals=100_000)
+    swt2 = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
+    qs2 = [[0.476, 0, 0], [0.375, 0.125, 0]]
+
+    # Static weight of the one-magnon bands, Σ_{n ≤ L} w[n, μ] conj(w[n, ν]) with
+    # w = T'ũ, contracted through the measure's combiner exactly as
+    # `corrected_intensities` contracts the spectral function. Passing `drop` subtracts
+    # |δA|², leaving the cross term 2Re(A conj(δA)) that is the correction of relative
+    # order 1/s; the sum rule below wants that, whereas the spectral weight wants the
+    # full corrected amplitude. This is used again for the square lattice further down.
+    function static_weights(swt, qs, δc; drop=false)
+        sys = swt.sys
+        cryst = Sunny.orig_crystal(sys)
+        L = Sunny.nbands(swt)
+        T = zeros(ComplexF64, 2L, 2L)
+        H = zeros(ComplexF64, 2L, 2L)
+        u = zeros(ComplexF64, 2L, Sunny.num_observables(swt.measure))
+        δu = zero(u)
+        Ncells = Sunny.nsites(sys) / Sunny.natoms(cryst)
+        return map(qs) do q
+            q_reshaped = Sunny.to_reshaped_rlu(sys, q)
+            q_global = cryst.recipvecs * q
+            Sunny.excitations!(T, H, swt, q)
+            Sunny.set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
+            fill!(δu, 0)
+            isnothing(δc) || Sunny.accum_observable_corrections!(δu, swt, q_reshaped, q_global, δc)
+            w = T' * (u + δu)
+            δw = T' * δu
+            corr = map(swt.measure.corr_pairs) do (μ, ν)
+                c = dot(view(w, 1:L, μ), view(w, 1:L, ν))
+                drop && (c -= dot(view(δw, 1:L, μ), view(δw, 1:L, ν)))
+                c / Ncells
+            end
+            real(swt.measure.combiner(q_global, corr))
+        end
+    end
+    δc = Sunny.observable_corrections(swt2; v=Sunny.tadpole_correction(swt2; opts...).v, opts...)
+    refs = static_weights(swt2, qs2, δc)
+
+    # A Lorentzian tail needs range rather than resolution, so the window is wide and
+    # the step is a fraction of η. The residual 0.17% is the truncated tail.
+    η = 0.06
+    energies = range(-20, 24, 1501)
+    chans = Sunny.corrected_channels(swt2, qs2; energies, η, tol=opts.tol,
+                                     loop_grid=(12, 12, 1), mean_field_maxevals=opts.maxevals)
+    # The two weight identities are properties of the transverse spectral function, so
+    # that channel is taken on its own; the pair channel created directly by the
+    # observable carries weight of its own, and their interference sums to zero only
+    # over the whole zone.
+    (; transverse) = chans
+    @test all(≥(0), transverse + chans.cross + chans.direct)
+    @test all(vec(maximum(transverse; dims=1)) .< refs ./ (π * η))
+    @test vec(sum(transverse; dims=1)) * step(energies) ≈ refs rtol=5e-3
+
+    # The interference is invisible to a trace measure integrated over the zone: 𝐒·𝐒 is
+    # a scalar, so its expansion in bosons has no term linking an odd number of them to
+    # an even one, and the cancellation is exact for every ω once Σ_𝐪 restores momentum
+    # conservation. It is the only check here that constrains the *relative phase* of
+    # the two routes to a pair, a phase that each channel alone is free of. The window
+    # must reach below ω = 0, or a pair at x ≈ 0 contributes just half of its
+    # Lorentzian.
+    qs4 = vec([[i, j, 0] ./ 3 for i in 0:2, j in 0:2])
+    chans4 = Sunny.corrected_channels(swt2, qs4; energies=range(-4, 12, 161), η=0.3,
+                                      loop_grid=(3, 3, 1), mean_field_maxevals=opts.maxevals)
+    @test abs(sum(chans4.cross)) < 1e-3 * sum(chans4.direct)
+
+    # ---- Gauge invariance, where Σ̂ is genuinely off-diagonal ----
+
+    # With three inequivalent sublattices the off-diagonal elements of Σ̂ are a third of
+    # the diagonal, whereas for the 120° structure above they vanish identically: its
+    # branches sit in momentum sectors that the cubic vertex cannot connect, as do those
+    # of the umbrella that a field along z produces. Only the exact-diagonalization
+    # cluster of the derivation tier constrains them otherwise. They are also the one
+    # part of Σ̂ sensitive to the per-band phase that `bogoliubov!` fixes independently,
+    # since a gauge conjugation Σ̂ → DΣ̂D† with D diagonal and unitary leaves the
+    # eigenvalues of the Dyson denominator alone, and with them the poles, and leaves
+    # τ₃Σ̂ Hermitian; only the contraction against the observable amplitudes T'u sees it.
+    # Rotation about z is an exact symmetry of this model, fixing both diagm([1, 1, Δ])
+    # and the trace structure factor while moving every local frame, so the corrected
+    # intensities must be invariant under it. Breaking that gauge violates this by 5%.
+    # The loop grid is coarse because an invariance holds grid by grid and needs no
+    # converged integral.
+    swts = map(φ -> let sys3 = triangular(; Δ=0.6, field=[0.7, 0, 1.2], φ, g=1)
+                        SpinWaveTheory(sys3; measure=ssf_trace(sys3; apply_g=false))
+                    end, (0.0, 0.9))
+    qs3 = [[0.23, 0.11, 0], [0.37, 0.09, 0]]
+    Σ3 = Sunny.cubic_self_energy(swts[1], qs3[1:1], dispersion(swts[1], qs3[1:1])[1:1];
+                                 η=0.05, grid=(6, 6, 1))[1:L, 1:L, 1, 1]
+    @test maximum(abs, Σ3 - Diagonal(diag(Σ3))) > 0.2 * maximum(abs, diag(Σ3))
+    datas = map(swt3 -> Sunny.corrected_intensities(swt3, qs3; energies=range(0.2, 2.0, 25),
+                                                    η=0.15, loop_grid=(4, 4, 1)).data, swts)
+    @test datas[1] ≈ datas[2] rtol=1e-6
+
+    # ---- Quantum sum rule on the square lattice ----
+
+    # A field-polarized ferromagnet conserves Sᶻ. Its Bogoliubov transformation is
+    # trivial, so the two-magnon channel must carry no weight at all, and nothing else
+    # in the 1/s expansion is nonzero for this state either: every mean field vanishes
+    # in the empty vacuum, and a collinear structure has no cubic vertex. So the
+    # corrected intensities must reduce to those of linear spin wave theory, which is
+    # itself exact here, the polarized state and its one-magnon excitations being
+    # eigenstates.
+    let
+        sys = System(square_cryst, [1 => Moment(s=1, g=2)], :dipole)
+        set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
+        set_field!(sys, [0, 0, 0.5])
+        set_dipole!(sys, [0, 0, -1], (1, 1, 1, 1))
+        @assert energy_per_site(sys) ≈ -2 - 1.0
+        swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
+        qs = [[0.3, 0.2, 0]]
+        (energies, η) = (range(0, 10, 101), 0.2)
+        chans = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=(4, 4, 1), mean_field_maxevals=1000)
+        @test maximum(abs, chans.direct) < 1e-25
+        @test chans.transverse + chans.cross + chans.direct ≈
+              intensities(swt, qs; energies, kernel=lorentzian(fwhm=2η)).data atol=1e-12
+    end
+
+    # The fast path of `corrected_channels`. A collinear structure has no cubic vertex,
+    # but its monomials cancel on merging rather than being absent, so the gate must be on
+    # magnitude: the coefficients of the 26 monomials here sum to 1e-12 of the quadratic
+    # Hamiltonian, against 5e-2 once a field cants the same model. Its observable
+    # consequence is that `cross` comes out identically zero rather than at the 1e-24 of
+    # the round-off it replaces, the rest of the result being untouched — checked to be
+    # bit-identical, which the two tests below cannot see.
+    let
+        # Largest cubic coefficient relative to the quadratic Hamiltonian, the
+        # dimensionless quantity the gate thresholds
+        function vertex_scale(swt)
+            L = Sunny.nbands(swt)
+            H = zeros(ComplexF64, 2L, 2L)
+            Sunny.dynamical_matrix!(H, swt, Sunny.Vec3(0, 0, 0))
+            terms3 = Sunny.cubic_monomials(swt)
+            @test length(terms3) == 26
+            return maximum(abs(t.c) for t in terms3) / norm(H)
+        end
+
+        sys = square_afm(; field=[0.0, 0, 0])
+        swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
+        @test vertex_scale(swt) < 1e-11
+        canted = SpinWaveTheory(square_afm(; field=[1.5, 0, 0]); measure=nothing)
+        @test vertex_scale(canted) > 1e-2
+
+        chans = Sunny.corrected_channels(swt, [[0.3, 0.2, 0]]; energies=range(0, 12, 121),
+                                         η=0.2, loop_grid=(8, 8, 1), mean_field_maxevals=1000)
+        @test iszero(chans.cross) && !iszero(chans.direct)
+    end
+
+    # Weights of the three channels into which the quantum sum rule decomposes, all per
+    # site and in units where a trace measure is used, so that no local frame projection
+    # survives.
+    #
+    # Because Sᶻ = s - b†b is exact in the local frame, the two-magnon spectrum
+    # saturates the longitudinal sum rule ⟨(δSᶻ)²⟩ = n(1+n) + |Δ|², where n = ⟨b†b⟩ and
+    # Δ = ⟨bb⟩ follow from Wick's theorem. The transverse channel obeys an identity
+    # sharper still: because the truncated S⁺ = σ(b - b†bb/4s) makes S⁻S⁺ = n̂(2s+1-n̂)
+    # exact, and because completeness turns a sum of one-magnon weights over bands and
+    # wavevectors into the static expectation value ⟨Â†Â⟩, the one-magnon bands must
+    # carry ⟨(Sˣ)² + (Sʸ)²⟩ = s + 2s⟨n̂⟩ - ⟨n̂²⟩. Linear spin wave theory produces only
+    # the first two terms; the -⟨n̂²⟩ is supplied entirely by `observable_corrections`,
+    # so this fixes both the sign and the magnitude of that correction.
+    # `tol` is set by the two identities below, which come out 3e-8 from exact here and
+    # 4e-7 at `tol=1e-5`. The sum rule itself is limited instead by the energy integral,
+    # whose 3.7e-4 does not move with `tol` at all.
+    function channel_weights(sys; nq=16, tol=1e-6)
+        swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
+        L = Sunny.nbands(swt)
+
+        # Onsite ⟨b†b⟩ and ⟨bb⟩, from which ⟨n̂²⟩ = ⟨n̂⟩² + ⟨n̂⟩(1+⟨n̂⟩) + |Δ|²
+        ckeys = [[(L+i, i, (0, 0, 0)) for i in 1:L]; [(i, i, (0, 0, 0)) for i in 1:L]]
+        gs = Sunny.nambu_correlations(swt, ckeys, Sunny.BosonMonomial{2}[]; tol)
+        ss = [swt.data.sqrtS[i]^2 for i in 1:L]
+        n = real.(gs[1:L])
+        n2 = @. n^2 + n * (1 + n) + abs2(gs[L+1:2L])
+
+        # A uniform grid offset by half a step cancels the phase factors of all
+        # correlations at distances below `nq`, leaving only the onsite ones above.
+        qs = vec([[(a - 0.5)/nq, (b - 0.5)/nq, 0] for a in 1:nq, b in 1:nq])
+        δc = Sunny.observable_corrections(swt; tol)
+        harm = sum(static_weights(swt, qs, nothing)) / length(qs)
+        transverse = sum(static_weights(swt, qs, δc; drop=true)) / length(qs)
+
+        # Elastic weight of the ordered moment, shortened by zero-point fluctuations. In
+        # dipole mode the shortening is the boson density `n` already gathered above.
+        elastic = sum(i -> (ss[i] - n[i])^2, 1:L) / L
+
+        # Two-magnon continuum, integrated over energy. Its wavevector average converges
+        # quickly enough to use a coarser grid, which matters because each point requires
+        # its own momentum-space integral. For a one-atom chemical cell this average is
+        # the longitudinal weight per site.
+        qs2 = vec([[(a - 0.5)/3, (b - 0.5)/3, 0] for a in 1:3, b in 1:3])
+        energies = range(-2, 16, 181)
+        direct = Sunny.corrected_channels(swt, qs2; energies, η=0.2, loop_grid=(12, 12, 1),
+                                          mean_field_maxevals=1000).direct
+        longitudinal = sum(direct) * step(energies) / length(qs2)
+
+        return (; harm, transverse, elastic, longitudinal,
+                harm_ref = sum(@. ss + 2ss*n) / L,
+                transverse_ref = sum(@. ss + 2ss*n - n2) / L,
+                casimir = sum(@. ss * (ss + 1)) / L)
+    end
+
+    # Both fields are `Vector{Float64}`, so `square_afm` and everything downstream of
+    # it compile once rather than once per element type
+    for field in ([0.0, 0, 0], [1.5, 0, 0])
+        # Canting makes the onsite ⟨bb⟩ nonzero, exercising the anomalous contraction
+        w = channel_weights(square_afm(; field))
+        @test abs(w.harm / w.harm_ref - 1) < 1e-7
+        @test abs(w.transverse / w.transverse_ref - 1) < 1e-7
+
+        # The quantum sum rule, and the point of the whole exercise. Because 𝐒⋅𝐒 is a
+        # Casimir, the elastic weight of the ordered moment, the one-magnon bands and the
+        # two-magnon continuum must together carry exactly s(s+1), and each is produced by
+        # a different part of this module. Linear spin wave theory saturates the rule only
+        # through O(s): using its uncorrected one-magnon weights instead overshoots by
+        # ⟨n̂²⟩, which is the entire O(s⁰) content of the rule, and some 3% of s(s+1) here.
+        # The residual error is that of the energy integral above.
+        @test abs((w.elastic + w.transverse + w.longitudinal) / w.casimir - 1) < 1e-3
+        @test (w.elastic + w.harm + w.longitudinal) / w.casimir - 1 > 0.02
+    end
+end
+
+
+@testitem "1/s corrections, end to end" setup=[CorrectionModels] begin
+    using .CorrectionModels: cluster, anisotropic_square
+
+    # Two models pinned through the public entry point, so that any change to
+    # any part of the 1/s machinery moves a number here. Between them they carry
+    # inequivalent sublattices, an off-diagonal Σ̂, a canted structure with a
+    # nonzero tadpole, anisotropy words at two Stevens orders, unequal spins,
+    # nonzero bond offsets, and a triclinic cell with no site symmetry — there
+    # is no invariant being checked, only reproducibility. The two Stevens orders
+    # come from `anisotropic_square`, since the k > 2 words of `cluster_aniso`
+    # vanish identically at the small spins that keep the cluster cheap.
+    #
+    # Neither number may depend on which branches the adaptive cubature happens
+    # to take, so `tol` is tightened until the result is a property of the
+    # model: both agree with `tol=1e-8` to 4e-9, well inside the `rtol` asserted
+    # below, for about 0.1 s each. `mean_field_maxevals` is raised so that `tol`
+    # is what stops the integration. The ordered states are deterministic,
+    # either from an explicit `polarize_spins!` start or hard coded, so a
+    # rebuild reproduces both sums bit-for-bit.
+    function pinned(swt, qs, energies, η, loop_grid)
+        res = Sunny.corrected_intensities(swt, qs; energies, η, tol=1e-6, loop_grid,
+                                          mean_field_maxevals=10_000_000)
+        return (sum(res.data), maximum(res.data))
+    end
+
+    let sys = cluster((1.0, 3/2, 1.0); aniso=true)
+        swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
+        # Zero bond offsets make every vertex 𝐪-independent, so a single loop
+        # wavevector integrates the self-energy exactly
+        (s, m) = pinned(swt, [[0.21, -0.33, 0.12], [0.5, 0, 0]], range(0.1, 6.0, 120), 0.1, (1, 1, 1))
+        @test s ≈ 136.63238024098126 rtol=1e-6
+        @test m ≈ 8.328808756077763 rtol=1e-6
+    end
+
+    let sys = anisotropic_square()
+        swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
+        (s, m) = pinned(swt, [[0.3, 0.1, 0], [0.37, 0.22, 0]], range(0.2, 14.0, 200), 0.2, (8, 8, 1))
+        @test s ≈ 74.4824841476884 rtol=1e-6
+        @test m ≈ 3.194787806986998 rtol=1e-6
+    end
+end
+
+
+@testitem "1/s corrections: boson expansion (derivation)" setup=[CorrectionModels] skip=true begin
+    using LinearAlgebra
+    using .CorrectionModels: cluster, fock_ops, fock_quadratic, expand, cluster_self_energy
+
     # ---- Mean fields, self-energy and pair amplitudes, one Fock space ----
 
-    sys = cluster((1, 3/2, 1))
+    sys = cluster((1.0, 3/2, 1.0))
     swt = SpinWaveTheory(sys; measure=nothing)
     L = Sunny.nbands(swt)
     nmax = 6
@@ -557,28 +1206,20 @@ end
         @test err.diagonal < 1e-12
         @test err.anomalous < 1e-12
     end
+end
 
 
-    # ---- The vertex at every slot count, with nonzero bond offsets ----
+@testitem "1/s corrections: vertex contraction (derivation)" setup=[CorrectionModels] skip=true begin
+    using LinearAlgebra
+    using .CorrectionModels: anisotropic_square
 
-    # Canted square-lattice antiferromagnet, whose bonds connect distinct cells, so
-    # that the Fourier phases the cluster above cannot reach are exercised. The
-    # tetragonal anisotropy is diagonal in the global frame but not in either local
-    # frame, so it contributes to every vertex.
-    sys = System(Sunny.square_crystal(; c=3), [1 => Moment(s=2.0, g=1)], :dipole)
-    set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
-    O = stevens_matrices(2)
-    set_onsite_coupling!(sys, 0.1*O[4, 0] + 0.05*O[4, 4], 1)
-    set_field!(sys, [1.5, 0, 0])
-    sys = reshape_supercell(sys, [1 1 0; 1 -1 0; 0 0 1])
-    set_dipole!(sys, [0, 0, +1], (1, 1, 1, 1))
-    set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
-    minimize_energy!(sys)
-    swt = SpinWaveTheory(sys; measure=nothing)
+    # The contraction itself, against a reference that builds the whole symmetrized
+    # Nambu tensor explicitly and transforms every slot at once. `vertex!` instead
+    # walks the monomial list, which is why the two share nothing but the definition.
+    # Its permutation and conjugation invariances need no reference tensor and are
+    # checked in the default tier.
+    swt = SpinWaveTheory(anisotropic_square(); measure=nothing)
     L = Sunny.nbands(swt)
-
-    # Reference contraction: accumulate the symmetrized monomial coefficients into
-    # an explicit Nambu-space tensor, then transform every slot at once
     function reference_vertex(terms, qs, Ts)
         K = length(qs)
         W = zeros(ComplexF64, ntuple(_ -> 2L, K))
@@ -603,108 +1244,17 @@ end
     for (terms, qs) in cases
         K = length(qs)
         Ts = Sunny.bogoliubov_matrices(swt, qs)
-        buf() = zeros(ComplexF64, ntuple(_ -> 2L, K))
-        U = Sunny.vertex!(buf(), terms, qs, Ts)
+        U = Sunny.vertex!(zeros(ComplexF64, ntuple(_ -> 2L, K)), terms, qs, Ts)
         @test U ≈ reference_vertex(terms, qs, Ts)
-
-        # Permuting the (momentum, band) slots together leaves the vertex invariant
-        for p in Sunny.slot_permutations(K)
-            Up = Sunny.vertex!(buf(), terms, ntuple(t -> qs[p[t]], K), ntuple(t -> Ts[p[t]], K))
-            @test permutedims(Up, invperm(collect(p))) ≈ U
-        end
-
-        # Hermiticity of the underlying operator implies U(-𝐤; n̄) = conj(U(𝐤; n)),
-        # where n̄ = n + L exchanges creation and annihilation. Only the magnitudes
-        # are compared, because `bogoliubov!` fixes the phase of each band
-        # independently at 𝐤 and -𝐤.
-        Um = Sunny.vertex(swt, terms, ntuple(t -> -qs[t], K))
-        bar(n) = mod1(n + L, 2L)
-        @test abs.(U) ≈ [abs(Um[CartesianIndex(map(bar, Tuple(i)))]) for i in CartesianIndices(U)]
     end
 end
 
-@testitem "1/s corrections on a lattice" begin
+
+@testitem "1/s corrections: mean fields and tadpole (derivation)" setup=[CorrectionModels] skip=true begin
     using LinearAlgebra
+    using .CorrectionModels: canted_square
 
-    # Square-lattice antiferromagnet, optionally canted by a field. Sunny's Zeeman
-    # coupling is +𝐁⋅𝐒, so the moments cant away from the field, with cos θ = -B/8s.
-    # At B = 0 the structure is collinear Néel.
-    function canted_square(s, B; mode=:dipole)
-        sys = System(Sunny.square_crystal(; c=3), [1 => Moment(; s, g=1)], mode)
-        set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
-        set_field!(sys, [0, 0, B])
-        sys = reshape_supercell(sys, [1 1 0; 1 -1 0; 0 0 1])
-        θ = acos(-B / 8s)
-        set_dipole!(sys, [+sin(θ), 0, cos(θ)], (1, 1, 1, 1))
-        set_dipole!(sys, [-sin(θ), 0, cos(θ)], (1, 1, 1, 2))
-        @assert energy_per_site(sys) ≈ -2s^2 - B^2/16
-        return sys
-    end
-
-    # Default accuracy for the momentum integrals, enough for the checks below that
-    # compare against a reference value. Those that instead compare two corrections
-    # computed from the same quadrature, or extract a ratio from them, loosen it
-    # individually.
     tol = 1e-6
-
-    # ---- Oguchi's Z_c, on a supercell and on a multi-atom basis ----
-
-    # For a collinear structure the cubic vertex vanishes, so the mean field is the
-    # entire O(1/s) shift of the dispersion, and it is a uniform rescaling by Oguchi's
-    # Z_c = 1 + ζ/2s [Prog. Theor. Phys. 13, 148 (1960)]. Both the uniformity in 𝐪 and
-    # the 1/s scaling are strong tests of the four-boson coefficients; the numerical
-    # values of ζ test their overall normalization. Two values of `s` suffice for the
-    # scaling, and ⟨H₄⟩ being of order s⁰ makes the energy correction s-independent.
-    # The two lattices differ in how the sublattices arise: a reshaped supercell for
-    # the square, and the two atoms of the chemical cell for the honeycomb, whose
-    # ζ = 1 - ⟨√(1-|γ_𝐪|²)⟩ with γ_𝐪 = (1 + e^{iq₁} + e^{iq₂})/3 was obtained by
-    # direct quadrature.
-    function neel_honeycomb(s)
-        sys = System(Sunny.hexagonal_crystal(; c=3), [1 => Moment(; s, g=1)], :dipole)
-        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
-        set_dipole!(sys, [0, 0, +1], (1, 1, 1, 1))
-        set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
-        @assert energy_per_site(sys) ≈ -3s^2/2
-        return sys
-    end
-
-    qs = [[0.1, 0, 0], [0.3, 0.17, 0], [0.5, 0, 0], [0.13, -0.4, 0.22]]
-    for (model, ζ, δE₀, ss) in ((s -> canted_square(s, 0), 0.1579474, 0.01247369, (1/2, 2)),
-                                (neel_honeycomb, 0.20984170, 0.01651258, (1/2,)))
-        for s in ss
-            swt = SpinWaveTheory(model(s); measure=nothing)
-            (; terms2, δE) = Sunny.hartree_fock_correction(swt; tol)
-            Zc = Sunny.corrected_dispersion(swt, qs, terms2) ./ dispersion(swt, qs)
-            @test maximum(abs, Zc .- Zc[1]) < 1e-6
-            @test 2s * (Zc[1] - 1) ≈ ζ atol=1e-6
-            @test δE ≈ δE₀ atol=1e-7
-        end
-    end
-
-    # ---- What a collinear structure switches off ----
-
-    # The onsite correlation ⟨b†ᵢbᵢ⟩ must reproduce Sunny's independent calculation of
-    # the moment reduction, and the commutator ⟨bᵢb†ᵢ⟩ - ⟨b†ᵢbᵢ⟩ must come out to one.
-    # Self-consistency is inert for this collinear antiferromagnet, where the mean field
-    # merely rescales H₂ and so leaves the Bogoliubov transformation, hence the mean
-    # fields themselves, unchanged. And every cubic monomial carries a transverse
-    # component of the exchange in the local frame, so the cubic vertex, the self-energy
-    # and the tadpole all vanish identically, the last because the cubic monomials are
-    # proportional to a transverse effective field that vanishes at a classical minimum.
-    swt = SpinWaveTheory(canted_square(1/2, 0); measure=nothing)
-    L = Sunny.nbands(swt)
-    gs = Sunny.nambu_correlations(swt, [(L+1, 1, (0, 0, 0)), (1, L+1, (0, 0, 0))],
-                                  Sunny.BosonMonomial{2}[]; tol=1e-4)
-    @test real(gs[1]) ≈ -Sunny.dipole_shortening(swt; tol=1e-4)[1] atol=1e-5
-    @test gs[2] - gs[1] ≈ 1 atol=1e-10
-    @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, grid=(6, 6, 1))) < 1e-12
-    Zcs = map(maxiters -> Sunny.corrected_dispersion(swt, [[0.3, 0.1, 0]],
-                  Sunny.hartree_fock_correction(swt; maxiters, scf_tol=1e-9, tol=1e-4).terms2), (1, 100))
-    @test Zcs[1] ≈ Zcs[2] atol=1e-7
-    tad = Sunny.tadpole_correction(swt; tol)
-    @test all(t -> abs(t.c) < 1e-12, tad.terms2)
-    @test abs(tad.δE) < 1e-12
-    @test tad.dipoles ≈ [[1, 0, 0], [-1, 0, 0]] / 2
 
     # ---- Two independent routes to the tadpole, canted ----
 
@@ -712,13 +1262,13 @@ end
     # structure and both of the form "two routes agree to leading order, so their
     # difference falls off like 1/s".
     #
-    # The correction to the uniform magnetization can be read from `corrected_dipoles`,
-    # which combines the tadpole tilt with the reduction of the moment magnitude, or
-    # obtained as ∂/∂B of the zero-point energy. Those routes share no machinery, and the
-    # second is s-independent. The order in which the two corrections compose is itself a
-    # 1/s² choice: shortening along the tilted axis, as `corrected_dipoles` does, and
-    # shortening along the original one differ by 1.6% at s = 1 and converge at the same
-    # rate, the former slightly faster.
+    # The correction to the uniform magnetization can be read from
+    # `corrected_magnetic_moments`, which combines the tadpole tilt with the reduction of
+    # the moment magnitude, or obtained as ∂/∂B of the zero-point energy. Those routes
+    # share no machinery, and the second is s-independent. The tilt is norm-preserving,
+    # so composing it with the radial shortening is unambiguous; the alternative of
+    # subtracting δs along the original axis is a non-geodesic split that differs at
+    # 1.6% for s = 1, falling like 1/s.
     #
     # The tilt also corrects the amplitude for creating one magnon, at relative order
     # 1/s. Here `observable_corrections` displaces the boson as b → b + v within the
@@ -735,19 +1285,20 @@ end
         sys = canted_square(s, B)
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
         tad = Sunny.tadpole_correction(swt; tol=1e-5)
-        dipoles = [sys.dipoles[1, 1, 1, i] for i in 1:2]
-        # `corrected_dipoles` applies the tilt and the shortening together, which is what
-        # makes it comparable to ∂/∂B below; either alone would be an incomplete 1/s
-        corrected = Sunny.corrected_dipoles(swt; tol=1e-5)
-        δmz = sum(i -> (corrected[i] - dipoles[i])[3], 1:2) / 2
+        # `corrected_magnetic_moments` applies the tilt and the shortening together, which
+        # is what makes it comparable to ∂/∂B below; either alone would be an incomplete
+        # 1/s. Both sides are the moment μ = -g𝐒, not the spin dipole, so that the
+        # comparison is the thermodynamic identity μ = -∂E/∂B.
+        corrected = Sunny.corrected_magnetic_moments(swt; tol=1e-5)
+        δmz = sum(i -> (corrected[1, 1, 1, i] - magnetic_moments(sys)[1, 1, 1, i])[3], 1:2) / 2
         # Only the 1/s part of the energy, since `δmz` is likewise only the correction to
-        # the magnetization; the classical ∂E/∂B would add the classical moment itself
+        # the magnetization; the classical -∂E/∂B would add the classical moment itself
         function zp(B′)
             sys′ = canted_square(s, B′)
             swt′ = SpinWaveTheory(sys′; measure=nothing)
             return Sunny.corrected_energy_per_site(swt′; tol=1e-5) - energy_per_site(sys′)
         end
-        δzp = (zp(B + 1e-4) - zp(B - 1e-4)) / 2e-4
+        δzp = -(zp(B + 1e-4) - zp(B - 1e-4)) / 2e-4
 
         δc = Sunny.observable_corrections(swt; v=tad.v, tol=1e-4) -
              Sunny.observable_corrections(swt; tol=1e-4)
@@ -767,30 +1318,12 @@ end
         return (δmz, δzp, err / mag)
     end
     rs = map(canted_routes, (1, 2))
-    @test rs[1][1] ≈ 0.0485824 atol=1e-6
+    # Sign flipped relative to the spin dipole, since μ = -g𝐒 with g = 1 here
+    @test rs[1][1] ≈ -0.0485824 atol=1e-6
     @test rs[1][2] ≈ rs[2][2] atol=1e-8
     @test rs[1][1] - rs[1][2] ≈ 2 * (rs[2][1] - rs[2][2]) rtol=0.03
     @test rs[1][3] < 0.005
     @test rs[1][3] / rs[2][3] ≈ 2 rtol=0.02
-
-    # The tilt half of `corrected_dipoles` needs the cubic vertex, which is unavailable in
-    # :SUN mode, whereas the shortening half is not. Rather than error, it must then
-    # return the dipoles shortened and untilted, which is what it also returns whenever
-    # the tilt is zero. Both quantities are keyword-required, a `tol` or a `maxevals`
-    # being the only control over the cubature.
-    let
-        sys = canted_square(1, 3; mode=:SUN)
-        swt = SpinWaveTheory(sys; measure=nothing)
-        dipoles = [sys.dipoles[1, 1, 1, i] for i in 1:2]
-        δS = Sunny.dipole_shortening(swt; tol=1e-5)
-        corrected = Sunny.corrected_dipoles(swt; tol=1e-5)
-        @test corrected ≈ [(1 + δS[i]/norm(dipoles[i])) * dipoles[i] for i in 1:2] rtol=1e-6
-        # The tilt that :dipole mode does supply is real, so the two must differ
-        @test !isapprox(corrected, Sunny.corrected_dipoles(
-            SpinWaveTheory(canted_square(1, 3); measure=nothing); tol=1e-5), rtol=1e-3)
-        @test_throws ErrorException Sunny.corrected_dipoles(swt)
-        @test_throws ErrorException Sunny.corrected_energy_per_site(swt)
-    end
 
     # ---- The tadpole sourced by an anisotropy alone ----
 
@@ -872,139 +1405,17 @@ end
     q = [[0.3, 0.1, 0]]
     δdisp = (Sunny.corrected_dispersion(swt, q, scaled(1e-4)) - Sunny.corrected_dispersion(swt, q, scaled(-1e-4))) / 2e-4
     @test δdisp ≈ Sunny.static_self_energy(swt, q, terms2) atol=1e-6
-
-    # ---- Goldstone modes survive every correction ----
-
-    # Near a protected zero mode each correction separately diverges like 1/ε, the
-    # Bogoliubov matrix doing so, which makes their cancellation stringent; it is the
-    # product ε × shift that must vanish. Two symmetries are gated, and they switch on
-    # different corrections.
-    #
-    # Rotation about the field axis leaves the canted structure a zero mode at 𝐪 = 0,
-    # and there all three of mean field, tadpole and cubic self-energy contribute. What
-    # remains is the discretization error of the self-energy integral, falling off
-    # like 1/nk.
-    t2 = [terms2; Sunny.tadpole_correction(swt; tol).terms2]
-    δ = Sunny.static_self_energy(swt, [[0, 0, 0]], t2)[2]
-    @test δ > 1e3
-    rs = map(nk -> (δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=0.005, grid=(nk, nk, 1))[2])) / δ, (16, 32))
-    @test rs[1] ≈ 2 * rs[2] rtol=0.01
-    @test rs[2] < 0.02
-
-    # The second symmetry is broken only by an onsite anisotropy. Every term below is
-    # invariant under rotation about ẑ, so the in-plane moment of this easy-plane
-    # ferromagnet leaves a zero mode at 𝐪 = 0, while the cubic and linear vertices
-    # vanish identically by that same symmetry. That leaves `anisotropy_correction` to
-    # cancel the mean field on its own -- which it can only do because `anisotropy_words`
-    # keeps exactly one order in 1/s per word. Since a perturbation of the quadratic
-    # form opens a gap like its square root, expanding the anisotropy exactly instead,
-    # thereby injecting a partial set of O(1/s²) terms, would gap the mode at O(1/s).
-    for mode in (:dipole, :dipole_uncorrected)
-        s = 2.0
-        sys = System(Sunny.square_crystal(; c=3), [1 => Moment(; s, g=1)], mode)
-        set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
-        O = stevens_matrices(mode == :dipole ? s : Inf)
-        set_onsite_coupling!(sys, (0.5*O[2, 0] - 0.2*O[4, 0]/s^2) / (3s^2), 1)
-        set_dipole!(sys, [1, 0, 0], (1, 1, 1, 1))
-        sw = SpinWaveTheory(sys; measure=nothing)
-        @test maximum(abs(t.c) for t in Sunny.cubic_monomials(sw)) < 1e-12
-        @test maximum(abs(t.c) for t in Sunny.anisotropy_monomials(sw, Val{1}()); init=0.0) < 1e-12
-        ε = dispersion(sw, [[0, 0, 0]])[1]
-        mf = Sunny.hartree_fock_correction(sw; tol).terms2
-        resid(t2) = Sunny.static_self_energy(sw, [[0, 0, 0]], t2)[1] * ε
-        @test abs(resid([mf; Sunny.anisotropy_correction(sw).terms2])) < 1e-7 < abs(resid(mf))
-    end
 end
 
-@testitem "1/s corrections to intensities" begin
-    using LinearAlgebra
 
-    # Triangular-lattice antiferromagnet in a three-site cell, small enough for the
-    # cubic self-energy to be affordable. Isotropic and in zero field, this is the
-    # s = 1/2 model of arXiv:0901.4803 in its 120° state. Given an easy-plane
-    # anisotropy and a tilted field it instead cants into a state with three
-    # inequivalent sublattices, which is what makes the off-diagonal elements of Σ̂
-    # large. The state is built explicitly rather than minimized, so that the
-    # chirality of the former and the degenerate direction of the latter are fixed.
-    cryst = Sunny.triangular_crystal(; a=1.0, c=10.0)
-    Q = cryst.recipvecs * [1/3, 1/3, 0]
-    ds = [[0.120272, -0.449974, -0.181818], [-0.465766, -0.002090, -0.181818],
-          [0.112161, 0.452064, -0.181818]]
-    function triangular(; Δ=1.0, field=nothing, φ=0, g=2)
-        sys = System(cryst, [1 => Moment(s=1/2, g=g)], :dipole)
-        set_exchange!(sys, diagm([1.0, 1.0, Δ]), Bond(1, 1, [1, 0, 0]))
-        sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
-        R = [cos(φ) -sin(φ) 0; sin(φ) cos(φ) 0; 0 0 1]
-        if isnothing(field)
-            for site in eachsite(sys)
-                θ = dot(Q, global_positions(sys)[site])
-                set_dipole!(sys, [cos(θ), sin(θ), 0], site)
-            end
-            @assert energy_per_site(sys) ≈ -1.5 * (1/2)^2
-        else
-            set_field!(sys, R * field)
-            for i in 1:3
-                set_dipole!(sys, R * ds[i], (1, 1, 1, i))
-            end
-            minimize_energy!(sys)
-            @assert energy_per_site(sys) ≈ -0.51131313 atol=1e-8
-        end
-        return sys
-    end
+@testitem "1/s corrections: quadrature (derivation)" setup=[CorrectionModels] skip=true begin
+    using LinearAlgebra
+    using .CorrectionModels: triangular, square_afm
 
     sys = triangular()
     swt = SpinWaveTheory(sys; measure=nothing)
     L = Sunny.nbands(swt)
-
-    # ---- Harmonic results, and the folding convention ----
-
-    # The energy per site is -0.5388 J, and the magnon energy at the M point of the
-    # original lattice is 2Js, the lowest of the three folded bands. Both Γ and K fold
-    # onto 𝐪 = 0, where the harmonic dispersion vanishes, so all three bands are
-    # gapless there. Over the whole zone the dispersion is Eq. (11) of arXiv:1306.1231,
-    # written in the reciprocal lattice units of the original one-site cell; the
-    # three-site cell folds 𝐪 together with 𝐪 ± 𝐊, so each wavevector gates all three
-    # bands at once, and with them the folding convention.
-    @test Sunny.corrected_energy_per_site(swt; tol=1e-4) ≈ -0.53881 atol=1e-4
     q = [[1/2, 0, 0]]
-    @test dispersion(swt, q)[:] ≈ [√2.5, √2.5, 1] atol=1e-6
-    γ(q) = (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*(q[1] + q[2]))) / 3
-    ε11(q) = 3 * (1/2) * sqrt(max(0, (1 - γ(q)) * (1 + 2γ(q))))
-    K = [1/3, 1/3, 0]
-    @test all([[h, k, 0] for h in 0.1:0.4:0.9, k in 0.1:0.4:0.9]) do q
-        isapprox(sort(dispersion(swt, [q])[:]), sort([ε11(q + n*K) for n in -1:1]); atol=1e-6)
-    end
-
-    # ---- The cubic self-energy on a lattice ----
-
-    # Being a symmetric energy minimum, the 120° structure cannot be tilted by
-    # zero-point fluctuations. Unlike the collinear case the cubic monomials are
-    # individually nonzero, so their cancellation here tests their relative phases.
-    tad = Sunny.tadpole_correction(swt; tol=1e-3)
-    @test maximum(t -> abs(t.c), tad.terms2) < 1e-6
-    @test abs(tad.δE) < 1e-12
-
-    terms2 = [Sunny.hartree_fock_correction(swt; tol=1e-3).terms2; tad.terms2]
-    δ = Sunny.static_self_energy(swt, q, terms2)[:]
-    Σs = map(nk -> Sunny.cubic_self_energy(swt, q; η=0.02, grid=(nk, nk, 1))[:], (24, 48))
-
-    # The self-energy converges like 1/nk, so a Richardson step gives the O(1/s) magnon
-    # energy at the M point. It falls 27% below the harmonic value, most of that coming
-    # from the cubic self-energy rather than the mean-field shift.
-    εs = [1 + δ[3] + real(Σ[3]) for Σ in Σs]
-    @test 2εs[2] - εs[1] ≈ 0.7316 atol=2e-3
-
-    # Because the harmonic dispersion vanishes at Γ and K, the lower edge of the
-    # two-magnon continuum touches the one-magnon branch at every wavevector, and a
-    # magnon acquires a width only where the branch lies strictly inside the continuum.
-    # There the width survives η → 0, as it does for the top of the band here, where
-    # 2Γ/ε extrapolates to about 0.2, of the order of the maximum ~0.3 that the
-    # reference reports. The M-point magnon instead sits on the boundary, and its
-    # apparent width is entirely the Lorentzian tail of the regularization, falling off
-    # like η.
-    Σ = Sunny.cubic_self_energy(swt, q; η=0.01, grid=(48, 48, 1))[:]
-    @test imag(Σ[3]) ≈ imag(Σs[2][3]) / 2 rtol=0.01
-    @test imag(Σ[1]) / imag(Σs[2][1]) > 0.85
 
     # The loop grid must keep both internal lines, 𝐩 and 𝐪-𝐩, off the zone centre,
     # where the cubic vertex diverges. Offsetting by half a step does that only for 𝐩:
@@ -1047,89 +1458,6 @@ end
     end
     @test maximum(abs, Σbin - Σloop) / maximum(abs, Σloop) < 1e-3
 
-    # ---- The corrected spectral function ----
-
-    # The corrected structure factor is a spectral function in its own right, not
-    # merely one to the order worked to. Because the Dyson equation is solved in the
-    # particle block, with the source channel of the self-energy frozen on shell, its
-    # denominator has imaginary part at least the regulator η, so the intensity is
-    # non-negative and no taller than a resolution-limited peak of the same weight; and
-    # because that denominator grows as ωI, the transverse weight of each 𝐪 is exactly
-    # the static weight of the corrected observables. All three properties are violated
-    # at s = 1/2 by inverting the full Nambu denominator instead: near 𝐪 = [0.476, 0, 0]
-    # a mirror pole is pushed up through ω = 0, giving intensities of -2.8 and +3.6
-    # against a bound of 2.3, and at 𝐪 = [0.375, 0.125, 0] the weight comes out 27% low.
-    # The momentum-space integrals need no great accuracy here: the identities hold for
-    # any self-energy and any observable amplitudes. The options below are those that
-    # `tol` selects, so the reference weight is built from the same mean fields as the
-    # spectrum.
-    opts = (; tol=0.01, maxevals=100_000)
-    swt2 = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-    Ncells = Sunny.nsites(sys) / Sunny.natoms(cryst)
-    qs2 = [[0.476, 0, 0], [0.375, 0.125, 0]]
-
-    # Static weight of the one-magnon bands, Σ_{n ≤ L} w[n, μ] conj(w[n, ν]) with
-    # w = T'ũ, contracted through the measure's combiner exactly as
-    # `corrected_intensities` contracts the spectral function. Passing `drop` subtracts
-    # |δA|², leaving the cross term 2Re(A conj(δA)) that is the correction of relative
-    # order 1/s; the sum rule below wants that, whereas the spectral weight wants the
-    # full corrected amplitude. This is used again for the square lattice further down.
-    function static_weights(swt, qs, δc; drop=false)
-        sys = swt.sys
-        cryst = Sunny.orig_crystal(sys)
-        L = Sunny.nbands(swt)
-        T = zeros(ComplexF64, 2L, 2L)
-        H = zeros(ComplexF64, 2L, 2L)
-        u = zeros(ComplexF64, 2L, Sunny.num_observables(swt.measure))
-        δu = zero(u)
-        Ncells = Sunny.nsites(sys) / Sunny.natoms(cryst)
-        return map(qs) do q
-            q_reshaped = Sunny.to_reshaped_rlu(sys, q)
-            q_global = cryst.recipvecs * q
-            Sunny.excitations!(T, H, swt, q)
-            Sunny.set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
-            fill!(δu, 0)
-            isnothing(δc) || Sunny.accum_observable_corrections!(δu, swt, q_reshaped, q_global, δc)
-            w = T' * (u + δu)
-            δw = T' * δu
-            corr = map(swt.measure.corr_pairs) do (μ, ν)
-                c = dot(view(w, 1:L, μ), view(w, 1:L, ν))
-                drop && (c -= dot(view(δw, 1:L, μ), view(δw, 1:L, ν)))
-                c / Ncells
-            end
-            real(swt.measure.combiner(q_global, corr))
-        end
-    end
-    δc = Sunny.observable_corrections(swt2; v=Sunny.tadpole_correction(swt2; opts...).v, opts...)
-    refs = static_weights(swt2, qs2, δc)
-
-    # A Lorentzian tail needs range rather than resolution, so the window is wide and
-    # the step is a fraction of η. The residual 0.17% is the truncated tail.
-    η = 0.06
-    energies = range(-20, 24, 1501)
-    chans = Sunny.corrected_channels(swt2, qs2; energies, η, tol=opts.tol,
-                                     loop_grid=(12, 12, 1), mean_field_maxevals=opts.maxevals)
-    # The two weight identities are properties of the transverse spectral function, so
-    # that channel is taken on its own; the pair channel created directly by the
-    # observable carries weight of its own, and their interference sums to zero only
-    # over the whole zone.
-    (; transverse) = chans
-    @test all(≥(0), transverse + chans.cross + chans.direct)
-    @test all(vec(maximum(transverse; dims=1)) .< refs ./ (π * η))
-    @test vec(sum(transverse; dims=1)) * step(energies) ≈ refs rtol=5e-3
-
-    # The interference is invisible to a trace measure integrated over the zone: 𝐒·𝐒 is
-    # a scalar, so its expansion in bosons has no term linking an odd number of them to
-    # an even one, and the cancellation is exact for every ω once Σ_𝐪 restores momentum
-    # conservation. It is the only check here that constrains the *relative phase* of
-    # the two routes to a pair, a phase that each channel alone is free of. The window
-    # must reach below ω = 0, or a pair at x ≈ 0 contributes just half of its
-    # Lorentzian.
-    qs4 = vec([[i, j, 0] ./ 3 for i in 0:2, j in 0:2])
-    chans4 = Sunny.corrected_channels(swt2, qs4; energies=range(-4, 12, 161), η=0.3,
-                                      loop_grid=(3, 3, 1), mean_field_maxevals=opts.maxevals)
-    @test abs(sum(chans4.cross)) < 1e-3 * sum(chans4.direct)
-
     # Reference for the `direct` channel of `corrected_channels`: the same sum over pairs
     # of magnons, but broadening each pair individually instead of binning its energy
     # first, and contracting the three observable amplitudes β by `contract` rather than
@@ -1163,12 +1491,13 @@ end
     end
 
     # Orientation of the μν pair in the channels of `corrected_channels`. Every combiner
-    # used above (`ssf_trace`, `ssf_perp`) puts zero weight on off-diagonal `corr_pairs`
-    # and on imaginary parts, so a μν transpose — which for a Hermitian S is a complex
-    # conjugation — is invisible to all of them, as are the rotation and sum-rule checks,
-    # the latter being homogeneous in the interference. This measure sees it, Im Sˣʸ being
-    # genuinely nonzero on the 120° structure, so `direct` is fixed in sign and not just
-    # in magnitude. A transpose would deviate by 2 rather than by the 3e-4 of the binning.
+    # used elsewhere (`ssf_trace`, `ssf_perp`) puts zero weight on off-diagonal
+    # `corr_pairs` and on imaginary parts, so a μν transpose — which for a Hermitian S is
+    # a complex conjugation — is invisible to all of them, as are the rotation and
+    # sum-rule checks, the latter being homogeneous in the interference. This measure
+    # sees it, Im Sˣʸ being genuinely nonzero on the 120° structure, so `direct` is fixed
+    # in sign and not just in magnitude. A transpose would deviate by 2 rather than by
+    # the 3e-4 of the binning.
     let
         swt5 = SpinWaveTheory(sys; measure=ssf_custom((q, ssf) -> imag(ssf[1, 2]), sys; apply_g=false))
         (η, grid) = (0.15, (8, 8, 1))
@@ -1181,177 +1510,13 @@ end
         @test maximum(abs, direct - ref) < 1e-3 * scale
     end
 
-    # ---- Gauge invariance, where Σ̂ is genuinely off-diagonal ----
-
-    # With three inequivalent sublattices the off-diagonal elements of Σ̂ are a third of
-    # the diagonal, whereas for the 120° structure above they vanish identically: its
-    # branches sit in momentum sectors that the cubic vertex cannot connect, as do those
-    # of the umbrella that a field along z produces. Only the exact-diagonalization
-    # cluster elsewhere in this file constrains them otherwise. They are also the one
-    # part of Σ̂ sensitive to the per-band phase that `bogoliubov!` fixes independently,
-    # since a gauge conjugation Σ̂ → DΣ̂D† with D diagonal and unitary leaves the
-    # eigenvalues of the Dyson denominator alone, and with them the poles, and leaves
-    # τ₃Σ̂ Hermitian; only the contraction against the observable amplitudes T'u sees it.
-    # Rotation about z is an exact symmetry of this model, fixing both diagm([1, 1, Δ])
-    # and the trace structure factor while moving every local frame, so the corrected
-    # intensities must be invariant under it. Breaking that gauge violates this by 5%.
-    # The loop grid is coarse because an invariance holds grid by grid and needs no
-    # converged integral.
-    swts = map(φ -> let sys3 = triangular(; Δ=0.6, field=[0.7, 0, 1.2], φ, g=1)
-                        SpinWaveTheory(sys3; measure=ssf_trace(sys3; apply_g=false))
-                    end, (0.0, 0.9))
-    qs3 = [[0.23, 0.11, 0], [0.37, 0.09, 0]]
-    Σ3 = Sunny.cubic_self_energy(swts[1], qs3[1:1], dispersion(swts[1], qs3[1:1])[1:1];
-                                 η=0.05, grid=(6, 6, 1))[1:L, 1:L, 1, 1]
-    @test maximum(abs, Σ3 - Diagonal(diag(Σ3))) > 0.2 * maximum(abs, diag(Σ3))
-    datas = map(swt3 -> Sunny.corrected_intensities(swt3, qs3; energies=range(0.2, 2.0, 25),
-                                                    η=0.15, loop_grid=(4, 4, 1)).data, swts)
-    @test datas[1] ≈ datas[2] rtol=1e-6
-
-    # ---- Quantum sum rule on the square lattice ----
-
-    # A field-polarized ferromagnet conserves Sᶻ. Its Bogoliubov transformation is
-    # trivial, so the two-magnon channel must carry no weight at all, and nothing else
-    # in the 1/s expansion is nonzero for this state either: every mean field vanishes
-    # in the empty vacuum, and a collinear structure has no cubic vertex. So the
-    # corrected intensities must reduce to those of linear spin wave theory, which is
-    # itself exact here, the polarized state and its one-magnon excitations being
-    # eigenstates.
-    square = Sunny.square_crystal(; c=3)
-    let
-        sys = System(square, [1 => Moment(s=1, g=2)], :dipole)
-        set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
-        set_field!(sys, [0, 0, 0.5])
-        set_dipole!(sys, [0, 0, -1], (1, 1, 1, 1))
-        @assert energy_per_site(sys) ≈ -2 - 1.0
-        swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
-        qs = [[0.3, 0.2, 0]]
-        (energies, η) = (range(0, 10, 101), 0.2)
-        chans = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=(4, 4, 1), mean_field_maxevals=1000)
-        @test maximum(abs, chans.direct) < 1e-25
-        @test chans.transverse + chans.cross + chans.direct ≈
-              intensities(swt, qs; energies, kernel=lorentzian(fwhm=2η)).data atol=1e-12
-    end
-
-    # Easy-axis Néel order on the square lattice, whose gap makes every momentum
-    # integral below converge exponentially.
-    function square_afm(; field)
-        sys = System(square, [1 => Moment(s=1.0, g=1)], :dipole_uncorrected)
-        set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
-        set_onsite_coupling!(sys, S -> -0.5*S[3]^2, 1)
-        set_field!(sys, field)
-        sys = reshape_supercell(sys, [1 1 0; 1 -1 0; 0 0 1])
-        set_dipole!(sys, [0, 0, +1], (1, 1, 1, 1))
-        set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
-        minimize_energy!(sys)
-        return sys
-    end
-
-    # The fast path of `corrected_channels`. A collinear structure has no cubic vertex,
-    # but its monomials cancel on merging rather than being absent, so the gate must be on
-    # magnitude: the coefficients of the 26 monomials here sum to 1e-12 of the quadratic
-    # Hamiltonian, against 5e-2 once a field cants the same model. Its observable
-    # consequence is that `cross` comes out identically zero rather than at the 1e-24 of
-    # the round-off it replaces, the rest of the result being untouched — checked to be
-    # bit-identical, which the two tests below cannot see.
-    let
-        # Largest cubic coefficient relative to the quadratic Hamiltonian, the
-        # dimensionless quantity the gate thresholds
-        function vertex_scale(swt)
-            L = Sunny.nbands(swt)
-            H = zeros(ComplexF64, 2L, 2L)
-            Sunny.dynamical_matrix!(H, swt, Sunny.Vec3(0, 0, 0))
-            terms3 = Sunny.cubic_monomials(swt)
-            @test length(terms3) == 26
-            return maximum(abs(t.c) for t in terms3) / norm(H)
-        end
-
-        sys = square_afm(; field=[0, 0, 0])
-        swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
-        @test vertex_scale(swt) < 1e-11
-        canted = SpinWaveTheory(square_afm(; field=[1.5, 0, 0]); measure=nothing)
-        @test vertex_scale(canted) > 1e-2
-
-        chans = Sunny.corrected_channels(swt, [[0.3, 0.2, 0]]; energies=range(0, 12, 121),
-                                         η=0.2, loop_grid=(8, 8, 1), mean_field_maxevals=1000)
-        @test iszero(chans.cross) && !iszero(chans.direct)
-    end
-
-    # Weights of the three channels into which the quantum sum rule decomposes, all per
-    # site and in units where a trace measure is used, so that no local frame projection
-    # survives.
-    #
-    # Because Sᶻ = s - b†b is exact in the local frame, the two-magnon spectrum
-    # saturates the longitudinal sum rule ⟨(δSᶻ)²⟩ = n(1+n) + |Δ|², where n = ⟨b†b⟩ and
-    # Δ = ⟨bb⟩ follow from Wick's theorem. The transverse channel obeys an identity
-    # sharper still: because the truncated S⁺ = σ(b - b†bb/4s) makes S⁻S⁺ = n̂(2s+1-n̂)
-    # exact, and because completeness turns a sum of one-magnon weights over bands and
-    # wavevectors into the static expectation value ⟨Â†Â⟩, the one-magnon bands must
-    # carry ⟨(Sˣ)² + (Sʸ)²⟩ = s + 2s⟨n̂⟩ - ⟨n̂²⟩. Linear spin wave theory produces only
-    # the first two terms; the -⟨n̂²⟩ is supplied entirely by `observable_corrections`,
-    # so this fixes both the sign and the magnitude of that correction.
-    function channel_weights(sys; nq=16, tol=1e-6)
-        swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-        L = Sunny.nbands(swt)
-
-        # Onsite ⟨b†b⟩ and ⟨bb⟩, from which ⟨n̂²⟩ = ⟨n̂⟩² + ⟨n̂⟩(1+⟨n̂⟩) + |Δ|²
-        ckeys = [[(L+i, i, (0, 0, 0)) for i in 1:L]; [(i, i, (0, 0, 0)) for i in 1:L]]
-        gs = Sunny.nambu_correlations(swt, ckeys, Sunny.BosonMonomial{2}[]; tol)
-        ss = [swt.data.sqrtS[i]^2 for i in 1:L]
-        n = real.(gs[1:L])
-        n2 = @. n^2 + n * (1 + n) + abs2(gs[L+1:2L])
-
-        # A uniform grid offset by half a step cancels the phase factors of all
-        # correlations at distances below `nq`, leaving only the onsite ones above.
-        qs = vec([[(a - 0.5)/nq, (b - 0.5)/nq, 0] for a in 1:nq, b in 1:nq])
-        δc = Sunny.observable_corrections(swt; tol)
-        harm = sum(static_weights(swt, qs, nothing)) / length(qs)
-        transverse = sum(static_weights(swt, qs, δc; drop=true)) / length(qs)
-
-        # Elastic weight of the ordered moment, shortened by zero-point fluctuations
-        δm = Sunny.dipole_shortening(swt; tol)
-        elastic = sum(i -> (ss[i] + δm[i])^2, 1:L) / L
-
-        # Two-magnon continuum, integrated over energy. Its wavevector average converges
-        # quickly enough to use a coarser grid, which matters because each point requires
-        # its own momentum-space integral. For a one-atom chemical cell this average is
-        # the longitudinal weight per site.
-        qs2 = vec([[(a - 0.5)/3, (b - 0.5)/3, 0] for a in 1:3, b in 1:3])
-        energies = range(-2, 16, 181)
-        direct = Sunny.corrected_channels(swt, qs2; energies, η=0.2, loop_grid=(12, 12, 1),
-                                          mean_field_maxevals=1000).direct
-        longitudinal = sum(direct) * step(energies) / length(qs2)
-
-        return (; harm, transverse, elastic, longitudinal,
-                harm_ref = sum(@. ss + 2ss*n) / L,
-                transverse_ref = sum(@. ss + 2ss*n - n2) / L,
-                casimir = sum(@. ss * (ss + 1)) / L)
-    end
-
-    for field in ([0, 0, 0], [1.5, 0, 0])
-        # Canting makes the onsite ⟨bb⟩ nonzero, exercising the anomalous contraction
-        w = channel_weights(square_afm(; field))
-        @test abs(w.harm / w.harm_ref - 1) < 1e-7
-        @test abs(w.transverse / w.transverse_ref - 1) < 1e-7
-
-        # The quantum sum rule, and the point of the whole exercise. Because 𝐒⋅𝐒 is a
-        # Casimir, the elastic weight of the ordered moment, the one-magnon bands and the
-        # two-magnon continuum must together carry exactly s(s+1), and each is produced by
-        # a different part of this module. Linear spin wave theory saturates the rule only
-        # through O(s): using its uncorrected one-magnon weights instead overshoots by
-        # ⟨n̂²⟩, which is the entire O(s⁰) content of the rule, and some 3% of s(s+1) here.
-        # The residual error is that of the energy integral above.
-        @test abs((w.elastic + w.transverse + w.longitudinal) / w.casimir - 1) < 1e-3
-        @test (w.elastic + w.harm + w.longitudinal) / w.casimir - 1 > 0.02
-    end
-
-    # The sum rules above constrain the total weight of the continuum, which converges
-    # exponentially here, but not its distribution in energy. This gates the shape, and
-    # with it the two discretizations that produce it. Measured against a 64×64 grid, the
-    # error falls as 3.5e-2, 4.5e-3, 2.8e-4 at 8, 16 and 32 points per direction, so the
-    # first figure below is a convergence rate; the second isolates the binning of the
-    # pair energy, which is an order of magnitude smaller than the grid error it is paired
-    # with and so never the limiting approximation.
+    # The sum rules elsewhere constrain the total weight of the continuum, which
+    # converges exponentially here, but not its distribution in energy. This gates the
+    # shape, and with it the two discretizations that produce it. Measured against a
+    # 64×64 grid, the error falls as 3.5e-2, 4.5e-3, 2.8e-4 at 8, 16 and 32 points per
+    # direction, so the first figure below is a convergence rate; the second isolates
+    # the binning of the pair energy, which is an order of magnitude smaller than the
+    # grid error it is paired with and so never the limiting approximation.
     let
         sys = square_afm(; field=[1.5, 0, 0])
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
