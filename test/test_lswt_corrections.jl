@@ -1,13 +1,15 @@
-# Tests of the 1/s corrections to linear spin wave theory, in two tiers. The items
-# marked `skip=true` each check one piece of the derivation against a private
-# reimplementation: that is what to reach for when a result is in question, rather
-# than what to run on every commit. They must still pass, so flip the keyword to
-# `false` to run one, and flip it back. A literal `skip=true` is honored before the
-# test item's module is created, so a skipped item costs nothing at all.
+# Tests of the 1/s corrections to linear spin wave theory, in two tiers. The
+# items marked `skip=true` each check one piece of the derivation against a
+# private reimplementation: that is what to reach for when a result is in
+# question, rather than what to run on every commit. They must still pass, so
+# flip the keyword to `false` to run one, and flip it back. A literal
+# `skip=true` is honored before the test item's module is created, so a skipped
+# item costs nothing at all.
 #
 # The default tier pins end-to-end output, checks the invariants that need no
-# reference implementation, and certifies the whole boson expansion against exact
-# diagonalization, so that a question of correctness remains decidable without it.
+# reference implementation, and certifies the whole boson expansion against
+# exact diagonalization, so that a question of correctness remains decidable
+# without it.
 
 # Models and truncated Fock spaces shared by both tiers. A `@testmodule` is
 # evaluated once per `run_tests` call, rather than once per test item.
@@ -18,29 +20,31 @@
 
     # Three sites give three bands, enough for off-diagonal elements of Σ̂; a
     # triclinic cell with generic positions leaves no site symmetry, so every
-    # Stevens word is allowed; unequal spins exercise the per-site factors σᵢ/σⱼ;
-    # and a generic field cants the moments out of collinearity, without which Σ̂
-    # would vanish identically. Every bond has zero offset, so the Hamiltonian is
-    # 𝐪-independent and a single grid point integrates the self-energy exactly.
-    # Ferromagnetic exchange is what keeps the Fock space affordable, the anomalous
-    # mixing being ⟨n̂⟩ ≈ 0.004 here where a canted antiferromagnet of any `s` would
-    # put it near 0.3.
+    # Stevens word is allowed; unequal spins exercise the per-site factors
+    # σᵢ/σⱼ; and a generic field cants the moments out of collinearity, without
+    # which Σ̂ would vanish identically. Every bond has zero offset, so the
+    # Hamiltonian is 𝐪-independent and a single grid point integrates the
+    # self-energy exactly. Ferromagnetic exchange is what keeps the Fock space
+    # affordable, the anomalous mixing being ⟨n̂⟩ ≈ 0.004 here where a canted
+    # antiferromagnet of any `s` would put it near 0.3.
     const cluster_cryst = Crystal(lattice_vectors(1, 1.1, 1.2, 80, 90, 100),
                                   [[0, 0, 0], [0.45, 0.05, 0.1], [0.1, 0.4, 0.05]], 1)
     const cluster_Js = [diagm([-0.6, -0.6, -1.3]), diagm([-1.4, -0.7, -0.7]),
                         -0.1*[1 0.3 -0.2; 0.25 1 0.15; -0.15 0.1 1]]
     const cluster_B = [0.48, -0.32, 0.8]
 
-    # Onsite anisotropy for the cluster, with every Stevens coefficient carrying a
-    # factor s^-k so that the classical energy landscape is held fixed as `s` varies,
-    # making the rate at which a residual vanishes meaningful. The order-6 word needs
-    # s ≥ 3 to be nonzero. `stevens_matrices` carries the spin as a type parameter, so
-    # without `@nospecialize` this recompiles for every `s` that any test uses.
+    # Onsite anisotropy for the cluster, with every Stevens coefficient carrying
+    # a factor s^-k so that the classical energy landscape is held fixed as `s`
+    # varies, making the rate at which a residual vanishes meaningful. The
+    # order-6 word needs s ≥ 3 to be nonzero. `stevens_matrices` carries the
+    # spin as a type parameter, so without `@nospecialize` this recompiles for
+    # every `s` that any test uses.
     cluster_aniso(@nospecialize(O), s, i) = ((0.3*O[2, 0] + 0.15*O[2, 1])/s^2 + (0.02*O[4, 2] - 0.01*O[4, -3])/s^4 +
                                              0.004*O[6, i]/s^6)
 
-    # The `aniso` switch is a `Bool` rather than a function or `nothing`, so that this
-    # and `cluster_errors` each compile one specialization instead of one per call site.
+    # The `aniso` switch is a `Bool` rather than a function or `nothing`, so
+    # that this and `cluster_errors` each compile one specialization instead of
+    # one per call site.
     function cluster(ss; mode=:dipole, aniso=false)
         sys = System(cluster_cryst, [i => Moment(s=ss[i], g=1) for i in 1:3], mode)
         for (n, (i, j)) in enumerate([(1, 2), (2, 3), (1, 3)])
@@ -58,9 +62,9 @@
 
     # ---- Exact diagonalization in a truncated boson Fock space ----
 
-    # Boson operators on a truncated Fock space of `n` sites, labeled by the Nambu
-    # index of a `BosonMonomial`: `a ≤ n` annihilates on site `a`, `a > n` creates.
-    # Sparse, because the cluster above acts on 7³ states.
+    # Boson operators on a truncated Fock space of `n` sites, labeled by the
+    # Nambu index of a `BosonMonomial`: `a ≤ n` annihilates on site `a`, `a > n`
+    # creates. Sparse, because the cluster above acts on 7³ states.
     function fock_ops(dims)
         n = length(dims)
         op(O, i) = reduce(kron, (k == i ? O : sparse(1.0I, dims[k], dims[k]) for k in 1:n))
@@ -86,11 +90,11 @@
 
     expand(bop, terms, dim) = sum(t -> t.c * prod(bop, t.as), terms; init=spzeros(ComplexF64, dim, dim))
 
-    # Exact retarded Green function of the cluster, in the quasi-particle operators
-    # y = T⁻¹x = τ₃T†τ₃x, from which the self-energy follows as
-    # Σ̂ = ω - diag(ε) - (Gτ₃)⁻¹, returned for each of the `ωs`. A complex frequency
-    # keeps every denominator away from a pole, so the comparison is independent of
-    # broadening.
+    # Exact retarded Green function of the cluster, in the quasi-particle
+    # operators y = T⁻¹x = τ₃T†τ₃x, from which the self-energy follows as Σ̂ = ω
+    # - diag(ε) - (Gτ₃)⁻¹, returned for each of the `ωs`. A complex frequency
+    # keeps every denominator away from a pole, so the comparison is independent
+    # of broadening.
     function cluster_self_energy(H2, Hpert, bop, T0, ε, λ, ωs)
         L = size(T0, 1) ÷ 2
         τ₃ = Diagonal([ones(L); -ones(L)])
@@ -110,9 +114,9 @@
 
     const square_cryst = Sunny.square_crystal(; c=3)
 
-    # Square-lattice antiferromagnet, optionally canted by a field. Sunny's Zeeman
-    # coupling is +𝐁⋅𝐒, so the moments cant away from the field, with cos θ = -B/8s.
-    # At B = 0 the structure is collinear Néel.
+    # Square-lattice antiferromagnet, optionally canted by a field. Sunny's
+    # Zeeman coupling is +𝐁⋅𝐒, so the moments cant away from the field, with
+    # cos θ = -B/8s. At B = 0 the structure is collinear Néel.
     function canted_square(s, B; mode=:dipole)
         sys = System(square_cryst, [1 => Moment(; s, g=1)], mode)
         set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
@@ -125,14 +129,14 @@
         return sys
     end
 
-    # Square-lattice antiferromagnet carrying everything at once: a generic field
-    # that cants the two sublattices inequivalently, so that Σ̂ is genuinely
-    # off-diagonal, and an anisotropy that is diagonal in the global frame but in
-    # neither local frame, so that it contributes to every vertex. Its bonds connect
-    # distinct cells, which is the one thing the zero-offset `cluster` cannot reach.
-    # The ordered state is hard coded: `minimize_energy!` reproduces it only to
-    # 1e-9, and an adaptive cubature amplifies that into the last digits of a
-    # pinned intensity.
+    # Square-lattice antiferromagnet carrying everything at once: a generic
+    # field that cants the two sublattices inequivalently, so that Σ̂ is
+    # genuinely off-diagonal, and an anisotropy that is diagonal in the global
+    # frame but in neither local frame, so that it contributes to every vertex.
+    # Its bonds connect distinct cells, which is the one thing the zero-offset
+    # `cluster` cannot reach. The ordered state is hard coded:
+    # `minimize_energy!` reproduces it only to 1e-9, and an adaptive cubature
+    # amplifies that into the last digits of a pinned intensity.
     function anisotropic_square()
         s = 2.0
         sys = System(square_cryst, [1 => Moment(; s, g=1)], :dipole)
@@ -163,13 +167,14 @@
 
     # ---- Triangular lattice ----
 
-    # Triangular-lattice antiferromagnet in a three-site cell, small enough for the
-    # cubic self-energy to be affordable. Isotropic and in zero field, this is the
-    # s = 1/2 model of arXiv:0901.4803 in its 120° state. Given an easy-plane
-    # anisotropy and a tilted field it instead cants into a state with three
-    # inequivalent sublattices, which is what makes the off-diagonal elements of Σ̂
-    # large. The state is built explicitly rather than minimized, so that the
-    # chirality of the former and the degenerate direction of the latter are fixed.
+    # Triangular-lattice antiferromagnet in a three-site cell, small enough for
+    # the cubic self-energy to be affordable. Isotropic and in zero field, this
+    # is the s = 1/2 model of arXiv:0901.4803 in its 120° state. Given an
+    # easy-plane anisotropy and a tilted field it instead cants into a state
+    # with three inequivalent sublattices, which is what makes the off-diagonal
+    # elements of Σ̂ large. The state is built explicitly rather than minimized,
+    # so that the chirality of the former and the degenerate direction of the
+    # latter are fixed.
     const tri_cryst = Sunny.triangular_crystal(; a=1.0, c=10.0)
     const tri_ds = [[0.120272, -0.449974, -0.181818], [-0.465766, -0.002090, -0.181818],
                     [0.112161, 0.452064, -0.181818]]
@@ -218,12 +223,13 @@ end
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 0, 1/2)))
         set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 1/2, 1/2)))
         swt_afm1 = SpinWaveTheory(sys_afm1; measure=nothing)
-        # A fixed budget rather than a `tol`, so that both modes integrate the same
-        # function to the same accuracy; `tol` alone stalls in :SUN mode, whose Nambu
-        # space is larger and whose norm the relative test is measured against.
-        # `corrected_energy_per_site` reports an absolute energy, so the classical part
-        # is subtracted off to compare against the published correction. Using `sys_afm1`
-        # rather than the clone inside `swt_afm1`, whose exchange has been rotated.
+        # A fixed budget rather than a `tol`, so that both modes integrate the
+        # same function to the same accuracy; `tol` alone stalls in :SUN mode,
+        # whose Nambu space is larger and whose norm the relative test is
+        # measured against. `corrected_energy_per_site` reports an absolute
+        # energy, so the classical part is subtracted off to compare against the
+        # published correction. Using `sys_afm1` rather than the clone inside
+        # `swt_afm1`, whose exchange has been rotated.
         δE_afm1 = Sunny.corrected_energy_per_site(swt_afm1; maxevals=2000) -
                   energy_per_site(sys_afm1)
         return isapprox(δE_afm1_ref, δE_afm1; atol=1e-3)
@@ -235,11 +241,12 @@ end
 
     # The onsite coupling contributes a constant at this same order, which
     # `corrected_energy_per_site` now includes. It vanishes identically in
-    # `:dipole` mode, where `rcs_factors` leaves the classical energy exact, so only
-    # `:dipole_uncorrected` sees it; the reference above is therefore unaffected, having
-    # no anisotropy at all. The two modes describe the same model with different
-    # truncations of it, so their corrected energies need not agree, only the correction
-    # must be present in one and absent in the other.
+    # `:dipole` mode, where `rcs_factors` leaves the classical energy exact, so
+    # only `:dipole_uncorrected` sees it; the reference above is therefore
+    # unaffected, having no anisotropy at all. The two modes describe the same
+    # model with different truncations of it, so their corrected energies need
+    # not agree, only the correction must be present in one and absent in the
+    # other.
     function easy_plane(mode)
         cryst = Sunny.square_crystal(; c=3)
         sys = System(cryst, [1 => Moment(s=2, g=1)], mode)
