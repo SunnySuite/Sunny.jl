@@ -21,34 +21,29 @@ Sys.isapple() && @eval using AppleAccelerate
 
 cryst = Crystal(lattice_vectors(1, 1, 10, 90, 90, 120), [[0, 0, 0]])
 
+(s, s_str) = (1/2, "1/2")
+## (s, s_str) = (3/2, "3/2")
+
+sys = System(cryst, [1 => Moment(; s, g=2)], :dipole)
+set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
+
 # 120° spiral on the triangular lattice, in the three-site magnetic cell
-function build_system(s)
-    sys = System(cryst, [1 => Moment(; s, g=2)], :dipole)
-    set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
-    sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
-    randomize_spins!(sys)
-    minimize_energy!(sys)
-    return sys
-end
+sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
+randomize_spins!(sys)
+minimize_energy!(sys)
 
 fig = Figure(size=(600, 800))
 
-for (i, s) in enumerate((1/2, 3/2))
-    sys = build_system(s)
-    swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
+sys = build_system(s)
+swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
 
-    # η = 0.03s
-    η = 0.1s
+qpts = [[2/3, -1/3, 0], [0, 0, 0], [1/2, 0, 0], [1/6, 1/6, 0], [0, 1/4, 0]]
+labels=["K", "Γ", "M", "Y₁", "Y"]
+path = q_space_path(cryst, qpts, 200; labels)
 
-    qpts = [[2/3, -1/3, 0], [0, 0, 0], [1/2, 0, 0], [1/6, 1/6, 0], [0, 1/4, 0]]
-    labels=["K", "Γ", "M", "Y₁", "Y"]
-    path = q_space_path(cryst, qpts, 400; labels)
-    energies = 0:(η/4):(20s/3)
+η = 0.03s
+energies = 0:(η/4):(20s/3)
+@time res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true)
 
-    res = Sunny.corrected_intensities(swt, path; energies, η, tol=0.01, threaded=true, verbose=true)
-
-    plot_intensities!(fig[i, 1], res; colormap=:jet, colorrange=(0, s+3/2),
-                        title=@sprintf("s = %.1f, η = %.3f J", s, η), axis=(; ylabel="ω / J"))
-end
-
-fig
+plot_intensities(res; colormap=:jet, colorrange=(0, s+3/2),
+                 title="s = $s_str", axis=(; xlabel="", ylabel="ω / J"))
