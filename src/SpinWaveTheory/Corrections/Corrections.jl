@@ -75,13 +75,13 @@
 # with V ⪰ 0 independent of frequency and all the frequency dependence in a
 # kernel g of the scalar pair energy x — a Cauchy denominator 1/(ω - x) in
 # SelfEnergy.jl, a Lorentzian of half-width η in the two-magnon channel of
-# CorrectedIntensities.jl. So V is accumulated into
-# bins of x on the uniform grid of `loop_wavevectors` and g applied afterwards.
-# That makes Im Σ̂_pp ⪯ 0 a property of the quadrature: `bin_index` splits each
-# contribution between neighbouring bins with nonnegative weights, so a sum of
-# positive semidefinite V stays positive semidefinite bin by bin, on any grid
-# and at any s. Linear splitting preserves the zeroth and first moments exactly,
-# so the sum rule survives binning; the shape error is O((Δ/Γ)²).
+# CorrectedIntensities.jl. So V is accumulated into bins of x on the uniform
+# grid of `loop_wavevectors` and g applied afterwards. That makes Im Σ̂_pp ⪯ 0 a
+# property of the quadrature: `bin_index` splits each contribution between
+# neighbouring bins with nonnegative weights, so a sum of positive semidefinite
+# V stays positive semidefinite bin by bin, on any grid and at any s. Linear
+# splitting preserves the zeroth and first moments exactly, so the sum rule
+# survives binning; the shape error is O((Δ/Γ)²).
 #
 # It is one integral rather than two because a two-magnon final state is
 # reachable by two interfering routes: the transverse (odd) part of the
@@ -94,19 +94,13 @@
 #     y = [√18 v ; β],
 #
 # whose diagonal blocks are the cubic self-energy and the two-magnon continuum
-# and whose off-diagonal block is the interference. This interference term was
-# largely omitted from the relevant literature, e.g., the sequence of works by
-# Chernyshev et al. (arXiv:1306.1231 and arXiv:1607.08238). In that context the
-# interference effects are tiny -- a couple-percent error in the two-magnon
-# weight, which is itself a small fraction of the total intensity. The reason is
-# a sum rule, Σ_𝐪 ∫dω cross = 0, which holds for a trace measure because 𝐒·𝐒
-# links no odd number of bosons to an even one. It makes the interference cancel
-# rather than making it small: pointwise it is comparable to the continuum, and
-# only the integral collapses. A readout that is not a trace has no such
-# protection, and there the interference can be huge, e.g., for a chiral readout
-# such as Im S^{xy} of the XXZ model in an out-of-plane field. There it exceeds
-# the two-magnon continuum it interferes with, and the direct channel is five
-# orders of magnitude below either.
+# and whose off-diagonal block is the interference. That last block is missing
+# from various published 1/s calculations (e.g. arXiv:1306.1231 and
+# arXiv:1607.08238). It is pointwise comparable to the continuum it
+# redistributes. (For a trace measure a sum rule Σ_𝐪 ∫dω cross = 0 makes it
+# cancel, 𝐒·𝐒 linking no odd number of bosons to an even one, so only the
+# integrated weight is protected; a chiral readout such as Im S^{xy} has no such
+# protection and there the interference dominates.)
 #
 # The test suite certifies all the correction terms above by comparing to exact
 # calculations on a dimer model with arbitrary anisotropic interactions and
@@ -141,7 +135,8 @@ function check_corrections_supported(swt::SpinWaveTheory)
 end
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
-# integrand that pairs a line at 𝐩 with one at 𝐪-𝐩. Each channel diverges at
+# integrand that pairs a line at 𝐩 with one at 𝐪-𝐩, carrying a multiplicity
+# `wts` each and totalling `npts = prod(dims)` points. Each channel diverges at
 # the zone centre, so the grid must avoid it in 𝐩 and in 𝐪-𝐩 alike;
 # offsetting by half a step does only the former. In units of a step, and per
 # dimension, the forbidden offsets are 0, putting 𝐩 on the zone centre, and t =
@@ -151,32 +146,58 @@ end
 # the integral picks up a spurious divergence from one grid point whenever
 # dims*𝐪 has a half-integer component, afflicting isolated wavevectors of a
 # path rather than all of them.
+#
+# That offset also makes the grid closed under the involution 𝐩 ↦ 𝐪-𝐩, which
+# halves the work: the two magnon lines are interchangeable, so a point and its
+# partner contribute equally to every integrand of this module, and only one of
+# the two need be visited. Closure is exact rather than approximate, since
+# dims*𝐪 - 2*offset is dims*𝐪 minus its own fractional part, less one in the
+# branch that adds a half step. Writing 𝐦 for that integer, the partner of grid
+# index 𝐢 is 𝐦 - 𝐢 + 2 taken mod dims; the fixed points of the map, at most one
+# per dimension pair, keep multiplicity one.
+struct LoopGrid
+    ps::Vector{Vec3}
+    wts::Vector{Float64}
+    npts::Int
+end
+
 function loop_wavevectors(dims, q_reshaped=zero(Vec3))
     offsets = ntuple(3) do d
         t = mod(dims[d] * q_reshaped[d], 1)
         t < 1/2 ? (t + 1)/2 : t/2
     end
-    return [Vec3((i - 1 + offsets[1]) / dims[1], (j - 1 + offsets[2]) / dims[2], (k - 1 + offsets[3]) / dims[3])
-            for i in 1:dims[1], j in 1:dims[2], k in 1:dims[3]]
+    ms = ntuple(d -> round(Int, dims[d] * q_reshaped[d] - 2offsets[d]), 3)
+    partner = c -> CartesianIndex(ntuple(d -> mod(ms[d] - c[d] + 1, dims[d]) + 1, 3))
+
+    (ps, wts) = (Vec3[], Float64[])
+    visited = falses(dims)
+    for c in CartesianIndices(visited)
+        visited[c] && continue
+        visited[c] = visited[partner(c)] = true
+        push!(ps, Vec3(ntuple(d -> (c[d] - 1 + offsets[d]) / dims[d], 3)))
+        push!(wts, partner(c) == c ? 1 : 2)
+    end
+    return LoopGrid(ps, wts, prod(dims))
 end
 
 # The wavevector loop shared by every frequency-dependent momentum integral of
-# this module, as described above. Calls `f(𝐩, T1, T2, ε1, ε2)` once per
-# wavevector 𝐩 of `ps`, where T1 = T(𝐩) and T2 = T(𝐪-𝐩) diagonalize the two
-# magnon lines being paired, and ε1, ε2 are the signed energies that
-# `bogoliubov!` returns with them. All of these are overwritten on each
-# iteration, so `f` must consume them before returning.
-function foreach_magnon_pair(f, swt::SpinWaveTheory, q_reshaped, ps)
+# this module, as described above. Calls `f(𝐩, w, T1, T2, ε1, ε2)` once per
+# wavevector 𝐩 of `grid`, where T1 = T(𝐩) and T2 = T(𝐪-𝐩) diagonalize the two
+# magnon lines being paired, ε1, ε2 are the signed energies that `bogoliubov!`
+# returns with them, and `w` is the multiplicity by which the contribution is to
+# be scaled. All of the arrays are overwritten on each iteration, so `f` must
+# consume them before returning.
+function foreach_magnon_pair(f, swt::SpinWaveTheory, q_reshaped, grid::LoopGrid)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     T1 = zeros(ComplexF64, 2L, 2L)
     T2 = zeros(ComplexF64, 2L, 2L)
-    for p in ps
+    for (p, w) in zip(grid.ps, grid.wts)
         dynamical_matrix!(H, swt, p)
         ε1 = bogoliubov!(T1, H)
         dynamical_matrix!(H, swt, q_reshaped - p)
         ε2 = bogoliubov!(T2, H)
-        f(p, T1, T2, ε1, ε2)
+        f(p, w, T1, T2, ε1, ε2)
     end
 end
 
@@ -212,14 +233,19 @@ function pair_amplitude_prefactors!(pref, swt::SpinWaveTheory, q_reshaped, q_glo
 end
 
 # Applies `f` to each index, optionally in parallel. The wavevector loops of this
-# module allocate their buffers per iteration so that they may be threaded.
-function foreach_maybe_threaded(f, threaded, indices)
+# module allocate their buffers per iteration so that they may be threaded. A
+# progress bar labeled `desc` is shown unless `desc` is nothing; `next!` is
+# itself thread safe.
+function foreach_maybe_threaded(f, threaded, indices; desc=nothing)
+    meter = ProgressMeter.Progress(length(indices); desc=@something(desc, ""),
+                                  enabled=!isnothing(desc), output=stdout)
+    g = i -> (f(i); ProgressMeter.next!(meter))
     if threaded
         Threads.@threads for i in indices
-            f(i)
+            g(i)
         end
     else
-        foreach(f, indices)
+        foreach(g, indices)
     end
 end
 

@@ -1145,7 +1145,7 @@ end
     # The 12 block is the interference, which no published calculation constrains.
     ρ2m = Matrix{ComplexF64}[]
     onshell2m = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
-    Sunny.accum_pair_measure!(ρ2m, swt2m, terms3, qr2, [zero(Sunny.Vec3)];
+    Sunny.accum_pair_measure!(ρ2m, swt2m, terms3, qr2, Sunny.LoopGrid([zero(Sunny.Vec3)], [1.0], 1);
                               source_freqs=onshell2m, bin_width=1e-3, pref=pref2)
     (M0, M1) = (sum(ρ2m), sum(((i, r),) -> (i - 1) * 1e-3 * r, enumerate(ρ2m)))
     (E0, E1) = (zeros(ComplexF64, L+Nobs, L+Nobs), zeros(ComplexF64, L+Nobs, L+Nobs))
@@ -1441,15 +1441,15 @@ end
     # term by term, straight from the formula at the head of SelfEnergy.jl, so that
     # nothing but `foreach_cubic_line` is shared with the implementation under test.
     terms3 = Sunny.cubic_monomials(swt)
-    ps = Sunny.loop_wavevectors((12, 12, 1))
+    grid = Sunny.loop_wavevectors((12, 12, 1))
     ε = dispersion(swt, q)[:]
     onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
     ωs = range(0, 2, 6) .+ im*0.06
     k = Sunny.to_reshaped_rlu(sys, q[1])
     Σloop = let Σ = zeros(ComplexF64, L, L, length(ωs))
-        Sunny.foreach_cubic_line(swt, terms3, k, ps, L) do a, _b, u, x, _T1, _T2
+        Sunny.foreach_cubic_line(swt, terms3, k, grid, L) do a, _b, w, u, x, _T1, _T2
             for m′ in 1:L, m in 1:L
-                R = 18 * conj(u[m]) * u[m′]
+                R = 18w * conj(u[m]) * u[m′]
                 # The source channel a > L is frozen at its on-shell frequency, hence
                 # is ω-independent and enters with the opposite sign
                 for iω in eachindex(ωs)
@@ -1457,10 +1457,10 @@ end
                 end
             end
         end
-        Σ ./ length(ps)
+        Σ ./ grid.npts
     end
     Σbin = let ρ = Matrix{ComplexF64}[]
-        Σsrc = Sunny.accum_pair_measure!(ρ, swt, terms3, k, ps; source_freqs=onshell, bin_width=0.06/16)
+        Σsrc = Sunny.accum_pair_measure!(ρ, swt, terms3, k, grid; source_freqs=onshell, bin_width=0.06/16)
         Sunny.pair_self_energy!(zeros(ComplexF64, L, L, length(ωs)), ρ, Σsrc, ωs, 0.06/16)
     end
     @test maximum(abs, Σbin - Σloop) / maximum(abs, Σloop) < 1e-3
@@ -1482,17 +1482,17 @@ end
             pref = zeros(ComplexF64, 3, L)
             q_global = Sunny.orig_crystal(sys).recipvecs * Sunny.Vec3(q)
             Sunny.pair_amplitude_prefactors!(pref, swt, q_reshaped, q_global)
-            ps = Sunny.loop_wavevectors(grid, q_reshaped)
-            Sunny.foreach_magnon_pair(swt, q_reshaped, ps) do _p, T1, T2, ε1, ε2
+            lg = Sunny.loop_wavevectors(grid, q_reshaped)
+            Sunny.foreach_magnon_pair(swt, q_reshaped, lg) do _p, w, T1, T2, ε1, ε2
                 for b in 1:L, a in 1:L
                     β = ntuple(μ -> Sunny.pair_amplitude(pref, T1, T2, a, b, μ, L), 3)
                     x = ε1[a] + ε2[b]
                     for (iω, ω) in enumerate(energies)
-                        ref[iω, iq] += contract(β) * (η/π) / ((ω - x)^2 + η^2)
+                        ref[iω, iq] += w * contract(β) * (η/π) / ((ω - x)^2 + η^2)
                     end
                 end
             end
-            view(ref, :, iq) ./= Ncells * length(ps)
+            view(ref, :, iq) ./= Ncells * lg.npts
         end
         return ref
     end

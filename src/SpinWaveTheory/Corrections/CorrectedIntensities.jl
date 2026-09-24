@@ -83,7 +83,8 @@ more finely than `η` costs almost nothing, and a warning is issued if they are
 spaced more coarsely.
 
 Set `threaded=true` to parallelize over `qpts`, and `verbose=true` to print the
-selected parameters together with the linewidths that resulted.
+selected parameters, a progress bar over `qpts`, and the linewidths that
+resulted.
 
 The three contributions summed here can be obtained separately from
 `Sunny.corrected_channels`, which takes the same arguments and returns
@@ -138,9 +139,13 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     # the Lorentzian.
     if length(energies) > 1
         dω = (energies[end] - energies[begin]) / (length(energies) - 1)
-        dω > η/2 && @warn """Requested `energies` are spaced by $(round(dω, sigdigits=2)) on \
-                             average, which will not resolve features of width η = $η. A spacing \
-                             of η/2 or less adds little cost."""
+        # The relative slack keeps a deliberate spacing of exactly η/2 from
+        # tripping the warning through round-off in the division above.
+        if dω > (η/2) * (1 + 1e-8)
+            @warn """Requested `energies` are spaced by $(round(dω, sigdigits=2)) on \
+                     average, which will not resolve features of width η = $η. A spacing \
+                     of η/2 or less adds little cost."""
+        end
     end
 
     # Self-consistent HF can be enabled with maxiters > 1. Note, however, that
@@ -210,12 +215,12 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         # diagonal to the ω = ε_𝐪n of arXiv:1306.1231; the off-diagonal choice is an
         # ambiguity of relative order 1/s.
         onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
-        ps = loop_wavevectors(loop_grid, q_reshaped)
+        grid = loop_wavevectors(loop_grid, q_reshaped)
         # One pass over the loop wavevectors serves the self-energy and both parts of
         # the pair amplitude, which must share Bogoliubov matrices; see Corrections.jl.
         pair_amplitude_prefactors!(pref, swt, q_reshaped, q_global)
         ρ = Matrix{ComplexF64}[]
-        Σsrc = accum_pair_measure!(ρ, swt, terms3, q_reshaped, ps; source_freqs=onshell, bin_width, pref)
+        Σsrc = accum_pair_measure!(ρ, swt, terms3, q_reshaped, grid; source_freqs=onshell, bin_width, pref)
         cubic && pair_self_energy!(Σ3, ρ, Σsrc, energies .+ im*η, bin_width)
 
         # Conjugated amplitudes conj(ũ) = T† u, including the 1/s correction to the
@@ -283,23 +288,36 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         end
     end
 
-    foreach_maybe_threaded(calc_iq!, threaded, eachindex(qpts.qs))
+    if verbose
+        println("""
+            corrected_intensities with tol = $tol
+              loop grid       $(join(loop_grid, "×")) = $(prod(loop_grid)) wavevectors
+              bin width       $(round(bin_width; sigdigits=2))""")
+    end
+
+    t0 = time()
+    foreach_maybe_threaded(calc_iq!, threaded, eachindex(qpts.qs);
+                           desc = verbose ? "  wavevectors     " : nothing)
+    elapsed = time() - t0
 
     if verbose
+        r2 = x -> round(x; sigdigits=2)
+        # Wall time and the throughput it implies. Note that the speedup from
+        # threading falls well short of `nthreads` unless BLAS is reentrant; see
+        # the comment in fig4b.jl.
+        nthreads = threaded ? min(Threads.nthreads(), length(qpts.qs)) : 1
+        per_q = 1000 * elapsed / length(qpts.qs)
         # A regulator much larger than the calculated linewidths is dominating
         # the line shapes, and one much smaller than them is being paid for
         # needlessly. The upper figure is a quantile rather than the maximum,
         # which is set by the divergence of the vertices at an ordering
         # wavevector and says nothing about the rest.
         Γs = sort!(filter(isfinite, vec(linewidths)))
-        r2 = x -> round(x; sigdigits=2)
         report = isempty(Γs) ? "none of the LSWT poles lie within `energies`" :
             "median $(r2(Γs[cld(end, 2)])), 90th pct $(r2(Γs[ceil(Int, 0.9end)])), against η = $(r2(η))"
-        println("""
-            corrected_intensities with tol = $tol
-              loop grid       $(join(loop_grid, "×")) = $(prod(loop_grid)) wavevectors
-              bin width       $(r2(bin_width))
-              on-shell -Im Σ  $report""")
+        println("  elapsed         $(r2(elapsed)) s on $nthreads \
+                 thread$(nthreads == 1 ? "" : "s"), $(r2(per_q)) ms per 𝐪")
+        println("  on-shell -Im Σ  $report")
     end
 
     return (; cryst, qpts, energies, chans..., specfunc, disp)
