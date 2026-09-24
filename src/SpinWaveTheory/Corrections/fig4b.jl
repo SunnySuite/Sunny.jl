@@ -1,11 +1,11 @@
-# Reproduce Fig. 4 of Mourigal, Fuhrman, Chernyshev and Zhitomirsky, PRB 88,
+# Reproduce Fig. 4a of Mourigal, Fuhrman, Chernyshev and Zhitomirsky, PRB 88,
 # 094407 (2013) [arXiv:1306.1231]. Calculates the dynamical structure factor of
-# the triangular-lattice Heisenberg antiferromagnet, including 1/s corrections.
+# the triangular-lattice Heisenberg antiferromagnet, including ``1/s``
+# corrections.
 #
-# Sunny makes one small correction to the reference calculation: it retains
-# interference between transverse and longitudinal channels. For this model, the
-# correction removes a small fraction of the two-magnon weight, which itself is
-# small compared to the quasiparticle branch intensities.
+# The reference calculation omitted interference between transverse and
+# longitudinal channels. Sunny includes this additional ``1/s`` correction term,
+# which is found to redistribute the two-magnon continuum.
 
 using Sunny, LinearAlgebra, Printf, Statistics
 using GLMakie
@@ -32,9 +32,6 @@ sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-fig = Figure(size=(600, 800))
-
-sys = build_system(s)
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
 
 qpts = [[2/3, -1/3, 0], [0, 0, 0], [1/2, 0, 0], [1/6, 1/6, 0], [0, 1/4, 0]]
@@ -42,8 +39,10 @@ labels=["K", "Γ", "M", "Y₁", "Y"]
 path = q_space_path(cryst, qpts, 200; labels)
 
 η = 0.03s
-energies = 0:(η/4):(20s/3)
-@time res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true)
+energies = 0:(η/2):(20s/3)
+res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true)
+
+# Compare with Fig. 4a of Mourigal et al.
 
 plot_intensities(res; colormap=:jet, colorrange=(0, s+3/2),
                  title="s = $s_str", axis=(; xlabel="", ylabel="ω / J"))

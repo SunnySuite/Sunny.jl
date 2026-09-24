@@ -7,8 +7,8 @@
 #
 # is a product of K boson operators, summed over the N magnetic cells 𝐫.
 # Operator s acts on sublattice iₛ of the cell displaced by the integer offset
-# 𝐧ₛ. Following Sunny's Nambu packing, the operator is labeled by an index
-# a ∈ 1:2L that selects b_i when a = i and b†_i when a = L+i. Operators within a
+# 𝐧ₛ. Following Sunny's Nambu packing, the operator is labeled by an index a ∈
+# 1:2L that selects b_i when a = i and b†_i when a = L+i. Operators within a
 # monomial are stored in the order they are to be multiplied, which matters only
 # when two of them act on the same site of the same cell.
 struct BosonMonomial{K}
@@ -18,9 +18,12 @@ struct BosonMonomial{K}
 end
 
 # Sums the coefficients of monomials that describe the same operator product,
-# which typically shrinks a decoupled term list several-fold. Worth doing because
-# the resulting list is contracted once per point of a momentum-space
+# which typically shrinks a decoupled term list several-fold. Worth doing
+# because the resulting list is contracted once per point of a momentum-space
 # integration. Offsets are keyed by integers, which are exactly comparable.
+#
+# Returned sorted by offset tuple, which lets `vertex!` compute the phases of
+# one tuple once for the whole run of terms sharing it.
 function merge_monomials(terms::Vector{BosonMonomial{K}}) where K
     ret = Dict{Tuple{NTuple{K, Int}, NTuple{K, NTuple{3, Int}}}, BosonMonomial{K}}()
     for term in terms
@@ -28,7 +31,7 @@ function merge_monomials(terms::Vector{BosonMonomial{K}}) where K
         prev = get(ret, key, nothing)
         ret[key] = isnothing(prev) ? term : BosonMonomial(prev.c + term.c, term.as, term.ns)
     end
-    return collect(values(ret))
+    return sort!(collect(values(ret)); by = t -> map(n -> round.(Int, Tuple(n)), t.ns))
 end
 
 # All permutations of (1, …, K), used to symmetrize a vertex over its slots.
@@ -462,32 +465,41 @@ end
 # The work is arranged as an accumulation followed by a change of basis, rather
 # than as a sum of rank-one tensors. Each (monomial, permutation) contributes a
 # single coefficient to the Nambu operator product it names, so the whole term
-# list collapses into one (2L)^K tensor C at a cost independent of L; transforming
-# its slots to the Bogoliubov basis is then K matrix products. Summing rank-one
-# tensors instead costs K! per monomial times the (2L)^K size of the output, which
-# for the cubic vertex of a three-band system is seventy times more arithmetic.
-# `scratch` holds C and the intermediates; the innermost loop of a momentum-space
-# integration should pass one in to be reused.
+# list collapses into one (2L)^K tensor C at a cost independent of L;
+# transforming its slots to the Bogoliubov basis is then K matrix products.
+# Summing rank-one tensors instead costs K! per monomial times the (2L)^K size
+# of the output, which for the cubic vertex of a three-band system is seventy
+# times more arithmetic. `scratch` holds C and the intermediates; the innermost
+# loop of a momentum-space integration should pass one in to be reused.
 function vertex!(U::Array{ComplexF64, K}, terms::Vector{BosonMonomial{K}},
                  qs::NTuple{K, Vec3}, Ts::NTuple{K, Matrix{ComplexF64}},
                  scratch::Array{ComplexF64, K}=similar(U)) where K
     @assert all(x -> abs(x - round(x)) < 1e-12, sum(qs)) "Vertex momenta must sum to zero"
-    # A change of basis leaves a vanishing tensor vanishing, so an empty term list
-    # skips the matrix products entirely. Worth a branch because callers that have
-    # discarded a negligible vertex still run the loop for its other consumers.
+    # A change of basis leaves a vanishing tensor vanishing, so an empty term
+    # list skips the matrix products entirely. Worth a branch because callers
+    # that have discarded a negligible vertex still run the loop for its other
+    # consumers.
     isempty(terms) && return fill!(U, 0)
     N = size(U, 1)
     # The cache is indexed by a value rather than a type, so the lookup must be
-    # annotated for the loop below to be type stable. That loop is the innermost one
-    # of a momentum-space integration.
+    # annotated for the loop below to be type stable. That loop is the innermost
+    # one of a momentum-space integration.
     perms = SLOT_PERMUTATIONS[K]::Vector{NTuple{K, Int}}
 
-    # Coefficient of the operator product ∏ₜ x_{𝐤ₜ}[aₜ]. Zero offsets are common
-    # and carry no phase, so they are given none.
+    # Coefficient of the operator product ∏ₜ x_{𝐤ₜ}[aₜ]. Zero offsets are
+    # common and carry no phase, so they are given none. Many terms share one
+    # tuple of offsets — a triangular-lattice cubic vertex has 52 of them over
+    # 13 distinct tuples — and `merge_monomials` groups those together, so the
+    # K² phases need recomputing only when the tuple changes. That reuse is
+    # worth having because this is the innermost loop of a momentum-space
+    # integration, and the `cis` calls dominate it.
     fill!(scratch, 0)
-    for term in terms
-        ph = ntuple(Val{K}()) do t
-            ntuple(s -> iszero(term.ns[s]) ? 1.0+0im : cis(2π * dot(qs[t], term.ns[s])), Val{K}())
+    local ph
+    for (i, term) in enumerate(terms)
+        if i == 1 || term.ns != terms[i-1].ns
+            ph = ntuple(Val{K}()) do t
+                ntuple(s -> iszero(term.ns[s]) ? 1.0+0im : cis(2π * dot(qs[t], term.ns[s])), Val{K}())
+            end
         end
         for p in perms
             c = term.c / length(perms)

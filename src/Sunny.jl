@@ -15,6 +15,7 @@ import MappedArrays: mappedarray
 import OffsetArrays: OffsetArrays, OffsetArray
 import Optim
 import Printf: Printf, @printf, @sprintf
+import ProgressMeter
 import Random: Random, randn!
 import SpecialFunctions: erf, erfc
 import Statistics
