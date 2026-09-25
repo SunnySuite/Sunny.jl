@@ -15,7 +15,7 @@ cryst = Crystal(lattice_vectors(1, 1, 10, 90, 90, 120), [[0, 0, 0]])
 sys = System(cryst, [1 => Moment(; s, g=2)], :dipole)
 set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
 
-# The ground state is a 120° spiral in the three-site magnetic cell
+# The ground state is a 120° spiral in the three-site magnetic cell.
 
 sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
 randomize_spins!(sys)
@@ -30,6 +30,7 @@ path = q_space_path(cryst, qpts, 200; labels)
 η = 0.03s
 energies = 0:(η/2):(20s/3)
 res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true)
+;#hide
 
 # Compare with Fig. 4a of Mourigal et al. The reference calculation omitted
 # interference between transverse and longitudinal channels. Sunny includes this
