@@ -156,3 +156,53 @@ end
 Smooth approximation to `min(x, cap)`, exact in the limit `β = Inf`.
 """
 softcap(x, cap; β=1) = cap - softplus(cap - x; β)
+
+"""
+    configure_blas_for_threaded_workloads(; verbose=false)
+
+Configure BLAS to accelerate multi-threaded throughput over many small matrix
+calculations, e.g., as may appear in spin-wave theory. The default Julia
+package, OpenBLAS, suffers from global lock contention. This function loads an
+alternative BLAS backend that is more thread-friendly and configures it with
+`BLAS.set_num_threads(1)`.
+
+The BLAS preferred backend (AppleAccelerate, AOCL, MKL, or NVPL) will be
+autodetected according to the platform. If that backend is not yet installed,
+this function will report that through in an error message.
+"""
+function configure_blas_for_threaded_workloads()
+    package_available(pkg) = Base.find_package(String(pkg)) !== nothing
+
+    is_amd = Sys.ARCH === :x86_64 && (
+        occursin("amd", lowercase(join(string(info.model) for info in Sys.cpu_info()))) ||
+        occursin("znver", lowercase(Sys.CPU_NAME))
+    )
+
+    candidates =
+        Sys.isapple()                          ? (:AppleAccelerate,) :
+        Sys.islinux() && Sys.ARCH === :aarch64 ? (:NVPL,) :
+        is_amd                                 ? (:AOCL, :MKL) :
+        Sys.ARCH === :x86_64                   ? (:MKL,) :
+        ()
+
+    index = findfirst(package_available, candidates)
+
+    if isnothing(index)
+        if isempty(candidates)
+            error("Cannot recommend an alternative to OpenBLAS for this platform: ",  Sys.ARCH)
+        else
+            error("Backend $(first(candidates)) is recommended; install it in the Julia package manager.")
+        end
+    end
+
+    backend = candidates[index]
+
+    # Loading the package switches the process-wide BLAS implementation.
+    Base.eval(Main, :(using $(backend)))
+
+    # This must happen after loading the backend.
+    BLAS.set_num_threads(1)
+
+    println("Configured $backend with 1 BLAS thread.")
+    return nothing
+end

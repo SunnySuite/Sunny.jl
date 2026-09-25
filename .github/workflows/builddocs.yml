@@ -26,3 +26,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # If authenticating with GitHub Actions token
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # If authenticating with SSH deploy key
           DISPLAY: ":0"
+          JULIA_NUM_THREADS: "4" # Matches num cores of standard `ubuntu` runner on public repo
