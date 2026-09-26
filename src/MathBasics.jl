@@ -156,3 +156,30 @@ end
 Smooth approximation to `min(x, cap)`, exact in the limit `β = Inf`.
 """
 softcap(x, cap; β=1) = cap - softplus(cap - x; β)
+
+"""
+    load_fast_blas()
+
+Load a BLAS backend that outperforms the default OpenBLAS when parallelizing
+over many small matrix calculations, e.g., when calculating spin-wave
+intensities with the `threaded=true` option. Although OpenBLAS is fast serially,
+it suffers from global lock contention when called from many independent
+threads.
+
+The appropriate backend (AppleAccelerate or MKL) is selected according to the
+platform. If it is not yet installed, this function will report that through an
+error message. Loading the backend switches BLAS for the entire Julia process.
+"""
+function load_fast_blas()
+    backend = Sys.isapple()        ? :AppleAccelerate :
+              Sys.ARCH === :x86_64 ? :MKL :
+              error("Cannot recommend an alternative to OpenBLAS for this platform: ", Sys.ARCH)
+
+    isnothing(Base.find_package(String(backend))) &&
+        error("Backend $backend is recommended; install it in the Julia package manager.")
+
+    Base.eval(Main, :(using $backend))
+
+    println("Loaded $backend as the BLAS backend.")
+    return nothing
+end

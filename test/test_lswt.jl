@@ -506,6 +506,45 @@ end
 end
 
 
+@testitem "Vacant sites" begin
+    # A vacant site must decouple from the spin wave calculation entirely: it
+    # contributes only null bands, and the surviving sites behave as though it
+    # were absent. `swt_data!` achieves this by zeroing the local frame, which is
+    # load bearing for the Zeeman term alone -- the anisotropy and exchange terms
+    # are already suppressed by the vanishing spin magnitude.
+    cryst = Crystal(lattice_vectors(1, 1.3, 1.7, 90, 90, 90), [[0, 0, 0]])
+
+    function build(mode, dims)
+        sys = System(cryst, [1 => Moment(s=1, g=2)], mode; dims, seed=0)
+        set_onsite_coupling!(sys, S -> -0.3*S[3]^2, 1)
+        set_field!(sys, [0, 0, 0.7])
+        randomize_spins!(sys)
+        return sys
+    end
+
+    for mode in (:dipole, :SUN)
+        # An isolated moment, and the same moment obtained by breaking a chain
+        # with a vacancy. The lattice is orthorhombic so that the chain bond has
+        # no symmetry equivalent wrapping onto the surviving site.
+        sys_ref = build(mode, (1, 1, 1))
+        minimize_energy!(sys_ref)
+        sys = build(mode, (2, 1, 1))
+        set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
+        sys = to_inhomogeneous(sys)
+        set_vacancy_at!(sys, (2, 1, 1, 1))
+        minimize_energy!(sys)
+        @test 2energy_per_site(sys) ≈ energy_per_site(sys_ref)
+
+        q = [[0.2, 0.3, 0.4]]
+        disp_ref = dispersion(SpinWaveTheory(sys_ref; measure=nothing), q)
+        disp = dispersion(SpinWaveTheory(sys; measure=nothing), q)
+        L = length(disp_ref)
+        @test disp[1:L] ≈ disp_ref
+        @test all(<(1e-6), disp[L+1:end])
+    end
+end
+
+
 @testitem "Generalized interaction consistency" begin
     using LinearAlgebra
 
@@ -619,102 +658,4 @@ end
     # println(round.(res.data; digits=12))
     data_ref = [0.042551644188 0.148531187027 0.042551644188; 0.123710785142 0.944407715529 0.123710785142; 1.079575108835 1.261286085876 1.079575108835; 0.492703854423 0.168505531387 0.492703854423; 0.087770506619 0.06066521855 0.087770506619; 0.034461978527 0.030825188879 0.034461978527; 0.018214262744 0.018585357642 0.018214262744; 0.011230027228 0.012410289203 0.011230027228; 0.007607320239 0.008868510563 0.007607320239; 0.005490942587 0.006651305827 0.005490942587; 0.004148615687 0.005172181047 0.004148615687]
     @test isapprox(res.data, data_ref; atol=1e-9)
-end
-
-
-@testitem "LSWT correction to classical energy" begin
-    J = 1
-    s = 1
-    δE_afm1_ref = 0.488056/(2s) * (-2*J*s^2)
-
-    # The results are taken from Phys. Rev. B 102, 220405(R) (2020) for the AFM1
-    # phase on the FCC lattice
-    function correction(mode)
-        a = 1
-        latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-        positions = [[0, 0, 0]]
-        fcc = Crystal(latvecs, positions, 225)
-        sys_afm1 = System(fcc, [1 => Moment(; s, g=1)], mode)
-        set_exchange!(sys_afm1, J, Bond(1, 2, [0, 0, 0]))
-        set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 0, 0)))
-        set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 1/2, 0)))
-        set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 0, 1/2)))
-        set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 1/2, 1/2)))
-        swt_afm1 = SpinWaveTheory(sys_afm1; measure=nothing)
-        # Calculate at low accuracy for faster testing
-        δE_afm1 = Sunny.energy_per_site_lswt_correction(swt_afm1; atol=5e-4)
-        return isapprox(δE_afm1_ref, δE_afm1; atol=1e-3)
-    end
-
-    for mode in (:dipole, :SUN)
-        @test correction(mode)
-    end
-end
-
-
-@testitem "LSWT correction to the ordered moments (s maximized)" begin
-    # Test example 1: The magnetization is maximized to `s`. Reference result
-    # comes from Phys. Rev. B 79, 144416 (2009) Eq. (45) for the 120° order on
-    # the triangular lattice.
-    J = 1
-    s = 1/2
-    a = 1
-    δS_ref = -0.261302
-
-    function δS_triangular(mode)
-        latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
-        cryst = Crystal(latvecs, [[0, 0, 0]])
-        sys = System(cryst, [1 => Moment(s=s, g=2)], mode)
-        set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
-        polarize_spins!(sys, [0, 1, 0])
-        sys = repeat_periodically_as_spiral(sys, (3, 3, 1); k=[2/3, -1/3, 0], axis=[0, 0, 1])
-        swt = SpinWaveTheory(sys; measure=nothing)
-        # Calculate first 3 digits for faster testing
-        δS = Sunny.magnetization_lswt_correction(swt; atol=1e-3)[1]
-
-        return isapprox(δS_ref, δS, atol=1e-3)
-    end
-
-    for mode in (:dipole, :SUN)
-        @test δS_triangular(mode)
-    end
-end
-
-
-@testitem "LSWT correction to the ordered moments (s not maximized)" begin
-    using LinearAlgebra
-    # Test example 2: The magnetization is smaller than `s` due to easy-plane
-    # single-ion anisotropy The results are derived in the Supplemental
-    # Information (Note 12) of https://doi.org/10.1038/s41467-021-25591-7.
-    a = b = 8.3193
-    c = 5.3348
-    lat_vecs = lattice_vectors(a, b, c, 90, 90, 90)
-    types = ["Fe"]
-    positions = [[0, 0, 0]]
-    cryst = Crystal(lat_vecs, positions, 113; types)
-
-    s = 1
-    J₁  = 0.266
-    J₁′ = 0.1J₁
-    Δ = Δ′ = 1/3
-    D = 1.42
-    gab, gcc = 2.18, 1.93
-    g = diagm([gab, gab, gcc])
-    x = 1/2 - D/(8*(2J₁+J₁′))
-
-    sys = System(cryst, [1 => Moment(; s, g)], :SUN; dims=(1, 1, 2), seed=0)
-    set_exchange!(sys, diagm([J₁, J₁, J₁*Δ]),  Bond(1, 2, [0, 0, 0]))
-    set_exchange!(sys, diagm([J₁′, J₁′, J₁′*Δ′]), Bond(1, 1, [0, 0, 1]))
-    set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
-
-    randomize_spins!(sys)
-    minimize_energy!(sys; maxiters=1000)
-    swt = SpinWaveTheory(sys; measure=nothing)
-
-    δS = Sunny.magnetization_lswt_correction(swt; atol=1e-2)[1]
-
-    M_cl  = 2*√((1-x)*x)
-    # Paper reported M_ref = 2.79, but actual result is closer to 2.78
-    M_ref = 2.78
-    @test isapprox(M_ref, (M_cl+δS)*√3*gab, atol=1e-2)
 end

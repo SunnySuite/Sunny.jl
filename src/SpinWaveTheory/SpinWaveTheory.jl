@@ -40,6 +40,7 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     data           :: Union{SWTDataDipole, SWTDataSUN}
     measure        :: MeasureSpec
     regularization :: Float64
+    classical_energy :: Float64
 end
 
 function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, energy_ϵ=nothing)
@@ -57,10 +58,13 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
     sys = reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
 
+    # Read the classical energy before `swt_data!` invalidates it
+    classical_energy = energy_per_site(sys)
+
     # Rotate local operators to quantization axis
     data = swt_data!(sys, measure)
 
-    return SpinWaveTheory(sys, data, measure, regularization)
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy)
 end
 
 
@@ -128,13 +132,13 @@ end
 # Prepare local operators and observables for spin wave calculation by rotating
 # into the local reference frame as defined by the ground state. Mutates
 # interactions in sys.
-function swt_data!(sys::System{N}, measure) where N
+function swt_data!(sys::System{N}, @nospecialize measure) where N
     # Calculate transformation matrices into local reference frames
     Na = nsites(sys)
     Nb = nbaresites(sys)
     nparts = num_parts_per_unit(measure)
     Nobs = num_observables(measure)
-    flat_ops = reshape(measure.observables, Nobs, Na, nparts)
+    flat_ops = reshape(measure.observables::Array{HermitianC64, 6}, Nobs, Na, nparts)
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
@@ -214,7 +218,7 @@ function swt_data!(sys::System{N}, measure) where N
 end
 
 
-function swt_data!(sys::System{0}, measure)
+function swt_data!(sys::System{0}, @nospecialize measure)
     Na = nsites(sys)
     Nobs = num_observables(measure)
 
@@ -246,7 +250,7 @@ function swt_data!(sys::System{0}, measure)
     # Observable is semantically a 1x3 row vector but stored in transpose
     # (column) form. To achieve effective right-multiplication by R, we should
     # in practice left-multiply column vector by R'.
-    obs = reshape(measure.observables, Nobs, Na)
+    obs = reshape(measure.observables::Array{Vec3, 6}, Nobs, Na)
     obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
 
     # Precompute transformed exchange matrices and store in
