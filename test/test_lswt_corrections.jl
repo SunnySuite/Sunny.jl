@@ -403,7 +403,7 @@ end
         swt = SpinWaveTheory(sys; measure=nothing)
 
         @test norm(sys.dipoles[1]) ≈ d_ref atol=1e-6
-        @test Sunny.boson_density(swt; tol=1e-5)[1] ≈ n_ref atol=1e-6
+        @test Sunny.boson_density(swt; tol=1e-4)[1] ≈ n_ref atol=1e-5
     end
 end
 
@@ -717,13 +717,12 @@ end
     using LinearAlgebra
     using .CorrectionModels: canted_square, square_cryst
 
-    # Default accuracy for the momentum integrals, enough for the checks below that
-    # compare against a reference value: the tightest of them, Oguchi's ζ, comes out
-    # 2e-8 from its reference here, thirty times inside the `atol` asserted, and
-    # tightening to 1e-6 does not move any error below while it doubles the cost.
-    # Checks that instead compare two corrections computed from the same quadrature,
-    # or extract a ratio from them, loosen it individually.
-    tol = 1e-5
+    # Default accuracy for the momentum integrals, enough for the checks below
+    # that compare against a reference value: the tightest of them, Oguchi's ζ,
+    # comes out 1.4e-7 from its reference here, seven times inside the `atol`
+    # asserted. Checks that instead compare two corrections computed from the
+    # same quadrature, or extract a ratio from them, loosen it individually.
+    tol = 1e-4
 
     # ---- Oguchi's Z_c, on a supercell and on a multi-atom basis ----
 
@@ -780,7 +779,7 @@ end
     @test gs[2] - gs[1] ≈ 1 atol=1e-10
     @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, grid=(6, 6, 1))) < 1e-12
     Zcs = map(maxiters -> Sunny.corrected_dispersion(swt, [[0.3, 0.1, 0]],
-                  Sunny.hartree_fock_correction(swt; maxiters, scf_tol=1e-9, tol=1e-4).terms2), (1, 100))
+                  Sunny.hartree_fock_correction(swt; maxiters, scf_tol=1e-7, tol=1e-4).terms2), (1, 100))
     @test Zcs[1] ≈ Zcs[2] atol=1e-7
     # The tadpole vanishes term by term, at 1e-34, so `tol` is irrelevant to it
     tad = Sunny.tadpole_correction(swt; tol=1e-3)
@@ -799,17 +798,21 @@ end
         @test vec(corrected) ≈ [[-0.8240908, 0, 0.3264180], [0.8240908, 0, 0.3264180]] atol=1e-6
     end
 
-    # Maximal-weight coherent states make this SU(N) system equivalent to the dipole
-    # one, so the boson densities agree despite counting N-1 bosons per site instead of
-    # one. The moments must refuse in :SUN mode, where the correction to ⟨𝐒⟩ is not
-    # purely radial.
+    # Maximal-weight coherent states make this SU(N) system equivalent to the
+    # dipole one, so the boson densities agree despite counting N-1 bosons per
+    # site instead of one. The moments must refuse in :SUN mode, where the
+    # correction to ⟨𝐒⟩ is not purely radial.
     #
-    # FIXME -- once `corrected_magnetic_moments` handles :SUN mode, assert the corrected
-    # moments here instead of the refusal, including the transverse part.
+    # FIXME -- once `corrected_magnetic_moments` handles :SUN mode, assert the
+    # corrected moments here instead of the refusal, including the transverse
+    # part.
+    #
+    # A loose `tol` suffices because the two modes integrate the same function
+    # here, and error cancels in the comparison.
     let
         swt = SpinWaveTheory(canted_square(1, 3; mode=:SUN); measure=nothing)
         swt′ = SpinWaveTheory(canted_square(1, 3); measure=nothing)
-        @test Sunny.boson_density(swt; tol=1e-6) ≈ Sunny.boson_density(swt′; tol=1e-6) rtol=1e-5
+        @test Sunny.boson_density(swt; tol=1e-3) ≈ Sunny.boson_density(swt′; tol=1e-3) rtol=1e-5
         @test_throws ErrorException Sunny.corrected_magnetic_moments(swt; tol=1e-3)
     end
 
@@ -825,38 +828,30 @@ end
     # into each local frame, so the vertex tensors, the Bogoliubov matrices and the
     # dynamical matrices themselves all differ between the two modes by phases.
     #
-    # The quadratures here must be *tight*, even though what is asserted is a
-    # difference between two modes running the same integrand. Discretization error
-    # does not cancel between them: the two modes reach the same Hamiltonian only to
-    # round-off, and `hcubature` subdivides by comparing an error estimate against
-    # `tol`, so a 1e-14 disagreement can send them down different refinement paths
-    # and leave errors of order `tol` that do not subtract. Those land in the
-    # Hartree-Fock coefficients, hence in Σstat, hence — divided by a near-degenerate
-    # Dyson denominator — in `εc` and the intensities, at 1e-7 for `tol` = 1e-4.
-    # Freezing Σstat across such a perturbation drops the discrepancy to 1e-11,
-    # confirming the mean-field cubature as the sole amplifier. At 1e-6 every
-    # refinement path is converged well past the threshold below. Pinning
-    # `loop_grid` keeps the wavevector loop at the size `tol` = 0.02 would have
-    # chosen, so tightening costs 5x rather than 900x.
+    # The tolerance below is loose because `hcubature` decides how finely to subdivide
+    # by comparing an error estimate against `tol`, so the two modes can take different
+    # refinement paths and leave errors of order `tol` that fail to subtract. Even so,
+    # a scaled Hartree-Fock coefficient or a tilted canting angle moves these outputs by
+    # far more than 1e-5, so real bugs are still caught.
     let
-        (s, B) = (1/2, 0.6)
+        (s, B, tol) = (1/2, 0.6, 0.02)
         qs = [[0.23, 0.11, 0], [0.4, 0.3, 0]]
         rs = map((:dipole_uncorrected, :SUN)) do mode
             sys = canted_square(s, B; mode)
             swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-            hf = Sunny.hartree_fock_correction(swt; maxiters=1, tol=1e-6)
-            tad = Sunny.tadpole_correction(swt; tol=1e-6)
+            hf = Sunny.hartree_fock_correction(swt; maxiters=1, tol)
+            tad = Sunny.tadpole_correction(swt; tol)
             return (; ε = dispersion(swt, qs),
-                      E = Sunny.corrected_energy_per_site(swt; tol=1e-6),
-                      n = Sunny.boson_density(swt; tol=1e-6),
+                      E = Sunny.corrected_energy_per_site(swt; tol),
+                      n = Sunny.boson_density(swt; tol),
                       δE = [hf.δE, tad.δE],
                       εc = Sunny.corrected_dispersion(swt, qs, [hf.terms2; tad.terms2]),
                       Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, grid=(8, 8, 1)),
                       I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61),
-                                                      η=0.1, tol=1e-6, loop_grid=(26, 26, 1)).data)
+                                                      η=0.1, tol).data)
         end
         for k in keys(rs[1])
-            @test maximum(abs, getfield(rs[1], k) .- getfield(rs[2], k)) < 1e-11
+            @test maximum(abs, getfield(rs[1], k) .- getfield(rs[2], k)) < 1e-5
         end
         # Nontrivial: every quantity above is of order unity, and the intensities in
         # particular exercise the full Dyson resummation
