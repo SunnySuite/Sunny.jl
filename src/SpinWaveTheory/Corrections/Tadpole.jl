@@ -129,9 +129,12 @@ function tadpole_correction(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
     @assert abs(imag(δE)) < noise * max(abs(δE), 1)
 
     # In the local frame ⟨S⁺⟩ = σ ⟨b⟩ = σ v with σ = √(2s), so the moment tilts
-    # away from ẑ by (Sˣ, Sʸ) = σ (Re v, Im v), to leading order in 1/s.
-    dipoles = map(1:L) do i
-        s = data.sqrtS[i]^2
+    # away from ẑ by (Sˣ, Sʸ) = σ (Re v, Im v), to leading order in 1/s. Omitted
+    # in mode :SUN, where the local state is not maximal weight and the
+    # correction to ⟨𝐒⟩ is not a rotation of it; see
+    # `corrected_magnetic_moments`.
+    dipoles = sys.mode == :SUN ? nothing : map(1:L) do i
+        s = (data::SWTDataDipole).sqrtS[i]^2
         σ = √2 * data.sqrtS[i]
         return s * data.local_rotations[i] * normalize(Vec3(σ*real(w[i]), σ*imag(w[i]), s))
     end

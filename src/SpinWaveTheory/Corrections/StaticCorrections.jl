@@ -52,10 +52,9 @@ function corrected_energy_per_site(swt::SpinWaveTheory; tol=nothing, maxevals=no
         return sum(view(ωs, 1:L)) / 2Nsites
     end
 
-    # The Stevens machinery behind this term is specific to dipole mode, where the
-    # 1/s expansion of an onsite coupling leaves a constant; in :SUN mode the
-    # coupling enters the boson Hamiltonian exactly and there is nothing to add.
-    δE₃ = sys.mode == :SUN ? 0.0 : anisotropy_correction(swt).δE
+    # Vanishes in :SUN mode, where an onsite coupling enters the boson
+    # Hamiltonian exactly and there is nothing to add.
+    δE₃ = anisotropy_correction(swt).δE
 
     return swt.classical_energy + δE₁ + δE₂ + δE₃
 end
