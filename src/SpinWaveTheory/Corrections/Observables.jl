@@ -96,6 +96,44 @@ end
 observable_words(swt::SpinWaveTheory, μ, ::Val{K}) where K =
     reduce(vcat, observable_words(swt, μ, i, Val{K}()) for i in 1:nsites(swt.sys))
 
+# Monomials of `K` bosons in the expansion of the spin component α of site i, in
+# the local frame. Unlike `observable_words`, which describes what `measure`
+# reads out and so only needs the words that create a magnon, this is the full
+# expansion of 𝐒 itself, whose expectation value `corrected_magnetic_moments`
+# takes. The words of K = 0, 1, 2 are respectively the classical dipole, the
+# tadpole tilt, and the zero-point depletion.
+#
+# In mode :SUN the spin components are matrices on the same footing as a term of
+# the Hamiltonian, so their words are those of `local_words`. In the dipole
+# modes the Holstein-Primakoff expansion of Vertices.jl gives the words
+# directly, ⟨𝐒⟩ = R (σ Re v, σ Im v, s - ⟨b†b⟩) in a local frame whose ẑ is the
+# classical dipole.
+function spin_words(swt::SpinWaveTheory, α, i, ::Val{K}) where K
+    (; sys, data) = swt
+    L = nbands(swt)
+    o = zero(Vec3)
+
+    if sys.mode == :SUN
+        return local_words((data::SWTDataSUN).spin_ops[α, i], i, o, Val{K}(), nflavors(swt), L)
+    end
+
+    @assert sys.mode in (:dipole, :dipole_uncorrected)
+    (; local_rotations, sqrtS) = data::SWTDataDipole
+    R = local_rotations[i]
+    if K == 0
+        # s ẑ, the classical dipole. Zero on a vacant site, where R vanishes.
+        return [BosonMonomial(ComplexF64(R[α, 3] * sqrtS[i]^2), (), ())]
+    elseif K == 1
+        # σ(Sˣ, Sʸ) with S⁺ = σ b, i.e. Sˣ = σ(b + b†)/2 and Sʸ = σ(b - b†)/2i
+        σ = √2 * sqrtS[i]
+        return [BosonMonomial(σ * (R[α, 1] - im*R[α, 2]) / 2, (i,), (o,)),
+                BosonMonomial(σ * (R[α, 1] + im*R[α, 2]) / 2, (L+i,), (o,))]
+    elseif K == 2
+        # -ẑ b†b, the depletion of Sᶻ = s - b†b
+        return [BosonMonomial(ComplexF64(-R[α, 3]), (L+i, i), (o, o))]
+    end
+end
+
 # The even words of each observable at one wavevector, as [`pair_amplitude`](@ref)
 # consumes them: one list per observable, carrying the Fourier phase and form
 # factor of its site. The prefactor is conjugated because the amplitude sought is
