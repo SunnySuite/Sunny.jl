@@ -60,6 +60,81 @@
         return sys
     end
 
+    # ---- One generic two-site SU(3) cluster ----
+
+    # Mode :SUN expands in the number of boxes M of the symmetric SU(N)
+    # representation rather than in s, and needs its own cluster: two sites rather
+    # than three, because the M-box Hilbert space grows as ((M+1)(M+2)/2)^Na. The
+    # couplings are generic — an anisotropic bilinear exchange, a biquadratic term
+    # that mode :SUN handles with no special treatment, an onsite anisotropy, and a
+    # field leaving no symmetry — and every bond offset is zero, as in `cluster`.
+    #
+    # `pairscale` multiplies the pair coupling. The M-box classical energy is
+    # M Σᵢ onsiteᵢ[N,N] + M² Σ A[N,N] B[N,N], and those differing powers make the
+    # stationary reference state depend on M: the state to expand about at M boxes
+    # is the one Sunny's minimizer finds for `pairscale = M`.
+    const sun_cryst = Crystal(lattice_vectors(1, 1.1, 1.2, 80, 90, 100),
+                              [[0, 0, 0], [0.45, 0.05, 0.1]], 1)
+
+    function sun_cluster(; pairscale=1)
+        sys = System(sun_cryst, [i => Moment(s=1, g=1) for i in 1:2], :SUN)
+        set_pair_coupling!(sys, (Si, Sj) -> pairscale * (Si'*cluster_Js[1]*Sj + 0.3*(Si'*Sj)^2),
+                           Bond(1, 2, [0, 0, 0]))
+        set_field!(sys, cluster_B)
+        S = spin_matrices(1)
+        for i in 1:2
+            set_onsite_coupling!(sys, 0.35*S[3]^2 + 0.2*(S[1]^2 - S[2]^2), i)
+        end
+        polarize_spins!(sys, cluster_B)
+        minimize_energy!(sys; g_tol=1e-14, jitter=0)
+        return sys
+    end
+
+    # Operators of the M-box symmetric representation of SU(N), on the basis labeled
+    # by the occupations of the Nf = N-1 flavors that have left the condensate, which
+    # holds the remaining M - Σn boxes. Returns that basis, the generators E_{mn} =
+    # b†_m b_n, and the bosons themselves labeled as `sun_monomials` labels them,
+    # flavor fastest with a ≤ L annihilating. The generators are exact; a boson
+    # operator that would leave the space is truncated, so residuals may only be read
+    # off blocks of low occupation.
+    function box_ops(Nf, M, Na)
+        sb = [ns for ns in Iterators.product(ntuple(_ -> 0:M, Nf)...) if sum(ns) <= M]
+        pos = Dict(ns => k for (k, ns) in enumerate(sb))
+        occ(ns, m) = m <= Nf ? ns[m] : M - sum(ns)     # flavor N is the condensate
+        ds = length(sb)
+        op(O, i) = reduce(kron, (k == i ? sparse(O) : sparse(1.0I, ds, ds) for k in 1:Na))
+
+        function E(m, n, i)
+            A = spzeros(ComplexF64, ds, ds)
+            for (k, ns) in enumerate(sb)
+                if m == n
+                    A[k, k] = occ(ns, m)
+                    continue
+                end
+                iszero(occ(ns, n)) && continue
+                ns′ = ntuple(f -> ns[f] + (f == m) - (f == n), Nf)
+                all(>=(0), ns′) && sum(ns′) <= M || continue
+                A[pos[ns′], k] = sqrt(occ(ns, n) * occ(ns′, m))
+            end
+            return op(A, i)
+        end
+
+        function bop(a)
+            L = Nf * Na
+            (i, m) = (div(mod1(a, L) - 1, Nf) + 1, mod1(mod1(a, L), Nf))
+            A = spzeros(ComplexF64, ds, ds)
+            for (k, ns) in enumerate(sb)
+                iszero(ns[m]) && continue
+                A[pos[ntuple(f -> ns[f] - (f == m), Nf)], k] = sqrt(ns[m])
+            end
+            return op(a <= L ? A : sparse(A'), i)
+        end
+
+        # Total boson number of each index of the Kronecker product
+        nbs = [sum(j -> sum(sb[div(k-1, ds^(Na-j)) % ds + 1]), 1:Na) for k in 1:ds^Na]
+        return (; dim=ds^Na, E, bop, nbs)
+    end
+
     # ---- Exact diagonalization in a truncated boson Fock space ----
 
     # Boson operators on a truncated Fock space of `n` sites, labeled by the
@@ -335,7 +410,8 @@ end
 
 @testitem "1/s corrections against exact diagonalization" setup=[CorrectionModels] begin
     using LinearAlgebra, SparseArrays
-    using .CorrectionModels: cluster, cluster_aniso, fock_ops, fock_quadratic, expand, anisotropic_square
+    using .CorrectionModels: cluster, cluster_aniso, fock_ops, fock_quadratic, expand,
+                             anisotropic_square, sun_cluster, box_ops
 
     # ---- The boson expansion against the exact cluster Hamiltonian ----
 
@@ -453,6 +529,156 @@ end
     end
 
 
+    # ---- The :SUN boson expansion against the M-box Hamiltonian ----
+
+    # The same idea in mode :SUN, whose expansion parameter is the number of boxes M
+    # of the symmetric SU(N) representation. Sunny uses M = 1, where a site cannot
+    # hold two bosons and the asymptotic blocks are unreachable, so `sun_monomials`
+    # takes M as a test-only argument and this promotes the very same local operators
+    # to the M-box representation exactly, via its generators.
+    function box_errors(M)
+        # The couplings to expand are the unscaled ones, `local_words` supplying the
+        # powers of M itself; all the scaling is for is the reference state, so carry
+        # only the coherents over from the M-box minimization.
+        sysM = sun_cluster(; pairscale=M)
+        sys0 = sun_cluster()
+        sys0.coherents .= sysM.coherents
+        swt = SpinWaveTheory(sys0; measure=nothing, regularization=0)
+        # `swt.sys` is the private clone that `swt_data!` rotated into local frames
+        # and absorbed the Zeeman term into; that, not `sys0`, is what
+        # `sun_monomials` reads.
+        sys = swt.sys
+        Nf = Sunny.nflavors(swt)
+        N = Nf + 1
+        (; dim, E, bop, nbs) = box_ops(Nf, M, Sunny.nsites(sys))
+        prom(A, i) = sum(A[m, n] * E(m, n, i) for m in 1:N, n in 1:N if !iszero(A[m, n]))
+
+        Hex = spzeros(ComplexF64, dim, dim)
+        for (i, int) in enumerate(sys.interactions_union)
+            iszero(int.onsite) || (Hex .+= prom(Matrix(int.onsite), i))
+            for c in int.pair
+                c.isculled && continue
+                @assert iszero(c.bond.n)
+                for (A, B) in c.general.data
+                    Hex .+= prom(Matrix(A), c.bond.i) * prom(Matrix(B), c.bond.j)
+                end
+            end
+        end
+
+        Hs = [expand(bop, Sunny.sun_monomials(swt, Val{K}(), M), dim) for K in 1:4]
+        E0 = real(sum(t -> t.c, Sunny.sun_monomials(swt, Val{0}(), M); init=0.0+0im))
+        R = Hex - E0*I - sum(Hs)
+        blk(n) = findall(==(n), nbs)
+        scale = norm(Hex)
+
+        # The classical, linear, quadratic, anomalous and cubic blocks are all *exact*
+        # at the M-box stationary state, not merely asymptotic: the first omitted word
+        # is the five-boson -(1/8)A[m,N] b†_m n̂², whose coefficient summed over
+        # interactions is the gradient of that energy. The quartic block, which the
+        # six-boson word does reach, is what must fall off like 1/M.
+        return (; classical = abs(E0 - real(Hex[blk(0)[1], blk(0)[1]])) / scale,
+                  linear = norm(R[blk(1), blk(0)]) / scale,
+                  quadratic = norm(R[blk(1), blk(1)]) / scale,
+                  anomalous = norm(R[blk(2), blk(0)]) / scale,
+                  cubic = norm(R[blk(2), blk(1)]) / scale,
+                  quartic = norm(R[blk(2), blk(2)]) / norm(Hs[4][blk(2), blk(2)]),
+                  hermiticity = (norm(Hs[3] - Hs[3]') + norm(Hs[4] - Hs[4]')) /
+                                (norm(Hs[3]) + norm(Hs[4])))
+    end
+
+    # Two values of M give the scaling of the quartic residual, which would instead
+    # approach a constant were the quartic term wrong at leading order.
+    quartics = map((4, 8)) do M
+        err = box_errors(M)
+        @test err.classical < 1e-12
+        @test err.linear < 1e-12
+        @test err.quadratic < 1e-12
+        @test err.anomalous < 1e-12
+        @test err.cubic < 1e-12
+        @test err.hermiticity < 1e-12
+        return err.quartic
+    end
+    @test 0.4 < quartics[2] / quartics[1] < 0.6
+
+
+    # ---- A single ion, where both modes are exactly solvable ----
+
+    # Mode :dipole is a symplectic restriction of :SUN: the coherent states it
+    # explores are the SU(2) orbit of the maximal-weight state inside the full
+    # projective space, and RCS renormalizes the Stevens coefficients so that the
+    # classical energy is exactly ⟨n̂|Ĥ|n̂⟩ on that orbit. A single ion with no
+    # couplings makes both statements checkable against the N × N spectrum.
+    #
+    # Stevens operators grow like sᵏ, so the higher orders are divided by sᵏ to
+    # keep the easy axis dominant and the ground state at m = s for every s.
+    ion_aniso(s) = let O = stevens_matrices(s)
+        -O[2,0]/s^2 + 0.08O[4,0]/s^4 - 0.03O[6,0]/s^6
+    end
+
+    function single_ion(s, mode, B)
+        cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]], 1)
+        sys = System(cryst, [1 => Moment(; s, g=1)], mode)
+        set_onsite_coupling!(sys, ion_aniso(s), 1)
+        set_field!(sys, B)
+        polarize_spins!(sys, [0, 0, 1])
+        minimize_energy!(sys; g_tol=1e-15, jitter=0)
+        return sys
+    end
+
+    # The exact Hamiltonian of that ion as an N × N matrix. The Zeeman term is read
+    # back from `sys.extfield` so that the unit conversion of `set_field!` needs no
+    # duplicating here.
+    function ion_hamiltonian(s, sys)
+        S = spin_matrices(s)
+        return Matrix(ion_aniso(s)) + sum(sys.extfield[1][d] * Matrix(S[d]) for d in 1:3)
+    end
+
+    for s in (1, 3/2, 2, 5/2, 3)
+        # Along -ẑ, the Zeeman energy being +𝐁⋅(g𝐒), so that m = s is the minimum
+        B = [0, 0, -0.3]
+        # Axial, so the exact levels are already labeled by m = s, s-1, …, -s
+        H = ion_hamiltonian(s, single_ion(s, :dipole, B))
+        @test norm(H - Diagonal(diag(H))) < 1e-12
+        lv = real(diag(H))
+        gaps = sort(lv)[2:end] .- minimum(lv)
+
+        # In :SUN the condensate is an arbitrary N-vector, so the quadratic form is
+        # the exactly projected Hamiltonian: all N-1 bands come out exact, and the
+        # expansion terminates. The cubic words are pure round-off and there are no
+        # quartic ones at all, so every 1/M correction vanishes identically.
+        swt = SpinWaveTheory(single_ion(s, :SUN, B); measure=nothing, regularization=0)
+        @test sort(dispersion(swt, [[0, 0, 0]])[:]) ≈ gaps
+        @test maximum(abs, [t.c for t in Sunny.sun_monomials(swt, Val{3}())]; init=0.0) < 1e-12
+        @test isempty(Sunny.sun_monomials(swt, Val{4}()))
+        # Exactly zero at any tolerance, there being no term left to integrate
+        @test iszero(Sunny.hartree_fock_correction(swt; maxiters=1, tol=0.1).δE)
+        @test iszero(Sunny.boson_density(swt; tol=0.1))
+
+        # Mode :dipole keeps one band, and RCS makes it the exact gap to the level
+        # one unit of magnetization down — *not* the smallest gap, which for an easy
+        # axis is the nearly degenerate m = -s partner. Only m = s-1 survives at
+        # linear order in u = sin²(θ/2), since |⟨m|θ⟩|² ∝ u^(s-m); the 2s of the
+        # expansion cancels the 1/s relating curvature to frequency, so the identity
+        # is s-independent and holds at every Stevens order at once.
+        swt = SpinWaveTheory(single_ion(s, :dipole, B); measure=nothing, regularization=0)
+        @test dispersion(swt, [[0, 0, 0]])[1] ≈ lv[2] - lv[1]
+    end
+
+    # That identity is not generic: it needs the axial symmetry that pins n̂. Adding
+    # a transverse field tilts the moment, and then the classical minimum of
+    # ⟨n̂|Ĥ|n̂⟩ is no longer where the quantum gradient vanishes — a coherent state
+    # not being an eigenstate — leaving ⟨s-1|Ĥ|s⟩ ≠ 0 in the local frame and the
+    # one-band gap merely approximate. Mode :SUN, whose variational family is the
+    # whole projective space, stays exact.
+    for s in (1, 2)
+        B = [0.4, 0, -0.3]
+        sys = single_ion(s, :SUN, B)
+        swt = SpinWaveTheory(sys; measure=nothing, regularization=0)
+        lv = sort(real(eigvals(Hermitian(ion_hamiltonian(s, sys)))))
+        @test sort(dispersion(swt, [[0, 0, 0]])[:]) ≈ lv[2:end] .- lv[1]
+    end
+
+
     # ---- Symmetries of the vertex at every slot count ----
 
     # Invariances that need no reference tensor, checked on the one model whose bonds
@@ -489,7 +715,7 @@ end
 
 @testitem "1/s corrections on a lattice" setup=[CorrectionModels] begin
     using LinearAlgebra
-    using .CorrectionModels: canted_square
+    using .CorrectionModels: canted_square, square_cryst
 
     # Default accuracy for the momentum integrals, enough for the checks below that
     # compare against a reference value: the tightest of them, Oguchi's ζ, comes out
@@ -585,6 +811,87 @@ end
         swt′ = SpinWaveTheory(canted_square(1, 3); measure=nothing)
         @test Sunny.boson_density(swt; tol=1e-6) ≈ Sunny.boson_density(swt′; tol=1e-6) rtol=1e-5
         @test_throws ErrorException Sunny.corrected_magnetic_moments(swt; tol=1e-3)
+    end
+
+    # ---- Modes :SUN and :dipole_uncorrected on the same s = 1/2 model ----
+
+    # At s = 1/2 an SU(N) system has N = 2 and one boson per site, and its expansion
+    # in the box number coincides term by term with the dipole expansion in 1/s. So
+    # every correction must agree to machine precision, which pins the :SUN vertices
+    # against the dipole ones that exact diagonalization has certified above.
+    #
+    # Only gauge-invariant output may be compared. `bogoliubov!` fixes the phase of
+    # each band independently, and the dipole `swt_data!` puts a deliberate rotation
+    # into each local frame, so the vertex tensors, the Bogoliubov matrices and the
+    # dynamical matrices themselves all differ between the two modes by phases.
+    #
+    # Every quadrature here is loose, because what is asserted is a *difference*
+    # between two modes that run the identical integrand: the discretization error
+    # cancels between them rather than entering the comparison. Tightening `tol` to
+    # 1e-8 costs 13x and leaves the agreement below at 1e-12 either way.
+    let
+        (s, B) = (1/2, 0.6)
+        qs = [[0.23, 0.11, 0], [0.4, 0.3, 0]]
+        rs = map((:dipole_uncorrected, :SUN)) do mode
+            sys = canted_square(s, B; mode)
+            swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
+            hf = Sunny.hartree_fock_correction(swt; maxiters=1, tol=1e-4)
+            tad = Sunny.tadpole_correction(swt; tol=1e-4)
+            return (; ε = dispersion(swt, qs),
+                      E = Sunny.corrected_energy_per_site(swt; tol=1e-4),
+                      n = Sunny.boson_density(swt; tol=1e-4),
+                      δE = [hf.δE, tad.δE],
+                      εc = Sunny.corrected_dispersion(swt, qs, [hf.terms2; tad.terms2]),
+                      Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, grid=(8, 8, 1)),
+                      I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61),
+                                                      η=0.1, tol=0.02).data)
+        end
+        for k in keys(rs[1])
+            @test maximum(abs, getfield(rs[1], k) .- getfield(rs[2], k)) < 1e-11
+        end
+        # Nontrivial: every quantity above is of order unity, and the intensities in
+        # particular exercise the full Dyson resummation
+        @test rs[1].Σ[1] != 0 && maximum(abs, rs[1].I) > 1
+    end
+
+    # ---- Collinearity switches off less in mode :SUN ----
+
+    # Easy-axis Néel order at s = 1, where :SUN carries two flavors per site. The
+    # cubic vertex vanishes identically in the dipole mode, every monomial carrying a
+    # transverse exchange component, but not in :SUN: a single-ion level may decay
+    # into two magnons of *different* flavors, a channel the dipole expansion has no
+    # counterpart for. Here that leaves the vertex at 5% of H₂ and gives the upper
+    # (single-ion) band a substantial width, while the dipole mode has neither.
+    let
+        function neel(mode)
+            sys = System(square_cryst, [1 => Moment(s=1.0, g=1)], mode)
+            set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
+            set_onsite_coupling!(sys, S -> -0.5*S[3]^2, 1)
+            sys = reshape_supercell(sys, [1 1 0; 1 -1 0; 0 0 1])
+            set_dipole!(sys, [0, 0, +1], (1, 1, 1, 1))
+            set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
+            return sys
+        end
+        swt = SpinWaveTheory(neel(:dipole_uncorrected); measure=nothing)
+        swt′ = SpinWaveTheory(neel(:SUN); measure=nothing)
+        @test Sunny.cubic_vertex_vanishes(swt, Sunny.cubic_monomials(swt))
+        @test !Sunny.cubic_vertex_vanishes(swt′, Sunny.cubic_monomials(swt′))
+
+        # Bands 1-2 are the single-ion excitations at 8.0 and bands 3-4 the magnons.
+        # Only the former decay: the two-magnon continuum they sit in starts at twice
+        # the 4.39 magnon energy, just below. Damping of the magnons themselves is
+        # pure broadening artifact, falling off linearly with η.
+        q = [[0.3, 0.1, 0]]
+        @test dispersion(swt′, q)[:] ≈ [8, 8, 4.387482, 4.387482] atol=1e-5
+        Σs = map(((0.05, 24), (0.025, 48))) do (η, nk)
+            Sunny.cubic_self_energy(swt′, q; η, grid=(nk, nk, 1))[:]
+        end
+        # Overdamped: the width exceeds a tenth of the energy, and is η-independent
+        @test all(Σ -> -imag(Σ[1]) > 0.8 * 0.05, Σs)
+        @test imag(Σs[1][1]) ≈ imag(Σs[2][1]) rtol=0.1
+        @test all(Σ -> -imag(Σ[3]) < 0.01, Σs)
+        # Im Σ ≤ 0 in the particle block, as the Dyson resummation requires
+        @test all(Σ -> all(<=(1e-12), imag.(Σ)), Σs)
     end
 
     # ---- Goldstone modes survive every correction ----
@@ -1110,8 +1417,7 @@ end
     qr2 = Sunny.to_reshaped_rlu(sys, q2m)
     qg2 = Sunny.orig_crystal(sys).recipvecs * q2m
     Sunny.set_swt_observable_vectors!(u2, swt2m, qr2, qg2)
-    pref2 = zeros(ComplexF64, Nobs, L)
-    Sunny.pair_amplitude_prefactors!(pref2, swt2m, qr2, qg2)
+    words2m = Sunny.observable_pair_words(swt2m, qr2, qg2)
 
     # Observable A_ν(q) as a linear form in the Nambu vector. The index swap is forced,
     # not chosen: `intensities_bands` forms Avec[μ] = dot(u[:,μ], T[:,n]) for the left
@@ -1119,9 +1425,10 @@ end
     # fixes the state, so nothing here is free, and the transverse amplitude must come
     # out equal to Sunny's own w = T†u.
     Aodd = [sum(a -> u2[Sunny.nambu_conj(a, L), ν] * bop(a), 1:2L) for ν in 1:Nobs]
-    # The longitudinal part, -Σᵢ prefᵢ b†ᵢbᵢ. `pref` carries the conjugated Fourier
-    # phase, so it is conjugated back to describe the same operator as `Aodd`.
-    Aeven = [-sum(i -> conj(pref2[ν, i]) * bop(L+i) * bop(i), 1:L) for ν in 1:Nobs]
+    # The even part, whose words `observable_pair_words` supplies. They carry the
+    # conjugated Fourier phase, being the amplitude to create a pair, so they are
+    # conjugated back to describe the same operator as `Aodd`.
+    Aeven = [sum(w -> conj(w.c) * bop(w.as[1]) * bop(w.as[2]), words2m[ν]) for ν in 1:Nobs]
 
     Y = [sum(a -> (τ₃ * T0' * τ₃)[m, a] * bop(a), 1:2L) for m in 1:2L]
     ψ1 = [Y[m]' * ψ for m in 1:L]
@@ -1146,7 +1453,7 @@ end
     ρ2m = Matrix{ComplexF64}[]
     onshell2m = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
     Sunny.accum_pair_measure!(ρ2m, swt2m, terms3, qr2, Sunny.LoopGrid([zero(Sunny.Vec3)], [1.0], 1);
-                              source_freqs=onshell2m, bin_width=1e-3, pref=pref2)
+                              source_freqs=onshell2m, bin_width=1e-3, words2=words2m)
     (M0, M1) = (sum(ρ2m), sum(((i, r),) -> (i - 1) * 1e-3 * r, enumerate(ρ2m)))
     (E0, E1) = (zeros(ComplexF64, L+Nobs, L+Nobs), zeros(ComplexF64, L+Nobs, L+Nobs))
     for a in 1:L, b in 1:L
@@ -1159,11 +1466,11 @@ end
         @test med ≈ c * [conj(√18 * U3m[a, b, Sunny.nambu_conj(m, L)]) for m in 1:L] atol=1e-6
         # Direct route, including the sign of Sᶻ = s - b†b
         dir = [dot(ψpair, Aeven[ν] * ψ) for ν in 1:Nobs]
-        @test dir ≈ c * [conj(Sunny.pair_amplitude(pref2, T0, T0, a, b, ν, L)) for ν in 1:Nobs] atol=1e-6
+        @test dir ≈ c * [conj(Sunny.pair_amplitude(words2m[ν], T0, T0, a, b)) for ν in 1:Nobs] atol=1e-6
         # Both routes at once
         mediated(ν) = sum(m -> conj(w2m[m, ν]) * √18 * U3m[a, b, Sunny.nambu_conj(m, L)] / (x - ε[m]), 1:L)
         both = (dir + [sum(m -> med[m] * dot(ψ1[m], Aodd[ν] * ψ) / (x - ε[m]), 1:L) for ν in 1:Nobs]) ./ c
-        @test both ≈ [conj(Sunny.pair_amplitude(pref2, T0, T0, a, b, ν, L) + mediated(ν)) for ν in 1:Nobs] atol=1e-6
+        @test both ≈ [conj(Sunny.pair_amplitude(words2m[ν], T0, T0, a, b) + mediated(ν)) for ν in 1:Nobs] atol=1e-6
         y = conj([med; dir]) ./ c
         E0 .+= y * y'
         E1 .+= x .* (y * y')
@@ -1440,12 +1747,19 @@ end
     # carried by the imaginary part of the frequencies. The reference is written out
     # term by term, straight from the formula at the head of SelfEnergy.jl, so that
     # nothing but `foreach_cubic_line` is shared with the implementation under test.
+    #
+    # The grid must be built at 𝐪, as every caller builds it: the multiplicity trick
+    # of `loop_wavevectors` visits one point of each pair {𝐩, 𝐪-𝐩} and doubles it,
+    # which is exact only on a grid closed under that involution. Omitting 𝐪 gives a
+    # grid closed under 𝐩 ↦ -𝐩 instead, and the doubling then lands on the wrong
+    # partner: the missing (b, a) contribution is what symmetrizes the band block, so
+    # the two sides came out transposed and disagreed by 7% at every bin width.
     terms3 = Sunny.cubic_monomials(swt)
-    grid = Sunny.loop_wavevectors((12, 12, 1))
     ε = dispersion(swt, q)[:]
     onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
     ωs = range(0, 2, 6) .+ im*0.06
     k = Sunny.to_reshaped_rlu(sys, q[1])
+    grid = Sunny.loop_wavevectors((12, 12, 1), k)
     Σloop = let Σ = zeros(ComplexF64, L, L, length(ωs))
         Sunny.foreach_cubic_line(swt, terms3, k, grid, L) do a, _b, w, u, x, _T1, _T2
             for m′ in 1:L, m in 1:L
@@ -1479,13 +1793,12 @@ end
         ref = zeros(length(energies), length(qs))
         for (iq, q) in enumerate(qs)
             q_reshaped = Sunny.to_reshaped_rlu(sys, Sunny.Vec3(q))
-            pref = zeros(ComplexF64, 3, L)
             q_global = Sunny.orig_crystal(sys).recipvecs * Sunny.Vec3(q)
-            Sunny.pair_amplitude_prefactors!(pref, swt, q_reshaped, q_global)
+            words2 = Sunny.observable_pair_words(swt, q_reshaped, q_global)
             lg = Sunny.loop_wavevectors(grid, q_reshaped)
             Sunny.foreach_magnon_pair(swt, q_reshaped, lg) do _p, w, T1, T2, ε1, ε2
                 for b in 1:L, a in 1:L
-                    β = ntuple(μ -> Sunny.pair_amplitude(pref, T1, T2, a, b, μ, L), 3)
+                    β = ntuple(μ -> Sunny.pair_amplitude(words2[μ], T1, T2, a, b), 3)
                     x = ε1[a] + ε2[b]
                     for (iω, ω) in enumerate(energies)
                         ref[iω, iq] += w * contract(β) * (η/π) / ((ω - x)^2 + η^2)

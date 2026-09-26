@@ -56,6 +56,60 @@
 # satisfies the sum rule to relative order 1/s; the entire content of the next
 # order is the -⟨n̂²⟩ above, and the contraction of the cubic word produces it.
 
+# Monomials of `K` bosons in the expansion of observable μ at site i, in the local
+# frame and without the Fourier phase or form factor that
+# `observable_prefactor` supplies. Only K = 2, the longitudinal word, and K = 3,
+# the leading correction to the transverse ones, are needed; the one-boson word is
+# the LSWT amplitude that `set_swt_observable_vectors!` builds.
+#
+# In mode :SUN an observable is a matrix on the same footing as a term of the
+# Hamiltonian, so its words are those of `local_words`. In the dipole modes the
+# expansion above gives the two families directly.
+function observable_words(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
+    (; sys, data) = swt
+    L = nbands(swt)
+    o = zero(Vec3)
+
+    if sys.mode == :SUN
+        @assert num_parts_per_unit(swt.measure) == 1  # Entangled units are rejected
+        A = (data::SWTDataSUN).observables[μ, i, 1]
+        return local_words(A, i, o, Val{K}(), nflavors(swt), L)
+    end
+
+    @assert sys.mode in (:dipole, :dipole_uncorrected)
+    (; sqrtS, observables) = data::SWTDataDipole
+    O = observables[μ, i]
+    if K == 2
+        # Sᶻ = s - b†b
+        return [BosonMonomial(ComplexF64(-O[3]), (L+i, i), (o, o))]
+    elseif K == 3
+        # Both cubic words carry -σ/4s = -1/2σ, that of S⁺ being b†bb and that of
+        # S⁻ its adjoint b†b†b.
+        σ = √2 * sqrtS[i]
+        (cp, cm) = ((O[1] - im*O[2])/2, (O[1] + im*O[2])/2)
+        return [BosonMonomial(-cp / 2σ, (L+i, i, i), (o, o, o)),
+                BosonMonomial(-cm / 2σ, (L+i, L+i, i), (o, o, o))]
+    end
+end
+
+# Every K-boson word of observable μ, over the sites of the magnetic cell.
+observable_words(swt::SpinWaveTheory, μ, ::Val{K}) where K =
+    reduce(vcat, observable_words(swt, μ, i, Val{K}()) for i in 1:nsites(swt.sys))
+
+# The even words of each observable at one wavevector, as [`pair_amplitude`](@ref)
+# consumes them: one list per observable, carrying the Fourier phase and form
+# factor of its site. The prefactor is conjugated because the amplitude sought is
+# that of creating a pair, whereas `observable_prefactor` describes the observable
+# as `set_swt_observable_vectors!` applies it, to the amplitude for the adjoint
+# process.
+function observable_pair_words(swt::SpinWaveTheory, q_reshaped, q_global)
+    (; sys, measure) = swt
+    return map(1:num_observables(measure)) do μ
+        [BosonMonomial(conj(observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)) * c, as, ns)
+         for i in 1:nsites(sys) for (; c, as, ns) in observable_words(swt, μ, i, Val{2}())]
+    end
+end
+
 """
     observable_corrections(swt::SpinWaveTheory; v=nothing, tol, maxevals)
 
@@ -75,29 +129,30 @@ function observable_corrections(swt::SpinWaveTheory; v=nothing, tol=nothing, max
     isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
     check_corrections_supported(swt)
 
-    (; measure, data) = swt
-    (; sqrtS, observables) = data::SWTDataDipole
     L = nbands(swt)
-    Nobs = num_observables(measure)
+    Nobs = num_observables(swt.measure)
+    words2 = [observable_words(swt, μ, Val{2}()) for μ in 1:Nobs]
+    words3 = [observable_words(swt, μ, Val{3}()) for μ in 1:Nobs]
 
-    # The contracted pair acts on the same site as the surviving operator, so only
-    # the onsite correlations ⟨b†ᵢbᵢ⟩ and ⟨bᵢbᵢ⟩ are needed, and no wavevector
-    # dependence survives.
-    ckeys = [[(L+i, i, (0, 0, 0)) for i in 1:L]; [(i, i, (0, 0, 0)) for i in 1:L]]
+    # Contracting two legs of the cubic word is the same operation that generates
+    # the tadpole, so `tadpole_vector` performs it. The contracted pair acts on the
+    # same site as the surviving operator, so only onsite correlations are needed
+    # and no wavevector dependence survives.
+    ckeys = correlation_keys(L, reduce(vcat, words3))
     gs = nambu_correlations(swt, ckeys, BosonMonomial{2}[]; tol, maxevals)
+    g = correlation_lookup(ckeys, gs, L)
+    noise = max(@something(tol, 1e-3), 1e-8)
+
+    # Nambu packing of the displacement, as `tadpole_correction` forms it
+    w = isnothing(v) ? zeros(ComplexF64, 2L) : [v; conj(v)]
 
     δc = zeros(ComplexF64, 2L, Nobs)
-    for i in 1:L
-        (n, Δ) = (gs[i], gs[L+i])
-        # Both cubic words carry -σ/4s = -1/2σ, and the adjoint word b†b†b of S⁻
-        # contracts to 2⟨b†b⟩ b† + ⟨b†b†⟩ b.
-        σ = √2 * sqrtS[i]
-        vi = isnothing(v) ? zero(ComplexF64) : v[i]
-        for μ in 1:Nobs
-            O = observables[μ, i]
-            (cp, cm) = ((O[1] - im*O[2])/2, (O[1] + im*O[2])/2)
-            δc[i, μ]   = -(2n*cp + conj(Δ)*cm) / 2σ - O[3] * conj(vi)
-            δc[L+i, μ] = -(Δ*cp + 2n*cm) / 2σ - O[3] * vi
+    for μ in 1:Nobs
+        view(δc, :, μ) .= tadpole_vector(words3[μ], g, L, noise)
+        # The tilt, as the displacement of one leg of the longitudinal word.
+        for (; c, as) in words2[μ]
+            δc[as[1], μ] += c * w[as[2]]
+            δc[as[2], μ] += c * w[as[1]]
         end
     end
 
@@ -114,10 +169,12 @@ the boson operator labeled `a` in `u[ā, μ]`, where `ā = mod1(a+L, 2L)`.
 function accum_observable_corrections!(u, swt::SpinWaveTheory, q_reshaped, q_global, δc)
     (; sys, measure) = swt
     L = nbands(swt)
-    for μ in 1:num_observables(measure), i in 1:L
+    Nf = nflavors(swt)
+    for μ in 1:num_observables(measure), a in 1:L
+        i = boson_site(a, L, Nf)
         pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
-        u[i, μ]   += pref * δc[L+i, μ]
-        u[L+i, μ] += pref * δc[i, μ]
+        u[a, μ]   += pref * δc[L+a, μ]
+        u[L+a, μ] += pref * δc[a, μ]
     end
     return u
 end
