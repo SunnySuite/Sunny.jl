@@ -78,9 +78,11 @@ follow from `η` and `tol` unless `loop_grid` is given explicitly as a tuple;
 here `tol` is a calibration rather than a guarantee, and halving it doubles the
 work in two dimensions. The static mean fields are performed instead by adaptive
 cubature, which gives up after `mean_field_maxevals` evaluations of the
-integrand and warns if `tol` was not reached by then. Spacing the `energies`
-more finely than `η` costs almost nothing, and a warning is issued if they are
-spaced more coarsely.
+integrand and warns if `tol` was not reached by then. The two-magnon continuum
+is additionally discretized in energy, on a scale that follows `η` and `tol` so
+as to contribute comparably to the grid. Spacing the `energies` more finely than
+`η` costs almost nothing, and a warning is issued if they are spaced more
+coarsely.
 
 Set `threaded=true` to parallelize over `qpts`, and `verbose=true` to print the
 selected parameters, a progress bar over `qpts`, and the linewidths that
@@ -129,10 +131,13 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     qpts = convert(AbstractQPoints, qpts)
 
     loop_grid = @something loop_grid auto_loop_grid(swt, η, tol)
-    # Discretization of the pair energy, whose error is O((bin_width/η)²). The
-    # cap of η/16 is already negligible, so there is nothing to gain by refining
-    # it further as `tol` tightens.
-    bin_width = η * min(1/16, sqrt(tol))
+    # Discretization of the pair energy. It enters through kernels of width η,
+    # so the error is O((Δ/η)²) — a quarter of that for an isolated mass landing
+    # midway between two bins, and a few times more in the intensities, where
+    # division by a Goldstone pole amplifies it. Taking Δ/η = √tol therefore
+    # contributes of order `tol`, the same as the grid and the cubature. The cap
+    # keeps the bins resolving η at loose `tol`.
+    bin_width = η * min(1/2, √tol)
 
     # Sampling the frequency axis is cheap compared to the wavevector loop,
     # which is shared by every frequency, so there is no reason to undersample
