@@ -29,7 +29,7 @@ import RowEchelon: rref!
 import Spglib
 
 include("MathBasics.jl")
-export configure_blas_for_threaded_workloads
+export load_fast_blas
 
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")

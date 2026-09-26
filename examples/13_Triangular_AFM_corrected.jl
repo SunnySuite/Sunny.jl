@@ -5,7 +5,7 @@
 
 using Sunny, LinearAlgebra, Printf, Statistics
 using GLMakie
-configure_blas_for_threaded_workloads()
+load_fast_blas()
 
 # Triangular lattice with antiferromagnetic nearest-neighbor interactions.
 
