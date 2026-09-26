@@ -1,7 +1,7 @@
 using Sunny, LinearAlgebra, Printf, Statistics
 @assert pkgversion(Sunny) >= v"0.10.0"
 using GLMakie
-configure_blas_for_threaded_workloads()
+load_fast_blas()
 
 cryst = Crystal(lattice_vectors(1, 1, 10, 90, 90, 120), [[0, 0, 0]])
 (s, s_str) = (1/2, "1/2")
