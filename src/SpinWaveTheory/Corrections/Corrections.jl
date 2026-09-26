@@ -114,14 +114,17 @@ function corrections_unsupported_reason(swt::SpinWaveTheory)
     (; sys) = swt
     @assert sys.mode in (:dipole, :dipole_uncorrected, :SUN)
 
-    sys.mode == :SUN && return "are not yet implemented in :SUN mode"
     is_entangled(sys) && return "are not supported for entangled units"
     isnothing(sys.ewald) || return "do not yet support long-range dipole-dipole interactions"
 
-    for int in sys.interactions_union
-        for pc in int.pair
-            pc.isculled && break
-            iszero(pc.biquad) || return "do not yet support biquadratic exchange"
+    # In :SUN mode every coupling, biquadratic included, has been decomposed into
+    # the tensor pairs that `sun_monomials` expands, so there is nothing to reject.
+    if sys.mode != :SUN
+        for int in sys.interactions_union
+            for pc in int.pair
+                pc.isculled && break
+                iszero(pc.biquad) || return "do not yet support biquadratic exchange"
+            end
         end
     end
     return nothing
@@ -201,44 +204,42 @@ function foreach_magnon_pair(f, swt::SpinWaveTheory, q_reshaped, grid::LoopGrid)
     end
 end
 
-# Amplitude for the longitudinal part of observable μ to create the pair of
-# magnons (𝐩 a, 𝐪-𝐩 b) directly, via Sᶻ = s - b†b. Only the component of each
-# observable along the local quantization axis contributes, the transverse ones
-# being odd in the boson number; `pref[μ, i]` carries that component together
-# with the phase factor of site i, as `observable_prefactor` defines it. The two
-# terms symmetrize over which line takes the b† of b†b, and the 1/√2 is the norm
-# of the symmetrized two-boson state.
+# Site owning boson `a` of the Nambu labeling, bosons being laid out as (flavor,
+# atom) with flavor fastest, `Nf` of them per site. The identity in dipole mode.
+boson_site(a, L, Nf) = div(mod1(a, L) - 1, Nf) + 1
+
+# Amplitude for the even part of an observable to create the pair of magnons (𝐩
+# a, 𝐪-𝐩 b) directly, given that part as the `BosonMonomial{2}` list that
+# `observable_pair_words` builds, already carrying its Fourier phase. That type
+# is declared in Vertices.jl, which is included after this file, so it cannot
+# appear in the signature. Only the even part of an observable contributes here,
+# the odd one changing the boson number by one. The two terms symmetrize over
+# which line takes which slot of the word, and the 1/√2 is the norm of the
+# symmetrized two-boson state. No phase accompanies the slots because an
+# observable is onsite, so both of them carry the same cell offset.
 #
 # Both lines are expressed in the Bogoliubov matrices at +𝐩 and +(𝐪-𝐩), which
 # `foreach_magnon_pair` supplies and the cubic vertex shares. An equivalent form
 # in T(-𝐩) and T(𝐩-𝐪) follows from the Nambu symmetry of SelfEnergy.jl, but
 # would come from independent diagonalizations, whose free per-band phase the
-# interference cannot tolerate. The leading minus sign, that of Sᶻ = s - b†b,
-# cancels in the |β|² of the direct channel but is the whole sign of the
-# interference.
-function pair_amplitude(pref, T1, T2, a, b, μ, L)
-    return -sum(1:L) do i
-        pref[μ, i] * (T1[i, a]*T2[L+i, b] + T1[L+i, a]*T2[i, b])
+# interference cannot tolerate. The sign of the word, that of Sᶻ = s - b†b in
+# dipole mode, cancels in the |β|² of the direct channel but is the whole sign
+# of the interference.
+function pair_amplitude(words, T1, T2, a, b)
+    return sum(words; init=zero(ComplexF64)) do (; c, as)
+        c * (T1[as[2], a]*T2[as[1], b] + T1[as[1], a]*T2[as[2], b])
     end / √2
 end
 
-# Longitudinal observable prefactors for `pair_amplitude`, at one wavevector.
-function pair_amplitude_prefactors!(pref, swt::SpinWaveTheory, q_reshaped, q_global)
-    (; sys, measure, data) = swt
-    for μ in 1:num_observables(measure), i in 1:nbands(swt)
-        O = (data::SWTDataDipole).observables[μ, i]
-        pref[μ, i] = conj(observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)) * O[3]
-    end
-    return pref
-end
-
-# Applies `f` to each index, optionally in parallel. The wavevector loops of this
-# module allocate their buffers per iteration so that they may be threaded. A
-# progress bar labeled `desc` is shown unless `desc` is nothing; `next!` is
-# itself thread safe.
+# Applies `f` to each index, optionally in parallel. The wavevector loops of
+# this module allocate their buffers per iteration so that they may be threaded.
+# A progress bar labeled `desc` is shown unless `desc` is nothing; `next!` is
+# itself thread safe. To animate the bar, stdout must allow the `\r` character
+# to rewrite the current line; this is only supported on TTY outputs.
 function foreach_maybe_threaded(f, threaded, indices; desc=nothing)
+    enabled = !isnothing(desc) && stdout isa Base.TTY
     meter = ProgressMeter.Progress(length(indices); desc=@something(desc, ""),
-                                  enabled=!isnothing(desc), output=stdout)
+                                  enabled, output=stdout)
     g = i -> (f(i); ProgressMeter.next!(meter))
     if threaded
         Threads.@threads for i in indices
