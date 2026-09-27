@@ -1,7 +1,10 @@
-# Reproduce Fig. 4a of Mourigal, Fuhrman, Chernyshev and Zhitomirsky, PRB 88,
-# 094407 (2013) [arXiv:1306.1231]. Calculates the dynamical structure factor of
-# the triangular-lattice Heisenberg antiferromagnet, including ``1/s``
-# corrections.
+# # 13. Spin wave theory with ``1/s`` corrections
+#
+# This tutorial calculates the spin wave spectrum of a triangular
+# antiferromagnet, including all perturbative corrections at order ``1/s``. The
+# result reproduces [Mourigal, Fuhrman, Chernyshev and Zhitomirsky, Phys. Rev. B
+# **88**, 094407 (2013)](https://doi.org/10.1103/PhysRevB.88.094407)
+# [arXiv:1306.1231].
 
 using Sunny, LinearAlgebra, Printf, Statistics
 using GLMakie
@@ -20,8 +23,13 @@ set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
 sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
 randomize_spins!(sys)
 minimize_energy!(sys)
+plot_spins(sys; ndims=2)
 
 # Calculate spin-wave intensities, including all corrections to order ``1/s``.
+# The regulator ``η > 0`` defines an energy resolution. The numerical cost of
+# the momentum integrals scales like ``η^{-D}`` in effective dimension ``D``.
+# The function `corrected_intensities` is currently experimental and subject to
+# change.
 
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
 qpts = [[2/3, -1/3, 0], [0, 0, 0], [1/2, 0, 0], [1/6, 1/6, 0], [0, 1/4, 0]]
@@ -32,9 +40,11 @@ energies = 0:(η/2):(20s/3)
 res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true)
 ;#hide
 
-# Compare with Fig. 4a of Mourigal et al. The reference calculation omitted
-# interference between transverse and longitudinal channels. Sunny includes this
-# additional term, which modifies the two-magnon continuum.
+# Compare with Fig. 4 of the [erratum for Mourigal et
+# al.](https://doi.org/10.1103/PhysRevB.93.099901) Sunny goes beyond previous
+# work in that it includes interference between transverse and longitudinal
+# channels. This further modifies the two-magnon continuum and completes the set
+# of ``1/s`` corrections.
 
 plot_intensities(res; colormap=:jet, colorrange=(0, s+3/2),
                  title="s = $s_str", axis=(; xlabel="", ylabel="ω / J"))
