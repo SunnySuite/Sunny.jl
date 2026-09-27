@@ -12,6 +12,7 @@ set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
 sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
 randomize_spins!(sys)
 minimize_energy!(sys)
+plot_spins(sys; ndims=2)
 
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
 qpts = [[2/3, -1/3, 0], [0, 0, 0], [1/2, 0, 0], [1/6, 1/6, 0], [0, 1/4, 0]]
