@@ -1,10 +1,9 @@
-# # 13. Spin wave theory with ``1/s`` corrections
+# # 13. Perturbative corrections to spin wave theory
 #
 # This tutorial calculates the spin wave spectrum of a triangular
 # antiferromagnet, including all perturbative corrections at order ``1/s``. The
 # result reproduces [Mourigal, Fuhrman, Chernyshev and Zhitomirsky, Phys. Rev. B
-# **88**, 094407 (2013)](https://doi.org/10.1103/PhysRevB.88.094407)
-# [arXiv:1306.1231].
+# **88**, 094407 (2013)](https://doi.org/10.1103/PhysRevB.88.094407).
 
 using Sunny, LinearAlgebra, Printf, Statistics
 using GLMakie
@@ -40,11 +39,11 @@ energies = 0:(η/2):(20s/3)
 res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true)
 ;#hide
 
-# Compare with Fig. 4 of the [erratum for Mourigal et
-# al.](https://doi.org/10.1103/PhysRevB.93.099901) Sunny goes beyond previous
-# work in that it includes interference between transverse and longitudinal
-# channels. This further modifies the two-magnon continuum and completes the set
-# of ``1/s`` corrections.
+# The plotted intensities may be compared with the [erratum
+# figure](https://doi.org/10.1103/PhysRevB.93.099901) of Mourigal et al. Sunny
+# goes beyond previous work by including interference between transverse and
+# longitudinal channels. This additional correction to the two-magnon continuum
+# completes the full set of ``1/s`` corrections.
 
 plot_intensities(res; colormap=:jet, colorrange=(0, s+3/2),
                  title="s = $s_str", axis=(; xlabel="", ylabel="ω / J"))
