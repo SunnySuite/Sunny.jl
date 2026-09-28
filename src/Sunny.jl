@@ -14,7 +14,6 @@ import LineSearches
 import MappedArrays: mappedarray
 import OffsetArrays: OffsetArrays, OffsetArray
 import Optim
-import Polyester: @batch
 import Printf: Printf, @printf, @sprintf
 import Random: Random, randn!
 import SpecialFunctions: erf, erfc
@@ -29,6 +28,7 @@ import RowEchelon: rref!
 import Spglib
 
 include("MathBasics.jl")
+export load_fast_blas
 
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")

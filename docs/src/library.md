@@ -53,6 +53,7 @@ intensities_bands
 intensities_static
 lattice_params
 lattice_vectors
+load_fast_blas
 load_nxs
 lorentzian
 magnetic_moments

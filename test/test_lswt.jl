@@ -142,6 +142,15 @@ end
         q = [0.8, 0.6, 0.1]
         res = intensities_bands(swt, [q])
 
+        # Threading over many wavevectors reproduces the serial calculation
+        qs = [rand(3) for _ in 1:50]
+        kernel = lorentzian(fwhm=1.0)
+        energies = range(0, 10, 20)
+        res1 = intensities(swt, qs; energies, kernel)
+        msg = r"^OpenBLAS scales poorly with `threaded=true`"
+        res2 = @test_logs (:warn, msg) match_mode=:any intensities(swt, qs; energies, kernel, threaded=true)
+        @test res1.data == res2.data
+
         return filter(>(1e-12), abs.(res.data))
     end
 

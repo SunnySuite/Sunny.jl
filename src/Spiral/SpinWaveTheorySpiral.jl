@@ -252,7 +252,8 @@ function gs_as_scalar(sys::System, measure::MeasureSpec)
 end
 
 
-function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branch=nothing
+function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=false) # TODO: branch=nothing
+    threaded && error("Option `threaded=true` not yet supported for SpinWaveTheorySpiral.")
     (; swt, k_case, axis) = sswt
     (; sys, data, measure) = swt
     (; local_rotations, sqrtS) = data
