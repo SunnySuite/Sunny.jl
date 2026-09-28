@@ -81,7 +81,8 @@ end
 function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; tol=nothing, maxevals=nothing)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
-    T = zeros(ComplexF64, 2L, 2L)
+    ws = BogoliubovWorkspace(L)
+    T = ws.T
 
     # HCubature stops once `err ≤ max(atol, rtol * norm(gs))`, so a `tol` of zero
     # directs it to converge as far as `maxevals` allows. The correlations are
@@ -93,7 +94,7 @@ function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; tol=nothing, max
         q_reshaped = Vec3(q)
         dynamical_matrix!(H, swt, q_reshaped)
         accum_quadratic!(H, terms2, q_reshaped)
-        bogoliubov!(T, H)
+        bogoliubov!(ws, H)
         U = view(T, :, 1:L)
         return [cis(-2π * dot(q_reshaped, Vec3(Δ))) * dot(view(U, nambu_conj(a′, L), :), view(U, a, :))
                 for (a, a′, Δ) in ckeys]

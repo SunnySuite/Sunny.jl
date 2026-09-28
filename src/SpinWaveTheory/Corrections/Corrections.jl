@@ -193,14 +193,14 @@ end
 function foreach_magnon_pair(f, swt::SpinWaveTheory, q_reshaped, grid::LoopGrid)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
-    T1 = zeros(ComplexF64, 2L, 2L)
-    T2 = zeros(ComplexF64, 2L, 2L)
+    # Both magnon lines are live at once, so each gets its own workspace
+    (ws1, ws2) = (BogoliubovWorkspace(L), BogoliubovWorkspace(L))
     for (p, w) in zip(grid.ps, grid.wts)
         dynamical_matrix!(H, swt, p)
-        ε1 = bogoliubov!(T1, H)
+        ε1 = bogoliubov!(ws1, H)
         dynamical_matrix!(H, swt, q_reshaped - p)
-        ε2 = bogoliubov!(T2, H)
-        f(p, w, T1, T2, ε1, ε2)
+        ε2 = bogoliubov!(ws2, H)
+        f(p, w, ws1.T, ws2.T, ε1, ε2)
     end
 end
 
