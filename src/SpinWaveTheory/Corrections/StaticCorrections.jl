@@ -36,7 +36,7 @@ function corrected_energy_per_site(swt::SpinWaveTheory; tol=nothing, maxevals=no
     Nsites = nsites(uncontracted_system(sys))
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
-    V = zeros(ComplexF64, 2L, 2L)
+    ws = BogoliubovWorkspace(L)
 
     # The uniform correction to the classical energy (trace of the (1,1)-block
     # of the spin-wave Hamiltonian)
@@ -48,7 +48,7 @@ function corrected_energy_per_site(swt::SpinWaveTheory; tol=nothing, maxevals=no
     (δE₂, _) = hcubature((0, 0, 0), (1, 1, 1); rtol=@something(tol, 0),
                          maxevals=@something(maxevals, typemax(Int))) do q_reshaped
         dynamical_matrix!(H, swt, q_reshaped)
-        ωs = bogoliubov!(V, H)
+        ωs = bogoliubov!(ws, H)
         return sum(view(ωs, 1:L)) / 2Nsites
     end
 
