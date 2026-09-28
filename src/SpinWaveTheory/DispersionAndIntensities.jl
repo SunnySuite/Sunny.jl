@@ -205,8 +205,8 @@ end
 
 Calculate spin wave excitation bands for a set of ``𝐪``-points in reciprocal
 space. This calculation is analogous to [`intensities`](@ref), but does not
-perform line broadening of the bands. Use [`load_fast_blas`](@ref) and set
-`threaded=true` to parallelize the calculation using Julia threads.
+perform line broadening of the bands. Use [`load_blas_for_threading`](@ref) and
+set `threaded=true` to parallelize the calculation using Julia threads.
 """
 function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false, threaded=false)
     (; sys, measure) = swt
