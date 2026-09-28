@@ -28,7 +28,8 @@ import RowEchelon: rref!
 import Spglib
 
 include("MathBasics.jl")
-export load_fast_blas
+include("Threading.jl")
+export load_blas_for_threading
 
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
