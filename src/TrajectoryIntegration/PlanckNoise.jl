@@ -57,6 +57,11 @@ end
 planck_spectrum(ω, kT) = iszero(ω) ? kT : ω*n(ω, kT) 
 planck_spectrum_sym(ω, kT) = ω*coth(ω/(2kT)) 
 
+function planck_spectrum_twosided(ω, kT)
+    x = abs(ω) / kT
+    return abs(ω) / expm1(x)
+end
+
 # Analytical expression for the power spectrum of a second-order linear filter
 # with parameters p.
 function filter_spectrum(ω, p)
@@ -66,7 +71,7 @@ end
 
 
 ################################################################################
-# Colored noise
+# Planck noise
 ################################################################################
 mutable struct PlanckNoiseGenerator
 
@@ -105,7 +110,7 @@ end
 
 @. quad_model(x, p) = p[1] + p[2]*x + p[3]*x*x
 
-function colored_noise_params(kT)
+function planck_noise_params(kT)
     lim = ω_cutoff(kT)
     ωs = range(0.0, lim, 1000)
     ys = planck_spectrum.(ωs, kT)
@@ -129,13 +134,12 @@ function colored_noise_params(kT)
     return (; c₁,  c₂, Ω₁, Ω₂, Γ₁, Γ₂)
 end
 
+# Savin/Barker parameters
+# c₁, c₂ = 1.8315, 0.3429
+# Ω₁, Γ₁ = 2.7189, 5.0142
+# Ω₂, Γ₂ = 1.2223, 3.2974
 function PlanckNoiseGenerator(dt; kT, damping, dims)
-    ## Savin/Barker parameters
-    # c₁, c₂ = 1.8315, 0.3429
-    # Ω₁, Γ₁ = 2.7189, 5.0142
-    # Ω₂, Γ₂ = 1.2223, 3.2974
-
-    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = colored_noise_params(kT) 
+    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = planck_noise_params(kT) 
     ζ = zeros(3, dims...)
     ζbuf = zeros(3, dims...)
     W1 = zeros(3, dims...)
@@ -152,14 +156,8 @@ end
 
 function set_temperature!(cng::PlanckNoiseGenerator, kT)
     cng.kT = kT
+    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = planck_noise_params(kT) 
 
-    # Determine new coefficients for noise process
-    ## Savin/Barker parameters
-    # c₁, c₂ = 1.8315, 0.3429
-    # Ω₁, Γ₁ = 2.7189, 5.0142
-    # Ω₂, Γ₂ = 1.2223, 3.2974
-
-    c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = colored_noise_params(kT) 
     cng.c₁ = c₁
     cng.c₂ = c₂
     cng.Ω₁ = Ω₁
@@ -226,7 +224,7 @@ end
 
 
 ################################################################################
-# Langevin integration with colored noise 
+# Langevin integration with Planck noise 
 ################################################################################
 mutable struct LangevinPlanck <: AbstractIntegrator
     dt              :: Float64

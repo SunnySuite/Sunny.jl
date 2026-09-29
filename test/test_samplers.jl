@@ -229,7 +229,7 @@ end
 @testitem "Planck noise generator" begin
     import FFTW: fft!, fftfreq
 
-    # Generate a trajectory from the Planck noise generator
+    # Generate a trajectory with the Planck noise generator
     function generate_pn_traj(N, dt, damping, kT; numburnin=1000)
         cng = Sunny.PlanckNoiseGenerator(dt; kT, damping, dims=(1,1,1,1))
         buf = zeros(N)
@@ -251,7 +251,7 @@ end
     # Hann window for Welch averaging.
     hann(L) = 0.5 .* (1 .- cos.(2π .* (0:L-1) ./ (L-1)))
 
-    # Simple routine for calculating the two-sided Welch-averaged estimage of the
+    # Simple routine for calculating the two-sided Welch-averaged estimate of the
     # power spectrum.
     function welch_psd_twosided(x, dt; nperseg=1024, overlap=0.5)
         N = nperseg
@@ -299,10 +299,13 @@ end
             ihi = findfirst(ω -> ω > 5kT, ωs) - 1
             relerr = @. abs(estspec[ilo:ihi] - refspec[ilo:ihi]) / refspec[ilo:ihi]
 
-            # Note that a maximum of something like 10% relative error is expected
-            # around ω=0.35kT due to the limitations of fitting with just two
-            # second-order filters. This is the crossover region between the two
-            # filters. Improving the fit is a possible direction for research.
+            # Note that a maximum of something like 10% relative error is
+            # expected around ω=0.35kT. This is due to the limitations of
+            # fitting the spectrum with just two second-order filters; the
+            # greatest error is in the "crossover" between the two filters.
+            # Improving the fit is a possible direction for research. Consider
+            # testing against the actual filter spectrum (rather than the exact
+            # Planck spectrum), which is available in the Sunny code.
             @test maximum(relerr) < 0.15 && sum(relerr)/length(relerr) < 0.05 
         end
     end
