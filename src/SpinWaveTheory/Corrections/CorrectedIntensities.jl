@@ -141,7 +141,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         if resummation == :particle
             # Source channel frozen at the mean on-shell energy of the two legs
             K = cauchy_transform((decay,), zs)
-            Σstat += [sum(((j, M),) -> Hermitian(M, :U)[m, m′] / ((ε[m] + ε[m′])/2 - j * bin_width), source.bins; init=0im)
+            Σstat += [sum(((j, v),) -> bin_entry(v, m, m′) / ((ε[m] + ε[m′])/2 - j * bin_width), source.bins; init=0im)
                       for m in p, m′ in p]
         else
             K = cauchy_transform((decay, source), zs)
