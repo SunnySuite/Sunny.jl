@@ -259,26 +259,33 @@ end
 # Matrix-valued measure over a bath energy x of either sign, binned as described
 # above: bin j is centered at jΔ, and a mass at x is split linearly between the
 # two bins that bracket it. Each channel of a loop integral gets its own measure,
-# so that a caller may treat channels differently.
+# so that a caller may treat channels differently. Bins are Hermitian, so each
+# stores only its upper triangle, packed column by column (the BLAS "packed"
+# layout), and is read with `bin_entry`.
 struct PairMeasure
     Δ::Float64
     dim::Int
-    bins::Dict{Int, Matrix{ComplexF64}}
+    bins::Dict{Int, Vector{ComplexF64}}
 end
 
-PairMeasure(Δ, dim) = PairMeasure(Δ, dim, Dict{Int, Matrix{ComplexF64}}())
+PairMeasure(Δ, dim) = PairMeasure(Δ, dim, Dict{Int, Vector{ComplexF64}}())
+
+# Position of element (n, n′), n ≤ n′, in a packed upper triangle
+packed_index(n, n′) = n + n′ * (n′ - 1) ÷ 2
+
+# Element (n, n′) of packed Hermitian bin `v`, for any n, n′
+bin_entry(v, n, n′) = n ≤ n′ ? v[packed_index(n, n′)] : conj(v[packed_index(n′, n)])
 
 # Accumulates the rank-one mass c y y† at bath energy x. The weight c carries the
-# sign of the channel, and would carry its thermal factor at T > 0. Only the upper
-# triangle is stored; read a bin as `Hermitian(M, :U)`.
+# sign of the channel, and would carry its thermal factor at T > 0.
 function accum_binned!(ρ::PairMeasure, x, c, y)
     t = x / ρ.Δ
     j = floor(Int, t)
     f = t - j
     for (jj, cc) in ((j, c * (1 - f)), (j + 1, c * f))
-        M = get!(() -> zeros(ComplexF64, ρ.dim, ρ.dim), ρ.bins, jj)
+        v = get!(() -> zeros(ComplexF64, packed_index(ρ.dim, ρ.dim)), ρ.bins, jj)
         @inbounds for n′ in 1:ρ.dim, n in 1:n′
-            M[n, n′] += cc * y[n] * conj(y[n′])
+            v[packed_index(n, n′)] += cc * y[n] * conj(y[n′])
         end
     end
 end
@@ -293,8 +300,8 @@ function cauchy_transform(ρs, zs; nb=16)
     for ρ in ρs
         js = collect(keys(ρ.bins))
         P = zeros(ComplexF64, dim^2, length(js))
-        for (i, j) in enumerate(js)
-            copyto!(reshape(view(P, :, i), dim, dim), Hermitian(ρ.bins[j], :U))
+        for (i, j) in enumerate(js), n′ in 1:dim, n in 1:dim
+            P[n + (n′ - 1) * dim, i] = bin_entry(ρ.bins[j], n, n′)
         end
         C = zeros(ComplexF64, length(js), nb)
         for r in Iterators.partition(eachindex(zs), nb)

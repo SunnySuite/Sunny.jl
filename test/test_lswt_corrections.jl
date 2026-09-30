@@ -1516,8 +1516,9 @@ end
     ρ2m = Sunny.pair_measures(swt2m, terms3, qr2, Sunny.LoopGrid([zero(Sunny.Vec3)], [1.0], 1);
                               bin_width=1e-3, words2=words2m).decay
     rows = [1:L; 2L+1:2L+Nobs]
-    M0 = sum(Hermitian(M, :U)[rows, rows] for M in values(ρ2m.bins))
-    M1 = sum(j * ρ2m.Δ * Hermitian(M, :U)[rows, rows] for (j, M) in ρ2m.bins)
+    bin(v) = [Sunny.bin_entry(v, n, n′) for n in rows, n′ in rows]
+    M0 = sum(bin(v) for v in values(ρ2m.bins))
+    M1 = sum(j * ρ2m.Δ * bin(v) for (j, v) in ρ2m.bins)
     (E0, E1) = (zeros(ComplexF64, L+Nobs, L+Nobs), zeros(ComplexF64, L+Nobs, L+Nobs))
     for a in 1:L, b in 1:L
         ψpair = (Y[a]' * (Y[b]' * ψ)) / sqrt(1 + (a == b))
