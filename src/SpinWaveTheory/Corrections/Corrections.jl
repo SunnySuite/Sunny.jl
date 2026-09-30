@@ -15,15 +15,13 @@
 #     H₃ = (1/2!√N) Σ_{1+2=3} [Γ₁(3; 1, 2) α†₃ α₁ α₂ + h.c.]
 #        + (1/3!√N) Σ_{1+2+3=0} [Γ₂(1, 2, 3) α†₁ α†₂ α†₃ + h.c.],
 #
-# whose self-energies SelfEnergy.jl writes down. Only the decay channel has an
-# imaginary part at T = 0, giving magnons a finite lifetime and transferring
-# spectral weight into the two-magnon continuum.
+# whose self-energies SelfEnergy.jl writes down. At T = 0 only the decay channel
+# resonates at ω > 0, giving magnons a finite lifetime.
 #
 # Sunny's Nambu conventions are reused throughout. In particular the columns
 # `L+1:2L` of a Bogoliubov matrix `T` obtained at wavevector `q` are the
 # eigenvectors at `-q` (see `excitations!`), so a band index ranging over the
-# full Nambu space `1:2L` reaches both channels at once, which is how
-# SelfEnergy.jl handles them together.
+# full Nambu space `1:2L` reaches both channels at once.
 #
 # Resummation. Collect the quasi-particles into y_𝐪 = [α_𝐪; α†_{-𝐪}], with
 # metric Ĩ = diagm([ones(L); -ones(L)]), and write w = T†u for the observable
@@ -32,23 +30,23 @@
 #
 #     χ^{μν}(z) = w_μ' G₀(z) w_ν,   G₀(z) = (zĨ - |ε|)⁻¹,
 #
-# whose anti-Hermitian part (χ' - χ)/2πi is the broadened `intensities` at
-# z = ω + iη, including the mirror poles at ω < 0.
+# whose anti-Hermitian part (χ' - χ)/2πi is the broadened `intensities` at z = ω
+# + iη, including the mirror poles at ω < 0.
 #
 # At O(1/s) the static mean fields of HartreeFock.jl, Tadpole.jl and
 # `anisotropy_correction` add Σstat = T†δH T, for a perturbation (1/2)x†δH x of
 # the quadratic Hamiltonian. The cubic vertex couples each magnon to pairs of
 # magnons, and the observable creates pairs directly too (Sᶻ = s - b†b). Both
 # are captured by an auxiliary quadratic model: magnons coupled to a bath of
-# free two-magnon states. For each pair of internal lines (𝐩 a, 𝐪-𝐩 b) at pair
-# energy x, define
+# free two-magnon states. For each pair of internal lines (𝐩 a, 𝐪-𝐩 b) at
+# pair energy x, define
 #
 #     y = [√18 U[a, b, :]; β],
 #
-# the vertex to each of the 2L external Nambu legs and the amplitudes β for
-# each observable to create the pair (`pair_amplitude`). Forward lines (x > 0)
-# are bath particles, backward lines (x < 0) bath holes of the opposite metric
-# sign. Integrating out the bath gives the Cauchy transform
+# the vertex to each of the 2L external Nambu legs and the amplitudes β for each
+# observable to create the pair (`pair_amplitude`). Forward lines (x > 0) are
+# bath particles, backward lines (x < 0) bath holes of the opposite metric sign.
+# Integrating out the bath gives the Cauchy transform
 #
 #     K(z) = Σ_pairs ± y y† / (z - x),
 #
@@ -62,20 +60,21 @@
 # inherits its structure: Nambu symmetry, Goldstone protection (the static and
 # dynamic 1/ε divergences cancel in the full 2L inverse), η as a pure
 # Lorentzian, and the commutator sum rule ∫dω S = w'Ĩw. It is positive at ω > 0
-# whenever the auxiliary model is stable, which up to the loop discretization is
-# |ε| + Σstat + K_mm(0) ⪰ 0. Where it is not, the 1/s expansion itself has broken
-# down, which `corrected_channels` reports. The interference K_dm G w is missing
-# from published 1/s calculations (e.g. arXiv:1306.1231, arXiv:1607.08238); for a
-# trace measure it cancels in a zone sum, but not pointwise.
+# whenever the auxiliary model is stable, i.e. |ε| + Σstat + K_mm(0) ⪰ 0. Where
+# it is not, the 1/s correction exceeds the harmonic energy and the expansion
+# itself has broken down; `corrected_channels` reports this. The interference
+# terms linear in K_md are missing from published 1/s calculations (e.g.
+# arXiv:1306.1231, arXiv:1607.08238). For a trace measure they cancel in a zone
+# sum, but not pointwise.
 #
-# The frequency dependence of K enters only through the scalar x, so the masses
-# y y† are accumulated into bins of x on the uniform grid of `loop_wavevectors`,
-# and the Cauchy transform applied afterwards. Linear splitting between
+# K depends on frequency only through the scalar x, so the masses y y†, summed
+# over the wavevectors of `loop_wavevectors`, are accumulated into bins of x and
+# the Cauchy transform is applied afterwards. Linear splitting between
 # neighbouring bins keeps each channel's measure semidefinite and preserves its
 # zeroth and first moments; the shape error is O((Δ/η)²).
 #
-# The test suite certifies every term by comparing to exact diagonalization of
-# a cluster with anisotropic interactions and readouts.
+# The test suite certifies every term by comparing to exact diagonalization of a
+# cluster with anisotropic interactions and readouts.
 
 # Why the 1/s corrections of this directory are unavailable for `swt`, or `nothing`
 # if they are available. Returned rather than thrown so that a caller offering a
@@ -257,11 +256,9 @@ function auto_loop_grid(swt::SpinWaveTheory, η, tol)
 end
 
 # Matrix-valued measure over a bath energy x of either sign, binned as described
-# above: bin j is centered at jΔ, and a mass at x is split linearly between the
-# two bins that bracket it. Each channel of a loop integral gets its own measure,
-# so that a caller may treat channels differently. Bins are Hermitian, so each
-# stores only its upper triangle, packed column by column (the BLAS "packed"
-# layout), and is read with `bin_entry`.
+# above: bin j is centered at jΔ. Each channel gets its own measure. Bins are
+# Hermitian, so each stores only its upper triangle, packed column by column
+# (the BLAS "packed" layout), and is read with `bin_entry`.
 struct PairMeasure
     Δ::Float64
     dim::Int
