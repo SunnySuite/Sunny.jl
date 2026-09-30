@@ -219,6 +219,23 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
                            desc = verbose ? "  wavevectors     " : nothing)
     elapsed = time() - t0
 
+    # A wavevector with harmonic energy below resolution was skipped above. It
+    # is marked unstable if any of its near neighbours in `qpts`, those within
+    # twice the nearest distance, are uncontrolled.
+    if resummation == :dyson
+        εmins = vec(minimum(abs, disp; dims=1))
+        resolved = findall(≥(η), εmins)
+        ks = [cryst.recipvecs * q for q in qpts.qs]
+        for iq in findall(<(η), εmins)
+            isempty(resolved) && break
+            ds = [norm(ks[j] - ks[iq]) for j in resolved]
+            near = resolved[ds .≤ 2 * minimum(ds)]
+            if any(j -> any(view(artifacts, :, j)), near)
+                view(artifacts, :, iq) .|= abs.(energies) .≤ η
+            end
+        end
+    end
+
     if verbose
         r2 = x -> round(x; sigdigits=2)
         nthreads = threaded ? min(Threads.nthreads(), length(qpts.qs)) : 1
