@@ -33,22 +33,6 @@
 # requires. Both this structure and the factor of 18 are verified against the
 # exact Nambu Green function of a dimer, whose 𝐪-independence lets one grid
 # point integrate the loop exactly.
-#
-# The two channels behave very differently under resummation. In the particle
-# block the decay channel is a sum of R/(ω - x + iη) with R = 18ū ū† ⪰ 0 and x
-# real, so its imaginary part is negative semidefinite for every ω, which is
-# what makes the resummed spectral function of CorrectedIntensities.jl positive.
-# The source channel enters with the opposite sign and its own retarded
-# regulator, giving a positive semidefinite imaginary part: an anti-damping.
-# That is negligible off resonance, but the source denominator ω + |ε_𝐩[a]| +
-# |ε_{𝐤-𝐩}[b]| becomes small as the internal pair energy vanishes, as it does
-# at the ordering wavevector of an antiferromagnet, and resummation then turns
-# the anti-damping into a spurious pole pushed up from negative frequency. This
-# is a defect of the truncation rather than of the numerics; the remedy of
-# Mourigal et al. (arXiv:1306.1231), implemented by `accum_frozen_source!`
-# below, is to freeze the source channel at its on-shell frequency so that it
-# acts as a static Hermitian shift. That discards only the channel's ω-slope, an
-# O(1/s) contribution to the quasiparticle residue.
 
 """
     cubic_self_energy(swt::SpinWaveTheory, qpts, energies; η, grid)
@@ -185,22 +169,9 @@ function foreach_cubic_line(f, swt::SpinWaveTheory, terms3, k, grid::LoopGrid, M
     end
 end
 
-# Frozen source channel, as described above: a static Hermitian shift, accumulated from
-# the backward-propagating lines a > L. `source_freqs` is a real `L×L` matrix of
-# nonnegative frequencies, one per pair of external bands. Because the denominator
-# `source_freqs[m, m′] + |ε_𝐩[a]| + |ε_{𝐤-𝐩}[b]|` is strictly positive, the channel needs
-# no regulator.
-function accum_frozen_source!(Σsrc, source_freqs, w, u, x, L)
-    for m′ in 1:L, m in 1:L
-        Σsrc[m, m′] += -18w * conj(u[m]) * u[m′] / (source_freqs[m, m′] - x)
-    end
-end
-
 # Accumulates into `Σ[:, :, iω]`, of size `2L×2L×length(ωs)`, the Nambu self-energy at
 # wavevector `k` and frequency `ωs[iω]`, averaged over the wavevectors `ps` of the loop
-# integral. Both channels are kept live; the frozen-source variant that the resummation
-# of CorrectedIntensities.jl needs is `accum_pair_measure!` below, which evaluates the
-# same integral by binning.
+# integral. `pair_measures` below evaluates the same integral by binning.
 function accum_cubic_self_energy!(Σ, swt::SpinWaveTheory, terms3, k, ωs, grid::LoopGrid, η)
     L = nbands(swt)
     @assert size(Σ) == (2L, 2L, length(ωs))
@@ -224,70 +195,29 @@ function accum_cubic_self_energy!(Σ, swt::SpinWaveTheory, terms3, k, ωs, grid:
     return Σ ./= grid.npts
 end
 
-# The same loop integral as above, evaluated by binning the decay measure in the pair
-# energy rather than by a frequency loop inside the wavevector loop, as Corrections.jl
-# describes. The cost then stops scaling with the number of frequencies, at the price of
-# an O((bin_width/Γ)²) error. Grows `ρ` so that `ρ[b]` holds the masses at pair energy
-# (b-1)*bin_width, and returns the frozen source shift; `pair_self_energy!` below turns
-# the two into the self-energy at a set of frequencies.
+# Binned measures of the auxiliary model of Corrections.jl, one per channel. Each
+# internal line pair contributes the mass ±y y† at pair energy x, with
 #
-# Supplying `words2`, the even observable words of `observable_pair_words`, appends Nobs
-# rows and columns carrying the amplitude for the same pair to be created directly by the
-# observable, so that the blocks of `ρ` are the self-energy, the two-magnon continuum,
-# and their interference. Only the decay channel contributes to them: a pair of real
-# magnons is what the observable can create, and the source channel is frozen into a
-# static shift.
-function accum_pair_measure!(ρ, swt::SpinWaveTheory, terms3, k, grid::LoopGrid; source_freqs, bin_width, words2=nothing)
+#     y = [√18 u; β],
+#
+# u the external legs over all 2L Nambu indices and β the amplitudes for the
+# observables (words `words2`) to create the same pair directly. The decay
+# channel has x > 0 and a plus sign; the source channel x < 0 and a minus sign.
+# Their Cauchy transforms, summed, give the cubic self-energy in the `[1:2L,
+# 1:2L]` block, in the orientation that contracts as w' G w.
+function pair_measures(swt::SpinWaveTheory, terms3, k, grid::LoopGrid; bin_width, words2)
     L = nbands(swt)
-    # Rows of the blocked measure: the decay amplitude, and optionally the direct one
-    Nobs = isnothing(words2) ? 0 : length(words2)
-    y = zeros(ComplexF64, L + Nobs)
-    Σsrc = zeros(ComplexF64, L, L)
+    Nobs = length(words2)
+    decay = PairMeasure(bin_width, 2L + Nobs)
+    source = PairMeasure(bin_width, 2L + Nobs)
+    y = zeros(ComplexF64, 2L + Nobs)
 
-    foreach_cubic_line(swt, terms3, k, grid, L) do a, b, w, u, x, T1, T2
-        if a > L
-            return accum_frozen_source!(Σsrc, source_freqs, w, u, x, L)
-        end
-        # The measure is the rank-one y y† of Corrections.jl. Only the decay channel reaches
-        # here, so every line is forward-propagating and the sign factors of
-        # `accum_cubic_self_energy!` are unity. `y` is the amplitude to *create* the pair,
-        # stored unconjugated throughout. Its leading block is thereby the transpose of the
-        # `R` there, a distinction without a difference because that block is real
-        # symmetric: it is a sum over a, b of conj(u)uᵗ together with its (b, a) partner.
-        for m in 1:L
-            y[m] = √18 * u[m]
-        end
+    foreach_cubic_line(swt, terms3, k, grid, 2L) do a, b, w, u, x, T1, T2
+        @. y[1:2L] = √18 * u
         for ν in 1:Nobs
-            y[L+ν] = pair_amplitude(words2[ν], T1, T2, a, b)
+            y[2L+ν] = pair_amplitude(words2[ν], T1, T2, a, b)
         end
-        (bin, f) = bin_index!(ρ, x, bin_width, () -> zeros(ComplexF64, L + Nobs, L + Nobs))
-        for (bb, ww) in ((bin, w * (1 - f)), (bin + 1, w * f))
-            for m′ in eachindex(y), m in eachindex(y)
-                ρ[bb][m, m′] += ww * y[m] * conj(y[m′])
-            end
-        end
+        a ≤ L ? accum_binned!(decay, x, w / grid.npts, y) : accum_binned!(source, x, -w / grid.npts, y)
     end
-
-    foreach(m -> m ./= grid.npts, ρ)
-    return Σsrc ./ grid.npts
-end
-
-# Cauchy transform of the leading block of the binned measure, plus the frozen source
-# shift: the self-energy that `accum_cubic_self_energy!` would return at the same `ωs`.
-function pair_self_energy!(Σ, ρ, Σsrc, ωs, bin_width)
-    L = size(Σ, 1)
-    @assert size(Σ) == (L, L, length(ωs))
-    for bin in eachindex(ρ)
-        iszero(ρ[bin]) && continue
-        for (iω, ω) in enumerate(ωs)
-            c = 1 / (ω - (bin - 1) * bin_width)
-            for m′ in 1:L, m in 1:L
-                Σ[m, m′, iω] += c * ρ[bin][m, m′]
-            end
-        end
-    end
-    for iω in axes(Σ, 3)
-        view(Σ, :, :, iω) .+= Σsrc
-    end
-    return Σ
+    return (; decay, source)
 end
