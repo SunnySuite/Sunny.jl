@@ -1110,7 +1110,7 @@ end
                                      loop_grid=(12, 12, 1), mean_field_maxevals=opts.maxevals)
     (; transverse) = chans
     pos = energies .> 0
-    @test all(>(0), chans.stability)
+    @test !any(chans.artifacts)
     @test all(≥(0), (transverse + chans.cross + chans.direct)[pos, :])
     # The commutator is small for a trace measure, so it is compared on the scale of
     # the static weight. The residual is the truncated Lorentzian tail.
@@ -1148,6 +1148,14 @@ end
     # the corrected intensities must be invariant under it. Breaking that gauge
     # violates this by 5%. The loop grid is coarse because an invariance holds
     # grid by grid and needs no converged integral.
+    #
+    # The rotated side is evaluated at -𝐪 and negative frequency, which the
+    # retarded response relates to +𝐪 by S(𝐪, ω) = -S(-𝐪, -ω). The structure is
+    # non-reciprocal, S(𝐪, ω) and S(-𝐪, ω) differing by 50%, so this also pins
+    # the hole block of the Dyson equation to the energies and eigenvectors of
+    # -𝐪 rather than to mirror images of those at 𝐪. Taking the bare hole
+    # energies from ε(𝐪) violates it by 20%, a mistake the rotation alone and
+    # every reciprocal model are blind to.
     swts = map(φ -> let sys3 = triangular(; Δ=0.6, field=[0.7, 0, 1.2], φ, g=1)
                         SpinWaveTheory(sys3; measure=ssf_trace(sys3; apply_g=false))
                     end, (0.0, 0.9))
@@ -1155,9 +1163,11 @@ end
     Σ3 = Sunny.cubic_self_energy(swts[1], qs3[1:1], dispersion(swts[1], qs3[1:1])[1:1];
                                  η=0.05, grid=(6, 6, 1))[1:L, 1:L, 1, 1]
     @test maximum(abs, Σ3 - Diagonal(diag(Σ3))) > 0.2 * maximum(abs, diag(Σ3))
-    datas = map(swt3 -> Sunny.corrected_intensities(swt3, qs3; energies=range(0.2, 2.0, 25),
-                                                    η=0.15, loop_grid=(4, 4, 1)).data, swts)
-    @test datas[1] ≈ datas[2] rtol=1e-6
+    energies = range(0.2, 2.0, 25)
+    data = Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, loop_grid=(4, 4, 1)).data
+    mirror = Sunny.corrected_intensities(swts[2], -qs3; energies=-reverse(energies), η=0.15,
+                                         loop_grid=(4, 4, 1)).data
+    @test data ≈ -reverse(mirror; dims=1) rtol=1e-6
 
     # ---- Quantum sum rule on the square lattice ----
 
