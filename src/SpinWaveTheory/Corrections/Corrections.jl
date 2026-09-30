@@ -25,86 +25,57 @@
 # full Nambu space `1:2L` reaches both channels at once, which is how
 # SelfEnergy.jl handles them together.
 #
-# Corrections are resummed rather than added, which conserves spectral weight.
-# Collecting the quasi-particles into the Nambu vector y_𝐪 = [α_𝐪; α†_{-𝐪}]
-# and writing Ĩ = diagm([ones(L), -ones(L)]) for the para-unitary metric, each
-# correction enters the retarded Green function as a self-energy,
+# Resummation. Collect the quasi-particles into y_𝐪 = [α_𝐪; α†_{-𝐪}], with
+# metric Ĩ = diagm([ones(L); -ones(L)]), and write w = T†u for the observable
+# amplitudes (u from `set_swt_observable_vectors!`, corrected by
+# Observables.jl). LSWT gives the retarded response
 #
-#     G(𝐪, ω) = (ω - diag(ε_𝐪) - Σ̂(𝐪, ω))⁻¹ Ĩ,
+#     χ^{μν}(z) = w_μ' G₀(z) w_ν,   G₀(z) = (zĨ - |ε|)⁻¹,
 #
-# where ε_𝐪 are the 2L signed energies returned by `bogoliubov!`, so that L
-# poles at ω = ε_{𝐪n} are accompanied by L at ω = -ε_{-𝐪n}. The static mean
-# fields of HartreeFock.jl, Tadpole.jl and `anisotropy_correction` contribute Σ̂
-# = Ĩ (T†δH T)ᵗ for a perturbation (1/2) x†δH x of the quadratic Hamiltonian;
-# SelfEnergy.jl contributes the frequency-dependent cubic self-energy. The
-# transpose is required to make ĨΣ̂ Hermitian, without which the resummation
-# would not preserve total weight. Both forms are verified against exact Green
-# functions of a dimer.
+# whose anti-Hermitian part (χ' - χ)/2πi is the broadened `intensities` at
+# z = ω + iη, including the mirror poles at ω < 0.
 #
-# Observables are corrected too, by Observables.jl. Writing ũ[m, μ] for the
-# amplitude with which observable μ creates Nambu mode m, obtained from the
-# vectors u of `set_swt_observable_vectors!` as ũ = Tᵗ conj(u), the structure
-# factor of CorrectedIntensities.jl is
+# At O(1/s) the static mean fields of HartreeFock.jl, Tadpole.jl and
+# `anisotropy_correction` add Σstat = T†δH T, for a perturbation (1/2)x†δH x of
+# the quadratic Hamiltonian. The cubic vertex couples each magnon to pairs of
+# magnons, and the observable creates pairs directly too (Sᶻ = s - b†b). Both
+# are captured by an auxiliary quadratic model: magnons coupled to a bath of
+# free two-magnon states. For each pair of internal lines (𝐩 a, 𝐪-𝐩 b) at pair
+# energy x, define
 #
-#     S^{μν}(𝐪, ω) = -(1/π) Σ_{n,n′ ≤ L} ũ[n, μ] Im[G(𝐪, ω)][n, n′] conj(ũ[n′, ν]),
+#     y = [√18 U[a, b, :]; β],
 #
-# where Im of a matrix means its anti-Hermitian part (G - G†)/2i. With Σ̂ = 0
-# this reproduces the delta functions of `intensities_bands`, broadened.
+# the vertex to each of the 2L external Nambu legs and the amplitudes β for
+# each observable to create the pair (`pair_amplitude`). Forward lines (x > 0)
+# are bath particles, backward lines (x < 0) bath holes of the opposite metric
+# sign. Integrating out the bath gives the Cauchy transform
 #
-# Only the block of G with n, n′ ≤ L appears, and it is obtained by projecting
-# the Dyson equation onto that block, as in Eq. (12) of arXiv:1306.1231,
+#     K(z) = Σ_pairs ± y y† / (z - x),
 #
-#     G_pp(𝐪, ω) = (ω - diag(ε_𝐪)_pp - Σ̂_pp(𝐪, ω))⁻¹,
+# with blocks K_mm (the cubic self-energy), K_md, K_dm and K_dd (the direct
+# two-magnon continuum). The exact response of the auxiliary model is then
 #
-# rather than by inverting the full 2L matrix and discarding the rest of the
-# solution. The other blocks carry mirror poles at ω = -ε_{-𝐪n}, which a
-# retarded spectral function weights negatively; at s = 1/2 a correction
-# comparable to ε can push one up through ω = 0, making the full denominator
-# near-singular, and the anomalous blocks of Σ̂ then carry a spurious pole into
-# the particle block. Projecting also makes the result a spectral function in
-# its own right: given Im Σ̂_pp ⪯ 0, which SelfEnergy.jl arranges, the
-# denominator is nonsingular at every real ω, so S(𝐪, ω) ≥ 0 and is bounded by
-# 1/πΓ, and since the denominator grows as ωI its frequency integral is the
-# identity, conserving transverse weight exactly.
+#     χ = w'Gw + K_dm G w + w'G K_md + K_dm G K_md + K_dd,
+#     G = (zĨ - |ε| - Σstat - K_mm)⁻¹.
 #
-# The frequency-dependent momentum integrals are all one integral, over pairs of
-# magnon lines at 𝐩 and 𝐪-𝐩, of the form
+# This is exact at O(1/s) and, being the resolvent of a quadratic model,
+# inherits its structure: Nambu symmetry, Goldstone protection (the static and
+# dynamic 1/ε divergences cancel in the full 2L inverse), η as a pure
+# Lorentzian, and the commutator sum rule ∫dω S = w'Ĩw. It is positive at ω > 0
+# whenever the auxiliary model is stable, which up to the loop discretization is
+# |ε| + Σstat + K_mm(0) ⪰ 0. Where it is not, the 1/s expansion itself has broken
+# down, which `corrected_channels` reports. The interference K_dm G w is missing
+# from published 1/s calculations (e.g. arXiv:1306.1231, arXiv:1607.08238); for a
+# trace measure it cancels in a zone sum, but not pointwise.
 #
-#     ∫d𝐤 Σ_{n₁n₂} V(𝐤, n₁, n₂) g(ω, x(𝐤, n₁, n₂)),
+# The frequency dependence of K enters only through the scalar x, so the masses
+# y y† are accumulated into bins of x on the uniform grid of `loop_wavevectors`,
+# and the Cauchy transform applied afterwards. Linear splitting between
+# neighbouring bins keeps each channel's measure semidefinite and preserves its
+# zeroth and first moments; the shape error is O((Δ/η)²).
 #
-# with V ⪰ 0 independent of frequency and all the frequency dependence in a
-# kernel g of the scalar pair energy x — a Cauchy denominator 1/(ω - x) in
-# SelfEnergy.jl, a Lorentzian of half-width η in the two-magnon channel of
-# CorrectedIntensities.jl. So V is accumulated into bins of x on the uniform
-# grid of `loop_wavevectors` and g applied afterwards. That makes Im Σ̂_pp ⪯ 0 a
-# property of the quadrature: `bin_index` splits each contribution between
-# neighbouring bins with nonnegative weights, so a sum of positive semidefinite
-# V stays positive semidefinite bin by bin, on any grid and at any s. Linear
-# splitting preserves the zeroth and first moments exactly, so the sum rule
-# survives binning; the shape error is O((Δ/Γ)²).
-#
-# It is one integral rather than two because a two-magnon final state is
-# reachable by two interfering routes: the transverse (odd) part of the
-# observable creates one magnon which the cubic vertex splits, while the
-# longitudinal part Sᶻ = s - b†b creates the pair directly; see Observables.jl.
-# Both are of order s⁰ relative to the one-magnon amplitude, so the interference
-# is of the same relative order 1/s as either squared. Writing v for the vertex
-# factor and β for the pair amplitude, V is the rank-one yy† built from
-#
-#     y = [√18 v ; β],
-#
-# whose diagonal blocks are the cubic self-energy and the two-magnon continuum
-# and whose off-diagonal block is the interference. That last block is missing
-# from various published 1/s calculations (e.g. arXiv:1306.1231 and
-# arXiv:1607.08238). It is pointwise comparable to the continuum it
-# redistributes. (For a trace measure a sum rule Σ_𝐪 ∫dω cross = 0 makes it
-# cancel, 𝐒·𝐒 linking no odd number of bosons to an even one, so only the
-# integrated weight is protected; a chiral readout such as Im S^{xy} has no such
-# protection and there the interference dominates.)
-#
-# The test suite certifies all the correction terms above by comparing to exact
-# calculations on a dimer model with arbitrary anisotropic interactions and
-# readouts.
+# The test suite certifies every term by comparing to exact diagonalization of
+# a cluster with anisotropic interactions and readouts.
 
 # Why the 1/s corrections of this directory are unavailable for `swt`, or `nothing`
 # if they are available. Returned rather than thrown so that a caller offering a
@@ -285,16 +256,54 @@ function auto_loop_grid(swt::SpinWaveTheory, η, tol)
     end
 end
 
-# Index `b` and interpolation weight `f` for scattering a pair energy `x ≥ 0`
-# into bins centered at (b - 1)Δ, b = 1, 2, …: a mass m at x becomes (1-f)m in
-# bin b and f m in bin b+1. See the discussion of binning above. The accumulator
-# `ρ` is grown to length b+1 with new bins made by `mk`, so that the caller need
-# only add into them.
-function bin_index!(ρ, x, Δ, mk)
-    t = max(x, 0) / Δ
-    b = 1 + floor(Int, t)
-    while length(ρ) < b + 1
-        push!(ρ, mk())
+# Matrix-valued measure over a bath energy x of either sign, binned as described
+# above: bin j is centered at jΔ, and a mass at x is split linearly between the
+# two bins that bracket it. Each channel of a loop integral gets its own measure,
+# so that a caller may treat channels differently.
+struct PairMeasure
+    Δ::Float64
+    dim::Int
+    bins::Dict{Int, Matrix{ComplexF64}}
+end
+
+PairMeasure(Δ, dim) = PairMeasure(Δ, dim, Dict{Int, Matrix{ComplexF64}}())
+
+# Accumulates the rank-one mass c y y† at bath energy x. The weight c carries the
+# sign of the channel, and would carry its thermal factor at T > 0. Only the upper
+# triangle is stored; read a bin as `Hermitian(M, :U)`.
+function accum_binned!(ρ::PairMeasure, x, c, y)
+    t = x / ρ.Δ
+    j = floor(Int, t)
+    f = t - j
+    for (jj, cc) in ((j, c * (1 - f)), (j + 1, c * f))
+        M = get!(() -> zeros(ComplexF64, ρ.dim, ρ.dim), ρ.bins, jj)
+        @inbounds for n′ in 1:ρ.dim, n in 1:n′
+            M[n, n′] += cc * y[n] * conj(y[n′])
+        end
     end
-    return (b, t - (b - 1))
+end
+
+# Cauchy transform K(z) = Σ_j ρ_j / (z - jΔ), summed over the measures `ρs` and
+# returned as a `dim×dim×length(zs)` array. Frequencies are processed in small
+# blocks, which keeps the matrix products cache resident.
+function cauchy_transform(ρs, zs; nb=16)
+    dim = first(ρs).dim
+    K = zeros(ComplexF64, dim, dim, length(zs))
+    Kr = reshape(K, dim^2, length(zs))
+    for ρ in ρs
+        js = collect(keys(ρ.bins))
+        P = zeros(ComplexF64, dim^2, length(js))
+        for (i, j) in enumerate(js)
+            copyto!(reshape(view(P, :, i), dim, dim), Hermitian(ρ.bins[j], :U))
+        end
+        C = zeros(ComplexF64, length(js), nb)
+        for r in Iterators.partition(eachindex(zs), nb)
+            Cr = view(C, :, 1:length(r))
+            for (k, iz) in enumerate(r), (i, j) in enumerate(js)
+                Cr[i, k] = 1 / (zs[iz] - j * ρ.Δ)
+            end
+            mul!(view(Kr, :, r), P, Cr, true, true)
+        end
+    end
+    return K
 end
