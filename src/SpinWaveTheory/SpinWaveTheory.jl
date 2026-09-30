@@ -9,7 +9,6 @@ end
 struct SWTDataSUN
     local_unitaries  :: Vector{Matrix{ComplexF64}}    # Transformations from global to quantization frame
     observables      :: Array{HermitianC64, 3}        # Rotated observables (nobs × nunits × nparts)
-    observable_buf   :: Matrix{ComplexF64}            # Scratch buffer (N × N)
     spin_ops         :: Array{HermitianC64, 2}        # Spin dipoles in local frame (3 × nbareatoms)
 end
 
@@ -40,6 +39,7 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     data           :: Union{SWTDataDipole, SWTDataSUN}
     measure        :: MeasureSpec
     regularization :: Float64
+    classical_energy :: Float64
 end
 
 function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, energy_ϵ=nothing)
@@ -57,10 +57,13 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
     sys = reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
 
+    # Read the classical energy before `swt_data!` invalidates it
+    classical_energy = energy_per_site(sys)
+
     # Rotate local operators to quantization axis
     data = swt_data!(sys, measure)
 
-    return SpinWaveTheory(sys, data, measure, regularization)
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy)
 end
 
 
@@ -128,18 +131,17 @@ end
 # Prepare local operators and observables for spin wave calculation by rotating
 # into the local reference frame as defined by the ground state. Mutates
 # interactions in sys.
-function swt_data!(sys::System{N}, measure) where N
+function swt_data!(sys::System{N}, @nospecialize measure) where N
     # Calculate transformation matrices into local reference frames
     Na = nsites(sys)
     Nb = nbaresites(sys)
     nparts = num_parts_per_unit(measure)
     Nobs = num_observables(measure)
-    flat_ops = reshape(measure.observables, Nobs, Na, nparts)
+    flat_ops = reshape(measure.observables::Array{HermitianC64, 6}, Nobs, Na, nparts)
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
     observables = Array{HermitianC64}(undef, Nobs, Na, nparts)
-    observable_buf = zeros(ComplexF64, N, N)
     spin_ops = fill(Hermitian(zeros(ComplexF64, N, N)), 3, Nb)
 
     for i in 1:Na
@@ -208,13 +210,12 @@ function swt_data!(sys::System{N}, measure) where N
     return SWTDataSUN(
         local_unitaries,
         observables,
-        observable_buf,
         spin_ops,
     )
 end
 
 
-function swt_data!(sys::System{0}, measure)
+function swt_data!(sys::System{0}, @nospecialize measure)
     Na = nsites(sys)
     Nobs = num_observables(measure)
 
@@ -246,7 +247,7 @@ function swt_data!(sys::System{0}, measure)
     # Observable is semantically a 1x3 row vector but stored in transpose
     # (column) form. To achieve effective right-multiplication by R, we should
     # in practice left-multiply column vector by R'.
-    obs = reshape(measure.observables, Nobs, Na)
+    obs = reshape(measure.observables::Array{Vec3, 6}, Nobs, Na)
     obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
 
     # Precompute transformed exchange matrices and store in
@@ -305,18 +306,19 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
     L = Nf * Na
 
     if sys.mode == :SUN
-        (; observables, observable_buf) = data::SWTDataSUN
+        (; observables) = data::SWTDataSUN
         @assert allequal(sys.Ns)
         N = first(sys.Ns)
         for μ in 1:Nobs, i in 1:Na
-            fill!(observable_buf, 0)
+            view(u, (i-1)*Nf .+ (1:Nf), μ) .= 0
+            view(u, (i-1)*Nf .+ (1:Nf) .+ L, μ) .= 0
             for p in 1:num_parts_per_unit(measure)
                 pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys; part=p)
-                observable_buf .+= pref .* observables[μ, i, p]
-            end
-            for f in 1:Nf
-                u[f + (i-1)*Nf,     μ] = observable_buf[f, N]
-                u[f + (i-1)*Nf + L, μ] = observable_buf[N, f]
+                O = observables[μ, i, p]
+                for f in 1:Nf
+                    u[f + (i-1)*Nf,     μ] += pref * O[f, N]
+                    u[f + (i-1)*Nf + L, μ] += pref * O[N, f]
+                end
             end
         end
     else
