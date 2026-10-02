@@ -45,7 +45,7 @@
 
 """
     corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, dyson=:nambu,
-                          mark_uncontrolled=true, threaded=false, verbose=false)
+                          mark_unstable=true, threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including one-loop
 spin-wave corrections, i.e., order ``1/s`` in dipole mode. Magnon energies are
@@ -53,11 +53,10 @@ shifted by the mean fields and the cubic self-energy, magnons that can decay
 into two magnons are broadened, and the two-magnon continuum is included, both
 the part fed by decay and the part the observable creates directly.
 
-The regulator `η` is required. The Green function is evaluated at ``ω + iη``,
-which is the same as convolving the spectrum with `lorentzian(fwhm=2η)`. Choose
-it small compared to the linewidths of interest, but no smaller: the wavevector
-grid of the loop integrals grows as `1/η` in each dispersing dimension.
-Instrumental resolution should be applied to the result afterwards.
+The Green function will be evaluated at ``ω + iη``. Choose the numerical
+regulator `η` small compared to the linewidths of interest, but no smaller: the
+wavevector grid of the loop integrals grows as `1/η` in each dispersing
+dimension. Instrumental resolution should be applied to the result afterwards.
 
 The accuracy target `tol` sets the wavevector grid of the loop integrals and the
 adaptive cubature of the static mean fields.
@@ -84,24 +83,23 @@ two-magnon continuum. As a retarded response, the result of each scheme includes
 the tails of the negative-frequency poles, which cancel the Lorentzian tail of a
 Goldstone mode at high energy.
 
-In each scheme the renormalized magnon poles may move anywhere, including to
-imaginary frequency. If any pole does so, or falls below half of the lowest
-harmonic magnon energy at its wavevector ``𝐪``, then Sunny interprets this as
-an _uncontrolled_ application of the one-loop correction for that ``𝐪``. This
-breakdown is marked by setting all intensity within `±η` of the uncontrolled
-pole to `NaN`. Set `mark_uncontrolled=false` to retain all raw intensity data.
+With `:nambu`, a large one-loop correction can push a renormalized magnon pole
+through ``ω = 0`` onto the imaginary axis. Such a pole signals a breakdown of
+perturbation theory at the given wavevector ``𝐪``. Sunny marks these unstable
+poles by setting all intensity within `±η` of ``ω = 0`` to `NaN`. Set
+`mark_unstable=false` to retain all raw intensity data.
 
 Set `threaded=true` to parallelize over `qpts`, and `verbose=true` to print a
 progress bar and other diagnostics.
 """
 function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
-                               mean_field_maxevals=100_000, mark_uncontrolled=true, dyson=:nambu,
+                               mean_field_maxevals=100_000, mark_unstable=true, dyson=:nambu,
                                threaded=false, verbose=false)
-    (; cryst, qpts, energies, transverse, cross, direct, artifacts) =
+    (; cryst, qpts, energies, transverse, cross, direct, unstable) =
         corrected_channels(swt, qpts; energies, η, tol, loop_grid, mean_field_maxevals, dyson,
                            threaded, verbose)
     data = transverse + cross + direct
-    mark_uncontrolled && (data[artifacts] .= NaN)
+    mark_unstable && (data[abs.(energies) .≤ η, unstable] .= NaN)
     return Intensities(cryst, qpts, energies, reshape(data, length(energies), size(qpts.qs)...))
 end
 
@@ -129,10 +127,11 @@ end
 # Workhorse of `corrected_intensities`, returning the three terms of S
 # separately as (energy × wavevector) matrices: `transverse` from w'Gw, `cross`
 # from the terms linear in K_md, and `direct` from the rest. Also returns
-# `disp`, the harmonic energies; `artifacts`, a mask over (energy, wavevector)
-# of the uncontrolled poles described above; for `:on_shell`, `bands`, the
-# energies, half widths and intensities of the poles; and if `spectral=true`
-# then `specfunc`, the particle block of the magnon spectral matrix (G' - G)/2πi.
+# `disp`, the harmonic energies; `unstable`, a mask over wavevectors at which
+# a `:nambu` pole has moved onto the imaginary axis; for `:on_shell`, `bands`,
+# the energies, half widths and intensities of the poles; and if
+# `spectral=true` then `specfunc`, the particle block of the magnon spectral
+# matrix (G' - G)/2πi.
 function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
                             mean_field_maxevals=100_000, dyson=:nambu, threaded=false,
                             verbose=false, spectral=false)
@@ -188,17 +187,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     bands = dyson != :on_shell ? nothing :
         (; disp = zeros(L, length(qpts.qs)), widths = zeros(L, length(qpts.qs)),
            data = zeros(eltype(measure), L, length(qpts.qs)))
-    artifacts = falses(length(energies), length(qpts.qs))
-
-    # Positive real mode frequencies of Ĩ·Re M, the linearized problem at fixed
-    # M, and whether any mode is unstable, i.e. has a complex frequency. The
-    # resummed poles are where a mode frequency of M(ω) = |ε| + Σstat + K_mm(ω)
-    # crosses ω.
-    function mode_frequencies(M)
-        zs = eigvals(Ĩ * (M + M') / 2)
-        real_zs = filter(z -> abs(imag(z)) ≤ 1e-8 * opnorm(M), zs)
-        return (sort!([real(z) for z in real_zs if real(z) > 0]), length(real_zs) < length(zs))
-    end
+    unstable = falses(length(qpts.qs))
 
     # Nambu indices of the magnon legs, and the rows of K for the direct amplitudes
     p = 1:2L
@@ -233,7 +222,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         words2 = observable_pair_words(swt, q_reshaped, q_global)
         (; decay, source) = pair_measures(swt, terms3, q_reshaped, grid; bin_width, words2)
         # After `energies` come a frequency just above ω = 0, for the
-        # instability check, and the harmonic band energies, for the on-shell
+        # stability check, and the harmonic band energies, for the on-shell
         # linewidths that `verbose` reports
         nω = length(energies)
         zs = [energies; 0; ε[1:L]] .+ im*η
@@ -287,22 +276,15 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
             isnothing(specfunc) || (view(specfunc, :, :, iω, iq) .= ((G' - G) / (2π*im))[1:L, 1:L])
         end
 
-        # Mark the uncontrolled poles, those below half the lowest harmonic
-        # energy. An unstable mode is a pole at ω = 0. Skip wavevectors whose
-        # harmonic energy is below resolution, e.g. at a Goldstone mode, where
-        # the static terms and the loop each grow like 1/ε and their residue
-        # after cancellation is quadrature noise.
-        εmin = minimum(abs, view(ε, 1:L))
-        if εmin ≥ η
-            mark!(ω) = (view(artifacts, :, iq) .|= abs.(energies .- ω) .≤ η)
-            last(mode_frequencies(E + Σstat + K[p, p, nω+1])) && mark!(0.0)
-            low = findall(<(εmin/2), energies)
-            fs = [first(mode_frequencies(E + Σstat + K[p, p, iω])) .- energies[iω] for iω in low]
-            for i in 1:length(low)-1
-                for n in 1:min(length(fs[i]), length(fs[i+1]))
-                    fs[i][n] * fs[i+1][n] < 0 && mark!((energies[low[i]] + energies[low[i+1]]) / 2)
-                end
-            end
+        # A pole pushed through ω = 0 collides with its mirror, and the pair
+        # moves onto the imaginary axis: a mode frequency of Ĩ·M at ω = 0 has
+        # an imaginary part. This is a breakdown of the one-loop resummation
+        # for some mode at this 𝐪, not necessarily for the observed one; its
+        # weight in S may be small. The reproduction schemes conserve particle
+        # number, so their frequencies are always real.
+        if dyson == :nambu
+            M = E + Σstat + K[p, p, nω+1]
+            unstable[iq] = any(z -> abs(imag(z)) > 1e-8 * opnorm(M), eigvals(Ĩ * (M + M') / 2))
         end
 
         if dyson == :on_shell
@@ -336,23 +318,6 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
                            desc = verbose ? "  wavevectors     " : nothing)
     elapsed = time() - t0
 
-    # A wavevector with harmonic energy below resolution was skipped above. It
-    # is marked unstable if any of its near neighbours in `qpts`, those within
-    # twice the nearest distance, are uncontrolled.
-    let
-        εmins = vec(minimum(abs, disp; dims=1))
-        resolved = findall(≥(η), εmins)
-        ks = [cryst.recipvecs * q for q in qpts.qs]
-        for iq in findall(<(η), εmins)
-            isempty(resolved) && break
-            ds = [norm(ks[j] - ks[iq]) for j in resolved]
-            near = resolved[ds .≤ 2 * minimum(ds)]
-            if any(j -> any(view(artifacts, :, j)), near)
-                view(artifacts, :, iq) .|= abs.(energies) .≤ η
-            end
-        end
-    end
-
     if verbose
         r2 = x -> round(x; sigdigits=2)
         nthreads = threaded ? min(Threads.nthreads(), length(qpts.qs)) : 1
@@ -363,9 +328,8 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         println("  elapsed         $(r2(elapsed)) s on $nthreads \
                  thread$(nthreads == 1 ? "" : "s"), $(r2(per_q)) ms per 𝐪")
         println("  on-shell -Im Σ  $report")
-        nbad = count(any, eachcol(artifacts))
-        println("  uncontrolled    $nbad of $(length(qpts.qs)) wavevectors (NaN near poles below ε_min/2)")
+        dyson == :nambu && println("  unstable        $(count(unstable)) of $(length(qpts.qs)) wavevectors (NaN near ω = 0)")
     end
 
-    return (; cryst, qpts, energies, chans..., specfunc, disp, artifacts, bands)
+    return (; cryst, qpts, energies, chans..., specfunc, disp, unstable, bands)
 end
