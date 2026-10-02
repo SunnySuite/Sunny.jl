@@ -192,8 +192,9 @@ function render(d; file="$DIR/fig2.png")
         ax = Axis(fig[1, 2col-1]; title, ylabel = col == 1 ? "ω / J" : "",
                   xticks=d.xticks, xgridvisible=true, xgridcolor=(:white, 0.5),
                   ygridvisible=false)
-        # The particle-block assembly makes the density non-negative by construction,
-        # so the clip at zero is inert; the minimum is reported below to confirm it.
+        # The density is non-negative up to the O(η) tails of the mirror poles,
+        # so the clip at zero is inert; the minimum is reported below to confirm
+        # it.
         hm = heatmap!(ax, 1:nq, d.energies, permutedims(max.(data, 0));
                       colormap=:jet, colorrange=(0, last(cticks)))
         lines!(ax, 1:nq, d.εref; color=(:white, 0.85), linestyle=:dash, linewidth=1.5)
