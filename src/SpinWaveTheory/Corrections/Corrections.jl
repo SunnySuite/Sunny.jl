@@ -61,12 +61,14 @@
 # dynamic 1/ε divergences cancel in the full 2L inverse), η as a pure
 # Lorentzian, and the commutator sum rule ∫dω S = w'Ĩw. It is positive at ω > 0
 # whenever the auxiliary model is stable, i.e. |ε| + Σstat + K_mm(0) ⪰ 0. Where
-# it is not, the 1/s correction exceeds the harmonic energy and the expansion
-# itself has broken down; `corrected_channels` reports this. The interference
-# terms linear in K_md are absent from the standard 1/s treatment, which takes
-# the magnon spectral function as the major component of S and adds the
-# two-magnon continuum separately (PRB 79, 144416, Sec. VI). For a trace measure
-# they cancel in a zone sum, but not pointwise.
+# it is not, the 1/s correction to some mode is comparable to its harmonic
+# energy, and a resummed pole moves onto the imaginary axis. This is a breakdown
+# of the expansion for that mode rather than a physical instability, and that
+# mode may carry little weight in the observable; `corrected_channels` reports
+# it. The interference terms linear in K_md are absent from the standard 1/s
+# treatment, which takes the magnon spectral function as the major component of
+# S and adds the two-magnon continuum separately (PRB 79, 144416, Sec. VI). For
+# a trace measure they cancel in a zone sum, but not pointwise.
 #
 # K depends on frequency only through the scalar x, so the masses y y†, summed
 # over the wavevectors of `loop_wavevectors`, are accumulated into bins of x and
