@@ -1119,6 +1119,25 @@ end
     # the negative-frequency poles
     @test 0.8 < minimum(vec(sum(transverse[pos, :]; dims=1)) * step(energies) ./ refs) < 0.95
 
+    # The reproduction schemes propagate the resolvent of a stable quadratic
+    # model here, and assemble the magnon term and the continuum separately, so
+    # both are positive. The magnon term of `:particle` keeps the amplitudes and
+    # metric, so it satisfies the commutator sum rule; `:on_shell` keeps a
+    # unit-weight magnon propagator.
+    for dyson in (:particle, :on_shell)
+        c = Sunny.corrected_channels(swt2, qs2; energies, η, tol=opts.tol, dyson, spectral=true,
+                                     loop_grid=(12, 12, 1), mean_field_maxevals=opts.maxevals)
+        @test all(≥(0), (c.transverse + c.cross + c.direct)[pos, :])
+        if dyson == :particle
+            @test maximum(abs, vec(sum(c.transverse; dims=1)) * step(energies) - comms) < 2e-3 * maximum(refs)
+        else
+            # The residual is the Lorentzian tails outside the window
+            nb = size(c.specfunc, 1)
+            weights = [real(tr(c.specfunc[:, :, iω, iq])) for iω in eachindex(energies), iq in eachindex(qs2)]
+            @test vec(sum(weights; dims=1)) * step(energies) ≈ fill(nb, length(qs2)) rtol=1e-2
+        end
+    end
+
     # The interference is invisible to a trace measure integrated over the zone:
     # 𝐒·𝐒 is a scalar, so its expansion in bosons has no term linking an odd
     # number of them to an even one, and the cancellation is exact for every ω
@@ -1164,10 +1183,12 @@ end
                                  η=0.05, grid=(6, 6, 1))[1:L, 1:L, 1, 1]
     @test maximum(abs, Σ3 - Diagonal(diag(Σ3))) > 0.2 * maximum(abs, diag(Σ3))
     energies = range(0.2, 2.0, 25)
-    data = Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, loop_grid=(4, 4, 1)).data
-    mirror = Sunny.corrected_intensities(swts[2], -qs3; energies=-reverse(energies), η=0.15,
-                                         loop_grid=(4, 4, 1)).data
-    @test data ≈ -reverse(mirror; dims=1) rtol=1e-6
+    for dyson in (:nambu, :particle, :on_shell)
+        data = Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, loop_grid=(4, 4, 1), dyson).data
+        mirror = Sunny.corrected_intensities(swts[2], -qs3; energies=-reverse(energies), η=0.15,
+                                             loop_grid=(4, 4, 1), dyson).data
+        @test data ≈ -reverse(mirror; dims=1) rtol=1e-6
+    end
 
     # ---- Quantum sum rule on the square lattice ----
 
@@ -1324,26 +1345,33 @@ end
     # is what stops the integration. The ordered states are deterministic,
     # either from an explicit `polarize_spins!` start or hard coded, so a
     # rebuild reproduces both sums bit-for-bit.
-    function pinned(swt, qs, energies, η, loop_grid)
-        res = Sunny.corrected_intensities(swt, qs; energies, η, tol=1e-6, loop_grid,
+    # Each `dyson` scheme is pinned, as (sum, maximum) of the intensities.
+    function pinned(swt, qs, energies, η, loop_grid, dyson)
+        res = Sunny.corrected_intensities(swt, qs; energies, η, tol=1e-6, loop_grid, dyson,
                                           mean_field_maxevals=10_000_000)
-        return (sum(res.data), maximum(res.data))
+        return [sum(res.data), maximum(res.data)]
     end
 
     let sys = cluster((1.0, 3/2, 1.0); aniso=true)
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
         # Zero bond offsets make every vertex 𝐪-independent, so a single loop
         # wavevector integrates the self-energy exactly
-        (s, m) = pinned(swt, [[0.21, -0.33, 0.12], [0.5, 0, 0]], range(0.1, 6.0, 120), 0.1, (1, 1, 1))
-        @test s ≈ 134.7520268640052 rtol=1e-6
-        @test m ≈ 8.380503835798786 rtol=1e-6
+        refs = (; nambu = [134.7520268640052, 8.380503835798786],
+                  particle = [134.14976386847886, 8.359567327789398],
+                  on_shell = [133.7598931005088, 8.247495370540317])
+        for (dyson, ref) in pairs(refs)
+            @test pinned(swt, [[0.21, -0.33, 0.12], [0.5, 0, 0]], range(0.1, 6.0, 120), 0.1, (1, 1, 1), dyson) ≈ ref rtol=1e-6
+        end
     end
 
     let sys = anisotropic_square()
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-        (s, m) = pinned(swt, [[0.3, 0.1, 0], [0.37, 0.22, 0]], range(0.2, 14.0, 200), 0.2, (8, 8, 1))
-        @test s ≈ 79.97075342744299 rtol=1e-6
-        @test m ≈ 3.888121450999815 rtol=1e-6
+        refs = (; nambu = [79.97075342744299, 3.8881214509998165],
+                  particle = [75.27088325522205, 3.1420748865365344],
+                  on_shell = [75.42950320971144, 3.0532788358210734])
+        for (dyson, ref) in pairs(refs)
+            @test pinned(swt, [[0.3, 0.1, 0], [0.37, 0.22, 0]], range(0.2, 14.0, 200), 0.2, (8, 8, 1), dyson) ≈ ref rtol=1e-6
+        end
     end
 end
 
@@ -1873,16 +1901,14 @@ end
     @test maximum(abs, Σbin - Σloop) / maximum(abs, Σloop) < 1e-3
 
     # Reference for the bare two-magnon continuum K_dd, which is the whole
-    # `direct` channel under `resummation=:particle`: that scheme drops the pair
-    # → magnon → pair term and keeps only the decay channel, while sharing the
-    # contraction code with `:dyson`. The reference is the same sum over pairs
-    # of magnons, but broadening each pair individually instead of binning its
-    # energy first, and contracting the three observable amplitudes β by
-    # `contract` rather than through a `measure`. The binning is therefore the
-    # only approximation separating the two, so this doubles as the gate on
-    # `bin_width`, which `corrected_channels` derives from `η` rather than
-    # exposing. Too slow for a converged grid, but an identity holds grid by
-    # grid.
+    # `direct` channel under `dyson=:on_shell`. The reference is the same sum
+    # over pairs of magnons, both channels, but broadening each pair
+    # individually instead of binning its energy first, and contracting the
+    # three observable amplitudes β by `contract` rather than through a
+    # `measure`. The binning is therefore the only approximation separating the
+    # two, so this doubles as the gate on `bin_width`, which `corrected_channels`
+    # derives from `η` rather than exposing. Too slow for a converged grid, but
+    # an identity holds grid by grid.
     function direct_unbinned(contract, swt, qs, energies, η, grid)
         (; sys) = swt
         L = Sunny.nbands(swt)
@@ -1894,11 +1920,13 @@ end
             words2 = Sunny.observable_pair_words(swt, q_reshaped, q_global)
             lg = Sunny.loop_wavevectors(grid, q_reshaped)
             Sunny.foreach_magnon_pair(swt, q_reshaped, lg) do _p, w, T1, T2, ε1, ε2
-                for b in 1:L, a in 1:L
+                # Decay pairs at x > 0 and source pairs, of negative mass, at x < 0
+                for b in 1:2L, a in 1:2L
+                    (a > L) == (b > L) || continue
                     β = ntuple(μ -> Sunny.pair_amplitude(words2[μ], T1, T2, a, b), 3)
                     x = ε1[a] + ε2[b]
                     for (iω, ω) in enumerate(energies)
-                        ref[iω, iq] += w * contract(β) * (η/π) / ((ω - x)^2 + η^2)
+                        ref[iω, iq] += (a > L ? -w : w) * contract(β) * (η/π) / ((ω - x)^2 + η^2)
                     end
                 end
             end
@@ -1920,7 +1948,7 @@ end
         (η, grid) = (0.15, (8, 8, 1))
         qs = [[0.3, 0.2, 0], [1/6, 1/6, 0]]
         energies = range(0, 4, 61)
-        direct = Sunny.corrected_channels(swt5, qs; energies, η, loop_grid=grid, resummation=:particle).direct
+        direct = Sunny.corrected_channels(swt5, qs; energies, η, loop_grid=grid, dyson=:on_shell).direct
         ref = direct_unbinned(β -> imag(β[1] * conj(β[2])), swt5, qs, energies, η, grid)
         scale = maximum(abs, ref)
         @test scale > 1e-2   # the measure is not trivially zero
@@ -1940,7 +1968,7 @@ end
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(-2, 16, 181), 0.2)
         direct(grid) = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=grid, mean_field_maxevals=1000,
-                                                resummation=:particle).direct
+                                                dyson=:on_shell).direct
         ref = direct((32, 32, 1))
         scale = maximum(abs, ref)
         @test 1e-3 < maximum(abs, direct((16, 16, 1)) - ref) / scale < 1e-2
