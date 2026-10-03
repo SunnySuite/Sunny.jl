@@ -9,11 +9,7 @@
 
 using Sunny, LinearAlgebra, Printf
 using GLMakie
-
-# See the comment in fig4b.jl: Julia's OpenBLAS anti-scales when `bogoliubov!` is
-# called from many threads, and Apple's Accelerate does not.
-BLAS.set_num_threads(1)
-Sys.isapple() && @eval using AppleAccelerate
+load_blas_for_threading()
 
 cryst = Crystal(lattice_vectors(1, 1, 10, 90, 90, 120), [[0, 0, 0]])
 

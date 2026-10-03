@@ -1,6 +1,7 @@
-# Vertices of the Holstein-Primakoff expansion in mode :SUN, which plays the
-# role that Vertices.jl plays for the dipole modes. Overall conventions are
-# collected in Corrections.jl and the monomial representation in Vertices.jl.
+# Holstein-Primakoff expansion of the Hamiltonian in mode :SUN, which plays the
+# role that ExpansionDipole.jl plays for the dipole modes. Overall conventions
+# are collected in Corrections.jl and the monomial representation in
+# Monomials.jl.
 #
 # The expansion parameter is not the spin magnitude but the number of boxes M of
 # the symmetric SU(N) representation, Sunny's :SUN mode being M = 1. Writing the
@@ -8,8 +9,8 @@
 # have left it, a local operator A — an N×N matrix in the local frame that
 # `swt_data!` rotates into — is promoted to the M-box representation as
 #
-#     Â = Σ_{mn<N} A[m,n] b†_m b_n + Σ_{m<N} (A[m,N] b†_m √(M-n̂) + A[N,m] √(M-n̂) b_m)
-#         + A[N,N] (M - n̂).
+#     Â = Σ_{mn<N} A[m,n] b†_m b_n
+#       + Σ_{m<N} (A[m,N] b†_m √(M-n̂) + A[N,m] √(M-n̂) b_m) + A[N,N] (M - n̂).
 #
 # This is exact, being nothing but the Schwinger representation of the
 # generators with the condensate flavor eliminated by Σ_α b†_α b_α = M.
@@ -22,19 +23,19 @@
 #     nb = 3:  -(1/2) A[m,N] b†_m n̂ + h.c.
 #
 # Three things follow, and together they make this file far shorter than
-# Vertices.jl. There is no series at fixed word length, so none of the `Laurent`
-# apparatus that the Stevens expansion of dipole mode requires is needed. There
-# is no four-boson word at all, the square root contributing only odd ones. And
-# the words of nb ≤ 2 are exactly what LSWT already holds —
+# ExpansionDipole.jl. There is no series at fixed word length, so none of the
+# `Laurent` apparatus that the Stevens expansion of dipole mode requires is
+# needed. There is no four-boson word at all, the square root contributing only
+# odd ones. And the words of nb ≤ 2 are exactly what LSWT already holds —
 # `swt_hamiltonian_SUN!` writes the nb = 2 word above verbatim, and the
 # classical energy is A[N,N] — so unlike dipole mode there is no sub-leading
 # remainder at low boson number, which is why `anisotropy_monomials` has nothing
 # to return here.
 #
-# THE TRUNCATION RULE, in the form the discussion in Vertices.jl takes here:
-# each n-boson sector is kept at its leading order in 1/M, which is its single
-# word above. The first omission is the five-boson word -(1/8)A[m,N] b†_m n̂²,
-# one full order below the three-boson one. Like the three-boson word it is
+# THE TRUNCATION RULE, in the form the discussion in ExpansionDipole.jl takes
+# here: each n-boson sector is kept at its leading order in 1/M, which is its
+# single word above. The first omission is the five-boson word -(1/8)A[m,N] b†_m
+# n̂², one full order below the three-boson one. Like the three-boson word it is
 # proportional to A[m,N], whose sum over interactions is the gradient of the
 # classical energy and so vanishes at a classical minimum; the omission
 # therefore costs nothing there, and only O(1/M²) once tadpole relaxation has
@@ -68,7 +69,7 @@
 # bosons. Each word carries the single power M^(1-nb/2) that expanding √(M-n̂)
 # gives it, so a pair coupling, being a product of two such factors, carries
 # M^(2-K/2) at every split of its K bosons.
-function local_words(A, i, off, ::Val{nb}, Nf, L, M=1) where nb
+function local_monomials(A, i, off, ::Val{nb}, Nf, L, M=1) where nb
     N = Nf + 1
     terms = BosonMonomial{nb}[]
     ns = ntuple(_ -> off, Val{nb}())
@@ -106,7 +107,7 @@ end
 # coupling, which `swt_data!` has already absorbed the Zeeman term into,
 # contributes its K-boson word directly. Each pair coupling A_i ⊗ B_j
 # contributes every split of the K bosons between its two sites; all K+1 of them
-# carry the same power M^{2-K/2}, so all are kept. See `local_words` for `M`,
+# carry the same power M^{2-K/2}, so all are kept. See `local_monomials` for `M`,
 # which is 1 in every use outside the tests.
 function sun_monomials(swt::SpinWaveTheory, ::Val{K}, M=1) where K
     (; sys) = swt
@@ -117,7 +118,7 @@ function sun_monomials(swt::SpinWaveTheory, ::Val{K}, M=1) where K
 
     terms = BosonMonomial{K}[]
     for (i, int) in enumerate(sys.interactions_union)
-        append!(terms, local_words(int.onsite, i, o, Val{K}(), Nf, L, M))
+        append!(terms, local_monomials(int.onsite, i, o, Val{K}(), Nf, L, M))
 
         for coupling in int.pair
             (; isculled, bond) = coupling
@@ -126,8 +127,8 @@ function sun_monomials(swt::SpinWaveTheory, ::Val{K}, M=1) where K
             n = Vec3(bond.n)
 
             for (A, B) in coupling.general.data, p in 0:K
-                for ta in local_words(A, i, o, Val{p}(), Nf, L, M),
-                    tb in local_words(B, bond.j, n, Val{K-p}(), Nf, L, M)
+                for ta in local_monomials(A, i, o, Val{p}(), Nf, L, M),
+                    tb in local_monomials(B, bond.j, n, Val{K-p}(), Nf, L, M)
                     push!(terms, BosonMonomial(ta.c * tb.c, (ta.as..., tb.as...),
                                                (ta.ns..., tb.ns...)))
                 end
