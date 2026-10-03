@@ -73,15 +73,15 @@ The mean fields are integrated over the Brillouin zone by adaptive cubature. At
 least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
 integrand evaluations) is required to control it.
 """
-function tadpole_correction(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
-    isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
+function tadpole_correction(swt::SpinWaveTheory; tol=nothing, maxevals=nothing, grid=nothing)
+    isnothing(tol) && isnothing(maxevals) && isnothing(grid) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
     check_corrections_supported(swt)
 
     (; sys) = swt
     L = nbands(swt)
     terms3 = cubic_monomials(swt)
     ckeys = correlation_keys(L, terms3)
-    gs = nambu_correlations(swt, ckeys, BosonMonomial{2}[]; tol, maxevals)
+    gs = nambu_correlations(swt, ckeys, BosonMonomial{2}[]; tol, maxevals, grid)
     # Scale of the noise that the mean-field integrals leave in the exact identities
     # asserted below, which hold only in the limit of exact integration.
     noise = max(@something(tol, 1e-3), 1e-8)

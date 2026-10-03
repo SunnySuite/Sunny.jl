@@ -93,7 +93,7 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
     t0 = time()
 
     res = Sunny.corrected_channels(swt, path; energies, η=Γ, tol=OPTS.tol,
-                                   loop_grid=(nk, nk, 1), mean_field_maxevals=OPTS.maxevals,
+                                   loop_grid=(nk, nk, 1),
                                    threaded=true, spectral=true)
     t_spec = time() - t0
 
