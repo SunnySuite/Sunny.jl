@@ -78,20 +78,21 @@ end
 #
 # The extra quadratic terms `terms2` allow the correlations to be evaluated in the
 # already corrected ground state, as required for self-consistency.
-function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; tol=nothing, maxevals=nothing)
+#
+# Passing loop grid dimensions `grid` replaces the adaptive cubature by a plain
+# average over every point of `loop_wavevectors(grid)`, the grid on which the
+# cubic self-energy at the magnetic zone centre is summed. A Ward identity
+# relates the mean fields and that self-energy integrand point by point, so
+# evaluating both on one grid keeps each Goldstone mode exactly gapless, grid by
+# grid, whereas independent quadratures leave a gap set by the coarser of the
+# two.
+function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; tol=nothing, maxevals=nothing, grid=nothing)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
     T = ws.T
 
-    # HCubature stops once `err ≤ max(atol, rtol * norm(gs))`, so a `tol` of zero
-    # directs it to converge as far as `maxevals` allows. The correlations are
-    # dimensionless occupations of order one, which is why `atol` may be set equal to
-    # `tol`: the accuracy is then measured against max(norm(gs), 1), and mean fields
-    # that vanish by symmetry converge at once instead of exhausting the budget.
-    (gs, err) = hcubature((0, 0, 0), (1, 1, 1); rtol=@something(tol, 0), atol=@something(tol, 0),
-                          maxevals=@something(maxevals, typemax(Int))) do q
-        q_reshaped = Vec3(q)
+    function integrand(q_reshaped)
         dynamical_matrix!(H, swt, q_reshaped)
         accum_quadratic!(H, terms2, q_reshaped)
         bogoliubov!(ws, H)
@@ -99,6 +100,22 @@ function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; tol=nothing, max
         return [cis(-2π * dot(q_reshaped, Vec3(Δ))) * dot(view(U, nambu_conj(a′, L), :), view(U, a, :))
                 for (a, a′, Δ) in ckeys]
     end
+
+    # The loop grid is folded under 𝐩 ↦ -𝐩, which leaves the self-energy
+    # integrand invariant but not a correlation at nonzero Δ, so every point is
+    # visited here
+    if !isnothing(grid)
+        ps = vec([Vec3((Tuple(c) .- 1/2) ./ Tuple(grid)) for c in CartesianIndices(Tuple(grid))])
+        return sum(integrand, ps) / length(ps)
+    end
+
+    # HCubature stops once `err ≤ max(atol, rtol * norm(gs))`, so a `tol` of zero
+    # directs it to converge as far as `maxevals` allows. The correlations are
+    # dimensionless occupations of order one, which is why `atol` may be set equal to
+    # `tol`: the accuracy is then measured against max(norm(gs), 1), and mean fields
+    # that vanish by symmetry converge at once instead of exhausting the budget.
+    (gs, err) = hcubature(q -> integrand(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=@something(tol, 0),
+                          atol=@something(tol, 0), maxevals=@something(maxevals, typemax(Int)))
 
     # Adaptive integration stops either on the `tol` target or on the evaluation
     # budget, and the caller cannot tell which without the error estimate. A
@@ -109,8 +126,7 @@ function nambu_correlations(swt::SpinWaveTheory, ckeys, terms2; tol=nothing, max
         @warn """Mean-field momentum integrals reached relative accuracy \
                  $(round(err / max(norm(gs), 1), sigdigits=2)) within the budget of $maxevals \
                  evaluations, short of the target `tol = $tol`. Raise `maxevals` \
-                 (`mean_field_maxevals` in `corrected_intensities`) or loosen the \
-                 tolerance.""" maxlog=1
+                 or loosen the tolerance.""" maxlog=1
     end
 
     return gs
@@ -176,8 +192,9 @@ The mean fields are integrated over the Brillouin zone by adaptive cubature. At
 least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
 integrand evaluations) is required to control it.
 """
-function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, scf_tol=1e-8, damping=0, tol=nothing, maxevals=nothing)
-    isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
+function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, scf_tol=1e-8, damping=0, tol=nothing, maxevals=nothing,
+                                 grid=nothing)
+    isnothing(tol) && isnothing(maxevals) && isnothing(grid) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
     check_corrections_supported(swt)
 
     L = nbands(swt)
@@ -189,7 +206,7 @@ function hartree_fock_correction(swt::SpinWaveTheory; maxiters=1, scf_tol=1e-8, 
     iters = 0
 
     for iter in 1:maxiters
-        gs′ = nambu_correlations(swt, ckeys, terms2; tol, maxevals)
+        gs′ = nambu_correlations(swt, ckeys, terms2; tol, maxevals, grid)
         iter > 1 && (gs′ = damping*gs + (1-damping)*gs′)
         converged = iter > 1 && norm(gs′ - gs) < scf_tol
         gs = gs′
@@ -221,7 +238,10 @@ relative order ``1/s²``, but only the latter can be combined with
 also the appropriate choice when the structure supports a Goldstone mode: an
 ``O(1/s)`` correction to a Hamiltonian with a protected zero mode produces a gap
 of order ``\\sqrt{1/s}`` upon rediagonalization, obscuring the cancellation
-between the terms that keeps the mode gapless.
+between the terms that keeps the mode gapless. That cancellation is exact only
+in the limit of converged integrals: the adaptive cubature of `terms2` and the
+loop grid of [`cubic_self_energy`](@ref) each leave their own error, and the
+mode is gapped by the larger of the two.
 """
 function static_self_energy(swt::SpinWaveTheory, qpts, terms2)
     L = nbands(swt)

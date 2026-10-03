@@ -951,17 +951,25 @@ end
     #
     # Rotation about the field axis leaves the canted structure a zero mode at
     # 𝐪 = 0, and there all three of mean field, tadpole and cubic self-energy
-    # contribute. What remains is the discretization error of the self-energy
-    # integral, falling off like 1/nk.
-    #
-    # What is checked is the cancellation between the static shift and the
-    # self-energy, both of which the quadrature affects together, so a loose
-    # `tol` leaves the ratio below unchanged in its first three digits
+    # contribute. The Ward identity behind the cancellation holds point by
+    # point in the loop wavevector, so it is exact on any grid provided the
+    # mean fields are summed on the grid of the self-energy, as
+    # `corrected_channels` does; only the regulator η is then left over.
+    # Integrated independently, each converges at its own rate, and the
+    # mismatch is the discretization error of the self-energy, falling off like
+    # 1/nk.
     swt = SpinWaveTheory(canted_square(1, 3); measure=nothing)
+    for nk in (8, 16)
+        grid = (nk, nk, 1)
+        t2 = [Sunny.hartree_fock_correction(swt; grid).terms2
+              Sunny.tadpole_correction(swt; grid).terms2]
+        δ = Sunny.static_self_energy(swt, [[0, 0, 0]], t2)[2]
+        @test δ > 1e3
+        @test abs(δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=1e-8, grid)[2])) < 1e-8 * δ
+    end
     t2 = [Sunny.hartree_fock_correction(swt; tol=1e-4).terms2
           Sunny.tadpole_correction(swt; tol=1e-4).terms2]
     δ = Sunny.static_self_energy(swt, [[0, 0, 0]], t2)[2]
-    @test δ > 1e3
     rs = map(nk -> (δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=0.005, grid=(nk, nk, 1))[2])) / δ, (16, 32))
     @test rs[1] ≈ 2 * rs[2] rtol=0.01
     @test rs[2] < 0.02
@@ -1058,9 +1066,9 @@ end
     # The result is a retarded response, so its frequency integral is the
     # commutator w'Ĩw, for any self-energy and on any grid, and it is positive
     # at ω > 0 where the auxiliary model is stable. Both hold at s = 1/2. The
-    # options below are those that `tol` selects, so the reference is built from
-    # the same mean fields as the spectrum.
-    opts = (; tol=0.01, maxevals=100_000)
+    # spectrum sums its mean fields on its loop grid, so the reference is built
+    # from the same grid.
+    loop_grid = (12, 12, 1)
     swt2 = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
     qs2 = [[0.476, 0, 0], [0.375, 0.125, 0]]
 
@@ -1098,7 +1106,7 @@ end
             real(swt.measure.combiner(q_global, corr))
         end
     end
-    δc = Sunny.observable_corrections(swt2; v=Sunny.tadpole_correction(swt2; opts...).v, opts...)
+    δc = Sunny.observable_corrections(swt2; v=Sunny.tadpole_correction(swt2; grid=loop_grid).v, grid=loop_grid)
     refs = static_weights(swt2, qs2, δc)
     comms = static_weights(swt2, qs2, δc; metric=true)
 
@@ -1106,8 +1114,7 @@ end
     # the step is a fraction of η.
     η = 0.06
     energies = range(-20, 24, 1501)
-    chans = Sunny.corrected_channels(swt2, qs2; energies, η, tol=opts.tol,
-                                     loop_grid=(12, 12, 1), mean_field_maxevals=opts.maxevals)
+    chans = Sunny.corrected_channels(swt2, qs2; energies, η, loop_grid)
     (; transverse) = chans
     pos = energies .> 0
     @test !any(chans.unstable)
@@ -1123,14 +1130,15 @@ end
     # model here, and assemble the magnon term and the continuum separately, so
     # both are positive. The magnon term of `:particle` keeps the amplitudes and
     # metric, so it satisfies the commutator sum rule; `:on_shell` keeps a
-    # unit-weight magnon propagator.
+    # unit-weight Lorentzian per pole.
     for dyson in (:particle, :on_shell)
-        c = Sunny.corrected_channels(swt2, qs2; energies, η, tol=opts.tol, dyson, spectral=true,
-                                     loop_grid=(12, 12, 1), mean_field_maxevals=opts.maxevals)
+        c = Sunny.corrected_channels(swt2, qs2; energies, η, loop_grid, dyson, spectral=true)
         @test all(≥(0), (c.transverse + c.cross + c.direct)[pos, :])
         if dyson == :particle
             @test maximum(abs, vec(sum(c.transverse; dims=1)) * step(energies) - comms) < 2e-3 * maximum(refs)
         else
+            # Every pole decays forward in time, by construction
+            @test all(≥(0), c.bands.widths)
             # The residual is the Lorentzian tails outside the window
             nb = size(c.specfunc, 1)
             weights = [real(tr(c.specfunc[:, :, iω, iq])) for iω in eachindex(energies), iq in eachindex(qs2)]
@@ -1147,7 +1155,7 @@ end
     # pair at x ≈ 0 contributes just half of its Lorentzian.
     qs4 = vec([[i, j, 0] ./ 3 for i in 0:2, j in 0:2])
     chans4 = Sunny.corrected_channels(swt2, qs4; energies=range(-4, 12, 161), η=0.3,
-                                      loop_grid=(3, 3, 1), mean_field_maxevals=opts.maxevals)
+                                      loop_grid=(3, 3, 1))
     @test abs(sum(chans4.cross)) < 1e-3 * sum(chans4.direct)
 
     # ---- Gauge invariance, where Σ̂ is genuinely off-diagonal ----
@@ -1210,7 +1218,7 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(0, 10, 101), 0.2)
-        chans = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=(4, 4, 1), mean_field_maxevals=1000)
+        chans = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=(4, 4, 1))
         @test maximum(abs, chans.direct) < 1e-25
         kernel = lorentzian(fwhm=2η)
         mirror = reverse(intensities(swt, -qs; energies=-reverse(energies), kernel).data)
@@ -1245,7 +1253,7 @@ end
         @test vertex_scale(canted) > 1e-2
 
         chans = Sunny.corrected_channels(swt, [[0.3, 0.2, 0]]; energies=range(0, 12, 121),
-                                         η=0.2, loop_grid=(8, 8, 1), mean_field_maxevals=1000)
+                                         η=0.2, loop_grid=(8, 8, 1))
         @test iszero(chans.cross) && !iszero(chans.direct)
     end
 
@@ -1296,8 +1304,7 @@ end
         # chemical cell this average is the longitudinal weight per site.
         qs2 = vec([[(a - 0.5)/3, (b - 0.5)/3, 0] for a in 1:3, b in 1:3])
         energies = range(-2, 16, 181)
-        direct = Sunny.corrected_channels(swt, qs2; energies, η=0.2, loop_grid=(12, 12, 1),
-                                          mean_field_maxevals=1000).direct
+        direct = Sunny.corrected_channels(swt, qs2; energies, η=0.2, loop_grid=(12, 12, 1)).direct
         longitudinal = sum(direct) * step(energies) / length(qs2)
 
         return (; harm, transverse, elastic, longitudinal,
@@ -1338,17 +1345,22 @@ end
     # `cluster_aniso` vanish identically at the small spins that keep the
     # cluster cheap.
     #
-    # Neither number may depend on which branches the adaptive cubature happens
-    # to take, so `tol` is tightened until the result is a property of the
-    # model: both agree with `tol=1e-8` to 4e-9, well inside the `rtol` asserted
-    # below, for about 0.1 s each. `mean_field_maxevals` is raised so that `tol`
-    # is what stops the integration. The ordered states are deterministic,
-    # either from an explicit `polarize_spins!` start or hard coded, so a
-    # rebuild reproduces both sums bit-for-bit.
+    # The mean fields are summed on the loop grid passed below, so no adaptive
+    # cubature enters and `tol` only sets the bin width of the pair measures,
+    # tight enough here that the binning is invisible at the `rtol` asserted.
+    # The ordered states are deterministic, either from an explicit
+    # `polarize_spins!` start or hard coded, so a rebuild reproduces both sums
+    # bit-for-bit.
+    #
+    # Re-pinned when the mean fields moved onto the loop grid. The cluster is
+    # 𝐪-independent, so one point already integrated them exactly and only
+    # `:on_shell` moved there, by its change of definition. On the square
+    # lattice every scheme moved by about 1%, the error of the mean fields on an
+    # 8×8 grid; that is the price of summing them where the self-energy is
+    # summed, and it is small against η.
     # Each `dyson` scheme is pinned, as (sum, maximum) of the intensities.
     function pinned(swt, qs, energies, η, loop_grid, dyson)
-        res = Sunny.corrected_intensities(swt, qs; energies, η, tol=1e-6, loop_grid, dyson,
-                                          mean_field_maxevals=10_000_000)
+        res = Sunny.corrected_intensities(swt, qs; energies, η, tol=1e-6, loop_grid, dyson)
         return [sum(res.data), maximum(res.data)]
     end
 
@@ -1356,9 +1368,9 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
         # Zero bond offsets make every vertex 𝐪-independent, so a single loop
         # wavevector integrates the self-energy exactly
-        refs = (; nambu = [134.7520268640052, 8.380503835798786],
+        refs = (; nambu = [134.7520268640052, 8.380503835798784],
                   particle = [134.14976386847886, 8.359567327789398],
-                  on_shell = [133.7598931005088, 8.247495370540317])
+                  on_shell = [134.03630092383594, 8.305517136160697])
         for (dyson, ref) in pairs(refs)
             @test pinned(swt, [[0.21, -0.33, 0.12], [0.5, 0, 0]], range(0.1, 6.0, 120), 0.1, (1, 1, 1), dyson) ≈ ref rtol=1e-6
         end
@@ -1366,9 +1378,9 @@ end
 
     let sys = anisotropic_square()
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-        refs = (; nambu = [79.97075342744299, 3.8881214509998165],
-                  particle = [75.27088325522205, 3.1420748865365344],
-                  on_shell = [75.42950320971144, 3.0532788358210734])
+        refs = (; nambu = [79.02848991053109, 3.8296352863687693],
+                  particle = [74.58444179829294, 3.146640845289903],
+                  on_shell = [74.7926152607717, 3.1485933083002178])
         for (dyson, ref) in pairs(refs)
             @test pinned(swt, [[0.3, 0.1, 0], [0.37, 0.22, 0]], range(0.2, 14.0, 200), 0.2, (8, 8, 1), dyson) ≈ ref rtol=1e-6
         end
@@ -1967,7 +1979,7 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(-2, 16, 181), 0.2)
-        direct(grid) = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=grid, mean_field_maxevals=1000,
+        direct(grid) = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=grid,
                                                 dyson=:on_shell).direct
         ref = direct((32, 32, 1))
         scale = maximum(abs, ref)
