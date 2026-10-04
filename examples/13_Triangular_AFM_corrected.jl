@@ -12,8 +12,8 @@ load_blas_for_threading()
 # Triangular lattice with antiferromagnetic nearest-neighbor interactions.
 
 cryst = Crystal(lattice_vectors(1, 1, 10, 90, 90, 120), [[0, 0, 0]])
-(s, s_str) = (1/2, "1/2")
-## (s, s_str) = (3/2, "3/2")
+(s, s_str, ωmax) = (1/2, "1/2", 3.5)
+## (s, s_str, ωmax) = (3/2, "3/2", 10)
 sys = System(cryst, [1 => Moment(; s, g=2)], :dipole)
 set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
 
@@ -37,7 +37,7 @@ qpts = [[2/3, -1/3, 0], [0, 0, 0], [1/2, 0, 0], [1/6, 1/6, 0], [0, 1/4, 0]]
 labels=["K", "Γ", "M", "Y₁", "Y"]
 path = q_space_path(cryst, qpts, 200; labels)
 η = 0.03s
-energies = 0:(η/2):(20s/3)
+energies = 0:(η/2):ωmax
 res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true, dyson=:particle)
 ;#hide
 

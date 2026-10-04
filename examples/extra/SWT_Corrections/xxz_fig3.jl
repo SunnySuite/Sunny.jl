@@ -1,7 +1,7 @@
 # Reproduce Fig. 3a of Maksimov, Zhitomirsky and Chernyshev, PRB 94, 140407(R)
-# (2016) [arXiv:1607.08238]. Calculates the dynamical structure factor of the
-# easy-plane XXZ triangular-lattice antiferromagnet in an out-of-plane field,
-# including ``1/s`` corrections.
+# (2016) (https://arxiv.org/abs/1607.08238). Calculates the dynamical structure
+# factor of the easy-plane XXZ triangular-lattice antiferromagnet in an
+# out-of-plane field, including ``1/s`` corrections.
 #
 # The reference calculation omitted interference between transverse and
 # longitudinal channels. Sunny includes this additional ``1/s`` correction term,
