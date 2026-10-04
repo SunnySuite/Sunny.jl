@@ -50,7 +50,7 @@
 
 """
     corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, dyson=:nambu,
-                          loop_grid=nothing, vacuum=MagnonVacuum(swt), mark_unstable=true,
+                          loop_grid=nothing, vacuum=MagnonVacuum(swt), mark_breakdown=true,
                           threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including one-loop
@@ -78,27 +78,31 @@ The `dyson` option selects how the one-loop self-energy is resummed:
   ``ω > 0`` wherever the resummed propagator is stable.
 - `:particle` keeps only the particle block of the self-energy, and collects the
   magnon response plus the bare two-magnon continuum without interference. The
-  intensity is never negative at ``ω > 0``, and pole shifts are correct at order
+  intensity is never negative at ``ω > 0``. Pole shifts are correct at order
   ``1/s`` away from soft modes. Near a Goldstone mode it can put spurious
   intensity well above the magnon energy.
-- `:on_shell` linearizes the `:nambu` Dyson equation at each magnon pole, so
-  that each magnon becomes one Lorentzian of shifted energy and nonnegative
-  width, with its harmonic intensity. Band energies and widths are correct at
-  order ``1/s``, band intensities are not. The continuum is added as in
-  `:particle`. Peak energies have logarithmic singularities where a magnon
-  crosses a saddle point of the two-magnon continuum.
+- `:on_shell` linearizes the Dyson equation at each magnon pole, so that each
+  magnon becomes one Lorentzian of shifted energy and nonnegative width, with
+  its harmonic intensity. Band energies and widths are correct at order ``1/s``,
+  band intensities are not. The continuum is added as in `:particle`. Peak
+  energies have logarithmic singularities where a magnon crosses a saddle point
+  of the two-magnon continuum.
 
 Sunny uses the retarded response, i.e., includes the tails of the
 negative-frequency poles. These cancel the high-frequency Lorentzian tail of a
 Goldstone mode.
 
-With `:nambu`, a large one-loop correction can push a magnon pole through ``ω =
-0`` onto the imaginary axis. This signals that the expansion has broken down at
-that wavevector; in two dimensions it happens in a region around each Goldstone
-wavevector that shrinks like ``1/s``. Sunny marks these points by setting all
-intensity within `±η` of ``ω = 0`` to `NaN`. Set `mark_unstable=false` to keep
-the raw data. Although schemes `:particle` and `:on_shell` cannot produce
-imaginary poles, they are also uncontrolled in the same regimes.
+With `:nambu`, a large one-loop correction can push a magnon pole past ``ω = 0``
+and onto the imaginary axis. This condition signals that the perturbative
+expansion has broken down at that wavevector. Sunny marks these points by
+setting all intensity within `±η` of ``ω = 0`` to `NaN`. Use
+`mark_breakdown=false` to keep the raw data. Note that a different Dyson
+resummation scheme cannot rescue perturbation theory at the same one-loop order;
+schemes `:particle` and `:on_shell` are similarly uncontrolled, even though they
+do not show imaginary poles. This breakdown is most severe in low dimensions. In
+two dimensions, for example, if the ordered state has cubic magnon vertices, one
+expects perturbation theory to fail within a distance of order ``1/s`` of each
+Goldstone wavevector.
 
 Set `threaded=true` to parallelize over `qpts`, and `verbose=true` to print a
 progress bar and diagnostics.
@@ -111,7 +115,7 @@ progress bar and diagnostics.
     Beliaev, Sov. Phys. JETP **7**,
     [289](https://jetp.ras.ru/cgi-bin/e/index/e/7/2/p289?a=list) and
     [299](https://jetp.ras.ru/cgi-bin/e/index/e/7/2/p299?a=list) (1958). The
-    `:nambu` scheme solves these equations at full one-loop order.
+    `:nambu` scheme solves these Dyson-Beliaev equations at full one-loop order.
 
     In the harmonic quasiparticle basis, the anomalous self-energy couples a pole at
     ``+ε`` to its mirror at ``-ε``, and so shifts an isolated pole only at second
@@ -119,28 +123,27 @@ progress bar and diagnostics.
     block [Chernyshev and Zhitomirsky, PRB **79**, 144416
     (2009)](https://doi.org/10.1103/PhysRevB.79.144416) and [Zhitomirsky and
     Chernyshev, RMP **85**, 219 (2013)](https://doi.org/10.1103/RevModPhys.85.219).
-    These prior works collected intensities from the renormalized magnons and the
-    bare two-magnon continuum independently. Neglecting interference between these
-    channels ensures a positive spectrum, but leaves the scheme incomplete at
+    These prior works collected the renormalized magnon response and the bare
+    two-magnon continuum independently. Neglecting interference between the two is
+    necessary to ensure a positive spectrum, but leaves the scheme incomplete at
     one-loop order. Sunny's `:particle` scheme follows this Chernyshev and
     Zhitomirsky recipe precisely.
 
     The `:on_shell` poles are ``ε̃ - iΓ = ε + Σ(ε)``, as in Eq. (55) of the PRB.
     Because the anomalous self-energy shifts an isolated pole only at second order,
-    the same poles follow from the full Nambu equation or from its variant with
-    particle block projection. Each width is read at the shifted energy, so that
-    decay begins at the renormalized two-magnon threshold. Near a Goldstone mode in
-    two dimensions, the anomalous coupling is not small against the ``2ε`` that
-    separates a pole from its mirror, and the linearized pole is outside its range
-    of validity.
+    these same poles follow from the full Dyson-Beliaev equation or from its
+    projection to the particle block. Each width is read at the shifted energy, so
+    that decay begins at the renormalized two-magnon threshold. Both the projection
+    and the linearization assume that the anomalous coupling is small against the
+    ``2ε`` that separates a pole from its mirror.
 """
 function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
-                               mark_unstable=true, dyson=:nambu, threaded=false, verbose=false,
+                               mark_breakdown=true, dyson=:nambu, threaded=false, verbose=false,
                                vacuum=MagnonVacuum(swt))
-    (; cryst, qpts, energies, transverse, cross, direct, unstable) =
+    (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
         corrected_channels(swt, qpts; energies, η, tol, loop_grid, dyson, threaded, verbose, vacuum)
     data = transverse + cross + direct
-    mark_unstable && (data[abs.(energies) .≤ η, unstable] .= NaN)
+    mark_breakdown && (data[abs.(energies) .≤ η, breakdown] .= NaN)
     return Intensities(cryst, qpts, energies, reshape(data, length(energies), size(qpts.qs)...))
 end
 
@@ -172,16 +175,16 @@ end
 # Workhorse of `corrected_intensities`, returning the three terms of S
 # separately as (energy × wavevector) matrices: `transverse` from w'Gw, `cross`
 # from the terms linear in K_md, and `direct` from the rest. Also returns
-# `disp`, the harmonic energies; `unstable`, a mask over wavevectors at which
-# a `:nambu` pole has moved onto the imaginary axis; for `:on_shell`, `bands`,
-# the energies, half widths and intensities of the poles; and if
-# `spectral=true` then `specfunc`, the particle block of the magnon spectral
-# matrix (G' - G)/2πi.
+# `disp`, the harmonic energies; `breakdown`, a mask over wavevectors at which a
+# `:nambu` pole has moved onto the imaginary axis; for `:on_shell`, `bands`, the
+# energies, half widths and intensities of the poles; and if `spectral=true`
+# then `specfunc`, the particle block of the magnon spectral matrix (G' -
+# G)/2πi.
 #
 # The bosons are expanded about `vacuum`, harmonic by default. Its
-# quasi-particles are the internal lines of the loops and the basis of the
-# Dyson equation, its mean fields are contractions in its vacuum, and `disp`
-# reports its energies.
+# quasi-particles are the internal lines of the loops and the basis of the Dyson
+# equation, its mean fields are contractions in its vacuum, and `disp` reports
+# its energies.
 function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
                             dyson=:nambu, threaded=false, verbose=false, spectral=false,
                             vacuum=MagnonVacuum(swt))
@@ -227,7 +230,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     bands = dyson != :on_shell ? nothing :
         (; disp = zeros(L, length(qpts.qs)), widths = zeros(L, length(qpts.qs)),
            data = zeros(eltype(measure), L, length(qpts.qs)))
-    unstable = falses(length(qpts.qs))
+    breakdown = falses(length(qpts.qs))
 
     # Nambu indices of the magnon legs, and the rows of K for the direct amplitudes
     p = 1:2L
@@ -282,7 +285,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         # real.
         if dyson == :nambu
             M = E + Σ + K[p, p, nω+1]
-            unstable[iq] = any(z -> abs(imag(z)) > 1e-8 * opnorm(M), eigvals(Ĩ * (M + M') / 2))
+            breakdown[iq] = any(z -> abs(imag(z)) > 1e-8 * opnorm(M), eigvals(Ĩ * (M + M') / 2))
         end
 
         if dyson == :on_shell
@@ -321,10 +324,10 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         println("  elapsed         $(r2(elapsed)) s on $nthreads \
                  thread$(nthreads == 1 ? "" : "s"), $(r2(per_q)) ms per 𝐪")
         println("  on-shell -Im Σ  $report")
-        dyson == :nambu && println("  unstable        $(count(unstable)) of $(length(qpts.qs)) wavevectors (NaN near ω = 0)")
+        dyson == :nambu && println("  breakdown       $(count(breakdown)) of $(length(qpts.qs)) wavevectors (NaN near ω = 0)")
     end
 
-    return (; cryst, qpts, energies, chans..., specfunc, disp, unstable, bands)
+    return (; cryst, qpts, energies, chans..., specfunc, disp, breakdown, bands)
 end
 
 # Everything of the one-loop expansion about `vac` that is common to all 𝐪: the
