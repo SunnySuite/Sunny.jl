@@ -12,8 +12,11 @@
 #     χ = w'Gw + K_dm G w + w'G K_md + K_dm G K_md + K_dd,
 #
 # which inherits the frequency sum rule and is positive at ω > 0, up to the
-# O(η) tails of the mirror poles, whenever the model is stable. The other two
-# schemes assemble only the magnon term w'Gw and the bare continuum K_dd.
+# O(η) tails of the mirror poles, whenever the model is stable. `:ladder` is
+# the same model with the pair interaction of H₄ added to the bath (see
+# `ladder_transform`), which is solved exactly and so keeps all of this. The
+# other two schemes assemble only the magnon term w'Gw and the bare continuum
+# K_dd.
 #
 # `:particle` is the rotating-wave truncation. Each bath couples only to the
 # legs it resonates with, decay pairs to particles and source pairs to holes,
@@ -76,6 +79,15 @@ The `dyson` option selects how the one-loop self-energy is resummed:
   between one- and two-magnon channels. It preserves Goldstone modes at all
   frequencies and satisfies the frequency sum rule. The intensity is positive at
   ``ω > 0`` wherever the resummed propagator is stable.
+- `:ladder` extends `:nambu` with the interaction between the two magnons of
+  each pair, summed to all orders. This produces two-magnon bound states and
+  resonances, as in the truncated Hilbert space exact diagonalization of
+  [Zhang et al., arXiv:2508.21142](https://arxiv.org/abs/2508.21142), but in the
+  full Nambu space. A static counterterm keeps the magnon dispersion at
+  ``ω = 0``, and so every Goldstone mode, exactly that of `:nambu`. The ladder
+  is beyond one-loop order. It is intended for gapped magnets: near a soft mode
+  in two dimensions, the bare quartic vertex binds pairs of soft magnons below
+  ``ω = 0`` as the loop grid is refined, which is reported as a breakdown.
 - `:particle` keeps only the particle block of the self-energy, and collects the
   magnon response plus the bare two-magnon continuum without interference. The
   intensity is never negative at ``ω > 0``. Pole shifts are correct at order
@@ -188,8 +200,8 @@ end
 function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
                             dyson=:nambu, threaded=false, verbose=false, spectral=false,
                             vacuum=MagnonVacuum(swt))
-    dyson in (:nambu, :particle, :on_shell) ||
-        error("Unknown `dyson=:$dyson`; use :nambu, :particle or :on_shell.")
+    dyson in (:nambu, :ladder, :particle, :on_shell) ||
+        error("Unknown `dyson=:$dyson`; use :nambu, :ladder, :particle or :on_shell.")
     ol = OneLoop(swt; η, tol, loop_grid, vacuum)
 
     (; sys, measure) = swt
@@ -233,7 +245,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         corr = zeros(ComplexF64, num_correlations(measure))
         q = qpts.qs[iq]
         q_global = cryst.recipvecs * q
-        se = SelfEnergy(ol, q)
+        se = SelfEnergy(ol, q; ladder = dyson == :ladder)
         (; ε, w) = se
         view(disp, :, iq) .= view(ε, 1:L)
         E = Diagonal(abs.(ε))
@@ -242,7 +254,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         # stability check
         nω = length(energies)
         zs = [energies; 0] .+ im*η
-        (; Σ, K, poles) = dyson_model(se, dyson, zs)
+        (; Σ, K, poles, stable) = dyson_model(se, dyson, zs)
 
         # Contracts an Nobs×Nobs χ through the measure, taking S = (χ' - χ)/2πi
         function accum_channel!(accum, iω, χ)
@@ -258,7 +270,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
             # The routes through the bath complete the resolvent of the full
             # model. The other schemes assemble only the magnon term and the
             # bare continuum.
-            if dyson == :nambu
+            if dyson in (:nambu, :ladder)
                 accum_channel!(chans.cross, iω, Kdm * G * w + w' * G * Kmd)
                 accum_channel!(chans.direct, iω, Kdd + Kdm * G * Kmd)
             else
@@ -274,9 +286,9 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         # weight in S may be small. The other schemes have no anomalous
         # self-energy in their propagator, so their frequencies are always
         # real.
-        if dyson == :nambu
+        if dyson in (:nambu, :ladder)
             M = E + Σ + K[p, p, nω+1]
-            breakdown[iq] = any(z -> abs(imag(z)) > 1e-8 * opnorm(M), eigvals(Ĩ * (M + M') / 2))
+            breakdown[iq] = !stable || any(z -> abs(imag(z)) > 1e-8 * opnorm(M), eigvals(Ĩ * (M + M') / 2))
         end
 
         if dyson == :on_shell
@@ -315,7 +327,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         println("  elapsed         $(round(elapsed; digits=1)) s on $nthreads \
                  thread$(nthreads == 1 ? "" : "s"), $(r2(per_q)) ms per 𝐪")
         println("  on-shell -Im Σ  $report")
-        dyson == :nambu && println("  breakdown       $(count(breakdown)) of $(length(qpts.qs)) wavevectors (NaN near ω = 0)")
+        dyson in (:nambu, :ladder) && println("  breakdown       $(count(breakdown)) of $(length(qpts.qs)) wavevectors (NaN near ω = 0)")
     end
 
     return (; cryst, qpts, energies, chans..., specfunc, disp, breakdown, bands)
@@ -329,9 +341,19 @@ function dyson_model(se::SelfEnergy, dyson, zs)
     (; ε, η, Σstat, decay, source) = se
     L = length(ε) ÷ 2
     p = 1:2L
+    if dyson == :ladder
+        # The bath of `:nambu` made interacting, see `ladder_transform`. Its
+        # change to the magnon block at ω = 0 is cancelled by a static
+        # counterterm, which pins the stability matrix of the magnons, and with
+        # it every Goldstone mode, to that of `:nambu`, while keeping the model
+        # Hermitian.
+        (; K, δK0, stable) = ladder_transform(se, zs)
+        return (; Σ=Σstat - δK0, K, poles=nothing, stable)
+    end
+
     Kdec = cauchy_transform((decay,), zs)
     Ksrc = cauchy_transform((source,), zs)
-    dyson == :nambu && return (; Σ=Σstat, K=Kdec+Ksrc, poles=nothing)
+    dyson == :nambu && return (; Σ=Σstat, K=Kdec+Ksrc, poles=nothing, stable=true)
 
     if dyson == :particle
         # The rotating-wave truncation of the auxiliary model. Each bath couples
@@ -348,7 +370,7 @@ function dyson_model(se::SelfEnergy, dyson, zs)
         Pp = [m ≤ L && m′ ≤ L for m in p, m′ in p]
         Ph = [m > L && m′ > L for m in p, m′ in p]
         Σ = Σstat .* (Pp .| Ph) + frozen(source) .* Pp + frozen(decay) .* Ph
-        return (; Σ, K=Kdec+Ksrc, poles=nothing)
+        return (; Σ, K=Kdec+Ksrc, poles=nothing, stable=true)
     end
 
     @assert dyson == :on_shell
@@ -378,5 +400,5 @@ function dyson_model(se::SelfEnergy, dyson, zs)
     # the magnons propagate as a sum of unit-weight Lorentzians
     Σ = cat(Up * Diagonal(λp - im*Γp) * Up', Uh * Diagonal(λh + im*Γh) * Uh'; dims=(1, 2)) - Diagonal(abs.(ε))
     K[p, p, :] .= 0
-    return (; Σ, K, poles=(; λ=λp, Γ=Γp, U=Up))
+    return (; Σ, K, poles=(; λ=λp, Γ=Γp, U=Up), stable=true)
 end

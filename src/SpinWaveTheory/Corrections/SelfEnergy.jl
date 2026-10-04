@@ -125,8 +125,8 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid, vacuum=MagnonVac
     return reshape(ret, L, size(qpts.qs)...)
 end
 
-# Calls `f(a, b, w, u, x, T1, T2)` for each pair of internal magnon lines
-# belonging to a one-loop diagram, line a carrying wavevector 𝐩 and line b
+# Calls `f(a, b, w, u, x, p, T1, T2)` for each pair of internal magnon lines
+# belonging to a one-loop diagram, line a carrying wavevector 𝐩 = `p` and line b
 # carrying 𝐤-𝐩, with `w` the multiplicity `foreach_magnon_pair` supplies,
 # averaged by the caller over the loop wavevectors of `grid`. Here `u[m] = U[a,
 # b, nambu_conj(m, L)]` is the external leg of band m, for m up to `M`, and `x`
@@ -168,7 +168,7 @@ function foreach_cubic_line(f, vac::MagnonVacuum, terms3, k, grid::LoopGrid, M)
             for m in 1:M
                 u[m] = U[a, b, nambu_conj(m, L)]
             end
-            f(a, b, w, u, ε1[a] + ε2[b], T1, T2)
+            f(a, b, w, u, ε1[a] + ε2[b], p, T1, T2)
         end
     end
 end
@@ -196,22 +196,96 @@ end
 # observables (words `words2`) to create the same pair directly. The decay
 # channel has x > 0 and a plus sign; the source channel x < 0 and a minus sign.
 # Their Cauchy transforms, summed, give the cubic self-energy in the `[1:2L,
-# 1:2L]` block, in the orientation that contracts as w' G w.
-function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, words2)
+# 1:2L]` block, in the orientation that contracts as w' G w. Given the `chans`
+# of `pair_channels`, y is extended by the amplitudes of the pair interaction.
+function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, words2, chans=nothing)
     L = nbands(vac.swt)
     Nobs = length(words2)
-    decay = PairMeasure(bin_width, 2L + Nobs)
-    source = PairMeasure(bin_width, 2L + Nobs)
-    y = zeros(ComplexF64, 2L + Nobs)
+    nc = isnothing(chans) ? 0 : length(chans.σ)
+    decay = PairMeasure(bin_width, 2L + Nobs + nc)
+    source = PairMeasure(bin_width, 2L + Nobs + nc)
+    y = zeros(ComplexF64, 2L + Nobs + nc)
+    A = zeros(ComplexF64, isnothing(chans) ? 0 : length(chans.labels))
 
-    foreach_cubic_line(vac, terms3, k, grid, 2L) do a, b, w, u, x, T1, T2
+    foreach_cubic_line(vac, terms3, k, grid, 2L) do a, b, w, u, x, p, T1, T2
         @. y[1:2L] = √18 * u
         for ν in 1:Nobs
             y[2L+ν] = pair_amplitude(words2[ν], T1, T2, a, b)
         end
+        if !isnothing(chans)
+            for (c, (α, β, Δ)) in enumerate(chans.labels)
+                A[c] = cis(2π * dot(p, Δ)) * T1[α, a] * T2[β, b]
+            end
+            mul!(view(y, 2L+Nobs+1:2L+Nobs+nc), chans.R, A)
+        end
         a ≤ L ? accum_binned!(decay, x, w / grid.npts, y) : accum_binned!(source, x, -w / grid.npts, y)
     end
     return (; decay, source)
+end
+
+# ---- Two-magnon interaction ----
+#
+# The bath of the auxiliary model is free, each line pair a boson of energy x.
+# Since any Hermitian interaction between pairs keeps the model quadratic in
+# those bosons, the pair interaction V of H₄ can be added and solved exactly.
+# This is the ladder sum that binds two magnons, which the one-loop expansion
+# lacks. In a single channel, decay or source, it reads
+#
+#     V = Σ_{c,c′} A_c† C_{cc′} A_c′,
+#
+# over channels c = (α, β, Δ) that annihilate a pair through the operators
+# O_α(𝐫) O_β(𝐫-Δ), each line taken to its quasi-particle a, b by
+#
+#     A_c(𝐩; a, b) = e^{2πi 𝐩⋅Δ} T(𝐩)[α, a] T(𝐪-𝐩)[β, b].
+#
+# The matrix C collects the coefficients of H₄ for every assignment of its four
+# slots to two outgoing and two incoming operators, and carries the phase of
+# the total momentum 𝐪. It is finite and independent of the loop grid, of rank
+# a few dozen for a nearest-neighbour model, and is symmetric under exchanging
+# the two lines, so that summing only one line pair of each partner, as
+# `loop_wavevectors` does, is exact. Only number-conserving terms enter: those
+# coupling a pair to its Nambu mirror cross a gap of at least twice the
+# two-magnon threshold, and so act only at second order in V.
+#
+# Diagonalizing C = U Λ U† and scaling the channel rows by √|Λ| gives the
+# signature σ = sign(Λ), in which the Woodbury identity resums the ladder in
+# each channel,
+#
+#     K = Π_yy + Π_ya (σ - Π_aa)⁻¹ Π_ay,
+#
+# where Π is the Cauchy transform of the extended measure. The binned measure
+# is itself a sum of rank-one masses at discrete energies, so the binned model
+# is again Hermitian, and K inherits every structural property of the free
+# bath. The source channel needs no sign of its own, since its measure already
+# carries the metric.
+
+# Channels of the pair interaction of `terms4` at wavevector `q_reshaped`: their
+# labels, the scaled transformation `R` that takes the amplitudes A of the
+# labeled channels to the rows of y, and the signature `σ`.
+function pair_channels(terms4::Vector{BosonMonomial{4}}, q_reshaped, L)
+    index = Dict{Tuple{Int, Int, Vec3}, Int}()
+    chan(α, β, Δ) = get!(index, (α, β, Vec3(round.(Δ))), length(index) + 1)
+    entries = Tuple{Int, Int, ComplexF64}[]
+    perms = SLOT_PERMUTATIONS[4]::Vector{NTuple{4, Int}}
+    for (; c, as, ns) in terms4, (o1, o2, i1, i2) in perms
+        # Two slots create the outgoing pair, written in the operators that
+        # annihilate it, and two annihilate the incoming one. The 4!/2!2! = 6
+        # assignments of each monomial, times the 2 orderings of each pair,
+        # make the factor 12 that `vertex!` would apply to Γ.
+        co = chan(nambu_conj(as[o1], L), nambu_conj(as[o2], L), ns[o1] - ns[o2])
+        ci = chan(as[i1], as[i2], ns[i1] - ns[i2])
+        push!(entries, (co, ci, 12 * c * cis(2π * dot(q_reshaped, ns[i2] - ns[o2])) / length(perms)))
+    end
+    C = zeros(ComplexF64, length(index), length(index))
+    for (co, ci, v) in entries
+        C[co, ci] += v
+    end
+    labels = first.(sort!(collect(index); by=last))
+
+    (λ, U) = eigen(Hermitian(C))
+    keep = abs.(λ) .> 1e-12 * maximum(abs, λ; init=0.0)
+    R = Diagonal(sqrt.(abs.(λ[keep]))) * U[:, keep]'
+    return (; labels, R, σ=sign.(λ[keep]))
 end
 
 """
@@ -235,6 +309,7 @@ struct OneLoop
     # Binning error is O((Δ/η)²), so Δ/η = √tol contributes of order `tol`
     bin_width :: Float64
     terms3    :: Vector{BosonMonomial{3}}
+    terms4    :: Vector{BosonMonomial{4}}
     terms2    :: Vector{BosonMonomial{2}}
     δc        :: Matrix{ComplexF64}
 end
@@ -257,11 +332,11 @@ function OneLoop(swt::SpinWaveTheory; η, tol=0.01, loop_grid=nothing, vacuum=Ma
               isnothing(tad) ? BosonMonomial{2}[] : tad.terms2
               anisotropy_correction(swt).terms2]
     δc = observable_corrections(swt, isnothing(tad) ? nothing : tad.w, g)
-    return OneLoop(vacuum, η, loop_grid, η * min(1/2, √tol), terms3, terms2, δc)
+    return OneLoop(vacuum, η, loop_grid, η * min(1/2, √tol), terms3, terms4, terms2, δc)
 end
 
 """
-    SelfEnergy(ol::OneLoop, q)
+    SelfEnergy(ol::OneLoop, q; ladder=false)
 
 One-loop self-energy of the magnons at the wavevector `q` in RLU. Calling `Σ(z)`
 at a complex frequency `z` returns the ``2L×2L`` Nambu matrix of the static and
@@ -275,6 +350,10 @@ vacuum. The field `Σ.T` is the Bogoliubov matrix of the vacuum at `q`, and `Σ.
 the amplitudes of the observables, corrected at ``O(1/s)``, in the same basis.
 Evaluating `Σ(z)` is cheap, so that e.g. a pole equation ``\\det G^{-1}(ω) = 0``
 can be solved by root finding.
+
+With `ladder=true` the measures also carry the channels of the two-magnon
+interaction that `dyson=:ladder` resums. `Σ(z)` is then the one-loop
+self-energy still.
 """
 struct SelfEnergy
     η      :: Float64
@@ -284,9 +363,12 @@ struct SelfEnergy
     w      :: Matrix{ComplexF64}
     decay  :: PairMeasure
     source :: PairMeasure
+    # Signature of the channels of the pair interaction, which occupy the
+    # trailing rows of the measures; empty without the ladder
+    σ      :: Vector{Float64}
 end
 
-function SelfEnergy(ol::OneLoop, q)
+function SelfEnergy(ol::OneLoop, q; ladder=false)
     (; vacuum, loop_grid, bin_width) = ol
     (; swt) = vacuum
     (; sys) = swt
@@ -306,13 +388,45 @@ function SelfEnergy(ol::OneLoop, q)
 
     grid = loop_wavevectors(loop_grid, q_reshaped)
     words2 = observable_pair_monomials(swt, q_reshaped, q_global)
-    (; decay, source) = pair_measures(vacuum, ol.terms3, q_reshaped, grid; bin_width, words2)
-    return SelfEnergy(ol.η, ε, T, Σstat, w, decay, source)
+    chans = ladder ? pair_channels(ol.terms4, q_reshaped, L) : nothing
+    (; decay, source) = pair_measures(vacuum, ol.terms3, q_reshaped, grid; bin_width, words2, chans)
+    return SelfEnergy(ol.η, ε, T, Σstat, w, decay, source, ladder ? chans.σ : Float64[])
 end
 
 function (Σ::SelfEnergy)(z::Number)
     L = length(Σ.ε) ÷ 2
     return Σ.Σstat + cauchy_transform((Σ.decay, Σ.source), [z])[1:2L, 1:2L, 1]
+end
+
+# Transform K of the interacting bath at each of the frequencies `zs`, over the
+# rows of the legs and the direct amplitudes, by the Woodbury identity in each
+# channel. Also returns `δK0`, the change the interaction makes to the magnon
+# block of K at ω = 0, and whether each channel is `stable`, i.e. keeps every
+# pair level on its own side of ω = 0. At ω = 0 the transform Π is Hermitian,
+# and the inertia of the bath, by Haynsworth's formula, is that of the free
+# bath when σ - Π_aa(0) has as many positive eigenvalues as σ.
+function ladder_transform(se::SelfEnergy, zs)
+    (; decay, source, σ) = se
+    L = length(se.ε) ÷ 2
+    nc = length(σ)
+    y = 1:decay.dim-nc
+    c = decay.dim-nc+1:decay.dim
+    K = zeros(ComplexF64, length(y), length(y), length(zs))
+    δK0 = zeros(ComplexF64, 2L, 2L)
+    stable = true
+    for ρ in (decay, source)
+        Π = cauchy_transform((ρ,), [zs; 0])
+        for iz in eachindex(zs)
+            P = view(Π, :, :, iz)
+            K[:, :, iz] .+= P[y, y] + P[y, c] * ((Diagonal(σ) - P[c, c]) \ P[c, y])
+        end
+        P = view(Π, :, :, length(zs) + 1)
+        D = Hermitian(Diagonal(σ) - P[c, c])
+        all(isfinite, D) || error("Two-magnon continuum reaches ω = 0; the ladder requires a gap.")
+        δK0 .+= P[1:2L, c] * (D \ P[c, 1:2L])
+        stable &= count(>(0), eigvals(D)) == count(>(0), σ)
+    end
+    return (; K, δK0=hermitianpart(δK0), stable)
 end
 
 # The self-energy Σstat + K frozen on the shell of its two legs, ½[K_mn(ε_m) +
