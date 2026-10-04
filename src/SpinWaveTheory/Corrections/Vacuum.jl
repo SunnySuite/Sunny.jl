@@ -21,28 +21,38 @@
 
 # ---- The vacuum ----
 
-# Vacuum of the quadratic Hamiltonian about which the bosons are expanded, that
-# of LSWT plus a `correction`: either a list of quadratic monomials, which is
-# what the mean-field corrections return, or a function of the wavevector in
-# reshaped RLU returning a Nambu matrix to add. It is the Gaussian state in
-# which `contractions` are taken, and its quasi-particles are the internal lines
-# of every loop as well as the bare propagator of the Dyson equation.
-#
-# The harmonic vacuum, with no correction, is the 1/s expansion proper. Any
-# other resums some class of higher-order terms, e.g. renormalized energies on
-# the internal lines. The full Hamiltonian does not depend on the choice, so the
-# correction is subtracted again as a counterterm in the static self-energy. The
-# bare propagator of the Dyson equation is then that of LSWT, and the result
-# differs from the 1/s expansion only at the order neglected. With harmonic
-# eigenvectors and renormalized energies this is the scheme of Veillette, James
-# and Essler, PRB 72, 134429 (2005); with a vacuum that reproduces its own mean
-# field, it is self-consistent Hartree-Fock.
-#
-# The correction is deliberately untyped. Dispatch on it costs nothing against a
-# Bogoliubov transformation, and a type parameter would instead recompile every
-# consumer, `corrected_channels` included, for each new closure.
+"""
+    MagnonVacuum(swt::SpinWaveTheory[, correction])
+
+The Gaussian state about which the 1/s corrections expand the bosons: the vacuum
+of the LSWT quadratic Hamiltonian plus `correction`. Its quasi-particles are the
+internal lines of every loop, and the mean fields are contractions in it.
+Without a correction this is the ``1/s`` expansion proper.
+
+A `correction` is a function of the wavevector in reshaped RLU returning the
+``2L×2L`` Nambu matrix to add, or a list of quadratic boson monomials such as
+the mean-field corrections return. It resums some class of higher-order terms,
+e.g. renormalized energies on the internal lines; `Sunny.replace_energies`
+builds such a correction while keeping the harmonic eigenvectors. Since the full
+Hamiltonian does not depend on this choice, the correction is subtracted again
+as a counterterm in the static self-energy, so the bare propagator of the Dyson
+equation remains that of LSWT and results differ from the ``1/s`` expansion only
+at the order neglected.
+
+!!! tip "Relation to self-consistent schemes"
+
+    Harmonic eigenvectors with renormalized energies on the internal lines is the
+    scheme of [Veillette, James and Essler, PRB **72**, 134429
+    (2005)](https://doi.org/10.1103/PhysRevB.72.134429), and a vacuum that
+    reproduces its own mean field is self-consistent Hartree-Fock. Published schemes
+    generally omit the counterterm, which double counts the correction at the first
+    neglected order. Any such scheme is uncontrolled, and may gap a Goldstone mode.
+"""
 struct MagnonVacuum
     swt        :: SpinWaveTheory
+    # Deliberately untyped. Dispatch on it costs nothing against a Bogoliubov
+    # transformation, and a type parameter would instead recompile every
+    # consumer, `corrected_channels` included, for each new closure.
     correction :: Any
 end
 
