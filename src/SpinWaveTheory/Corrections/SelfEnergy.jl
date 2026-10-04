@@ -6,9 +6,8 @@
 # Conventions are collected in Corrections.jl.
 #
 # The end of this file assembles the full one-loop self-energy: `OneLoop` holds
-# what is common to all 𝐪, `SelfEnergy` the static and cubic parts at one 𝐪, as
-# the Dyson equation of CorrectedIntensities.jl uses them, and `dressed_vacuum`
-# feeds its on-shell poles back into the internal lines.
+# what is common to all 𝐪, and `SelfEnergy` the static and cubic parts at one 𝐪,
+# as the Dyson equation of CorrectedIntensities.jl uses them.
 #
 # Both channels there come from one contraction of H₃ at the momenta (𝐩, 𝐤-𝐩,
 # -𝐤). The third slot carries the Nambu index L+n, creating the external magnon
@@ -327,37 +326,3 @@ function on_shell_form(Σ::SelfEnergy)
     K = cauchy_transform((Σ.decay, Σ.source), ε .+ im*η)
     return Diagonal(abs.(ε)) + Σ.Σstat + [(K[m, n, m] + K[m, n, n]) / 2 for m in 1:2L, n in 1:2L]
 end
-
-"""
-    dressed_vacuum(ol::OneLoop; grid, threaded=false)
-
-A [`MagnonVacuum`](@ref) whose quasi-particles are the poles of
-`dyson=:on_shell`, without their widths, as computed from `ol`. Iterating
-
-    vacuum = dressed_vacuum(OneLoop(swt; η, vacuum); grid)
-
-to a fixed point is the self-consistent scheme of Veillette, James and Essler,
-PRB **72**, 134429 (2005), generalized to many bands: the energies on the
-internal lines are renormalized, while vertices and coherence factors stay
-harmonic up to the mixing of nearly degenerate bands. The poles are found on a
-uniform `grid` of the reshaped Brillouin zone, offset by half a step, and
-interpolated as a [`TabulatedVacuum`](@ref).
-"""
-function dressed_vacuum(ol::OneLoop; grid, threaded=false)
-    (; swt) = ol.vacuum
-    grid = NTuple{3, Int}(grid)
-    L = nbands(swt)
-    Ĩ = Diagonal([ones(L); -ones(L)])
-    Hs = zeros(ComplexF64, 2L, 2L, grid...)
-    foreach_maybe_threaded(threaded, CartesianIndices(grid)) do c
-        Σ = SelfEnergy(ol, to_standard_rlu(swt.sys, Vec3((Tuple(c) .- 1/2) ./ grid)))
-        # Dropping the anomalous blocks keeps the coherence factors of the
-        # vacuum, and para-unitarity, T† Ĩ T = Ĩ, inverts the congruence M = T† H T
-        M = on_shell_form(Σ)
-        M[1:L, L+1:2L] .= 0
-        M[L+1:2L, 1:L] .= 0
-        view(Hs, :, :, c) .= Ĩ * Σ.T * Ĩ * hermitianpart(M) * Ĩ * Σ.T' * Ĩ
-    end
-    return MagnonVacuum(swt, TabulatedVacuum(swt, Hs))
-end
-
