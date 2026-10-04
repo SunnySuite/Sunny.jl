@@ -21,79 +21,117 @@
 
 # ---- The vacuum ----
 
+# Quadratic Hamiltonians of a vacuum, as the congruence factors described at
+# `TabulatedVacuum(swt, Hs)` below
+struct TabulatedVacuum
+    As :: Array{ComplexF64, 5}
+end
+
 """
     MagnonVacuum(swt::SpinWaveTheory[, correction])
 
 The Gaussian state about which the 1/s corrections expand the bosons: the vacuum
-of the LSWT quadratic Hamiltonian plus `correction`. Its quasi-particles are the
-internal lines of every loop, and the mean fields are contractions in it.
-Without a correction this is the ``1/s`` expansion proper.
+of the LSWT quadratic Hamiltonian, modified by `correction`. Its
+quasi-particles are the internal lines of every loop, and the mean fields are
+contractions in it. Without a correction this is the ``1/s`` expansion proper.
 
-A `correction` is a function of the wavevector in reshaped RLU returning the
-``2L×2L`` Nambu matrix to add, or a list of quadratic boson monomials such as
-the mean-field corrections return. It resums some class of higher-order terms,
-e.g. renormalized energies on the internal lines; `Sunny.replace_energies`
-builds such a correction while keeping the harmonic eigenvectors. Since the full
-Hamiltonian does not depend on this choice, the correction is subtracted again
-as a counterterm in the static self-energy, so the bare propagator of the Dyson
+A `correction` is either a list of quadratic boson monomials to add to the LSWT
+Hamiltonian, such as the mean-field corrections return, or a [`TabulatedVacuum`](@ref),
+as [`dressed_vacuum`](@ref) builds. It resums some class of higher-order terms,
+e.g. renormalized energies on the internal lines. Since the full Hamiltonian
+does not depend on this choice, the difference from LSWT is subtracted again as
+a counterterm in the static self-energy, so the bare propagator of the Dyson
 equation remains that of LSWT and results differ from the ``1/s`` expansion only
 at the order neglected.
 
 !!! tip "Relation to self-consistent schemes"
 
-    Harmonic eigenvectors with renormalized energies on the internal lines is the
-    scheme of [Veillette, James and Essler, PRB **72**, 134429
-    (2005)](https://doi.org/10.1103/PhysRevB.72.134429), and a vacuum that
-    reproduces its own mean field is self-consistent Hartree-Fock. Published schemes
-    generally omit the counterterm, which double counts the correction at the first
-    neglected order. Any such scheme is uncontrolled, and may gap a Goldstone mode.
+    Renormalized energies on the internal lines, with harmonic vertices and
+    coherence factors, is the scheme of [Veillette, James and Essler, PRB **72**,
+    134429 (2005)](https://doi.org/10.1103/PhysRevB.72.134429), whose Dyson
+    equation likewise keeps the bare propagator of LSWT. Iterating
+    [`dressed_vacuum`](@ref) generalizes it to many bands. A vacuum that
+    reproduces its own mean field is self-consistent Hartree-Fock. Either scheme
+    resums an incomplete class of higher-order terms, so it is uncontrolled and
+    may gap a Goldstone mode.
 """
 struct MagnonVacuum
     swt        :: SpinWaveTheory
-    # Deliberately untyped. Dispatch on it costs nothing against a Bogoliubov
-    # transformation, and a type parameter would instead recompile every
-    # consumer, `corrected_channels` included, for each new closure.
-    correction :: Any
+    correction :: Union{Vector{BosonMonomial{2}}, TabulatedVacuum}
 end
 
 MagnonVacuum(swt::SpinWaveTheory) = MagnonVacuum(swt, BosonMonomial{2}[])
 
-accum_correction!(H, terms::Vector{BosonMonomial{2}}, q_reshaped) = accum_quadratic!(H, terms, q_reshaped)
-accum_correction!(H, f, q_reshaped) = hermitianpart!(H .+= f(q_reshaped))
-
-# Correction that replaces the energies of the harmonic quasi-particles while
-# keeping their eigenvectors, so that the Bogoliubov transformation of the
-# vacuum is that of LSWT. Here `f(q_reshaped, ε)` receives the 2L harmonic
-# excitation energies |ε| in the order of `bogoliubov!`, the bands at 𝐪 and
-# then those at -𝐪, and returns their replacements. The correction is the
-# quadratic form Ĩ T diag(f - |ε|) T† Ĩ, which para-unitarity, T† Ĩ T = Ĩ, turns
-# into a diagonal shift in the quasi-particle basis. Self-consistent schemes
-# that renormalize the internal lines alone, keeping the vertices and coherence
-# factors harmonic, are of this form. `f` is called concurrently when threading,
-# so it must not share mutable state between calls.
-function replace_energies(swt::SpinWaveTheory, f)
-    L = nbands(swt)
-    Ĩ = Diagonal([ones(L); -ones(L)])
-    return function (q_reshaped)
-        H = zeros(ComplexF64, 2L, 2L)
-        ws = BogoliubovWorkspace(L)
-        dynamical_matrix!(H, swt, q_reshaped)
-        ε = abs.(bogoliubov!(ws, H))
-        return Ĩ * ws.T * Diagonal(f(q_reshaped, ε) - ε) * ws.T' * Ĩ
-    end
-end
-
-# Adds the counterterm of the vacuum to the Nambu matrix of the static
-# self-energy
-accum_counterterm!(δH, vac::MagnonVacuum, q_reshaped) = accum_correction!(δH, negated(vac.correction), q_reshaped)
-
-negated(terms::Vector{BosonMonomial{2}}) = [BosonMonomial(-c, as, ns) for (; c, as, ns) in terms]
-negated(f) = q_reshaped -> -f(q_reshaped)
+# Overwrites the LSWT Hamiltonian `H` at `q_reshaped` with that of the vacuum
+apply_correction!(H, terms::Vector{BosonMonomial{2}}, q_reshaped) = accum_quadratic!(H, terms, q_reshaped)
 
 # Quadratic Hamiltonian of the vacuum at a wavevector in reshaped RLU
 function vacuum_hamiltonian!(H, vac::MagnonVacuum, q_reshaped)
     dynamical_matrix!(H, vac.swt, q_reshaped)
-    accum_correction!(H, vac.correction, q_reshaped)
+    apply_correction!(H, vac.correction, q_reshaped)
+end
+
+# Adds the counterterm of the vacuum, the LSWT Hamiltonian minus that of the
+# vacuum, to the Nambu matrix δH
+function accum_counterterm!(δH, vac::MagnonVacuum, q_reshaped)
+    H = zeros(ComplexF64, size(δH))
+    dynamical_matrix!(H, vac.swt, q_reshaped)
+    δH .+= H
+    vacuum_hamiltonian!(H, vac, q_reshaped)
+    δH .-= H
+end
+
+# ---- Tabulated vacuum ----
+
+"""
+    TabulatedVacuum(swt::SpinWaveTheory, Hs)
+
+A vacuum correction given by its quadratic Hamiltonians `Hs[:, :, i, j, k]` in
+the boson basis of `dynamical_matrix`, sampled at the wavevectors `(Tuple(c) .-
+1/2) ./ dims` of the reshaped Brillouin zone, for each `c` in
+`CartesianIndices(dims)`, and interpolated between. Pass to [`MagnonVacuum`](@ref).
+
+No band labels are involved, so band crossings are harmless. What is
+interpolated is the positive definite ``A`` that carries the LSWT Hamiltonian
+``H`` into each sample, ``A H A = H̃``, and an interpolated ``A`` keeps ``A H
+A`` positive semidefinite with the zero modes of ``H``. The vacuum is therefore
+stable, and its quasi-particles are gapless wherever those of LSWT are.
+"""
+function TabulatedVacuum(swt::SpinWaveTheory, Hs::Array{<: Number, 5})
+    As = similar(Hs, ComplexF64)
+    dims = size(Hs)[3:5]
+    for c in CartesianIndices(dims)
+        H = dynamical_matrix(swt, Vec3((Tuple(c) .- 1/2) ./ dims))
+        # The positive definite square root, which the regularization of
+        # `swt` keeps invertible at a soft mode of LSWT
+        R = sqrt(Hermitian(H))
+        view(As, :, :, c) .= R \ sqrt(Hermitian(R * view(Hs, :, :, c) * R)) / R
+    end
+    return TabulatedVacuum(As)
+end
+
+function apply_correction!(H, tab::TabulatedVacuum, q_reshaped)
+    A = interpolate_periodic(tab.As, q_reshaped)
+    H .= A' * H * A
+    hermitianpart!(H)
+end
+
+# Multilinear interpolation, periodic in the reshaped Brillouin zone, of the
+# matrices `As[:, :, c]` sampled at the half-offset grid points (c - 1/2)/dims
+function interpolate_periodic(As, q_reshaped)
+    dims = size(As)[3:5]
+    x = ntuple(d -> mod(q_reshaped[d] * dims[d] - 1/2, dims[d]), 3)
+    i = floor.(Int, x)
+    f = x .- i
+    ret = zeros(ComplexF64, size(As, 1), size(As, 2))
+    for corner in CartesianIndices((0:1, 0:1, 0:1))
+        δ = Tuple(corner)
+        w = prod(d -> δ[d] == 1 ? f[d] : 1 - f[d], 1:3)
+        iszero(w) && continue
+        c = ntuple(d -> mod(i[d] + δ[d], dims[d]) + 1, 3)
+        ret .+= w .* view(As, :, :, c...)
+    end
+    return ret
 end
 
 # Quasi-particles of the vacuum, as `bogoliubov!` returns them in `ws`. A

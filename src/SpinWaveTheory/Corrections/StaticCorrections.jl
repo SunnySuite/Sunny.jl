@@ -372,14 +372,20 @@ function static_self_energy(swt::SpinWaveTheory, qpts, terms2; vacuum=MagnonVacu
     ret = stack(qpts.qs) do q
         q_reshaped = to_reshaped_rlu(swt.sys, q)
         vacuum_bogoliubov!(ws, H, vacuum, q_reshaped)
-        δH = zeros(ComplexF64, 2L, 2L)
-        accum_quadratic!(δH, terms2, q_reshaped)
-        accum_counterterm!(δH, vacuum, q_reshaped)
-        # Writing the quadratic form as (1/2) y† (T† δH T) y in the quasi-particle
+        # Writing the quadratic form as (1/2) y† Σ y in the quasi-particle
         # basis, the coefficient of α†_n α_n is the n-th diagonal element.
-        real.(diag(ws.T' * δH * ws.T))[1:L]
+        real.(diag(static_self_energy_matrix(vacuum, terms2, q_reshaped, ws.T)))[1:L]
     end
     return reshape(ret, L, size(qpts.qs)...)
+end
+
+# Nambu matrix of the static correction `terms2`, counterterm of the vacuum
+# included, in the quasi-particle basis `T` of the vacuum at `q_reshaped`
+function static_self_energy_matrix(vac::MagnonVacuum, terms2, q_reshaped, T)
+    δH = zeros(ComplexF64, size(T))
+    accum_quadratic!(δH, terms2, q_reshaped)
+    accum_counterterm!(δH, vac, q_reshaped)
+    return T' * δH * T
 end
 
 """
