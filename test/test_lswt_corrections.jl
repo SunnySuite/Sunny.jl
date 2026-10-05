@@ -842,6 +842,17 @@ end
         Sunny.corrected_dispersion(swt, [[0.3, 0.1, 0]], hf.terms2)
     end
     @test Zcs[1] ≈ Zcs[2] atol=1e-7
+    # A field along the moments shifts the magnons by ±B without changing the
+    # Bogoliubov transformation. It leaves the Néel state energetically
+    # unstable, but its positive-norm modes still define the same vacuum, so
+    # the mean field is unchanged.
+    let sysB = canted_square(1/2, 0)
+        set_field!(sysB, [0.5, 0, 0])
+        swtB = SpinWaveTheory(sysB; measure=nothing)
+        @test_throws Sunny.InstabilityError dispersion(swtB, [[0.01, 0, 0]])
+        hfB = Sunny.hartree_fock_correction(swtB; tol=1e-4)
+        @test Sunny.corrected_dispersion(swt, [[0.3, 0.1, 0]], hfB.terms2) ≈ Zcs[1] atol=1e-7
+    end
     # The tadpole vanishes term by term, at 1e-34, so `tol` is irrelevant to it
     tad = Sunny.tadpole_correction(swt; tol=1e-3)
     @test all(t -> abs(t.c) < 1e-12, tad.terms2)
