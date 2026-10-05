@@ -17,6 +17,7 @@ Crystal
 FormFactor
 ImplicitMidpoint
 Langevin
+LangevinPlanck
 LocalSampler
 Moment
 ParamSpec

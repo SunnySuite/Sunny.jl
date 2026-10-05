@@ -143,8 +143,8 @@ end
     suggest_timestep(sys, integrator; tol)
 
 Suggests a timestep `dt` for spin dynamics simulation at a given error tolerance
-`tol`. The `integrator` should be [`Langevin`](@ref) or
-[`ImplicitMidpoint`](@ref). Ideally, the spin configuration in `sys` would be
+`tol`. The `integrator` should be [`Langevin`](@ref), [`LangevinPlanck`](@ref),
+or [`ImplicitMidpoint`](@ref). Ideally, the spin configuration in `sys` would be
 equilibrated to the target thermodynamic conditions. In practice, a
 configuration obtained from [`minimize_energy!`](@ref) should give a reasonable,
 if conservative, `dt` suggestion.
@@ -161,7 +161,7 @@ errors in certain statistical observables may scale like `dt` rather than
 `dt^2`. In such cases, the `tol` parameter controls the _square_ of the
 numerical error, and can be tightened appropriately.
 """
-function suggest_timestep(sys::System, integrator::Union{Langevin, ImplicitMidpoint}; tol)
+function suggest_timestep(sys::System, integrator::AbstractIntegrator; tol)
     (; dt) = integrator
     dt_bound = suggest_timestep_aux(sys, integrator; tol)
 
@@ -241,8 +241,12 @@ function suggest_timestep_aux(sys::System{N}, integrator; tol) where N
     c1 = 1.0
     c2 = 1.0
     dt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
-    return dt_bound
+    return min(dt_bound, noise_timestep_bound(integrator))
 end
+
+# An additional upper bound on `dt` imposed by the integrator's noise source, if
+# any. See the `LangevinPlanck` specialization.
+noise_timestep_bound(_) = Inf
 
 
 function Base.show(io::IO, integrator::Langevin)

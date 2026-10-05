@@ -228,20 +228,22 @@ end
 
 @testitem "Planck noise generator" begin
     import FFTW: fft!, fftfreq
+    using Random, Statistics
 
     # Generate a trajectory with the Planck noise generator
     function generate_pn_traj(N, dt, damping, kT; numburnin=1000)
+        rng = Random.Xoshiro(0)
         cng = Sunny.PlanckNoiseGenerator(dt; kT, damping, dims=(1,1,1,1))
         buf = zeros(N)
 
         # Burnin
         for _ in 1:numburnin
-            Sunny.step_pn!(cng) 
+            Sunny.step_pn!(rng, cng)
         end
 
         # Trajectory
         for i in 1:N
-            Sunny.step_pn!(cng) 
+            Sunny.step_pn!(rng, cng)
             buf[i] = cng.ζ[1]
         end
 
@@ -299,16 +301,160 @@ end
             ihi = findfirst(ω -> ω > 5kT, ωs) - 1
             relerr = @. abs(estspec[ilo:ihi] - refspec[ilo:ihi]) / refspec[ilo:ihi]
 
-            # Note that a maximum of something like 10% relative error is
-            # expected around ω=0.35kT. This is due to the limitations of
-            # fitting the spectrum with just two second-order filters; the
-            # greatest error is in the "crossover" between the two filters.
-            # Improving the fit is a possible direction for research. Consider
-            # testing against the actual filter spectrum (rather than the exact
-            # Planck spectrum), which is available in the Sunny code.
-            @test maximum(relerr) < 0.15 && sum(relerr)/length(relerr) < 0.05 
+            # The analytical filter spectrum agrees with the Planck spectrum to
+            # within about 4% over this range. The remaining error is
+            # statistical noise in the Welch estimate.
+            @test maximum(relerr) < 0.15 && sum(relerr)/length(relerr) < 0.05
+
+            # The variance is a convention-independent check of the spectral
+            # normalization. A one-sided/two-sided mix-up would change it by a
+            # factor of 2. For the Planck spectrum, Var ζ = ∫ |ω| n(|ω|) dω/2π =
+            # (π/6) kT². Each noise-driven filter contributes (c/Ω)² exactly.
+            (; c₁, c₂, Ω₁, Ω₂) = Sunny.planck_noise_params(kT)
+            @test isapprox(var(sig_pn), (c₁/Ω₁)^2 + (c₂/Ω₂)^2; rtol=0.02)
+            @test isapprox(var(sig_pn), (π/6)*kT^2; rtol=0.05)
         end
     end
 
     test_planck_noise_power_spectrum()
+
+    # With kT = 0 the noise vanishes identically.
+    cng = Sunny.PlanckNoiseGenerator(0.01; kT=0.0, damping=1.0, dims=(1,1,1,1))
+    for _ in 1:100
+        Sunny.step_pn!(Random.Xoshiro(0), cng)
+    end
+    @test all(iszero, cng.ζ)
+end
+
+
+@testitem "LangevinPlanck single-spin statistics" begin
+    using LinearAlgebra
+
+    # A classical spin in a field precesses at a single frequency ω₀, for any
+    # tilt angle. With weak damping, the tilt is driven by the noise spectrum at
+    # ω₀, so the tilt distribution is Boltzmann with the effective temperature ε
+    # = S(ω₀), where S is the spectrum of the noise filters (≈ ω₀ n(ω₀)). This
+    # holds exactly for all spin magnitudes s, not only in the harmonic limit.
+    # Many independent spins improve the statistics.
+    function mean_projection(s, kT; seed)
+        cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
+        sys = System(cryst, [1 => Moment(; s, g=2)], :dipole; dims=(8, 8, 8), seed)
+        set_field!(sys, [0, 0, 0.5])
+        polarize_spins!(sys, [0, 0, -1])
+        ∇E, = Sunny.get_dipole_buffers(sys, 1)
+        Sunny.set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+        ω₀ = norm(∇E[1])
+
+        damping = 0.05 / s          # Effective relaxation rate s⋅λ⋅ω₀ is weak
+        dt = min(0.02/ω₀, 0.1/kT)
+        integrator = LangevinPlanck(dt; damping, kT)
+        relax = 1 / (s * damping * ω₀)
+        for _ in 1:round(Int, 10relax/dt)
+            step!(sys, integrator)
+        end
+        acc = 0.0
+        nsteps = round(Int, 50relax/dt)
+        for _ in 1:nsteps
+            step!(sys, integrator)
+            acc += -sum(S -> S[3], sys.dipoles) / (s * length(sys.dipoles))
+        end
+        return ω₀, acc / nsteps
+    end
+
+    langevin_function(x) = coth(x) - 1/x
+
+    # Nonlinear quantum regime and near-classical regime. For comparison, the
+    # classical (white noise) predictions differ by -35% and -5%, respectively.
+    # Residual errors of order 1% are statistical, or come from finite damping.
+    for (s, kT, seed, rtol) in ((1.0, 1.0, 0, 0.04), (10.0, 5.0, 1, 0.025))
+        ω₀, proj = mean_projection(s, kT; seed)
+        ε = Sunny.filter_spectrum(ω₀, collect(Sunny.planck_noise_params(kT)))
+        @test isapprox(proj, langevin_function(s*ω₀/ε); rtol)
+    end
+end
+
+
+@testitem "LangevinPlanck interface" begin
+    cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(2, 2, 2), seed=0)
+    set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
+    set_field!(sys, [0, 0, 0.5])
+    polarize_spins!(sys, [0, 0, -1])
+    E₀ = energy(sys)
+
+    # Changing the temperature updates the noise source
+    integrator = LangevinPlanck(0.01; damping=0.1, kT=1.0)
+    integrator.kT = 2.0
+    @test integrator.noisesource.kT == 2.0
+    @test integrator.noisesource.Ω₂ ≈ 2 * Sunny.planck_noise_params_dimensionless.Ω₂
+
+    # Changing dt updates the noise source
+    integrator.dt = 0.02
+    @test integrator.noisesource.dt == 0.02
+
+    # Noise buffers are sized on first use, and copy preserves parameters
+    step!(sys, integrator)
+    @test size(integrator.noisesource.ζ) == (3, size(sys.dipoles)...)
+    integrator2 = copy(integrator)
+    @test (integrator2.dt, integrator2.damping, integrator2.kT) == (0.02, 0.1, 2.0)
+
+    # A timestep too large for the noise filters triggers a warning
+    @test_logs (:warn, r"exceeds 0.1/kT") LangevinPlanck(0.1; damping=0.1, kT=10.0)
+
+    # Keyword-only constructor requires dt to be set before stepping
+    integrator3 = LangevinPlanck(; damping=0.1, kT=1.0)
+    @test_throws "Set integration timestep" step!(sys, integrator3)
+    integrator3.dt = 0.01
+    step!(sys, integrator3)
+
+    # At kT = 0 the ground state is stationary
+    polarize_spins!(sys, [0, 0, -1])
+    integrator4 = LangevinPlanck(0.01; damping=0.1, kT=0.0)
+    for _ in 1:100
+        step!(sys, integrator4)
+    end
+    @test energy(sys) ≈ E₀
+
+    # A timestep suggestion accounts for the noise filters
+    @test Sunny.suggest_timestep_aux(sys, LangevinPlanck(; damping=0.1, kT=100.0); tol=1e-2) <= 0.1/100
+
+end
+
+
+@testitem "LangevinPlanck SU(N) statistics" begin
+    # Spin-1 with ℋ = D Sz² has levels (0, D, D). With weak damping, every
+    # energy-changing transition is thermalized at the same effective
+    # temperature ε = S(D), so the stationary state is exactly the classical
+    # SU(3) Boltzmann distribution at ε. Its energy is known in closed form
+    # [Dahlbom et al., PRB 106, 235154 (2022), Eq. 76]. At kT = D/2 the
+    # classical (white noise) prediction is 80% larger, and an implementation
+    # using colored complex-vector noise would be about 35% too hot.
+    cryst = Crystal(lattice_vectors(1, 1, 1.5, 90, 90, 90), [[0, 0, 0]])
+    D = 1.0
+    kT = 0.5
+    damping = 0.1
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN; dims=(6, 6, 6), seed=0)
+    set_onsite_coupling!(sys, S -> D * S[3]^2, 1)
+    randomize_spins!(sys)
+
+    function mean_energy(sys, integrator, relax)
+        (; dt) = integrator
+        for _ in 1:round(Int, 10relax/dt)
+            step!(sys, integrator)
+        end
+        acc = 0.0
+        nsteps = round(Int, 60relax/dt)
+        for _ in 1:nsteps
+            step!(sys, integrator)
+            acc += energy_per_site(sys)
+        end
+        return acc / nsteps
+    end
+    E = mean_energy(sys, LangevinPlanck(0.02; damping, kT), 1/(damping*kT))
+
+    ε = Sunny.filter_spectrum(D, collect(Sunny.planck_noise_params(kT)))
+    E_exact = 2ε + (D^2/ε) / (1 - exp(D/ε) + D/ε)
+    # At this damping there is a systematic deficit of about 3%, which vanishes
+    # linearly as damping → 0.
+    @test isapprox(E, E_exact; rtol=0.08)
 end
