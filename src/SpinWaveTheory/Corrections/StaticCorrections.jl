@@ -21,6 +21,12 @@ Hamiltonian by a factor of order ``1/s``. Returns `(; terms2, δE)`, where
 `terms2` can be passed to [`corrected_dispersion`](@ref) and `δE` is a
 correction to the energy per site.
 
+The LSWT Hamiltonian need not be positive definite. If its frequencies are real,
+as for a structure that quantum fluctuations select from a classically
+degenerate family (order by disorder), the mean fields are taken in the Gaussian
+state of its positive-norm modes, and `MagnonVacuum(swt, terms2)` may then be
+stable where LSWT is not.
+
 Brillouin-zone integrals are controlled by `tol`, a relative accuracy target
 for adaptive cubature, and/or `maxevals`, its budget of integrand evaluations.
 Alternatively `grid` replaces the cubature by an average over a uniform grid of

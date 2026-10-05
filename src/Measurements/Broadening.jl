@@ -138,8 +138,6 @@ function broaden!(data::AbstractArray{Ret}, ωs::AbstractVector, is::AbstractArr
     nq = size(is)[2:end]
     (nω, nq...) == size(data) || error("Argument `data` must have size ($nω×$(join(nq, "×")))")
 
-    cutoff = 1e-12 * Statistics.quantile(norm.(vec(is)), 0.95)
-
     kernelbuf = zeros(nω)
     for (iω0, ω0) in enumerate(ωs)
         @inbounds for (iω, ω) in enumerate(energies)
@@ -147,7 +145,8 @@ function broaden!(data::AbstractArray{Ret}, ωs::AbstractVector, is::AbstractArr
         end
         for iq in CartesianIndices(nq)
             x = is[iω0, iq]
-            norm(x) < cutoff && continue
+            # Input NaNs are treated as zero
+            (iszero(x) || isnan(norm(x))) && continue
             for iω in 1:nω
                 data[iω, iq] += kernelbuf[iω] * x * Δω
             end
@@ -161,4 +160,22 @@ function broaden(ωs::AbstractVector, is::AbstractArray{Ret}; energies, kernel::
     data = zeros(Ret, length(energies), size(is)[2:end]...)
     broaden!(data, ωs, is; energies, kernel, Δω)
     return data
+end
+
+"""
+    broaden(res::Intensities; kernel, energies=res.energies)
+
+Convolves the intensities along the energy axis with a line-broadening `kernel`,
+e.g., to model instrumental resolution. The input energies must be uniformly
+spaced, and the output is sampled at `energies`. Intensity is lost within about
+one kernel width of the ends of the input energy range, which should therefore
+extend somewhat beyond the range of interest. Input `NaN` values are treated as
+zero.
+"""
+function broaden(res::Intensities; kernel::AbstractBroadening, energies=res.energies)
+    ωs = res.energies
+    Δω = (last(ωs) - first(ωs)) / (length(ωs) - 1)
+    length(ωs) > 1 && all(≈(Δω; rtol=1e-6), diff(ωs)) || error("Energies of `res` must be uniformly spaced")
+    data = broaden(ωs, res.data; energies, kernel, Δω)
+    return Intensities(res.crystal, res.qpts, collect(Float64, energies), data)
 end
