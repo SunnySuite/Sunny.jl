@@ -289,7 +289,7 @@ mutable struct LangevinPlanck <: AbstractIntegrator
     noisesource     :: PlanckNoiseGenerator
 
     # The noise state is allocated on first use, sized to the system.
-    function LangevinPlanck(sys, dt=NaN; λ=nothing, damping=nothing, kT)
+    function LangevinPlanck(dt=NaN; λ=nothing, damping=nothing, kT)
         if !isnothing(λ)
             @warn "`λ` argument is deprecated! Use `damping` instead."
             damping = @something damping λ
