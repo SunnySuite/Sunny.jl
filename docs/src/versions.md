@@ -13,8 +13,8 @@
   ([#514](@ref)).
 * Energy kernel broadening supported in [`SampledCorrelations`](@ref)
   ([#507](@ref)).
-* One-dimensional paths supported in [`q_space_grid`](@ref). The ``(H, K, L)``
-  slice is labeled on the ``x``-axis uniformly ([#516](@ref)).
+* One-dimensional paths supported in [`q_space_grid`](@ref). Labeling of plot
+  axes in 1D and 2D is clarified ([#516](@ref)).
 
 ## v0.9.2
 (Jul 13, 2026)

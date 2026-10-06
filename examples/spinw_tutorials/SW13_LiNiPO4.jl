@@ -69,7 +69,7 @@ plot_intensities!(fig[1, 1], res; units)
 # custom plot.
 
 data_sorted = sort(res.data; dims=1, by= >(1e-12))
-ax = Axis(fig[1, 2], xlabel="H", ylabel="Intensity")
+ax = Axis(fig[1, 2], xlabel="ℎ on (ℎ, 1, 0) (r.l.u.)", ylabel="Intensity")
 lines!(ax, Hs, data_sorted[end, :]; label="Lower band")
 lines!(ax, Hs, data_sorted[end-1, :]; label="Upper band")
 axislegend(ax)
@@ -84,7 +84,7 @@ fig = Figure(size=(768, 300))
 plot_intensities!(fig[1, 1], res; units)
 
 data_sorted = sort(res.data; dims=1, by=x->abs(x)>1e-12)
-ax = Axis(fig[1, 2], xlabel="L", ylabel="Intensity")
+ax = Axis(fig[1, 2], xlabel="𝑙 on (0, 1, 𝑙) (r.l.u.)", ylabel="Intensity")
 lines!(ax, Ls, data_sorted[end, :]; label="Lower band")
 lines!(ax, Ls, data_sorted[end-1, :]; label="Upper band")
 axislegend(ax)
