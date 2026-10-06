@@ -1,7 +1,60 @@
 abstract type AbstractIntegrator end
 
+# The `damping` and `kT` parameters of `Langevin` and `LangevinPlanck` may be
+# numbers, or arrays of size `size(sys.dipoles)` that make them site dependent.
+# Uniform (Float64) values take fast paths, selected by dispatch.
+
+# A Float64, or a copy of an array. If `dims` is given, the array size is checked.
+scalar_or_site_array(x::Real, dims=nothing) = Float64(x)
+function scalar_or_site_array(x::AbstractArray, dims=nothing)
+    ndims(x) == 4 || error("Expected a number, or an array of size `size(sys.dipoles)`")
+    if !isnothing(dims) && size(x) != Tuple(dims)
+        error("Expected an array of size $(Tuple(dims)), got $(size(x))")
+    end
+    return Array{Float64, 4}(x)
+end
+
+# A parameter's value at a site, given by linear or Cartesian index
+site_value(x::Float64, _) = x
+site_value(x::Array{Float64, 4}, i) = x[i]
+
+# Damping may vanish at individual sites, but not everywhere.
+function validate_damping(damping, dims=nothing)
+    damping = scalar_or_site_array(damping, dims)
+    all(iszero, damping) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
+    any(<(0), damping) && error("Select nonnegative damping")
+    return damping
+end
+
+function validate_kT(kT, dims=nothing)
+    kT = scalar_or_site_array(kT, dims)
+    any(<(0), kT) && error("Select nonnegative kT")
+    return kT
+end
+
+# Per-site parameters must match the system they are used with.
+function check_site_params(integrator, dims)
+    check_site_param(integrator.damping, dims)
+    check_site_param(integrator.kT, dims)
+end
+check_site_param(::Float64, _) = nothing
+function check_site_param(x::Array{Float64, 4}, dims)
+    if size(x) != dims
+        error("Integrator parameters have size $(size(x)), but the system has size $dims")
+    end
+end
+
+# Whether a damping parameter is nonzero anywhere. Per-site arrays are nonzero
+# by construction (see `validate_damping`).
+has_damping(λ::Float64) = !iszero(λ)
+has_damping(::Array{Float64, 4}) = true
+
+# Print a parameter compactly
+param_string(x::Real) = repr(x)
+param_string(x::AbstractArray) = "<$(join(size(x), "×")) array>"
+
 """
-    Langevin(dt::Float64; damping::Float64, kT::Float64)
+    Langevin(dt::Float64; damping, kT)
 
 An integrator for Langevin spin dynamics using the explicit Heun method. The
 `damping` parameter controls the coupling to an implicit thermal bath. One call
@@ -47,6 +100,12 @@ the dipole in analogy to the vector cross product ``S × 𝐁``. The coupling to
 the thermal bath maps as ``λ̃ = |𝐒| λ``. Note, therefore, that the scaling of
 the `damping` parameter varies subtly between `:dipole` and `:SUN` modes.
 
+Each of `damping` and `kT` may be a number, or an array of size
+`size(sys.dipoles)` to make it site dependent, e.g., for a temperature gradient.
+Each site then receives independent noise of magnitude ``√(2 k_B T_i λ_i)``.
+Damping may vanish on some sites, which then exchange energy with the bath only
+through their neighbors.
+
 ## References
 
 1. [D. Dahlbom et al., _Langevin dynamics of generalized spins as SU(N) coherent
@@ -55,8 +114,8 @@ the `damping` parameter varies subtly between `:dipole` and `:SUN` modes.
 """
 mutable struct Langevin <: AbstractIntegrator
     dt      :: Float64
-    damping :: Float64
-    kT      :: Float64
+    damping :: Union{Float64, Array{Float64, 4}}
+    kT      :: Union{Float64, Array{Float64, 4}}
 
     function Langevin(dt=NaN; λ=nothing, damping=nothing, kT)
         if !isnothing(λ)
@@ -64,17 +123,27 @@ mutable struct Langevin <: AbstractIntegrator
             damping = @something damping λ
         end
         isnothing(damping) && error("`damping` parameter required")
-        iszero(damping) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
-
-        dt <= 0         && error("Select positive dt")
-        kT < 0          && error("Select nonnegative kT")
-        damping <= 0    && error("Select positive damping")
-        return new(dt, damping, kT)
+        dt <= 0 && error("Select positive dt")
+        return new(dt, validate_damping(damping), validate_kT(kT))
     end
 end
 
 function Base.copy(dyn::Langevin)
     Langevin(dyn.dt; dyn.damping, dyn.kT)
+end
+
+function Base.setproperty!(integrator::Langevin, sym::Symbol, val)
+    if sym == :Δt
+        @warn "`Δt` field is deprecated! Use `dt` instead."
+        sym = :dt
+    end
+    if sym == :kT
+        setfield!(integrator, sym, validate_kT(val))
+    elseif sym == :damping
+        setfield!(integrator, sym, validate_damping(val))
+    else
+        setfield!(integrator, sym, convert(fieldtype(Langevin, sym), val))
+    end
 end
 
 #=
@@ -186,25 +255,28 @@ end
 
 function suggest_timestep_aux(sys::System{N}, integrator; tol) where N
     (; damping, kT) = integrator
-    λ = damping
+    check_site_params(integrator, size(sys.dipoles))
 
     # Accumulate statistics regarding Var[∇E]
     acc = 0.0
     if N == 0
         ∇Es, = get_dipole_buffers(sys, 1)
         set_energy_grad_dipoles!(∇Es, sys.dipoles, sys)
-        for (κ, ∇E) in zip(sys.κs, ∇Es)
+        for (i, (κ, ∇E)) in enumerate(zip(sys.κs, ∇Es))
             # In dipole mode, the spin magnitude `κ = |s|` scales the effective
             # damping rate.
-            acc += (1 + (κ*λ)^2) * norm(∇E)^2
+            acc += (1 + (κ*site_value(damping, i))^2) * norm(∇E)^2
         end
     else
         ∇Es, = get_coherent_buffers(sys, 1)
         set_energy_grad_coherents!(∇Es, sys.coherents, sys)
-        for ∇E in ∇Es
-            acc += (1 + λ^2) * norm(∇E)^2
+        for (i, ∇E) in enumerate(∇Es)
+            acc += (1 + site_value(damping, i)^2) * norm(∇E)^2
         end
     end
+
+    # The noise scale is set by the largest local λ kT
+    λkT = maximum(site_value(damping, i) * site_value(kT, i) for i in eachindex(sys.dipoles))
 
     # `drift_rms` gives the root-mean-squared of the drift term for one
     # integration timestep of the Langevin dynamics. It is associated with the
@@ -240,7 +312,7 @@ function suggest_timestep_aux(sys::System{N}, integrator; tol) where N
     # for some empirical constants c₁ and c₂.
     c1 = 1.0
     c2 = 1.0
-    dt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
+    dt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λkT)^2))
     return min(dt_bound, noise_timestep_bound(integrator))
 end
 
@@ -252,7 +324,7 @@ noise_timestep_bound(_) = Inf
 function Base.show(io::IO, integrator::Langevin)
     (; dt, damping, kT) = integrator
     dt = isnan(integrator.dt) ? "<missing>" : repr(dt)
-    println(io, "Langevin($dt; damping=$damping, kT=$kT)")
+    println(io, "Langevin($dt; damping=$(param_string(damping)), kT=$(param_string(kT)))")
 end
 
 function Base.show(io::IO, integrator::ImplicitMidpoint)
@@ -271,7 +343,7 @@ end
     (; dt, damping) = integrator
     λ = damping
 
-    if iszero(λ)
+    if !has_damping(λ)
         @. ΔS = - S × (dt*∇E)
     else
         @. ΔS = - S × (ξ + dt*∇E - dt*λ*(S × ∇E))
@@ -282,7 +354,7 @@ function rhs_sun!(ΔZ, Z, ζ, HZ, integrator)
     (; damping, dt) = integrator
     λ = damping
 
-    if iszero(λ)
+    if !has_damping(λ)
         @. ΔZ = - im*dt*HZ
     else
         @. ΔZ = - proj(ζ + dt*(im+λ)*HZ, Z)
@@ -291,14 +363,22 @@ end
 
 function fill_noise!(rng, ξ, integrator)
     (; dt, damping, kT) = integrator
-    λ = damping
+    fill_noise_aux!(rng, ξ, dt, damping, kT)
+end
 
+function fill_noise_aux!(rng, ξ, dt, λ::Float64, kT::Float64)
     if iszero(λ) || iszero(kT)
         fill!(ξ, zero(eltype(ξ)))
     else
         randn!(rng, ξ)
         ξ .*= √(2dt*λ*kT)
     end
+end
+
+# Site-dependent λ or kT
+function fill_noise_aux!(rng, ξ, dt, λ, kT)
+    randn!(rng, ξ)
+    @. ξ *= √(2dt*λ*kT)
 end
 
 
@@ -314,9 +394,20 @@ function step! end
 
 # Heun integration with normalization
 
+# The fields `damping` and `kT` may each be a Float64 or a per-site array. To
+# avoid type instability (and allocations), `step!` passes them as separate
+# arguments through a function barrier. The call is union-split into statically
+# dispatched branches. The NamedTuple `integrator` built inside has concrete
+# types, and serves in place of the integrator for `rhs_dipole!`, etc.
 function step!(sys::System{0}, integrator::Langevin)
     check_timestep_available(integrator)
+    check_site_params(integrator, size(sys.dipoles))
+    (; dt, damping, kT) = integrator
+    step_langevin!(sys, dt, damping, kT)
+end
 
+function step_langevin!(sys::System{0}, dt, damping, kT)
+    integrator = (; dt, damping, kT)
     (S′, ΔS₁, ΔS₂, ξ, ∇E) = get_dipole_buffers(sys, 5)
     S = sys.dipoles
 
@@ -338,7 +429,13 @@ end
 
 function step!(sys::System{N}, integrator::Langevin) where N
     check_timestep_available(integrator)
+    check_site_params(integrator, size(sys.dipoles))
+    (; dt, damping, kT) = integrator
+    step_langevin!(sys, dt, damping, kT)
+end
 
+function step_langevin!(sys::System{N}, dt, damping, kT) where N
+    integrator = (; dt, damping, kT)
     (Z′, ΔZ₁, ΔZ₂, ζ, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents
 

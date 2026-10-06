@@ -55,6 +55,17 @@ end
             step!(sys, langevin)
             @test iszero(@allocated step!(sys, langevin))
 
+            # Site-dependent parameters
+            langevin = Langevin(0.01; damping=fill(0.1, size(sys.dipoles)), kT=fill(0.2, size(sys.dipoles)))
+            step!(sys, langevin)
+            @test iszero(@allocated step!(sys, langevin))
+
+            for (damping, kT) in ((0.1, 0.2), (fill(0.1, size(sys.dipoles)), fill(0.2, size(sys.dipoles))))
+                planck = LangevinPlanck(sys, 0.01; damping, kT)
+                step!(sys, planck)
+                @test iszero(@allocated step!(sys, planck))
+            end
+
             integrator = ImplicitMidpoint(0.01)
             step!(sys, integrator)
             @test iszero(@allocated step!(sys, integrator))

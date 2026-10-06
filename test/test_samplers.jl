@@ -226,6 +226,80 @@ end
     test_spin_chain_energy()
 end
 
+@testitem "Langevin site-dependent parameters" begin
+    # Independent spins in a field, with kT and damping that vary from site to
+    # site. With white noise, each site samples the Boltzmann distribution at
+    # its own temperature for any damping, ⟨-Sz⟩/s = L(s ω₀/kT).
+    cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(8, 8, 8), seed=0)
+    set_field!(sys, [0, 0, 0.5])
+    polarize_spins!(sys, [0, 0, -1])
+    ω₀ = 1.0
+
+    kT = [x <= 4 ? 1.0 : 0.5 for x in 1:8, y in 1:8, z in 1:8, _ in 1:1]
+    damping = [isodd(y) ? 0.3 : 1.0 for x in 1:8, y in 1:8, z in 1:8, _ in 1:1]
+    integrator = Langevin(0.025; damping, kT)
+
+    function mean_projections(sys, integrator, relax, groups)
+        (; dt) = integrator
+        for _ in 1:round(Int, 5relax/dt)
+            step!(sys, integrator)
+        end
+        acc = zeros(length(groups))
+        nsteps = round(Int, 50relax/dt)
+        for _ in 1:nsteps
+            step!(sys, integrator)
+            for (g, sel) in enumerate(groups)
+                acc[g] += -sum(S -> S[3], view(sys.dipoles, sel)) / count(sel)
+            end
+        end
+        return acc / nsteps
+    end
+    params = [(T, λ) for T in (1.0, 0.5) for λ in (0.3, 1.0)]
+    groups = [(kT .== T) .& (damping .== λ) for (T, λ) in params]
+    proj = mean_projections(sys, integrator, 1/(0.3ω₀), groups)
+
+    # Over seeds, the ratio to the prediction is 0.95–1.04, which is
+    # statistical. Doubling the noise variance would shift it by about 50%.
+    langevin_function(x) = coth(x) - 1/x
+    for (g, (T, _)) in enumerate(params)
+        @test isapprox(proj[g], langevin_function(ω₀/T); rtol=0.08)
+    end
+
+    # Uniform arrays reproduce the scalar trajectories exactly
+    cryst = Crystal(lattice_vectors(1, 1, 1.2, 90, 90, 90), [[0, 0, 0]])
+    for mode in (:dipole, :SUN)
+        function make_system()
+            sys = System(cryst, [1 => Moment(s=1, g=2)], mode; dims=(2, 2, 2), seed=0)
+            set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
+            set_onsite_coupling!(sys, S -> 0.3*S[3]^2, 1)
+            randomize_spins!(sys)
+            return sys
+        end
+        sys1, sys2 = make_system(), make_system()
+        integrator1 = Langevin(0.02; damping=0.1, kT=0.7)
+        integrator2 = Langevin(0.02; damping=fill(0.1, size(sys2.dipoles)), kT=fill(0.7, size(sys2.dipoles)))
+        for _ in 1:20
+            step!(sys1, integrator1)
+            step!(sys2, integrator2)
+        end
+        @test sys1.dipoles == sys2.dipoles
+
+        # Parameters must match the system size
+        integrator2.kT = fill(0.7, 3, 2, 2, 1)
+        @test_throws "the system has size" step!(sys2, integrator2)
+    end
+
+    # Validation, and conversion back to uniform values
+    integrator = Langevin(0.02; damping=0.1, kT=fill(1.0, 2, 2, 2, 1))
+    @test_throws "nonnegative kT" (integrator.kT = fill(-1.0, 2, 2, 2, 1))
+    @test_throws "ImplicitMidpoint" (integrator.damping = zeros(2, 2, 2, 1))
+    integrator.kT = 2
+    @test integrator.kT === 2.0
+    @test copy(integrator).kT === 2.0
+end
+
+
 @testitem "Planck noise generator" begin
     using LinearAlgebra, Random
 
@@ -243,7 +317,7 @@ end
     # in parallel, and C is estimated at lags τ = n dt.
     kT = 1.0
     dt = 0.1/kT
-    cng = Sunny.PlanckNoiseGenerator(dt; kT, damping=1.0, dims=(1000, 1, 1, 1))
+    cng = Sunny.PlanckNoiseGenerator(dt; kT, dims=(1000, 1, 1, 1))
     rng = Random.Xoshiro(0)
     for _ in 1:100
         Sunny.step_pn!(rng, cng)
@@ -274,8 +348,24 @@ end
     # of 2. For the Planck spectrum, Var ζ = ∫ |ω| n(|ω|) dω/2π = (π/6) kT².
     @test isapprox(C[1], (π/6)*kT^2; rtol=0.04)
 
+    # Changing the temperature rescales the filter state, so that the noise is
+    # immediately stationary at the new site-dependent temperatures. (Without
+    # rescaling, the variance would be off by (kT_new/kT_old)².)
+    cng = Sunny.PlanckNoiseGenerator(0.05; kT=1.0, dims=(10_000, 1, 1, 1))
+    for _ in 1:100
+        Sunny.step_pn!(rng, cng)
+    end
+    kTs = [isodd(i) ? 2.0 : 0.5 for i in 1:10_000, _ in 1:1, _ in 1:1, _ in 1:1]
+    Sunny.set_temperature!(cng, kTs)
+    Sunny.step_pn!(rng, cng)
+    (; c₁, c₂, Ω₁, Ω₂) = Sunny.planck_noise_params(1.0)
+    for T in (2.0, 0.5)
+        ζT = cng.ζ[:, kTs .== T]
+        @test isapprox(sum(abs2, ζT) / length(ζT), ((c₁/Ω₁)^2 + (c₂/Ω₂)^2) * T^2; rtol=0.05)
+    end
+
     # With kT = 0 the noise vanishes identically.
-    cng = Sunny.PlanckNoiseGenerator(0.01; kT=0.0, damping=1.0, dims=(1,1,1,1))
+    cng = Sunny.PlanckNoiseGenerator(0.01; kT=0.0, dims=(1,1,1,1))
     for _ in 1:100
         Sunny.step_pn!(Random.Xoshiro(0), cng)
     end
@@ -328,6 +418,68 @@ end
 end
 
 
+@testitem "LangevinPlanck site-dependent parameters" begin
+    # Independent spins in a field, as in the single-spin test, with kT and
+    # damping that vary from site to site. Each group of sites equilibrates at
+    # its own temperature, independent of its damping.
+    cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(8, 8, 8), seed=0)
+    set_field!(sys, [0, 0, 0.5])
+    polarize_spins!(sys, [0, 0, -1])
+    ω₀ = 1.0
+
+    kT = [x <= 4 ? 1.0 : 0.5 for x in 1:8, y in 1:8, z in 1:8, _ in 1:1]
+    damping = [isodd(y) ? 0.05 : 0.1 for x in 1:8, y in 1:8, z in 1:8, _ in 1:1]
+    integrator = LangevinPlanck(sys, 0.05; damping, kT)
+
+    function mean_projections(sys, integrator, relax, groups)
+        (; dt) = integrator
+        for _ in 1:round(Int, 5relax/dt)
+            step!(sys, integrator)
+        end
+        acc = zeros(length(groups))
+        nsteps = round(Int, 25relax/dt)
+        for _ in 1:nsteps
+            step!(sys, integrator)
+            for (g, sel) in enumerate(groups)
+                acc[g] += -sum(S -> S[3], view(sys.dipoles, sel)) / count(sel)
+            end
+        end
+        return acc / nsteps
+    end
+    groups = [(kT .== T) .& (damping .== λ) for T in (1.0, 0.5) for λ in (0.05, 0.1)]
+    proj = mean_projections(sys, integrator, 1/(0.05ω₀), groups)
+
+    # Over seeds, the ratio to the prediction is 0.98–1.05. The largest
+    # deviations are at kT = 1 and damping 0.1 (the damping-wing excess).
+    langevin_function(x) = coth(x) - 1/x
+    for (g, (T, λ)) in enumerate((T, λ) for T in (1.0, 0.5) for λ in (0.05, 0.1))
+        ε = Sunny.filter_spectrum(ω₀, collect(Sunny.planck_noise_params(T)))
+        @test isapprox(proj[g], langevin_function(ω₀/ε); rtol=0.06)
+    end
+
+    # Uniform arrays reproduce the scalar trajectories exactly
+    cryst = Crystal(lattice_vectors(1, 1, 1.2, 90, 90, 90), [[0, 0, 0]])
+    for mode in (:dipole, :SUN)
+        function make_system()
+            sys = System(cryst, [1 => Moment(s=1, g=2)], mode; dims=(2, 2, 2), seed=0)
+            set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
+            set_onsite_coupling!(sys, S -> 0.3*S[3]^2, 1)
+            randomize_spins!(sys)
+            return sys
+        end
+        sys1, sys2 = make_system(), make_system()
+        integrator1 = LangevinPlanck(sys1, 0.02; damping=0.1, kT=0.7)
+        integrator2 = LangevinPlanck(sys2, 0.02; damping=fill(0.1, size(sys2.dipoles)), kT=fill(0.7, size(sys2.dipoles)))
+        for _ in 1:20
+            step!(sys1, integrator1)
+            step!(sys2, integrator2)
+        end
+        @test sys1.dipoles == sys2.dipoles
+    end
+end
+
+
 @testitem "LangevinPlanck interface" begin
     cryst = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
     sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(2, 2, 2), seed=0)
@@ -342,8 +494,7 @@ end
 
     # Changing the temperature updates the noise source
     integrator.kT = 2.0
-    @test integrator.noisesource.kT == 2.0
-    @test integrator.noisesource.Ω₂ ≈ 2 * Sunny.planck_noise_params_dimensionless.Ω₂
+    @test all(==(2.0), integrator.noisesource.kT)
 
     # Changing dt updates the noise source
     integrator.dt = 0.02

@@ -22,13 +22,7 @@ function Base.getproperty(value::Langevin, name::Symbol)
     end
     return getfield(value, name)
 end
-function Base.setproperty!(value::Langevin, name::Symbol, x)
-    if name == :Δt
-        @warn "`Δt` field is deprecated! Use `dt` instead."
-        name = :dt
-    end
-    return setfield!(value, name, convert(fieldtype(Langevin, name), x))
-end
+# The `setproperty!` counterpart is in `Integrators.jl`.
 
 
 Base.@deprecate set_external_field!(sys::System, B) let
