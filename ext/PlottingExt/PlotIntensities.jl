@@ -117,10 +117,10 @@ function grid_descriptors(grid::Sunny.QGrid{D}) where D
     return (q_str, symbols)
 end
 
-# The x-axis label for a 1D cut, e.g., "ℎ on (ℎ, ℎ, 0) (r.l.u.)".
+# The x-axis label for a 1D cut, e.g., "ℎ in (ℎ, ℎ, 0) (r.l.u.)".
 function grid_xlabel(grid::Sunny.QGrid{1})
     q_str, symbols = grid_descriptors(grid)
-    return "$(only(symbols)) on $q_str (r.l.u.)"
+    return "$(only(symbols)) in $q_str (r.l.u.)"
 end
 
 # The subtitle and axis labels for a 2D slice, e.g., ("Momentum plane (ξ-η/2,
