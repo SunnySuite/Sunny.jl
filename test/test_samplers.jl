@@ -303,7 +303,7 @@ end
 
         damping = 0.05 / s          # Effective relaxation rate s⋅λ⋅ω₀ is weak
         dt = min(0.05/ω₀, 0.1/kT)
-        integrator = LangevinPlanck(dt; damping, kT)
+        integrator = LangevinPlanck(sys, dt; damping, kT)
         relax = 1 / (s * damping * ω₀)
         for _ in 1:round(Int, 5relax/dt)
             step!(sys, integrator)
@@ -337,7 +337,7 @@ end
     E₀ = energy(sys)
 
     # The positional timestep is stored in the integrator and noise source
-    integrator = LangevinPlanck(0.01; damping=0.1, kT=1.0)
+    integrator = LangevinPlanck(sys, 0.01; damping=0.1, kT=1.0)
     @test integrator.dt == integrator.noisesource.dt == 0.01
 
     # Changing the temperature updates the noise source
@@ -349,31 +349,37 @@ end
     integrator.dt = 0.02
     @test integrator.noisesource.dt == 0.02
 
-    # Noise buffers are sized on first use, and copy preserves parameters
-    step!(sys, integrator)
+    # Noise state is sized to the system, and copy preserves parameters and size
     @test size(integrator.noisesource.ζ) == (3, size(sys.dipoles)...)
+    step!(sys, integrator)
     integrator2 = copy(integrator)
     @test (integrator2.dt, integrator2.damping, integrator2.kT) == (0.02, 0.1, 2.0)
+    @test size(integrator2.noisesource.ζ) == size(integrator.noisesource.ζ)
+    step!(sys, integrator2)
+
+    # The integrator cannot be used with a system of different size
+    sys_big = repeat_periodically(sys, (2, 1, 1))
+    @test_throws "constructed for a different system" step!(sys_big, integrator)
 
     # A timestep too large for the noise filters triggers a warning
-    @test_logs (:warn, r"exceeds 0.1/kT") LangevinPlanck(0.1; damping=0.1, kT=10.0)
+    @test_logs (:warn, r"exceeds 0.1/kT") LangevinPlanck(sys, 0.1; damping=0.1, kT=10.0)
 
-    # Keyword-only constructor requires dt to be set before stepping
-    integrator3 = LangevinPlanck(; damping=0.1, kT=1.0)
+    # Without a positional dt, it must be set before stepping
+    integrator3 = LangevinPlanck(sys; damping=0.1, kT=1.0)
     @test_throws "Set integration timestep" step!(sys, integrator3)
     integrator3.dt = 0.01
     step!(sys, integrator3)
 
     # At kT = 0 the ground state is stationary
     polarize_spins!(sys, [0, 0, -1])
-    integrator4 = LangevinPlanck(0.01; damping=0.1, kT=0.0)
+    integrator4 = LangevinPlanck(sys, 0.01; damping=0.1, kT=0.0)
     for _ in 1:100
         step!(sys, integrator4)
     end
     @test energy(sys) ≈ E₀
 
     # A timestep suggestion accounts for the noise filters
-    @test Sunny.suggest_timestep_aux(sys, LangevinPlanck(; damping=0.1, kT=100.0); tol=1e-2) <= 0.1/100
+    @test Sunny.suggest_timestep_aux(sys, LangevinPlanck(sys; damping=0.1, kT=100.0); tol=1e-2) <= 0.1/100
 
 end
 
@@ -407,7 +413,7 @@ end
         end
         return acc / nsteps
     end
-    E = mean_energy(sys, LangevinPlanck(0.05; damping, kT), 1/(damping*D))
+    E = mean_energy(sys, LangevinPlanck(sys, 0.05; damping, kT), 1/(damping*D))
 
     ε = Sunny.filter_spectrum(D, collect(Sunny.planck_noise_params(kT)))
     E_exact = 2ε + (D^2/ε) / (1 - exp(D/ε) + D/ε)
@@ -464,7 +470,7 @@ end
         end
         return acc / nsamples
     end
-    integrator = LangevinPlanck(0.05 / maximum(ω); damping, kT)
+    integrator = LangevinPlanck(sys, 0.05 / maximum(ω); damping, kT)
     E = mean_excess_energy(sys, integrator, 1 / (damping * minimum(ω)))
     # Over seeds, E / (E_harmonic + E_wing) = 1.00–1.06. The ~3% systematic
     # excess comes from anharmonicity.

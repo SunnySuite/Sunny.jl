@@ -141,14 +141,18 @@ function planck_noise_params(kT)
     return (; c₁ = c₁*kT^2, c₂ = c₂*kT^2, Ω₁ = Ω₁*kT, Ω₂ = Ω₂*kT, Γ₁ = Γ₁*kT, Γ₂ = Γ₂*kT)
 end
 
-function PlanckNoiseGenerator(dt; kT, damping, dims)
+# Allocates `ncomp` independent noise processes for each site of a system with
+# `size(sys.dipoles) == dims`. Dipole mode uses ncomp = 3 (a noise field
+# coupling to 𝐒). SU(N) mode uses ncomp = N² (a Hermitian noise matrix, see
+# `noise_field_times`).
+function PlanckNoiseGenerator(dt; kT, damping, dims, ncomp=3)
     c₁, c₂, Ω₁, Ω₂, Γ₁, Γ₂ = planck_noise_params(kT) 
-    ζ = zeros(3, dims...)
-    ζbuf = zeros(3, dims...)
-    W1 = zeros(3, dims...)
-    W2 = zeros(3, dims...)
-    u1 = zeros(SVector{2, Float64}, 3, dims...)
-    u2 = zeros(SVector{2, Float64}, 3, dims...)
+    ζ = zeros(ncomp, dims...)
+    ζbuf = zeros(ncomp, dims...)
+    W1 = zeros(ncomp, dims...)
+    W2 = zeros(ncomp, dims...)
+    u1 = zeros(SVector{2, Float64}, ncomp, dims...)
+    u2 = zeros(SVector{2, Float64}, ncomp, dims...)
 
     PlanckNoiseGenerator(
         dt, kT, damping,
@@ -177,19 +181,12 @@ function set_temperature!(cng::PlanckNoiseGenerator, kT)
     return nothing
 end
 
-# Reallocate the noise state, if needed, so that there are `ncomp` independent
-# noise processes per site of a system with `size(sys.dipoles) == dims`. Dipole
-# mode uses ncomp = 3 (a noise field coupling to 𝐒). SU(N) mode uses ncomp = N²
-# (a Hermitian noise matrix, see `noise_field_times`).
-function ensure_noise_dims!(cng::PlanckNoiseGenerator, dims, ncomp=3)
-    size(cng.ζ) == (ncomp, dims...) && return
-    cng.ζ = zeros(ncomp, dims...)
-    cng.ζbuf = zeros(ncomp, dims...)
-    cng.W1 = zeros(ncomp, dims...)
-    cng.W2 = zeros(ncomp, dims...)
-    cng.u1 = zeros(SVector{2, Float64}, ncomp, dims...)
-    cng.u2 = zeros(SVector{2, Float64}, ncomp, dims...)
-    return
+# The noise state is allocated for a specific system. Using the integrator with
+# a system of different size or mode is an error.
+function check_noise_dims(cng::PlanckNoiseGenerator, dims, ncomp)
+    if size(cng.ζ) != (ncomp, dims...)
+        error("LangevinPlanck was constructed for a different system. Construct a new integrator for this system.")
+    end
 end
 
 function colored_noise_process_rhs(u, W, dt, Ω, Γ)
@@ -245,7 +242,7 @@ end
 # Langevin integration with Planck noise 
 ################################################################################
 """
-    LangevinPlanck(dt::Float64; damping::Float64, kT::Float64)
+    LangevinPlanck(sys::System, dt::Float64; damping::Float64, kT::Float64)
 
 An integrator for Langevin spin dynamics, analogous to [`Langevin`](@ref), in
 which the white noise is replaced by colored noise whose power spectrum follows
@@ -270,7 +267,12 @@ mode, the relaxation rate of a mode of frequency ``ω`` is ``|𝐒| λ ω``, whe
 acquire an excess energy that scales linearly with `damping`.
 
 To accurately integrate the noise filters, the timestep should satisfy
-`dt ≤ 0.1/kT`. A warning is printed otherwise.
+`dt ≤ 0.1/kT`. A warning is printed otherwise. If `dt` is omitted, it must be
+set before integration, e.g., using [`suggest_timestep`](@ref).
+
+The colored noise has internal state for every site of `sys`, which is
+allocated by the constructor. The integrator can only be used with `sys`, or
+with another system of the same size and mode.
 
 ## References
 
@@ -288,28 +290,34 @@ mutable struct LangevinPlanck <: AbstractIntegrator
     kT              :: Float64
     noisesource     :: PlanckNoiseGenerator
 
-    # The noise state is allocated on first use, sized to the system.
-    function LangevinPlanck(dt=NaN; λ=nothing, damping=nothing, kT)
-        if !isnothing(λ)
-            @warn "`λ` argument is deprecated! Use `damping` instead."
-            damping = @something damping λ
-        end
-        isnothing(damping) && error("`damping` parameter required")
-        iszero(damping) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
-
-        dt <= 0         && error("Select positive dt")
-        kT < 0          && error("Select nonnegative kT")
-        damping <= 0    && error("Select positive damping")
-
-        cng = PlanckNoiseGenerator(dt; kT, damping, dims=(0, 0, 0, 0))
-        check_noise_timestep(dt, kT)
-        return new(dt, damping, kT, cng)
+    function LangevinPlanck(dt, damping, kT, noisesource::PlanckNoiseGenerator)
+        return new(dt, damping, kT, noisesource)
     end
 end
 
-# The copy has fresh noise state, allocated on first use.
+function LangevinPlanck(sys::System{N}, dt=NaN; λ=nothing, damping=nothing, kT) where N
+    if !isnothing(λ)
+        @warn "`λ` argument is deprecated! Use `damping` instead."
+        damping = @something damping λ
+    end
+    isnothing(damping) && error("`damping` parameter required")
+    iszero(damping) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
+
+    dt <= 0         && error("Select positive dt")
+    kT < 0          && error("Select nonnegative kT")
+    damping <= 0    && error("Select positive damping")
+
+    ncomp = N == 0 ? 3 : N^2
+    cng = PlanckNoiseGenerator(dt; kT, damping, dims=size(sys.dipoles), ncomp)
+    check_noise_timestep(dt, kT)
+    return LangevinPlanck(Float64(dt), Float64(damping), Float64(kT), cng)
+end
+
+# The copy has fresh noise state, of the same size.
 function Base.copy(dyn::LangevinPlanck)
-    LangevinPlanck(dyn.dt; dyn.damping, dyn.kT)
+    sz = size(dyn.noisesource.ζ)
+    cng = PlanckNoiseGenerator(dyn.dt; dyn.kT, dyn.damping, dims=sz[2:end], ncomp=sz[1])
+    return LangevinPlanck(dyn.dt, dyn.damping, dyn.kT, cng)
 end
 
 # The noise filters are integrated with the same timestep as the spins. Their
@@ -346,7 +354,7 @@ noise_timestep_bound(integrator::LangevinPlanck) = iszero(integrator.kT) ? Inf :
 function Base.show(io::IO, integrator::LangevinPlanck)
     (; dt, damping, kT) = integrator
     dt = isnan(integrator.dt) ? "<missing>" : repr(dt)
-    println(io, "LangevinPlanck($dt; damping=$damping, kT=$kT)")
+    println(io, "LangevinPlanck(sys, $dt; damping=$damping, kT=$kT)")
 end
 
 @inline function rhs_dipole_pn!(ΔS, S, ξ, ∇E, integrator)
@@ -359,7 +367,7 @@ end
 @inline function advance_and_retrieve_noise!(sys, integrator)
     (; damping, noisesource, dt) = integrator
     cng = noisesource
-    ensure_noise_dims!(cng, size(sys.dipoles))
+    check_noise_dims(cng, size(sys.dipoles), 3)
     step_pn!(sys.rng, cng)
     ζ = view(reinterpret(SVector{3, Float64}, cng.ζ), 1, :, :, :, :)
     ζ .*= sqrt(2damping)*dt # Note dt here -- treat as noise field
@@ -449,7 +457,7 @@ function step!(sys::System{N}, integrator::LangevinPlanck) where N
     (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents
 
-    ensure_noise_dims!(noisesource, size(Z), N^2)
+    check_noise_dims(noisesource, size(Z), N^2)
     step_pn!(sys.rng, noisesource)
     ζ = reshape(noisesource.ζ, N^2, :)
 
