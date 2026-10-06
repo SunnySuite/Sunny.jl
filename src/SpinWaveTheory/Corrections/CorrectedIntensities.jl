@@ -306,8 +306,16 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         end
 
         if verbose
-            Kdec = cauchy_transform((se.decay,), ε .+ im*η)
-            view(linewidths, :, iq) .= [-imag(Kdec[n, n, n]) for n in 1:L]
+            # The resummed on-shell linewidth: for `:ladder`, through the
+            # interacting bath K, since the bare one-loop decay above is not
+            # what broadens its bound-state branches.
+            if dyson == :ladder
+                K2 = dyson_model(se, :ladder, ε[1:L] .+ im*η).K
+                view(linewidths, :, iq) .= [-imag(K2[n, n, n]) for n in 1:L]
+            else
+                Kdec = cauchy_transform((se.decay,), ε[1:L] .+ im*η)
+                view(linewidths, :, iq) .= [-imag(Kdec[n, n, n]) for n in 1:L]
+            end
         end
     end
 
@@ -332,7 +340,8 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
             "median $(r2(Γs[cld(end, 2)])), 90th pct $(r2(Γs[ceil(Int, 0.9end)])), against η = $(r2(η))"
         println("  elapsed         $(round(elapsed; digits=1)) s on $nthreads \
                  thread$(nthreads == 1 ? "" : "s"), $(r2(per_q)) ms per 𝐪")
-        println("  on-shell -Im Σ  $report")
+        label = dyson == :ladder ? "on-shell Γ" : "on-shell -Im Σ"
+        println("  $(rpad(label, 16))$report")
         dyson in (:nambu, :ladder) && println("  breakdown       $(count(breakdown)) of $(length(qpts.qs)) wavevectors (NaN near ω = 0)")
     end
 
