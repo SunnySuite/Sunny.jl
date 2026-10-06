@@ -187,40 +187,67 @@ function cubic_self_energy_at(vac::MagnonVacuum, terms3, k, zs, grid::LoopGrid, 
     return stack(τ₃ * transpose(view(K, :, :, iz)) for iz in eachindex(zs))
 end
 
-# Binned measures of the auxiliary model of Corrections.jl, one per channel. Each
-# internal line pair contributes the mass ±y y† at pair energy x, with
+# Binned measures of the auxiliary model of Corrections.jl, one per channel. The
+# bath of pairs (𝐩, 𝐤-𝐩) of quasi-particles a, b has energy x = ε_a(𝐩) + ε_b(𝐤-𝐩).
+# Each pair contributes the mass ±y y† at x, weighted by its multiplicity on the
+# loop grid, with
 #
-#     y = [√18 u; β],
+#     y = [√18 u; β; R A],
 #
-# u the external legs over all 2L Nambu indices and β the amplitudes for the
-# observables (words `words2`) to create the same pair directly. The decay
+# u the cubic vertex that couples the pair to each external leg, over all 2L
+# Nambu indices, and β the amplitudes for the observables (words `words2`) to
+# create the pair directly. Given the `chans` of `pair_channels`, A are the
+# amplitudes for the pair to be annihilated in each labeled channel (α, β, Δ),
+#
+#     A_c = e^{2πi 𝐩⋅Δ} T(𝐩)[α, a] T(𝐤-𝐩)[β, b],
+#
+# and R takes them to the eigenchannels of the pair interaction. The decay
 # channel has x > 0 and a plus sign; the source channel x < 0 and a minus sign.
 # Their Cauchy transforms, summed, give the cubic self-energy in the `[1:2L,
-# 1:2L]` block, in the orientation that contracts as w' G w. Given the `chans`
-# of `pair_channels`, y is extended by the amplitudes of the pair interaction.
-function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, words2, chans=nothing)
+# 1:2L]` block, in the orientation that contracts as w' G w. Pairs are binned in
+# batches of `batch`, so that the projection R and the accumulation of each bin
+# are matrix products.
+function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, words2, chans=nothing, batch=4096)
     L = nbands(vac.swt)
-    Nobs = length(words2)
-    nc = isnothing(chans) ? 0 : length(chans.σ)
-    decay = PairMeasure(bin_width, 2L + Nobs + nc)
-    source = PairMeasure(bin_width, 2L + Nobs + nc)
-    y = zeros(ComplexF64, 2L + Nobs + nc)
-    A = zeros(ComplexF64, isnothing(chans) ? 0 : length(chans.labels))
+    (labels, R) = isnothing(chans) ? (Tuple{Int, Int, Vec3}[], zeros(ComplexF64, 0, 0)) : (chans.labels, chans.R)
+    n0 = 2L + length(words2)
+    dim = n0 + size(R, 1)
+    # The phases e^{2πi 𝐩⋅Δ} of A, computed once for each of the few distinct Δ
+    Δs = unique(last.(labels))
+    iΔ = [findfirst(==(Δ), Δs) for (_, _, Δ) in labels]
+    phases = zeros(ComplexF64, length(Δs))
+
+    # A batch of pairs in each channel: energies x, weights c, and columns y and A
+    Z = zeros(ComplexF64, dim, 2batch)
+    (decay, source) = map(1:2) do _
+        (; ρ=PairMeasure(bin_width, dim), n=Ref(0), xs=zeros(batch), cs=zeros(batch),
+           Y=zeros(ComplexF64, dim, batch), A=zeros(ComplexF64, length(labels), batch))
+    end
+    function flush!((; ρ, n, xs, cs, Y, A))
+        r = 1:n[]
+        mul!(view(Y, n0+1:dim, r), R, view(A, :, r))
+        accum_binned!(ρ, view(xs, r), view(cs, r), view(Y, :, r); Z)
+        n[] = 0
+    end
 
     foreach_cubic_line(vac, terms3, k, grid, 2L) do a, b, w, u, x, p, T1, T2
-        @. y[1:2L] = √18 * u
-        for ν in 1:Nobs
-            y[2L+ν] = pair_amplitude(words2[ν], T1, T2, a, b)
+        chan = a ≤ L ? decay : source
+        (; n, xs, cs, Y, A) = chan
+        i = (n[] += 1)
+        xs[i] = x
+        cs[i] = (a ≤ L ? w : -w) / grid.npts
+        @. Y[1:2L, i] = √18 * u
+        for (ν, ws) in enumerate(words2)
+            Y[2L+ν, i] = pair_amplitude(ws, T1, T2, a, b)
         end
-        if !isnothing(chans)
-            for (c, (α, β, Δ)) in enumerate(chans.labels)
-                A[c] = cis(2π * dot(p, Δ)) * T1[α, a] * T2[β, b]
-            end
-            mul!(view(y, 2L+Nobs+1:2L+Nobs+nc), chans.R, A)
+        map!(Δ -> cis(2π * dot(p, Δ)), phases, Δs)
+        for (c, (α, β, _)) in enumerate(labels)
+            A[c, i] = phases[iΔ[c]] * T1[α, a] * T2[β, b]
         end
-        a ≤ L ? accum_binned!(decay, x, w / grid.npts, y) : accum_binned!(source, x, -w / grid.npts, y)
+        i == batch && flush!(chan)
     end
-    return (; decay, source)
+    foreach(flush!, (decay, source))
+    return (; decay=decay.ρ, source=source.ρ)
 end
 
 # ---- Two-magnon interaction ----
@@ -289,7 +316,8 @@ function pair_channels(terms4::Vector{BosonMonomial{4}}, q_reshaped, L)
 end
 
 """
-    OneLoop(swt::SpinWaveTheory; η, tol=0.01, loop_grid=nothing, vacuum=MagnonVacuum(swt))
+    OneLoop(swt::SpinWaveTheory; η, tol=0.01, loop_grid=nothing, vacuum=MagnonVacuum(swt),
+            energies=nothing)
 
 The one-loop expansion about `vacuum`, with everything that is common to all
 wavevectors: the mean-field, tadpole and anisotropy corrections to the quadratic
@@ -306,7 +334,9 @@ struct OneLoop
     vacuum    :: MagnonVacuum
     η         :: Float64
     loop_grid :: NTuple{3, Int}
-    # Binning error is O((Δ/η)²), so Δ/η = √tol contributes of order `tol`
+    # Binning error is O((Δ/η)²), so Δ/η = √tol contributes of order `tol`. Given
+    # evenly spaced `energies`, the width is reduced to divide their step, so
+    # that the Cauchy transform onto them is a convolution.
     bin_width :: Float64
     terms3    :: Vector{BosonMonomial{3}}
     terms4    :: Vector{BosonMonomial{4}}
@@ -314,7 +344,8 @@ struct OneLoop
     δc        :: Matrix{ComplexF64}
 end
 
-function OneLoop(swt::SpinWaveTheory; η, tol=0.01, loop_grid=nothing, vacuum=MagnonVacuum(swt))
+function OneLoop(swt::SpinWaveTheory; η, tol=0.01, loop_grid=nothing, vacuum=MagnonVacuum(swt),
+                 energies=nothing)
     check_corrections_supported(swt)
     vacuum.swt === swt || error("Vacuum must be built on the same `SpinWaveTheory`")
     η > 0 || error("Regulator `η` must be positive.")
@@ -332,7 +363,12 @@ function OneLoop(swt::SpinWaveTheory; η, tol=0.01, loop_grid=nothing, vacuum=Ma
               isnothing(tad) ? BosonMonomial{2}[] : tad.terms2
               anisotropy_correction(swt).terms2]
     δc = observable_corrections(swt, isnothing(tad) ? nothing : tad.w, g)
-    return OneLoop(vacuum, η, loop_grid, η * min(1/2, √tol), terms3, terms4, terms2, δc)
+    bin_width = η * min(1/2, √tol)
+    if !isnothing(energies) && length(energies) > 1
+        dω = (last(energies) - first(energies)) / (length(energies) - 1)
+        bin_width = dω / cld(dω, bin_width)
+    end
+    return OneLoop(vacuum, η, loop_grid, bin_width, terms3, terms4, terms2, δc)
 end
 
 """
@@ -414,13 +450,20 @@ function ladder_transform(se::SelfEnergy, zs)
     K = zeros(ComplexF64, length(y), length(y), length(zs))
     δK0 = zeros(ComplexF64, 2L, 2L)
     stable = true
+    # Workspaces of the solve (σ - Π_aa) X = Π_ay at each frequency
+    (M, X) = (zeros(ComplexF64, nc, nc), zeros(ComplexF64, nc, length(y)))
     for ρ in (decay, source)
-        Π = cauchy_transform((ρ,), [zs; 0])
+        Π = cauchy_transform((ρ,), zs)
         for iz in eachindex(zs)
             P = view(Π, :, :, iz)
-            K[:, :, iz] .+= P[y, y] + P[y, c] * ((Diagonal(σ) - P[c, c]) \ P[c, y])
+            @views @. M = -P[c, c]
+            M[diagind(M)] .+= σ
+            X .= view(P, c, y)
+            ldiv!(lu!(M), X)
+            @views K[:, :, iz] .+= P[y, y]
+            mul!(view(K, :, :, iz), view(P, y, c), X, true, true)
         end
-        P = view(Π, :, :, length(zs) + 1)
+        P = cauchy_transform((ρ,), [0.0im])[:, :, 1]
         D = Hermitian(Diagonal(σ) - P[c, c])
         all(isfinite, D) || error("Two-magnon continuum reaches ω = 0; the ladder requires a gap.")
         δK0 .+= P[1:2L, c] * (D \ P[c, 1:2L])
