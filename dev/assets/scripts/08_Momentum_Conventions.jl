@@ -15,7 +15,7 @@ polarize_spins!(sys, [0, 0, 1])
 @assert energy(sys) ≈ - s^2
 plot_spins(sys)
 
-path = q_space_path(cryst, [[0, 0, -1/2], [0, 0, 0], [0, 0, +1/2]], 400)
+path = q_space_grid(cryst, [0, 0, 1], range(-1/2, 1/2, 400))
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
 res = intensities_bands(swt, path)
 plot_intensities(res; ylims=(0, 5))

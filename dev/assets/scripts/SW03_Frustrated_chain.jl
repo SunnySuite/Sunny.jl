@@ -23,7 +23,6 @@ sys_enlarged = repeat_periodically_as_spiral(sys, (8, 1, 1); k, axis)
 plot_spins(sys_enlarged; ndims=2)
 
 swt = SpinWaveTheorySpiral(sys; measure=ssf_perp(sys), k, axis)
-qs = [[0,0,0], [1,0,0]]
-path = q_space_path(cryst, qs, 401)
+path = q_space_grid(cryst, [1, 0, 0], range(0, 1, 401))
 res = intensities_bands(swt, path)
 plot_intensities(res; units)

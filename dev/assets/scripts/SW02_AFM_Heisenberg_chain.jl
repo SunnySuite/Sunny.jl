@@ -15,8 +15,7 @@ minimize_energy!(sys)
 plot_spins(sys; ndims=2, ghost_radius=8)
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-qs = [[0,0,0], [1,0,0]]
-path = q_space_path(cryst, qs, 401)
+path = q_space_grid(cryst, [1, 0, 0], range(0, 1, 401))
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
@@ -24,4 +23,4 @@ isapprox(res.disp[1, :], res.disp[2, :])
 
 xs = [q[1] for q in path.qs]
 ys = res.data[1, :] + res.data[2, :]
-lines(xs, ys; axis=(; xlabel="[H, 0, 0]", ylabel="Intensity", yscale=log10))
+lines(xs, ys; axis=(; xlabel="ℎ in (ℎ, 0, 0) (r.l.u.)", ylabel="Intensity", yscale=log10))
