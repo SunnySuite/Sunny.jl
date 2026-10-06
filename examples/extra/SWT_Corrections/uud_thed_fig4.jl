@@ -27,14 +27,13 @@ sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-path = q_space_path(cryst, [[0, 0, 0], [1/3, 1/3, 0], [1/2, 1/2, 0]], 120)
-
 # The energy scale η is a regulator. Additional Gaussian broadening σ is applied
 # for consistency with the published figure. Color ranges tuned to match the
 # paper's arbitrary units.
 
 η = 0.05
 kernel = gaussian(; σ=0.1)
+path = q_space_path(cryst, [[0, 0, 0], [1/3, 1/3, 0], [1/2, 1/2, 0]], 120; labels=["Γ", "K", "M"])
 panels = [
     (; Δ=5, energies=range(8, 12, 321), colorrange=(0, 0.022)),
     (; Δ=2, energies=range(2, 6, 321), colorrange=(0, 0.14)),
@@ -57,9 +56,9 @@ fig
 
 # At Δ = 5, the ladder gives the four flat bound-state branches of Fig. 4(a),
 # below the continuum. At Δ = 2, the upper two branches enter the continuum and
-# broaden, as in Fig. 4(b). At Δ = 1, the UUD state is classically unstable,
-# but is stabilized by quantum fluctuations. The Hartree-Fock mean field of
+# broaden, as in Fig. 4(b). At Δ = 1, the UUD state is classically unstable, but
+# is stabilized by quantum fluctuations. The Hartree-Fock mean field of
 # `MagnonVacuum` captures this, gapping the soft mode. The lower branch then has
-# minimum 0.69 J at (1/3, 1/3, 0), compared with 0.75 J from THED. The weak
-# mode near 1.5 J that MPS finds is attributed to four-magnon states, which both
-# THED and the ladder omit.
+# minimum 0.69 J at the K point, compared with 0.75 J from THED. The weak mode
+# near 1.5 J that MPS finds is attributed to four-magnon states, which both THED
+# and the ladder omit.
