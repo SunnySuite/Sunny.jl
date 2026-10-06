@@ -206,7 +206,6 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
                             vacuum=MagnonVacuum(swt))
     dyson in (:nambu, :ladder, :particle, :on_shell) ||
         error("Unknown `dyson=:$dyson`; use :nambu, :ladder, :particle or :on_shell.")
-    ol = OneLoop(swt; η, tol, loop_grid, vacuum)
 
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
@@ -218,14 +217,20 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     issorted(energies) || error("energies must be sorted")
     qpts = convert(AbstractQPoints, qpts)
 
+    # Frequencies of the response. As a range, they let the Cauchy transforms of
+    # the bath be evaluated by FFT.
+    zs = energies .+ im*η
     if length(energies) > 1
         dω = (energies[end] - energies[begin]) / (length(energies) - 1)
+        dω > 0 && all(≈(dω), diff(energies)) || error("`energies` must be equally spaced.")
+        zs = range(energies[begin] + im*η; step=dω, length=length(energies))
         if dω > (η/2) * (1 + 1e-8)
             @warn """Requested `energies` are spaced by $(round(dω, sigdigits=2)) on \
                      average, which will not resolve features of width η = $η. A spacing \
                      of η/2 or less adds little cost."""
         end
     end
+    ol = OneLoop(swt; η, tol, loop_grid, vacuum, energies)
 
     chans = (; transverse = zeros(eltype(measure), length(energies), length(qpts.qs)),
                cross = zeros(eltype(measure), length(energies), length(qpts.qs)),
@@ -238,7 +243,8 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     bands = dyson != :on_shell ? nothing :
         (; disp = zeros(L, length(qpts.qs)), widths = zeros(L, length(qpts.qs)),
            data = zeros(eltype(measure), L, length(qpts.qs)))
-    breakdown = falses(length(qpts.qs))
+    # Not a `BitVector`, whose threaded writes would race within each 64-bit chunk
+    breakdown = fill(false, length(qpts.qs))
 
     # Nambu indices of the magnon legs, and the rows of K for the direct amplitudes
     p = 1:2L
@@ -253,11 +259,6 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         (; ε, w) = se
         view(disp, :, iq) .= view(ε, 1:L)
         E = Diagonal(abs.(ε))
-
-        # After `energies` comes a frequency just above ω = 0, for the
-        # stability check
-        nω = length(energies)
-        zs = [energies; 0] .+ im*η
         (; Σ, K, poles, stable) = dyson_model(se, dyson, zs)
 
         # Contracts an Nobs×Nobs χ through the measure, taking S = (χ' - χ)/2πi
@@ -289,9 +290,9 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         # for some mode at this 𝐪, not necessarily for the observed one; its
         # weight in S may be small. The other schemes have no anomalous
         # self-energy in their propagator, so their frequencies are always
-        # real.
+        # real. The check is made just above ω = 0.
         if dyson in (:nambu, :ladder)
-            M = E + Σ + K[p, p, nω+1]
+            M = E + Σ + dyson_model(se, dyson, [im*η]).K[p, p, 1]
             breakdown[iq] = !stable || any(z -> abs(imag(z)) > 1e-8 * opnorm(M), eigvals(Ĩ * (M + M') / 2))
         end
 
@@ -317,8 +318,9 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     end
 
     t0 = time()
-    foreach_maybe_threaded(calc_iq!, threaded, eachindex(qpts.qs);
-                           desc = verbose ? "  wavevectors     " : nothing)
+    desc = verbose ? "  wavevectors     " : nothing
+    foreach_chunked((_, iq) -> calc_iq!(iq), Returns(nothing), eachindex(qpts.qs);
+                    threaded, warn_blas=true, desc)
     elapsed = time() - t0
 
     if verbose
