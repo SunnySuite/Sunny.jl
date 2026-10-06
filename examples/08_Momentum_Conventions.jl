@@ -70,7 +70,7 @@ plot_spins(sys)
 # ``ϵ(𝐪) = 2 s [J ± D \sin(2πq_3)]`` for the polarization state ``𝐒 = ± s
 # ẑ``. There is a clear dependence on the sign of ``q_3``.
 
-path = q_space_path(cryst, [[0, 0, -1/2], [0, 0, 0], [0, 0, +1/2]], 400)
+path = q_space_grid(cryst, [0, 0, 1], range(-1/2, 1/2, 400))
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
 res = intensities_bands(swt, path)
 plot_intensities(res; ylims=(0, 5))

@@ -71,11 +71,10 @@ plot_spins(sys; ndims=2, ghost_radius=8)
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 
-# Define a path from ``[0,0,0]`` to ``[1,0,0]`` in reciprocal lattice units
-# (RLU) containing 400 sampled ``𝐪``-points.
+# Define a path along ``[H, 0, 0]``, with ``H ∈ [0, 1]`` in RLU, and 400 sampled
+# ``𝐪``-points.
 
-qs = [[0,0,0], [1,0,0]]
-path = q_space_path(cryst, qs, 400)
+path = q_space_grid(cryst, [1, 0, 0], range(0, 1, 400))
 
 # Calculate and plot the intensities along this path.
 

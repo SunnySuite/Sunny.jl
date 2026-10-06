@@ -39,8 +39,7 @@ plot_spins(sys)
 
 # Define a path through ``𝐪``-space.
 
-qs = [[0,0,0], [1,0,0]]
-path = q_space_path(cryst, qs, 400)
+path = q_space_grid(cryst, [1, 0, 0], range(0, 1, 400))
 
 # Plot different pair correlation intensities by varying the
 # [`FormFactor`](@ref) on different atom types. Indices 1 and 2 refer to atoms
