@@ -40,7 +40,7 @@ swtB = bfso_swt(0.266, 1.42) # Parameter set ℬ, fitted with 1/s corrections
 
 rotations = [([0, 0, 1], 0), ([0, 0, 1], π/2)]
 weights = [1, 1]
-path = q_space_path(cryst, [[H, 0, 1/2] for H in 0:3], 180; labels=string.(0:3))
+path = q_space_grid(cryst, [1, 0, 0], range(0, 3, 180); offset=[0, 0, 1/2])
 
 η = 0.1
 energies = 0:0.02:3.5
@@ -55,7 +55,7 @@ end
 
 colormap = cgrad([:white, RGBf(0.3, 0.4, 1), :darkblue, :black])
 fig = Figure(size=(700, 800))
-axis = (; xlabel="H on (H, 0, 1/2) (r.l.u.)", ylabel="Energy (meV)")
+axis = (; ylabel="Energy (meV)")
 plot_intensities!(fig[1, 1], res1; colormap, colorrange=(0, 3), title="GLSWT (set 𝒜)", axis)
 plot_intensities!(fig[2, 1], res2; colormap, colorrange=(0, 3), title="GLSWT + one-loop (set ℬ)", axis)
 fig
