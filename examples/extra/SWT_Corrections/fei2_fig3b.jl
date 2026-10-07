@@ -32,7 +32,7 @@ sys = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
 
 # The path ``(H, 1/2 - H/2, 0)`` for ``-2 ≤ H ≤ 0``.
 
-path = q_space_path(cryst, [[H, 1/2 - H/2, 0] for H in -2:0], 200; labels=string.(-2:0))
+path = q_space_grid(cryst, [1, -1/2, 0], range(-2, 0, 200); offset=[0, 1/2, 0])
 
 # For each field, minimize to the single-domain magnetic order and calculate
 # intensities to order 1/s. The broadening η = 0.1 is a Lorentzian half-width,
@@ -55,7 +55,7 @@ end
 parula = cgrad([RGBf(0.24, 0.15, 0.66), RGBf(0.28, 0.32, 0.96), RGBf(0.18, 0.53, 0.97), RGBf(0.07, 0.69, 0.84),
                 RGBf(0.22, 0.78, 0.59), RGBf(0.67, 0.78, 0.22), RGBf(1.0, 0.77, 0.22), RGBf(0.98, 0.98, 0.08)])
 fig = Figure(size=(700, 600))
-axis = (; aspect=1/2, xlabel="H on (H, 1/2 - H/2, 0) (r.l.u.)", ylabel="Energy (meV)")
+axis = (; aspect=1/2, ylabel="Energy (meV)")
 for (i, (B, r)) in enumerate(zip([3, 4], res))
     r.data ./= maximum(r.data)
     plot_intensities!(fig[1, i], r; colormap=parula, colorrange=(0, 1), title="μ₀H = $B T", axis)
