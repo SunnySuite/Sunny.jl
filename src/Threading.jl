@@ -9,10 +9,10 @@ Loads a BLAS backend that scales better under multi-threaded workloads.
 Specifically, this function replaces Julia's OpenBLAS default with either MKL or
 AppleAccelerate, depending on the platform.
 
-Changing the BLAS backend is especially recommended for spin-wave
-[`intensities`](@ref) calculations with `threaded=true` enabled. Although
-OpenBLAS is fast for serial workloads, it employs a global thread lock that can
-strongly bottleneck parallelized operations on small matrices.
+Changing the BLAS backend is especially recommended for [`SpinWaveTheory`](@ref)
+calculations whenever `threaded=true` is enabled. Although OpenBLAS is fast for
+serial workloads, it employs a global thread lock that can strongly bottleneck
+parallelized operations on small matrices.
 """
 function load_blas_for_threading()
     backend = threading_blas_backend()
@@ -43,8 +43,10 @@ end
 # balanced, while amortizing the cost of claiming a block. This scheme is
 # equivalent to OhMyThreads.jl's `GreedyScheduler(; chunking=true)` with buffers
 # held in a `TaskLocalValue`, and performed similarly on benchmarks. Set
-# `warn_blas` if `f` calls BLAS, to flag the poor thread scaling of OpenBLAS.
-function foreach_chunked(f, newbuf, indices; threaded, warn_blas=false)
+# `warn_blas` if `f` calls BLAS with small matrices, to flag the poor thread
+# scaling of OpenBLAS. A progress bar labeled `desc` advances per block, unless
+# `desc` is nothing.
+function foreach_chunked(f, newbuf, indices; threaded, warn_blas=false, desc=nothing)
     if threaded && Threads.nthreads() == 1
         @warn "Option `threaded=true` has no effect here. Restart with `julia --threads=auto`." maxlog=1
     end
@@ -56,27 +58,37 @@ function foreach_chunked(f, newbuf, indices; threaded, warn_blas=false)
             @warn "OpenBLAS scales poorly with `threaded=true` (consider loading $backend)" maxlog=1
         end
     end
+
+    n = length(indices)
+    ntasks = threaded ? clamp(n, 1, Threads.nthreads()) : 1
+    # A single task has no contention to amortize, and advances the progress
+    # bar per index
+    blocksize = threaded ? max(1, n ÷ 16ntasks) : 1
+    next = Threads.Atomic{Int}(1)
+    # To animate, the bar must rewrite the line with `\r`, which requires a TTY
+    enabled = !isnothing(desc) && stdout isa Base.TTY
+    meter = ProgressMeter.Progress(n; desc=something(desc, ""), output=stdout, enabled)
+    function work()
+        buf = newbuf()
+        while (start = Threads.atomic_add!(next, blocksize)) <= n
+            stop = min(start + blocksize - 1, n)
+            for j in start:stop
+                f(buf, indices[j])
+            end
+            ProgressMeter.next!(meter; step=stop-start+1)
+        end
+    end
+
     if threaded
-        n = length(indices)
-        ntasks = min(n, Threads.nthreads())
-        blocksize = max(1, n ÷ 16ntasks)
-        next = Threads.Atomic{Int}(1)
         try
             @sync for _ in 1:ntasks
-                Threads.@spawn let buf = newbuf()
-                    while (start = Threads.atomic_add!(next, blocksize)) <= n
-                        for j in start:min(start + blocksize - 1, n)
-                            f(buf, indices[j])
-                        end
-                    end
-                end
+                Threads.@spawn work()
             end
         catch err
             # Unwrap task failure to preserve its type, e.g., `InstabilityError`
             throw(err isa CompositeException ? first(err).task.exception : err)
         end
     else
-        buf = newbuf()
-        foreach(i -> f(buf, i), indices)
+        work()
     end
 end
