@@ -189,17 +189,27 @@ end
 #
 #     A_c = e^{2πi 𝐩⋅Δ} T(𝐩)[α, a] T(𝐤-𝐩)[β, b],
 #
-# and R takes them to the eigenchannels of the pair interaction. The decay
+# and R takes them to the eigenchannels of the pair interaction. Given a `ward`
+# rotation, the rows α, |x|α, β, |x|β of its gauge term follow. The decay
 # channel has x > 0 and a plus sign; the source channel x < 0 and a minus sign.
 # Their Cauchy transforms, summed, give the cubic self-energy in the `[1:2L,
 # 1:2L]` block, in the orientation that contracts as w' G w. Pairs are binned in
 # batches of `batch`, so that the projection R and the accumulation of each bin
 # are matrix products.
-function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, words2, chans=nothing, batch=4096)
+function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, words2, chans=nothing,
+                       ward=nothing, batch=4096)
     L = nbands(vac.swt)
     (labels, R) = isnothing(chans) ? (Tuple{Int, Int, Vec3}[], zeros(ComplexF64, 0, 0)) : (chans.labels, chans.R)
     n0 = 2L + length(words2)
-    dim = n0 + size(R, 1)
+    nw = isnothing(ward) ? 0 : length(ward.pairs)
+    nc = n0 + size(R, 1)
+    dim = nc + 4nw
+    # Amplitudes of the double rotations, shared by the pairs of bands at each
+    # 𝐩, and the wavevector they were last computed at
+    Zw = zeros(ComplexF64, 2L, 2L, nw)
+    pZ = Ref(Vec3(NaN, NaN, NaN))
+    scratch = (; U=zeros(ComplexF64, 2L, 2L, 2L), V=zeros(ComplexF64, 2L, 2L, 2L),
+                 cT1=zeros(ComplexF64, 2L, 2L), cT2=zeros(ComplexF64, 2L, 2L))
     # The phases e^{2πi 𝐩⋅Δ} of A, computed once for each of the few distinct Δ
     Δs = unique(last.(labels))
     iΔ = [findfirst(==(Δ), Δs) for (_, _, Δ) in labels]
@@ -213,7 +223,7 @@ function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, 
     end
     function flush!((; ρ, n, xs, cs, Y, A))
         r = 1:n[]
-        mul!(view(Y, n0+1:dim, r), R, view(A, :, r))
+        mul!(view(Y, n0+1:nc, r), R, view(A, :, r))
         accum_binned!(ρ, view(xs, r), view(cs, r), view(Y, :, r); Z)
         n[] = 0
     end
@@ -231,6 +241,23 @@ function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, 
         map!(Δ -> cis(2π * dot(p, Δ)), phases, Δs)
         for (c, (α, β, _)) in enumerate(labels)
             A[c, i] = phases[iΔ[c]] * T1[α, a] * T2[β, b]
+        end
+        if nw > 0
+            if p != pZ[]
+                double_rotation_amplitudes!(Zw, ward, k, p, T1, T2, scratch)
+                pZ[] = p
+            end
+            (ā, b̄) = (nambu_conj(a, L), nambu_conj(b, L))
+            for n in 1:nw
+                # The words of θ_aθ_b in both orders, which `pair_amplitude`
+                # sums with the 1/√2 of an observable
+                yα = pair_amplitude(ward.words[n], T1, T2, a, b) / √2
+                yβ = conj(ward.mult[n] * Zw[ā, b̄, n]) / abs(x)
+                Y[nc+n, i] = yα
+                Y[nc+nw+n, i] = abs(x) * yα
+                Y[nc+2nw+n, i] = yβ
+                Y[nc+3nw+n, i] = abs(x) * yβ
+            end
         end
         i == batch && flush!(chan)
     end
@@ -303,6 +330,126 @@ function pair_channels(terms4::Vector{BosonMonomial{4}}, q_reshaped, L)
     return (; labels, R, σ=sign.(λ[keep]))
 end
 
+# ---- Ward rotation of the pair bath ----
+#
+# Near a Goldstone mode the off-shell quartic vertex lacks the Adler zero of the
+# on-shell amplitude. Between a soft pair s and any pair h, the Ward identities
+# of a broken continuous symmetry give it the form
+#
+#     V = -[X, W] + V_reg,    W = Σ_ab (|α_ab⟩⟨β_ab| - |β_ab⟩⟨α_ab|),
+#
+# with X the free pair energy and V_reg regular. Here α_ab = |θ_a θ_b⟩ is the
+# pair created by the angles θ conjugate to the broken generators G_a, and
+# β_ab = X⁻¹ |Ŝ_ab⟩, where Ŝ_ab = -½{D_a, D_b} H₄ with D_a = i[G_a, ·] is the
+# double rotation of H₄. Soft-pair amplitudes of α grow as 1/p, and X + V is
+# the unitary e^{W}(X + V_reg)e^{-W} only to first order in W. The second-order
+# remainder is what binds soft pairs below ω = 0 as the loop grid is refined,
+# breaking the bare ladder of a gapless magnet. Instead, the bath here is X +
+# V_reg = X + V + [X, W], and the amplitudes that couple to it, of the legs and
+# the observables, are rotated by e^{-W}. This agrees with the bare ladder to
+# first order in W, i.e. at the order kept, but is a unitary image of a bath
+# that has no gauge term, and stays stable on any grid.
+#
+# W is of finite rank, so [X, W] is four channel rows per pair (a, b): α, Xα,
+# β and Xβ, with a fixed metric, appended to those of the pair interaction.
+# The rotation e^{-W} acts only on the span of α and β, and depends only on
+# their overlaps with each other and with the observables, which are the
+# zeroth moment of the binned measure. Pairs at total momentum 𝐪 see the local
+# rotations, the generators θ_a(𝐫) and G_a(𝐫) carrying the phase e^{i𝐪⋅𝐫}.
+#
+# This applies to a collinear structure in dipole mode, where the cubic vertex
+# vanishes (in :SUN mode it does not, and the bare ladder is used), and to the
+# generators of exact symmetries that the structure breaks with a linear
+# dispersion (type A). A rotation that is broken but is not a symmetry has no
+# Ward identity, and a ferromagnetic (type B) generator has no Adler zero to
+# protect, its vacuum being exact.
+
+# The rotation for the broken symmetries of `swt`, or `nothing` if there are
+# none. A generator G = Σᵢ 𝐧⋅𝐒ᵢ is a symmetry of H₂ when its displacement [G,
+# x] is a zero mode of the dynamical matrix at 𝐪 = 0, and broken when that
+# displacement is nonzero. Its linear part is the one-boson operator ℓ_a, the
+# conjugate quadrature of which, normalized by the symplectic Gram matrix Ω,
+# gives θ_a with [θ_a, G_b] = iδ_ab per cell.
+function ward_rotation(swt::SpinWaveTheory, terms4)
+    swt.sys.mode in (:dipole, :dipole_uncorrected) || return nothing
+    L = nbands(swt)
+    ℓs = map(1:3) do α
+        ℓ = zeros(ComplexF64, 2L)
+        for i in 1:nsites(swt.sys), (; c, as) in spin_monomials(swt, α, i, Val{1}())
+            ℓ[as[1]] += c
+        end
+        ℓ
+    end
+    V = stack(ℓ -> commutator_coefficient.(Ref(ℓ), 1:2L), ℓs)
+    H0 = zeros(ComplexF64, 2L, 2L)
+    dynamical_matrix!(H0, swt, zero(Vec3))
+    # Rotation axes 𝐧 are real, so the equations are split into real and
+    # imaginary parts
+    realify(M) = [real(M); imag(M)]
+    tol = 1e-6 * opnorm(V)
+    sym = nullspace(realify(H0 * V); atol=tol * opnorm(H0))
+    F = svd(realify(V * sym))
+    ns = sym * F.V[:, F.S .> tol]
+    isempty(ns) && return nothing
+    ℓs = [sum(n[α] * ℓs[α] for α in 1:3) for n in eachcol(ns)]
+    bracket(ℓ, ℓ′) = sum(a -> ℓ′[a] * commutator_coefficient(ℓ, a), 1:2L)
+    # A ferromagnetic component, [G_a, G_b] ≠ 0, has no partner angle
+    all(abs(bracket(ℓ, ℓ′)) < 1e-6 * norm(ℓ) * norm(ℓ′) for ℓ in ℓs, ℓ′ in ℓs) || return nothing
+
+    Λs = [ℓ .* [fill(im, L); fill(-im, L)] for ℓ in ℓs]
+    Ω = [real(-im * bracket(Λ, ℓ)) for Λ in Λs, ℓ in ℓs]
+    θs = [sum(inv(Ω)[a, b] * Λs[b] for b in eachindex(Λs)) for a in eachindex(Λs)]
+    o = zero(Vec3)
+    pairs = [(a, b) for a in eachindex(θs) for b in a:lastindex(θs)]
+    words = [[BosonMonomial(θs[a][a1] * θs[b][a2], (a1, a2), (o, o)) for a1 in 1:2L for a2 in 1:2L]
+             for (a, b) in pairs]
+    comms = [commutator(ℓ, terms4) for ℓ in ℓs]
+    # The displacement of each generator, as the first column of a matrix that
+    # `vertex!` contracts against the slot it removes
+    shifts = [[V * n zeros(ComplexF64, 2L, 2L-1)] for n in eachcol(ns)]
+    return (; pairs, mult=[a == b ? 1 : 2 for (a, b) in pairs], words, comms, shifts)
+end
+
+# Amplitudes ⟨s|Ŝ_ab|0⟩ of the double rotations at total momentum 𝐤, for every
+# pair of quasi-particles (𝐩 a, 𝐤-𝐩 b) at once: entry [ā, b̄, n] for pair n of
+# the generators. The last slot of [G_b, H₄] is contracted against the
+# displacement of G_a(𝐤), and the three slots it can take give the factor 3.
+function double_rotation_amplitudes!(Z, ward, k, p, T1, T2, scratch)
+    L = size(T1, 1) ÷ 2
+    U = scratch.U
+    for (cT, T) in ((scratch.cT1, T1), (scratch.cT2, T2)), b in 1:2L, a in 1:2L
+        cT[a, b] = conj(T[nambu_conj(a, L), nambu_conj(b, L)])
+    end
+    qs = (-p, p - k, k)
+    for (n, (a, b)) in enumerate(ward.pairs)
+        vertex!(U, ward.comms[b], qs, (scratch.cT1, scratch.cT2, ward.shifts[a]), scratch.V)
+        @views @. Z[:, :, n] = -3 * U[:, :, 1] / 2
+        vertex!(U, ward.comms[a], qs, (scratch.cT1, scratch.cT2, ward.shifts[b]), scratch.V)
+        @views @. Z[:, :, n] -= 3 * U[:, :, 1] / 2
+    end
+end
+
+# Metric of the four rows α, Xα, β, Xβ per pair of generators, for which the
+# rows contract to Q† M Q = [X, W]
+function ward_metric(n)
+    (O, I1) = (zeros(n, n), Matrix(1.0I, n, n))
+    return [O O O -I1; O O I1 O; O I1 O O; -I1 O O O]
+end
+
+# Rotation e^{-W} of the amplitudes y that couple to the bath, as the matrix E
+# with y → y + E y_b, where y_b are the rows of α and β. On the kets B of α
+# and β, W = B J B† with J the symplectic unit, so that e^{-W} B = B e^{-J G}
+# with G = B†B, and a ket O gains B (e^{-J G} - 1) G⁻¹ B†O. The kets are the
+# transposes of the rows, so the unsigned zeroth moment M = Σ |c| y y† of a
+# channel holds every overlap, G = conj(M_bb) and B†O = conj(M_by).
+function ward_rotation_rows(M, y, b)
+    n = length(b) ÷ 2
+    J = [zeros(n, n) I; -I zeros(n, n)]
+    G = conj(M[b, b])
+    F = (exp(-J * G) - I) * pinv(G; rtol=1e-12)
+    return M[y, b] * transpose(F)
+end
+
 """
     OneLoop(swt::SpinWaveTheory; energies=nothing, η, vacuum=MagnonVacuum(swt),
             grid=auto_bzgrid(; η, vacuum, tol=0.01))
@@ -331,6 +478,8 @@ struct OneLoop
     terms4    :: Vector{BosonMonomial{4}}
     terms2    :: Vector{BosonMonomial{2}}
     δc        :: Matrix{ComplexF64}
+    # Ward rotation of the pair bath of `dyson=:ladder`, see `ward_rotation`
+    ward      :: Union{Nothing, NamedTuple}
 end
 
 function OneLoop(swt::SpinWaveTheory; energies=nothing, η, vacuum=MagnonVacuum(swt),
@@ -357,7 +506,8 @@ function OneLoop(swt::SpinWaveTheory; energies=nothing, η, vacuum=MagnonVacuum(
         dω = (last(energies) - first(energies)) / (length(energies) - 1)
         bin_width = dω / cld(dω, bin_width)
     end
-    return OneLoop(vacuum, η, loop_grid, bin_width, terms3, terms4, terms2, δc)
+    ward = isempty(terms3) ? ward_rotation(swt, terms4) : nothing
+    return OneLoop(vacuum, η, loop_grid, bin_width, terms3, terms4, terms2, δc, ward)
 end
 
 """
@@ -388,9 +538,11 @@ struct SelfEnergy
     w      :: Matrix{ComplexF64}
     decay  :: PairMeasure
     source :: PairMeasure
-    # Signature of the channels of the pair interaction, which occupy the
-    # trailing rows of the measures; empty without the ladder
-    σ      :: Vector{Float64}
+    # Metric of the rows of the pair interaction, which trail those of the legs
+    # and observables in the measures: the signature of its channels, then the
+    # gauge term of `nward` pairs of generators; empty without the ladder
+    metric :: Matrix{Float64}
+    nward  :: Int
 end
 
 function SelfEnergy(ol::OneLoop, q; ladder=false)
@@ -414,8 +566,11 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     grid = loop_wavevectors(loop_grid, q_reshaped)
     words2 = observable_pair_monomials(swt, q_reshaped, q_global)
     chans = ladder ? pair_channels(ol.terms4, q_reshaped, L) : nothing
-    (; decay, source) = pair_measures(vacuum, ol.terms3, q_reshaped, grid; bin_width, words2, chans)
-    return SelfEnergy(ol.η, ε, T, Σstat, w, decay, source, ladder ? chans.σ : Float64[])
+    ward = ladder ? ol.ward : nothing
+    (; decay, source) = pair_measures(vacuum, ol.terms3, q_reshaped, grid; bin_width, words2, chans, ward)
+    nward = isnothing(ward) ? 0 : length(ward.pairs)
+    metric = ladder ? cat(Diagonal(chans.σ), ward_metric(nward); dims=(1, 2)) : zeros(0, 0)
+    return SelfEnergy(ol.η, ε, T, Σstat, w, decay, source, metric, nward)
 end
 
 function (Σ::SelfEnergy)(z::Number)
@@ -425,38 +580,50 @@ end
 
 # Transform K of the interacting bath at each of the frequencies `zs`, over the
 # rows of the legs and the direct amplitudes, by the Woodbury identity in each
-# channel. Also returns `δK0`, the change the interaction makes to the magnon
-# block of K at ω = 0, and whether each channel is `stable`, i.e. keeps every
-# pair level on its own side of ω = 0. At ω = 0 the transform Π is Hermitian,
-# and the inertia of the bath, by Haynsworth's formula, is that of the free
-# bath when σ - Π_aa(0) has as many positive eigenvalues as σ.
+# channel. With a Ward rotation, those rows are first rotated by e^{-W}, a
+# linear map that commutes with the Cauchy transform. Also returns `δK0`, the
+# change the interaction makes to the magnon block of K at ω = 0, and whether
+# each channel is `stable`, i.e. keeps every pair level on its own side of ω =
+# 0. At ω = 0 the transform Π is Hermitian, and the inertia of the bath, by
+# Haynsworth's formula, is that of the free bath when g - Π_aa(0) has as many
+# positive eigenvalues as the metric g.
 function ladder_transform(se::SelfEnergy, zs)
-    (; decay, source, σ) = se
+    (; decay, source, metric, nward) = se
     L = length(se.ε) ÷ 2
-    nc = length(σ)
-    y = 1:decay.dim-nc
-    c = decay.dim-nc+1:decay.dim
+    nc = size(metric, 1)
+    dim = decay.dim
+    y = 1:dim-nc
+    c = dim-nc+1:dim
+    # Rows α and β of the gauge term, the first and third of its four blocks
+    b = [dim-4nward+1:dim-3nward; dim-2nward+1:dim-nward]
     K = zeros(ComplexF64, length(y), length(y), length(zs))
     δK0 = zeros(ComplexF64, 2L, 2L)
     stable = true
-    # Workspaces of the solve (σ - Π_aa) X = Π_ay at each frequency
+    npos = count(>(0), eigvals(Symmetric(metric)))
+    # Workspaces of the solve (g - Π_aa) X = Π_ay at each frequency
     (M, X) = (zeros(ComplexF64, nc, nc), zeros(ComplexF64, nc, length(y)))
-    for ρ in (decay, source)
-        Π = cauchy_transform((ρ,), zs)
+    for (sgn, ρ) in ((1, decay), (-1, source))
+        Π = cauchy_transform((ρ,), [zs; 0.0im])
+        if nward > 0
+            R = Matrix{ComplexF64}(I, dim, dim)
+            R[y, b] .= ward_rotation_rows(sgn * zeroth_moment(ρ), y, b)
+            for iz in axes(Π, 3)
+                Π[:, :, iz] = R * Π[:, :, iz] * R'
+            end
+        end
         for iz in eachindex(zs)
             P = view(Π, :, :, iz)
-            @views @. M = -P[c, c]
-            M[diagind(M)] .+= σ
+            @views @. M = metric - P[c, c]
             X .= view(P, c, y)
             ldiv!(lu!(M), X)
             @views K[:, :, iz] .+= P[y, y]
             mul!(view(K, :, :, iz), view(P, y, c), X, true, true)
         end
-        P = cauchy_transform((ρ,), [0.0im])[:, :, 1]
-        D = Hermitian(Diagonal(σ) - P[c, c])
+        P = Π[:, :, end]
+        D = Hermitian(metric - P[c, c])
         all(isfinite, D) || error("Two-magnon continuum reaches ω = 0; the ladder requires a gap.")
         δK0 .+= P[1:2L, c] * (D \ P[c, 1:2L])
-        stable &= count(>(0), eigvals(D)) == count(>(0), σ)
+        stable &= count(>(0), eigvals(D)) == npos
     end
     return (; K, δK0=hermitianpart(δK0), stable)
 end

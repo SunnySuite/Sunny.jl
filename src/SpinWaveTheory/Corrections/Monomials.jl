@@ -50,6 +50,23 @@ const SLOT_PERMUTATIONS = ntuple(slot_permutations, 4)
 # Nambu index of the adjoint operator, exchanging b_i and b†_i.
 nambu_conj(a, L) = mod1(a + L, 2L)
 
+# The c-number [ℓ, O_a] for a one-boson operator ℓ = Σ_{a′} ℓ[a′] Σ_𝐫 O_{a′}(𝐫),
+# given by its Nambu coefficients. Only [b, b†] = 1 on one site survives.
+commutator_coefficient(ℓ, a) = (L = length(ℓ) ÷ 2; a > L ? ℓ[a - L] : -ℓ[a + L])
+
+# The commutator [ℓ, P] of such a one-boson operator with the sum of `terms`.
+# Since ℓ is summed over all cells, every slot finds its partner, and its
+# contraction leaves the other slots standing in their order.
+function commutator(ℓ::AbstractVector, terms::Vector{BosonMonomial{K}}) where K
+    ret = BosonMonomial{K-1}[]
+    for (; c, as, ns) in terms, s in 1:K
+        κ = commutator_coefficient(ℓ, as[s])
+        rest = ntuple(t -> t < s ? t : t + 1, Val{K-1}())
+        iszero(κ) || push!(ret, BosonMonomial(c * κ, map(t -> as[t], rest), map(t -> ns[t], rest)))
+    end
+    return merge_monomials(ret)
+end
+
 # Accumulates quadratic monomials into the Nambu matrix H, in the convention
 # H₂ = (1/2) x†_𝐪 H_𝐪 x_𝐪 + const of `swt_hamiltonian_dipole!`. Fourier
 # transforming a monomial as in `vertex!` gives
