@@ -42,8 +42,7 @@ energy_per_site(sys2)
 measure = ssf_perp(sys; apply_g=false)
 swt = SpinWaveTheorySpiral(sys; measure, k, axis)
 
-qs = [[0,0,0], [1,0,0]]
-path = q_space_path(cryst, qs, 400)
+path = q_space_grid(cryst, [1, 0, 0], range(0, 1, 400))
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 

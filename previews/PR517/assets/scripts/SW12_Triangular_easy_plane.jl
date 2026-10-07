@@ -16,8 +16,7 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys; ndims=2)
 
-qs = [[0, 0, 0], [1, 1, 0]]
-path = q_space_path(cryst, qs, 400)
+path = q_space_grid(cryst, [1, 1, 0], range(0, 1, 400))
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities_bands(swt, path)
 plot_intensities(res)
