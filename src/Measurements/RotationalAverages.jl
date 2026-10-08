@@ -210,14 +210,17 @@ function domain_average(f, cryst, qpts; rotations, weights)
         # For bands data, domain average is a concatenation of weighted data.
         disps = [res.disp]
         datas = [(weights[1] / wsum) .* res.data]
+        widths = [res.widths]
         for (R, w) in zip(Rs[2:end], weights[2:end])
             qpts.qs .= Ref(R) .* qs0
             res = f(qpts)
             push!(disps, res.disp)
             push!(datas, (w / wsum) .* res.data)
+            push!(widths, res.widths)
         end
         qpts.qs .= qs0
-        return BandIntensities(cryst, res.qpts, reduce(vcat, disps), reduce(vcat, datas))
+        widths = any(isnothing, widths) ? nothing : reduce(vcat, widths)
+        return BandIntensities(cryst, res.qpts, reduce(vcat, disps), reduce(vcat, datas), widths)
     else
         # For continuum intensities, domain averaging can happen in-place.
         res.data .*= weights[1] / wsum
