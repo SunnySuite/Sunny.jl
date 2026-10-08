@@ -4,57 +4,63 @@
 
 # ---- Brillouin-zone quadrature ----
 
-# Rule for averaging a function of the wavevector over the magnetic Brillouin
-# zone, 𝐪 ∈ [0, 1)³ in reshaped RLU: either adaptive cubature, controlled by a
-# relative accuracy `tol` and/or a budget of `maxevals` integrand evaluations,
-# or a plain average over a uniform `grid` offset by half a step. The grid
-# offset by half a step is closed under 𝐪 ↦ -𝐪, which keeps every average of a
-# Hermitian quantity Hermitian.
-struct BZQuadrature
-    tol      :: Union{Float64, Nothing}
-    maxevals :: Union{Int, Nothing}
-    grid     :: Union{NTuple{3, Int}, Nothing}
+"""
+    BZGrid(n1, n2, n3)
+
+A uniform grid of `n1×n2×n3` wavevectors in the magnetic Brillouin zone, offset
+by half a step from the zone centre, for use in place of a numeric `tol` by the
+1/s corrections, e.g. [`corrected_intensities`](@ref).
+
+Every 1/s correction is a momentum integral, and `tol` selects how it is done.
+A number is a relative accuracy target: static averages, e.g. mean fields and
+energies, use adaptive cubature, and the frequency-dependent loop integrals use
+a uniform grid that is fine enough to resolve the regulator `η`. A `BZGrid`
+instead fixes every integral, static and loop alike, to an average over these
+wavevectors. A shared grid makes identities between static and loop terms exact
+grid by grid, e.g. the Ward identity that keeps a Goldstone mode gapless, and
+it gives results that are smooth in the model parameters, as fitting requires.
+"""
+struct BZGrid
+    dims :: NTuple{3, Int}
 end
 
-function BZQuadrature(; tol=nothing, maxevals=nothing, grid=nothing)
-    isnothing(tol) && isnothing(maxevals) && isnothing(grid) &&
-        error("Must specify `tol` or `maxevals` to control momentum-space integration.")
-    return BZQuadrature(tol, maxevals, isnothing(grid) ? nothing : NTuple{3, Int}(grid))
-end
+BZGrid(n1, n2, n3) = BZGrid((n1, n2, n3))
 
 # Scale of the error that the quadrature leaves in an identity that holds only
 # for exact integrals, against which such identities are asserted.
-quadrature_noise(quad::BZQuadrature) = max(@something(quad.tol, 1e-3), 1e-8)
+quadrature_noise(tol::Real) = max(tol, 1e-8)
+quadrature_noise(::BZGrid) = 1e-3
 
-# Brillouin-zone average of `f(q_reshaped)`, which may be array valued.
-#
-# HCubature stops once `err ≤ max(atol, rtol * norm(val))`, so a `tol` of zero
-# directs it to converge as far as `maxevals` allows. Setting `atol` equal to
-# `tol` measures the accuracy against max(norm(val), 1), so that averages
-# vanishing by symmetry converge at once instead of exhausting the budget. The
-# averages taken here, correlations and energies per site, are of order one.
-function bz_average(f, quad::BZQuadrature)
-    if !isnothing(quad.grid)
-        ps = [Vec3((Tuple(c) .- 1/2) ./ quad.grid) for c in CartesianIndices(quad.grid)]
-        return sum(f, ps) / length(ps)
+# Wavevectors of a uniform grid, offset by half a step to keep off the zone
+# centre, in reshaped RLU. The grid is closed under 𝐪 ↦ -𝐪, which keeps every
+# average of a Hermitian quantity Hermitian.
+grid_points(grid::BZGrid) = [Vec3((Tuple(c) .- 1/2) ./ grid.dims) for c in CartesianIndices(grid.dims)]
+
+# Average of `f(q_reshaped)`, which may be array valued, over the magnetic
+# Brillouin zone 𝐪 ∈ [0, 1)³ in reshaped RLU.
+function bz_average(f, grid::BZGrid)
+    ps = grid_points(grid)
+    return sum(f, ps) / length(ps)
+end
+
+# HCubature stops once `err ≤ max(atol, rtol * norm(val))`. Setting `atol`
+# equal to `tol` measures the accuracy against max(norm(val), 1), so that
+# averages vanishing by symmetry converge at once. The averages taken here,
+# correlations and energies per site, are of order one.
+bz_average(f, tol::Real) = first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=tol))
+
+# The `tol` with which `vac` is to be used: its own, if it was solved on one,
+# otherwise `tol`, falling back to `default`
+function resolve_tol(swt, vac, tol, default=nothing)
+    vac.swt === swt || error("Vacuum must be built on the same `SpinWaveTheory`")
+    if !isnothing(vac.tol)
+        isnothing(tol) || tol == vac.tol ||
+            error("Vacuum was solved with `tol = $(vac.tol)`, which `tol = $tol` would contradict")
+        return vac.tol
     end
-
-    (; tol, maxevals) = quad
-    (val, err) = hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=@something(tol, 0),
-                           atol=@something(tol, 0), maxevals=@something(maxevals, typemax(Int)))
-
-    # Adaptive integration stops either on the `tol` target or on the evaluation
-    # budget, and the caller cannot tell which without the error estimate. A
-    # near-singular integrand exhausts the budget instead of converging: the
-    # correlations diverge at the Goldstone wavevector of an ordered structure,
-    # integrably but with slow subdivision.
-    if !isnothing(tol) && err > tol * max(norm(val), 1)
-        @warn """Momentum integrals reached relative accuracy \
-                 $(round(err / max(norm(val), 1), sigdigits=2)) within the budget of $maxevals \
-                 evaluations, short of the target `tol = $tol`. Raise `maxevals` \
-                 or loosen the tolerance.""" maxlog=1
-    end
-    return val
+    tol = @something tol default error("Must specify `tol` to control momentum-space integration; see `BZGrid`.")
+    tol isa Union{Real, BZGrid} || error("`tol` must be a number or a `BZGrid`")
+    return tol
 end
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
@@ -137,6 +143,11 @@ function auto_loop_grid(vac, η, tol)
     end
 end
 
+# Dimensions of the loop grid that `tol` selects: those of a `BZGrid`, or for a
+# relative accuracy, those that resolve the regulator `η`
+loop_dims(vac, η, tol::Real) = auto_loop_grid(vac, η, tol)
+loop_dims(vac, η, grid::BZGrid) = grid.dims
+
 # Matrix-valued measure over a bath energy x of either sign, binned as described
 # above: bin j is centered at jΔ. Each channel gets its own measure. Bins are
 # Hermitian, so each stores only its upper triangle, packed column by column
@@ -193,7 +204,7 @@ function cauchy_transform(ρs, zs)
     for ρ in ρs
         isempty(ρ.bins) && continue
         y = if use_fft(ρ, zs)
-            packed_transform_fft(ρ, zs, round(Int, real(step(zs)) / ρ.Δ))
+            packed_transform_fft(ρ, zs, round(Int, real(ComplexF64(step(zs))) / ρ.Δ))
         else
             packed_transform(ρ, zs)
         end
@@ -212,9 +223,12 @@ end
 # Whether the FFT pays for itself. The explicit sum costs nbins × nz per entry,
 # the FFT (m + 2) N log N, at a similar cost per operation (measured on Apple M5).
 function use_fft(ρ::PairMeasure, zs)
-    zs isa AbstractRange && length(zs) > 1 && iszero(imag(step(zs))) || return false
-    m = round(Int, real(step(zs)) / ρ.Δ)
-    m > 0 && m * ρ.Δ ≈ real(step(zs)) || return false
+    zs isa AbstractRange && length(zs) > 1 || return false
+    # A range of complex numbers may store its step in extended precision
+    dz = ComplexF64(step(zs))
+    iszero(imag(dz)) || return false
+    m = round(Int, real(dz) / ρ.Δ)
+    m > 0 && m * ρ.Δ ≈ real(dz) || return false
     (j0, j1) = extrema(keys(ρ.bins))
     N = length(zs) + cld(j1 - j0 + 1, m)
     return length(ρ.bins) * length(zs) > (m + 2) * N * log2(N)
