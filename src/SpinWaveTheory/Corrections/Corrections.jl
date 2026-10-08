@@ -79,19 +79,20 @@
 # The test suite certifies every term by comparing to exact diagonalization of a
 # cluster with anisotropic interactions and readouts.
 #
-# Entry points. Every function takes `swt`, a `tol` that is either a relative
-# accuracy or a `BZGrid`, and a `vacuum`, harmonic by default. A vacuum that
-# `self_consistent_vacuum` solves records its `tol`, which every function then
-# shares.
+# Entry points. Every function takes `swt` and a `vacuum`, harmonic by default.
+# Loop integrals take a `BZGrid` or auto-select one according to `η`. Static
+# averages accept either a `BZGrid` or parameters `BZAdaptive` for adaptive
+# cubature. A vacuum produced by `self_consistent_vacuum` records its grid,
+# which must be consistent with subsequent calls.
 #
-#   Vacuum       MagnonVacuum, self_consistent_vacuum
-#   Spectra      corrected_intensities, corrected_intensities_bands
-#   Statics      corrected_energy_per_site, gaussian_energy_per_site,
-#                boson_density, corrected_magnetic_moments
-#   Pieces       hartree_fock_correction, tadpole_correction,
-#                observable_corrections, anisotropy_correction,
-#                static_self_energy, cubic_self_energy, corrected_dispersion
-#   Internals    OneLoop, SelfEnergy, corrected_channels
+#     Vacuum       MagnonVacuum, self_consistent_vacuum
+#     Spectra      corrected_intensities, corrected_intensities_bands
+#     Statics      corrected_energy_per_site, gaussian_energy_per_site,
+#                  boson_density, corrected_magnetic_moments
+#     Pieces       hartree_fock_correction, tadpole_correction,
+#                  observable_corrections, anisotropy_correction,
+#                  static_self_energy, cubic_self_energy, corrected_dispersion
+#     Internals    OneLoop, SelfEnergy, corrected_channels
 
 # Why the 1/s corrections of this directory are unavailable for `swt`, or `nothing`
 # if they are available. Returned rather than thrown so that a caller offering a
