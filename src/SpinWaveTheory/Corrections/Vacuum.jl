@@ -22,27 +22,31 @@
 # ---- The vacuum ----
 
 """
-    MagnonVacuum(swt::SpinWaveTheory[, correction])
+    MagnonVacuum(swt::SpinWaveTheory)
+    MagnonVacuum(swt::SpinWaveTheory, correction)
 
 The Gaussian state about which the 1/s corrections expand the bosons: the vacuum
 of the LSWT quadratic Hamiltonian plus `correction`, a list of quadratic boson
 monomials such as the mean-field corrections return. Its quasi-particles are the
 internal lines of every loop, and the mean fields are contractions in it.
-Without a correction this is the ``1/s`` expansion proper.
+Without a correction this is the ``1/s`` expansion proper. For the
+self-consistent correction, see [`self_consistent_vacuum`](@ref).
 
 A correction resums some class of higher-order terms. Since the full
 Hamiltonian does not depend on this choice, the correction is subtracted again
 as a counterterm in the static self-energy, so the bare propagator of the Dyson
 equation remains that of LSWT and results differ from the ``1/s`` expansion only
-at the order neglected. A vacuum that reproduces its own mean field is
-self-consistent Hartree-Fock, which is uncontrolled and may gap a Goldstone
-mode.
+at the order neglected.
 """
 struct MagnonVacuum
     swt        :: SpinWaveTheory
     correction :: Vector{BosonMonomial{2}}
+    # The quadrature on which a self-consistent correction was solved, and
+    # which every use of the vacuum then shares; `nothing` otherwise
+    tol        :: Union{Nothing, Float64, BZGrid}
 end
 
+MagnonVacuum(swt::SpinWaveTheory, correction) = MagnonVacuum(swt, correction, nothing)
 MagnonVacuum(swt::SpinWaveTheory) = MagnonVacuum(swt, BosonMonomial{2}[])
 
 # Quadratic Hamiltonian of the vacuum at a wavevector in reshaped RLU
@@ -66,7 +70,7 @@ function vacuum_bogoliubov!(ws::BogoliubovWorkspace, H, vac::MagnonVacuum, q_res
         err isa PosDefException || rethrow()
         rethrow(InstabilityError("Quadratic Hamiltonian of the vacuum not positive definite at reshaped wavevector \
                                   $(vec3_to_string(q_reshaped)). If quantum fluctuations stabilize the structure, \
-                                  pass `vacuum = Sunny.MagnonVacuum(swt, Sunny.hartree_fock_correction(swt).terms2)`."))
+                                  pass `vacuum = Sunny.self_consistent_vacuum(swt; tol)`."))
     end
 end
 
@@ -147,7 +151,7 @@ Contractions(g::Contractions, values) = Contractions(g.L, g.index, values, g.noi
 # pay for a single pass over the zone. On the loop grid of the cubic
 # self-energy, a Ward identity relates these averages to that integrand point by
 # point, which keeps each Goldstone mode exactly gapless, grid by grid.
-function contractions(vac::MagnonVacuum, terms, quad::BZQuadrature)
+function contractions(vac::MagnonVacuum, terms, tol)
     L = nbands(vac.swt)
     index = Dict{Tuple{Int, Int, NTuple{3, Int}}, Int}()
     for (; as, ns) in terms, p in eachindex(as), q in p+1:lastindex(as)
@@ -155,12 +159,12 @@ function contractions(vac::MagnonVacuum, terms, quad::BZQuadrature)
         get!(index, k, length(index) + 1)
     end
     keys = first.(sort!(collect(index); by=last))
-    noise = quadrature_noise(quad)
+    noise = quadrature_noise(tol)
     isempty(keys) && return Contractions(L, index, ComplexF64[], noise)
 
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
-    values = bz_average(quad) do q_reshaped
+    values = bz_average(tol) do q_reshaped
         U = vacuum_modes!(ws, H, vac, q_reshaped)
         return ComplexF64[cis(-2π * dot(q_reshaped, Vec3(Δ))) * dot(view(U, nambu_conj(a′, L), :), view(U, a, :))
                           for (a, a′, Δ) in keys]
@@ -194,7 +198,8 @@ function vacuum_modes!(ws::BogoliubovWorkspace, H, vac::MagnonVacuum, q_reshaped
     (λ, V) = eigen(Ĩ * H; sortby=real)
     tol = sqrt(eps()) * opnorm(H, 1)
     unstable() = InstabilityError("Quadratic Hamiltonian of the vacuum dynamically unstable at reshaped \
-                                   wavevector $(vec3_to_string(q_reshaped)).")
+                                   wavevector $(vec3_to_string(q_reshaped)). If quantum fluctuations \
+                                   stabilize the structure, pass `vacuum = Sunny.self_consistent_vacuum(swt; tol)`.")
     all(x -> abs(imag(x)) < tol, λ) || throw(unstable())
     # Within each cluster of degenerate frequencies, eigen returns an arbitrary
     # basis. The positive-norm part of an orthonormal basis of the cluster is a
