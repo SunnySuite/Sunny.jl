@@ -122,14 +122,14 @@ function loop_wavevectors(dims, q_reshaped=zero(Vec3))
 end
 
 """
-    auto_bzgrid(; η, vacuum::MagnonVacuum, tol)
+    auto_bzgrid(; η, vacuum, tol)
 
 The [`BZGrid`](@ref) on which loop integrals with regulator `η`, e.g. those of
 [`corrected_intensities`](@ref), reach a relative accuracy of about `tol`. It
 resolves `η` along each direction in which the magnons of `vacuum` disperse, and
 the number of points grows as ``1/(η √tol)`` along each.
 """
-function auto_bzgrid(; η, vacuum::MagnonVacuum, tol)
+function auto_bzgrid(; η, vacuum, tol)
     # Every frequency-dependent integrand here is a function of the pair energy
     # x(𝐤) = ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so the grid must resolve x
     # to within η. The number of points along a direction therefore goes as the
