@@ -37,8 +37,8 @@ path = q_space_path(cryst, qpts, 200; labels)
 η = 0.03s
 energies = 0:(η/2):ωmax
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-res = Sunny.corrected_channels(swt, path; energies, η, dyson=:particle, spectral=true,
-                               threaded=true, verbose=true)
+res = Sunny.corrected_channels(swt, path; energies, η, dyson=:particle, threaded=true,
+                               verbose=true, spectral=true)
 
 # The three-site magnetic cell folds 𝐪 together with 𝐪 ± 𝐐, where 𝐐 is the
 # ordering wavevector K. The band belonging to 𝐪 itself is the one whose
