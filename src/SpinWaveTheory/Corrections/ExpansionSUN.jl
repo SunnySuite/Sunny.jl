@@ -26,9 +26,9 @@
 # ExpansionDipole.jl. There is no series at fixed word length, so none of the
 # `Laurent` apparatus that the Stevens expansion of dipole mode requires is
 # needed. There is no four-boson word at all, the square root contributing only
-# odd ones. And the words of nb ≤ 2 are exactly what LSWT already holds —
-# `swt_hamiltonian_SUN!` writes the nb = 2 word above verbatim, and the
-# classical energy is A[N,N] — so unlike dipole mode there is no sub-leading
+# odd ones. And the words of nb ≤ 2 are exactly what LSWT already holds — LSWT
+# compiles its Hamiltonian from the nb = 2 words, and the classical energy is
+# A[N,N] — so unlike dipole mode there is no sub-leading
 # remainder at low boson number, which is why `anisotropy_monomials` has nothing
 # to return here.
 #
@@ -85,8 +85,7 @@ function local_monomials(A, i, off, ::Val{nb}, Nf, L, M=1) where nb
             add!(A[N, m], (b(m),))
         end
     elseif nb == 2
-        # The δ_mn A[N,N] is the depletion of the condensate, Sunny's own
-        # `swt_hamiltonian_SUN!` writing exactly this coefficient.
+        # The δ_mn A[N,N] is the depletion of the condensate
         for m in 1:Nf, n in 1:Nf
             add!(A[m, n] - (m == n) * A[N, N], (L + b(m), b(n)))
         end
@@ -108,15 +107,33 @@ end
 # contributes its K-boson word directly. Each pair coupling A_i ⊗ B_j
 # contributes every split of the K bosons between its two sites; all K+1 of them
 # carry the same power M^{2-K/2}, so all are kept. See `local_monomials` for `M`,
-# which is 1 in every use outside the tests.
-function sun_monomials(swt::SpinWaveTheory, ::Val{K}, M=1) where K
-    (; sys) = swt
+# which is 1 in every use outside the tests. For an entangled system, the
+# bilinear exchange between units is held by its uncontracted system, and
+# expands in the local-frame spin operators `spin_ops` of the bare atoms.
+#
+# The K = 2 term is the LSWT Hamiltonian itself, which `QuadraticTable`
+# compiles for `swt_hamiltonian_SUN!`.
+sun_monomials(swt::SpinWaveTheory, k::Val, M=1) = sun_monomials(swt.sys, (swt.data::SWTDataSUN).spin_ops, k, M)
+
+function sun_monomials(sys::System, spin_ops, ::Val{K}, M=1) where K
     @assert allequal(sys.Ns)
-    Nf = nflavors(swt)
-    L = nbands(swt)
+    Nf = sys.Ns[1] - 1
+    L = Nf * natoms(sys.crystal)
     o = zero(Vec3)
 
     terms = BosonMonomial{K}[]
+    # The split p of the K bosons is a type parameter, which unrolling over a
+    # tuple of Vals keeps static. `SpinWaveTheory` calls this on construction,
+    # and a dynamic dispatch per split would dominate its cost.
+    splits = ntuple(p -> (Val{p-1}(), Val{K-p+1}()), Val{K+1}())
+    function add_pair!(A, i, B, j, n)
+        foreach(splits) do (p, q)
+            for ta in local_monomials(A, i, o, p, Nf, L, M), tb in local_monomials(B, j, n, q, Nf, L, M)
+                push!(terms, BosonMonomial(ta.c * tb.c, (ta.as..., tb.as...), (ta.ns..., tb.ns...)))
+            end
+        end
+    end
+
     for (i, int) in enumerate(sys.interactions_union)
         append!(terms, local_monomials(int.onsite, i, o, Val{K}(), Nf, L, M))
 
@@ -124,14 +141,16 @@ function sun_monomials(swt::SpinWaveTheory, ::Val{K}, M=1) where K
             (; isculled, bond) = coupling
             isculled && break
             @assert i == bond.i
-            n = Vec3(bond.n)
+            for (A, B) in coupling.general.data
+                add_pair!(A, i, B, bond.j, Vec3(bond.n))
+            end
+        end
+    end
 
-            for (A, B) in coupling.general.data, p in 0:K
-                for ta in local_monomials(A, i, o, Val{p}(), Nf, L, M),
-                    tb in local_monomials(B, bond.j, n, Val{K-p}(), Nf, L, M)
-                    push!(terms, BosonMonomial(ta.c * tb.c, (ta.as..., tb.as...),
-                                               (ta.ns..., tb.ns...)))
-                end
+    if is_entangled(sys)
+        foreach_entangled_bilinear_term(sys) do i, j, ai, aj, J, n
+            for α in 1:3, β in 1:3
+                iszero(J[α, β]) || add_pair!(J[α, β] * spin_ops[α, ai], i, spin_ops[β, aj], j, Vec3(n))
             end
         end
     end
