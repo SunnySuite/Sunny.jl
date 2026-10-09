@@ -550,6 +550,16 @@ end
         L = length(disp_ref)
         @test disp[1:L] ≈ disp_ref
         @test all(<(1e-6), disp[L+1:end])
+
+        # Likewise for the 1/s corrections, whose vertices must not divide by
+        # the vanishing spin magnitude of the vacancy
+        bz = Sunny.BZGrid(4, 1, 1)
+        @test Sunny.boson_density(SpinWaveTheory(sys; measure=nothing); bz)[1] ≈
+              Sunny.boson_density(SpinWaveTheory(sys_ref; measure=nothing); bz)[1]
+        @test Sunny.corrected_magnetic_moments(SpinWaveTheory(sys; measure=nothing); bz)[1] ≈
+              Sunny.corrected_magnetic_moments(SpinWaveTheory(sys_ref; measure=nothing); bz)[1]
+        δc = Sunny.observable_corrections(SpinWaveTheory(sys; measure=ssf_trace(sys)); bz)
+        @test all(isfinite, δc)
     end
 end
 
