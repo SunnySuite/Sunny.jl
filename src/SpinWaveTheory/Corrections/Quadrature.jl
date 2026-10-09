@@ -66,14 +66,17 @@ function bz_average(f, bz::BZAdaptive)
     return first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=tol))
 end
 
-# A vacuum belongs to one `SpinWaveTheory`, and a self-consistent one was solved
-# on a grid, which every use of it must share. `name` is the keyword of the
-# caller that carries the integration rule.
-function check_vacuum(swt, vac, bz::BZIntegration, name)
-    vac.swt === swt || error("Vacuum must be built on the same `SpinWaveTheory`")
-    isnothing(vac.grid) || vac.grid == bz ||
-        error("Vacuum was solved on `$(vac.grid)`, but `$name = $bz` was given. Pass `$name = vacuum.grid`.")
+# A self-consistent Gaussian state was solved on a grid, which every use of it
+# must share
+function check_grid(swt, bz::BZIntegration)
+    (; grid) = swt.state
+    isnothing(grid) || grid == bz ||
+        error("The Gaussian state of `swt` was solved on `$grid`, but `$bz` was given. Omit it to use the state's grid.")
 end
+
+# The default quadrature of the static corrections: adaptive cubature, unless
+# the Gaussian state was solved on a grid, which must then be repeated
+default_bz(swt) = @something swt.state.grid BZAdaptive(tol=0.01)
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
 # integrand that pairs a line at 𝐩 with one at 𝐪-𝐩, carrying a multiplicity
@@ -122,14 +125,16 @@ function loop_wavevectors(dims, q_reshaped=zero(Vec3))
 end
 
 """
-    auto_bzgrid(; η, vacuum, tol)
+    auto_bzgrid(swt::SpinWaveTheory; η, tol)
 
 The [`BZGrid`](@ref) on which loop integrals with regulator `η`, e.g. those of
 [`corrected_intensities`](@ref), reach a relative accuracy of about `tol`. It
-resolves `η` along each direction in which the magnons of `vacuum` disperse, and
-the number of points grows as ``1/(η √tol)`` along each.
+resolves `η` along each direction in which the magnons of `swt` disperse, and
+the number of points grows as ``1/(η √tol)`` along each. If the Gaussian state
+of `swt` was solved on a grid, that grid is returned instead.
 """
-function auto_bzgrid(; η, vacuum, tol)
+function auto_bzgrid(swt; η, tol)
+    isnothing(swt.state.grid) || return swt.state.grid
     # Every frequency-dependent integrand here is a function of the pair energy
     # x(𝐤) = ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so the grid must resolve x
     # to within η. The number of points along a direction therefore goes as the
@@ -147,13 +152,13 @@ function auto_bzgrid(; η, vacuum, tol)
     # dimension, so a tenfold tighter tolerance is a tenfold longer calculation
     # in two dimensions.
     ncoarse = 8
-    L = nbands(vacuum.swt)
+    L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
     ε = zeros(L, ncoarse, ncoarse, ncoarse)
     for i in 1:ncoarse, j in 1:ncoarse, k in 1:ncoarse
         q = Vec3((i - 1/2)/ncoarse, (j - 1/2)/ncoarse, (k - 1/2)/ncoarse)
-        view(ε, :, i, j, k) .= view(vacuum_bogoliubov!(ws, H, vacuum, q), 1:L)
+        view(ε, :, i, j, k) .= view(vacuum_bogoliubov!(ws, H, swt, q), 1:L)
     end
 
     return BZGrid(ntuple(3) do d

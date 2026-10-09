@@ -17,6 +17,18 @@ end
 # To facilitate sharing some code with SpinWaveTheorySpiral
 abstract type AbstractSpinWaveTheory end
 
+# A correction to the quadratic Hamiltonian, as boson monomials, which defines a
+# Gaussian state other than the harmonic vacuum. A correction that was solved
+# self-consistently records its `grid`, on which every 1/s correction expanded
+# about it must be evaluated, and the outcome of the iteration in `info`.
+struct GaussianState
+    correction :: Vector{BosonMonomial{2}}
+    grid       :: Union{Nothing, BZGrid}
+    info       :: NamedTuple
+end
+
+GaussianState() = GaussianState(BosonMonomial{2}[], nothing, (;))
+
 """
     SpinWaveTheory(sys::System; measure, regularization=1e-8)
 
@@ -35,6 +47,12 @@ step of the Bogoliubov diagonalization procedure will fail. The parameter
 matrix to avoid numerical issues with quasi-particle modes of vanishing energy.
 Physically, this shift can be interpreted as application of an inhomogeneous
 field aligned with the magnetic ordering.
+
+A `SpinWaveTheory` may carry a Gaussian state other than the harmonic vacuum,
+e.g. one returned by [`Sunny.self_consistent`](@ref). Its quadratic Hamiltonian
+then includes the state's correction, which determines `dispersion`,
+`intensities`, and every other LSWT quantity, while the 1/s corrections treat
+the state as the vacuum about which the bosons are expanded.
 """
 struct SpinWaveTheory <: AbstractSpinWaveTheory
     sys            :: System
@@ -42,8 +60,11 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     measure        :: MeasureSpec
     regularization :: Float64
     classical_energy :: Float64
-    # The quadratic Hamiltonian, Ewald excluded
+    # The Gaussian state about which the bosons are expanded
+    state          :: GaussianState
+    # The quadratic Hamiltonian of `state`, and of LSWT itself, Ewald excluded
     quadratic_table :: QuadraticTable
+    bare_table      :: QuadraticTable
 end
 
 function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, energy_ϵ=nothing)
@@ -66,19 +87,30 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     # Rotate local operators to quantization axis
     data = swt_data(sys, measure)
 
-    quadratic_table = if sys.mode == :SUN
-        QuadraticTable(sun_monomials(sys, data, Val{2}()), (sys.Ns[1] - 1) * natoms(sys.crystal))
-    else
-        QuadraticTable(quadratic_monomials_dipole(sys, data), natoms(sys.crystal))
-    end
+    L = (sys.mode == :SUN ? sys.Ns[1] - 1 : 1) * natoms(sys.crystal)
+    terms2 = sys.mode == :SUN ? sun_monomials(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
+    table = QuadraticTable(terms2, L)
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, GaussianState(), table, table)
+end
 
-    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, quadratic_table)
+# The same theory about the Gaussian state `state`. Everything but the quadratic
+# table is shared.
+function SpinWaveTheory(swt::SpinWaveTheory, state::GaussianState)
+    (; sys, data, measure, regularization, classical_energy, bare_table) = swt
+    terms2 = sys.mode == :SUN ? sun_monomials(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
+    table = isempty(state.correction) ? bare_table : QuadraticTable([terms2; state.correction], nbands(swt))
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, state, table, bare_table)
 end
 
 
 function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     printstyled(io, "SpinWaveTheory ", mode_to_str(swt.sys), "\n"; bold=true, color=:underline)
     println(io, "  ", natoms(swt.sys.crystal), " atoms")
+    (; correction, grid, info) = swt.state
+    if !isempty(correction)
+        println(io, "  Gaussian state: ", isempty(info) ? "user correction" : join(("$k = $v" for (k, v) in pairs(info)), ", "),
+                isnothing(grid) ? "" : ", grid $(grid.dims)")
+    end
 end
 
 function nflavors(swt::SpinWaveTheory)

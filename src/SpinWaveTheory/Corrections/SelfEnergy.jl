@@ -39,13 +39,12 @@
 # point integrate the loop exactly.
 
 """
-    cubic_self_energy(swt::SpinWaveTheory, qpts; η, vacuum=MagnonVacuum(swt),
-                      grid=auto_bzgrid(; η, vacuum, tol=0.01))
+    cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid=auto_bzgrid(swt; η, tol=0.01))
 
 On-shell self-energy of each magnon due to the cubic term of the
 Holstein-Primakoff expansion, ``Σ_n(𝐪, ε_{𝐪n})``, where ``ε`` are the energies
-of the quasi-particles of `vacuum`, by default the [`dispersion`](@ref) of
-linear spin wave theory. Returns an array of complex numbers with the same
+of the quasi-particles of the Gaussian state of `swt`, by default the
+[`dispersion`](@ref) of linear spin wave theory. Returns an array of complex numbers with the same
 shape as `dispersion(swt, qpts)`. The real part is a correction to the magnon
 energy of relative order ``1/s``, and should be added to the mean-field
 corrections of [`hartree_fock_correction`](@ref) and
@@ -74,11 +73,10 @@ surface entirely. A width that halves when `η` does is such an artifact.
 Because only the diagonal part of the self-energy is returned, the result is
 unreliable where two bands are degenerate.
 """
-function cubic_self_energy(swt::SpinWaveTheory, qpts; η, vacuum=MagnonVacuum(swt),
-                           grid::BZGrid=auto_bzgrid(; η, vacuum, tol=0.01))
+function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid::BZGrid=auto_bzgrid(swt; η, tol=0.01))
     check_corrections_supported(swt)
     η > 0 || error("Broadening η must be positive")
-    check_vacuum(swt, vacuum, grid, :grid)
+    check_grid(swt, grid)
 
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
@@ -91,8 +89,8 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, vacuum=MagnonVacuum(sw
         # Each band is evaluated at its own frequency, so the matrices for all L
         # frequencies are built and only their diagonals are kept.
         k = to_reshaped_rlu(swt.sys, q)
-        ωs = vacuum_bogoliubov!(ws, H, vacuum, k)[1:L]
-        Σ = cubic_self_energy_at(vacuum, terms3, k, ωs .+ im*η, loop_wavevectors(grid.dims, k), η)
+        ωs = vacuum_bogoliubov!(ws, H, swt, k)[1:L]
+        Σ = cubic_self_energy_at(swt, terms3, k, ωs .+ im*η, loop_wavevectors(grid.dims, k), η)
         view(ret, :, iq) .= [Σ[n, n, n] for n in 1:L]
     end
 
@@ -102,15 +100,14 @@ end
 # Nambu matrix self-energy Σ̂_{mm′}(𝐪, z) of the cubic vertex alone, at the
 # wavevector `q` in RLU and each complex frequency of `zs`, in the convention of
 # the derivation above. Returns an array of size (2L, 2L, length(zs)). The
-# internal lines are the quasi-particles of `vacuum`, which are also the basis
-# of the external legs.
-function cubic_self_energy_matrix(swt::SpinWaveTheory, q, zs; η, vacuum=MagnonVacuum(swt),
-                                  grid::BZGrid=auto_bzgrid(; η, vacuum, tol=0.01))
+# internal lines are the quasi-particles of the Gaussian state of `swt`, which
+# are also the basis of the external legs.
+function cubic_self_energy_matrix(swt::SpinWaveTheory, q, zs; η, grid::BZGrid=auto_bzgrid(swt; η, tol=0.01))
     check_corrections_supported(swt)
     η > 0 || error("Broadening η must be positive")
-    check_vacuum(swt, vacuum, grid, :grid)
+    check_grid(swt, grid)
     k = to_reshaped_rlu(swt.sys, q)
-    return cubic_self_energy_at(vacuum, cubic_monomials(swt), k, zs, loop_wavevectors(grid.dims, k), η)
+    return cubic_self_energy_at(swt, cubic_monomials(swt), k, zs, loop_wavevectors(grid.dims, k), η)
 end
 
 # Calls `f(a, b, w, u, x, p, T1, T2)` for each pair of internal magnon lines
@@ -134,21 +131,21 @@ end
 # of Observables.jl, which are expressed in the columns of T(k) themselves;
 # degenerate bands fare worse still, two calls being free to choose different
 # bases within a degenerate block.
-function foreach_cubic_line(f, vac::MagnonVacuum, terms3, k, grid::LoopGrid, M)
-    L = nbands(vac.swt)
+function foreach_cubic_line(f, swt::SpinWaveTheory, terms3, k, grid::LoopGrid, M)
+    L = nbands(swt)
     U = zeros(ComplexF64, 2L, 2L, 2L)
     scratch = similar(U)
     u = zeros(ComplexF64, M)
     T3 = zeros(ComplexF64, 2L, 2L)
 
     let ws = BogoliubovWorkspace(L)
-        vacuum_bogoliubov!(ws, zeros(ComplexF64, 2L, 2L), vac, k)
+        vacuum_bogoliubov!(ws, zeros(ComplexF64, 2L, 2L), swt, k)
         for b in 1:2L, a in 1:2L
             T3[a, b] = conj(ws.T[nambu_conj(a, L), nambu_conj(b, L)])
         end
     end
 
-    foreach_magnon_pair(vac, k, grid) do p, w, T1, T2, ε1, ε2
+    foreach_magnon_pair(swt, k, grid) do p, w, T1, T2, ε1, ε2
         vertex!(U, terms3, (p, k - p, -k), (T1, T2, T3), scratch)
         for a in 1:2L, b in 1:2L
             # Internal lines must propagate in the same direction
@@ -167,10 +164,10 @@ end
 # as w' G w and so related to Σ̂ by the metric and a transpose. The bins are
 # sparse, so a width far below η costs nothing, and makes the binning error
 # O((Δ/η)²) negligible.
-function cubic_self_energy_at(vac::MagnonVacuum, terms3, k, zs, grid::LoopGrid, η)
-    L = nbands(vac.swt)
+function cubic_self_energy_at(swt::SpinWaveTheory, terms3, k, zs, grid::LoopGrid, η)
+    L = nbands(swt)
     τ₃ = Diagonal([ones(L); -ones(L)])
-    (; decay, source) = pair_measures(vac, terms3, k, grid; bin_width=1e-3η, words2=Vector{BosonMonomial{2}}[])
+    (; decay, source) = pair_measures(swt, terms3, k, grid; bin_width=1e-3η, words2=Vector{BosonMonomial{2}}[])
     K = cauchy_transform((decay, source), zs)
     return stack(τ₃ * transpose(view(K, :, :, iz)) for iz in eachindex(zs))
 end
@@ -196,9 +193,9 @@ end
 # 1:2L]` block, in the orientation that contracts as w' G w. Pairs are binned in
 # batches of `batch`, so that the projection R and the accumulation of each bin
 # are matrix products.
-function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, words2, chans=nothing,
+function pair_measures(swt::SpinWaveTheory, terms3, k, grid::LoopGrid; bin_width, words2, chans=nothing,
                        ward=nothing, batch=4096)
-    L = nbands(vac.swt)
+    L = nbands(swt)
     (labels, R) = isnothing(chans) ? (Tuple{Int, Int, Vec3}[], zeros(ComplexF64, 0, 0)) : (chans.labels, chans.R)
     n0 = 2L + length(words2)
     nw = isnothing(ward) ? 0 : length(ward.pairs)
@@ -228,7 +225,7 @@ function pair_measures(vac::MagnonVacuum, terms3, k, grid::LoopGrid; bin_width, 
         n[] = 0
     end
 
-    foreach_cubic_line(vac, terms3, k, grid, 2L) do a, b, w, u, x, p, T1, T2
+    foreach_cubic_line(swt, terms3, k, grid, 2L) do a, b, w, u, x, p, T1, T2
         chan = a ≤ L ? decay : source
         (; n, xs, cs, Y, A) = chan
         i = (n[] += 1)
@@ -382,7 +379,7 @@ function ward_rotation(swt::SpinWaveTheory, terms4)
     end
     V = stack(ℓ -> commutator_coefficient.(Ref(ℓ), 1:2L), ℓs)
     H0 = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H0, swt, zero(Vec3))
+    dynamical_matrix!(H0, harmonic(swt), zero(Vec3))
     # Rotation axes 𝐧 are real, so the equations are split into real and
     # imaginary parts
     realify(M) = [real(M); imag(M)]
@@ -451,22 +448,21 @@ function ward_rotation_rows(M, y, b)
 end
 
 """
-    OneLoop(swt::SpinWaveTheory; energies=nothing, η, vacuum=MagnonVacuum(swt),
-            grid=auto_bzgrid(; η, vacuum, tol=0.01))
+    OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid=auto_bzgrid(swt; η, tol=0.01))
 
-The one-loop expansion about `vacuum`, with everything that is common to all
+The one-loop expansion about the Gaussian state of `swt`, with everything that is common to all
 wavevectors: the mean-field, tadpole and anisotropy corrections to the quadratic
 Hamiltonian, the corrections to the observables, and the resolution of the loop
 integrals. Keywords are as in [`corrected_intensities`](@ref). The self-energy
 at a wavevector is then [`SelfEnergy`](@ref).
 
-Every mean field is a contraction in `vacuum`, taken on the loop grid of the
+Every mean field is a contraction in that state, taken on the loop grid of the
 cubic self-energy, so that the Ward identity of each Goldstone mode cancels
 static and dynamic shifts exactly, grid by grid, rather than to within the error
 of two unrelated quadratures.
 """
 struct OneLoop
-    vacuum    :: MagnonVacuum
+    swt       :: SpinWaveTheory
     η         :: Float64
     loop_grid :: NTuple{3, Int}
     # Binning error is O((Δ/η)²), so Δ/η = 0.1 contributes of order 0.01, the
@@ -482,11 +478,10 @@ struct OneLoop
     ward      :: Union{Nothing, NamedTuple}
 end
 
-function OneLoop(swt::SpinWaveTheory; energies=nothing, η, vacuum=MagnonVacuum(swt),
-                 grid::BZGrid=auto_bzgrid(; η, vacuum, tol=0.01))
+function OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid::BZGrid=auto_bzgrid(swt; η, tol=0.01))
     check_corrections_supported(swt)
     η > 0 || error("Regulator `η` must be positive.")
-    check_vacuum(swt, vacuum, grid, :grid)
+    check_grid(swt, grid)
     loop_grid = grid.dims
 
     # A negligible cubic vertex is dropped outright, e.g. collinear order in
@@ -495,8 +490,8 @@ function OneLoop(swt::SpinWaveTheory; energies=nothing, η, vacuum=MagnonVacuum(
     cubic_vertex_vanishes(swt, terms3) && empty!(terms3)
 
     terms4 = quartic_monomials(swt)
-    g = contractions(vacuum, Iterators.flatten((terms3, terms4, observable_cubic_monomials(swt))), grid)
-    tad = isempty(terms3) ? nothing : tadpole(vacuum, terms3, g)
+    g = contractions(swt, Iterators.flatten((terms3, terms4, observable_cubic_monomials(swt))), grid)
+    tad = isempty(terms3) ? nothing : tadpole(swt, terms3, g)
     terms2 = [mean_field(terms4, g).terms2
               isnothing(tad) ? BosonMonomial{2}[] : tad.terms2
               anisotropy_correction(swt).terms2]
@@ -507,7 +502,7 @@ function OneLoop(swt::SpinWaveTheory; energies=nothing, η, vacuum=MagnonVacuum(
         bin_width = dω / cld(dω, bin_width)
     end
     ward = isempty(terms3) ? ward_rotation(swt, terms4) : nothing
-    return OneLoop(vacuum, η, loop_grid, bin_width, terms3, terms4, terms2, δc, ward)
+    return OneLoop(swt, η, loop_grid, bin_width, terms3, terms4, terms2, δc, ward)
 end
 
 """
@@ -516,7 +511,7 @@ end
 One-loop self-energy of the magnons at the wavevector `q` in RLU. Calling `Σ(z)`
 at a complex frequency `z` returns the ``2L×2L`` Nambu matrix of the static and
 cubic self-energies, counterterm included, in the quasi-particle basis of the
-vacuum. The magnon Green's function of `dyson=:nambu` is then
+Gaussian state. The magnon Green's function of `dyson=:nambu` is then
 
     G(z) = inv(z * Ĩ - Diagonal(abs.(Σ.ε)) - Σ(z)),
 
@@ -546,17 +541,16 @@ struct SelfEnergy
 end
 
 function SelfEnergy(ol::OneLoop, q; ladder=false)
-    (; vacuum, loop_grid, bin_width) = ol
-    (; swt) = vacuum
+    (; swt, loop_grid, bin_width) = ol
     (; sys) = swt
     L = nbands(swt)
     q_reshaped = to_reshaped_rlu(sys, q)
     q_global = orig_crystal(sys).recipvecs * q
 
     ws = BogoliubovWorkspace(L)
-    ε = copy(vacuum_bogoliubov!(ws, zeros(ComplexF64, 2L, 2L), vacuum, q_reshaped))
+    ε = copy(vacuum_bogoliubov!(ws, zeros(ComplexF64, 2L, 2L), swt, q_reshaped))
     T = ws.T
-    Σstat = static_self_energy_matrix(vacuum, ol.terms2, q_reshaped, T)
+    Σstat = static_self_energy_matrix(swt, ol.terms2, q_reshaped, T)
 
     u = zeros(ComplexF64, 2L, num_observables(swt.measure))
     set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
@@ -567,7 +561,7 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     words2 = observable_pair_monomials(swt, q_reshaped, q_global)
     chans = ladder ? pair_channels(ol.terms4, q_reshaped, L) : nothing
     ward = ladder ? ol.ward : nothing
-    (; decay, source) = pair_measures(vacuum, ol.terms3, q_reshaped, grid; bin_width, words2, chans, ward)
+    (; decay, source) = pair_measures(swt, ol.terms3, q_reshaped, grid; bin_width, words2, chans, ward)
     nward = isnothing(ward) ? 0 : length(ward.pairs)
     metric = ladder ? cat(Diagonal(chans.σ), ward_metric(nward); dims=(1, 2)) : zeros(0, 0)
     return SelfEnergy(ol.η, ε, T, Σstat, w, decay, source, metric, nward)

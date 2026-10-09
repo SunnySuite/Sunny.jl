@@ -79,13 +79,13 @@
 # The test suite certifies every term by comparing to exact diagonalization of a
 # cluster with anisotropic interactions and readouts.
 #
-# Entry points. Every function takes `swt` and a `vacuum`, harmonic by default.
-# Loop integrals take a `BZGrid` or auto-select one according to `η`. Static
-# averages accept either a `BZGrid` or parameters `BZAdaptive` for adaptive
-# cubature. A vacuum produced by `self_consistent_vacuum` records its grid,
-# which must be consistent with subsequent calls.
+# Entry points. Every function takes `swt`, whose Gaussian state is the vacuum,
+# harmonic by default. Loop integrals take a `BZGrid` or auto-select one
+# according to `η`. Static averages accept either a `BZGrid` or parameters
+# `BZAdaptive` for adaptive cubature. A state produced by `self_consistent`
+# records its grid, which subsequent calls use by default.
 #
-#     Vacuum       MagnonVacuum, self_consistent_vacuum
+#     Vacuum       self_consistent
 #     Spectra      corrected_intensities, corrected_intensities_bands
 #     Statics      corrected_energy_per_site, gaussian_energy_per_site,
 #                  boson_density, corrected_magnetic_moments

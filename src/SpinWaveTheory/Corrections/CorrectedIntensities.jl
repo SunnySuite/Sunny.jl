@@ -48,13 +48,13 @@
 # first-order formula outside its range.
 #
 # No scheme dresses the internal lines by default: RMP Sec. IV.C notes that
-# self-consistent dressing gaps the Goldstone modes. A `MagnonVacuum` with a
-# correction does so, with a counterterm.
+# self-consistent dressing gaps the Goldstone modes. A `SpinWaveTheory` whose
+# Gaussian state carries a correction does so, with a counterterm.
 
 """
     corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, dyson=:nambu,
-                          vacuum=MagnonVacuum(swt), grid=auto_bzgrid(; η, vacuum, tol=0.01),
-                          mark_breakdown=true, threaded=false, verbose=false)
+                          grid=auto_bzgrid(swt; η, tol=0.01), mark_breakdown=true,
+                          threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including one-loop
 spin-wave corrections, i.e., relative order ``1/s`` in dipole mode. Magnon
@@ -70,10 +70,17 @@ e.g. for instrumental resolution, can be used to postprocess the result.
 
 Loop integrals over the Brillouin zone are approximated as a discrete sum over
 the points of the [`BZGrid`](@ref). The [`auto_bzgrid`](@ref) default resolves
-`η` in the dispersion of `vacuum` to a relative accuracy of `tol=0.01`. The
-static mean fields are summed on the same grid, which keeps Goldstone modes
-exactly gapless. A self-consistent `vacuum` must be given the grid on which it
-was solved.
+`η` in the dispersion of `swt` to a relative accuracy of `tol=0.01`. The static
+mean fields are summed on the same grid, which keeps Goldstone modes exactly
+gapless.
+
+The bosons are expanded about the Gaussian state of `swt`, by default the
+harmonic vacuum of LSWT. A state from [`Sunny.self_consistent`](@ref) is used on
+the grid on which it was solved. Its correction to the quadratic Hamiltonian is
+subtracted as a counterterm, so that the result differs from the ``1/s``
+expansion only at the order neglected. A correction that was added to pin a
+Goldstone mode is therefore removed again; for the spectrum of the corrected
+quadratic Hamiltonian itself, use [`intensities`](@ref).
 
 The `dyson` option selects how the one-loop self-energy is resummed:
 
@@ -160,10 +167,10 @@ progress bar and diagnostics.
     ``2ε`` that separates a pole from its mirror.
 """
 function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, dyson=:nambu,
-                               vacuum=MagnonVacuum(swt), grid::BZGrid=auto_bzgrid(; η, vacuum, tol=0.01),
+                               grid::BZGrid=auto_bzgrid(swt; η, tol=0.01),
                                mark_breakdown=true, threaded=false, verbose=false)
     (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
-        corrected_channels(swt, qpts; energies, η, dyson, vacuum, grid, threaded, verbose)
+        corrected_channels(swt, qpts; energies, η, dyson, grid, threaded, verbose)
     data = reshape(transverse + cross + direct, length(energies), size(qpts.qs)...)
     res = Intensities(cryst, qpts, energies, data)
     isnothing(kernel) || (res = broaden(res; kernel))
@@ -174,8 +181,7 @@ function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=n
 end
 
 """
-    corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, vacuum=MagnonVacuum(swt),
-                                grid=auto_bzgrid(; η, vacuum, tol=0.01),
+    corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, grid=auto_bzgrid(swt; η, tol=0.01),
                                 threaded=false, verbose=false)
 
 Magnon bands at temperature ``T = 0`` with one-loop corrections, i.e., relative
@@ -191,11 +197,10 @@ redistribution of weight at that order. Here `η` regularizes the loop
 integrals only, and does not broaden the result. The widths are nonnegative,
 and the bands of ``𝐪`` mirror the hole poles at ``-𝐪`` exactly.
 """
-function corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, vacuum=MagnonVacuum(swt),
-                                     grid::BZGrid=auto_bzgrid(; η, vacuum, tol=0.01),
+function corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, grid::BZGrid=auto_bzgrid(swt; η, tol=0.01),
                                      threaded=false, verbose=false)
     (; cryst, qpts, bands) = corrected_channels(swt, qpts; energies=Float64[], η, dyson=:on_shell,
-                                                vacuum, grid, threaded, verbose)
+                                                grid, threaded, verbose)
     sz = (size(bands.disp, 1), size(qpts.qs)...)
     return BandIntensities(cryst, qpts, reshape(bands.disp, sz), reshape(bands.data, sz), reshape(bands.widths, sz))
 end
@@ -209,12 +214,12 @@ end
 # then `specfunc`, the particle block of the magnon spectral matrix (G' -
 # G)/2πi.
 #
-# The bosons are expanded about `vacuum`, harmonic by default. Its
-# quasi-particles are the internal lines of the loops and the basis of the Dyson
-# equation, its mean fields are contractions in its vacuum, and `disp` reports
-# its energies.
+# The bosons are expanded about the Gaussian state of `swt`, harmonic by
+# default. Its quasi-particles are the internal lines of the loops and the basis
+# of the Dyson equation, its mean fields are contractions in it, and `disp`
+# reports its energies.
 function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, dyson=:nambu,
-                            vacuum=MagnonVacuum(swt), grid::BZGrid=auto_bzgrid(; η, vacuum, tol=0.01),
+                            grid::BZGrid=auto_bzgrid(swt; η, tol=0.01),
                             threaded=false, verbose=false, spectral=false)
     dyson in (:nambu, :ladder, :particle, :on_shell) ||
         error("Unknown `dyson=:$dyson`; use :nambu, :ladder, :particle or :on_shell.")
@@ -242,7 +247,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, dyson=:namb
                      of η/2 or less adds little cost."""
         end
     end
-    ol = OneLoop(swt; energies, η, vacuum, grid)
+    ol = OneLoop(swt; energies, η, grid)
 
     chans = (; transverse = zeros(eltype(measure), length(energies), length(qpts.qs)),
                cross = zeros(eltype(measure), length(energies), length(qpts.qs)),

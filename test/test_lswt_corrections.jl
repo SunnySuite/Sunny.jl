@@ -820,13 +820,13 @@ end
     # Para-unitarity of the Bogoliubov transform: ⟨bᵢb†ᵢ⟩ - ⟨b†ᵢbᵢ⟩ = 1
     L = Sunny.nbands(swt)
     o = Sunny.Vec3(0, 0, 0)
-    g = Sunny.contractions(Sunny.MagnonVacuum(swt), [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for as in ((L+1, 1), (1, L+1))],
+    g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for as in ((L+1, 1), (1, L+1))],
                            Sunny.BZAdaptive(tol=1e-4))
     @test g(1, L+1, o) - g(L+1, 1, o) ≈ 1 atol=1e-10
     @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, grid=Sunny.BZGrid(6, 6, 1))) < 1e-12
     grid32 = Sunny.BZGrid(32, 32, 1)
     Zcs = map((Sunny.hartree_fock_correction(swt; bz=grid32).terms2,
-               Sunny.self_consistent_vacuum(swt; grid=grid32, scf_tol=1e-7).correction)) do terms2
+               Sunny.self_consistent(swt; grid=grid32, scf_tol=1e-7).state.correction)) do terms2
         Sunny.corrected_dispersion(swt, [[0.3, 0.1, 0]], terms2)
     end
     @test Zcs[1] ≈ Zcs[2] atol=1e-7
@@ -836,10 +836,10 @@ end
     # field the mean field only rescales H₂ and the two vacua coincide, so the
     # structure is canted.
     let grid = Sunny.BZGrid(16, 16, 1), swt = SpinWaveTheory(canted_square(1/2, 1.0); measure=nothing)
-        vac = Sunny.self_consistent_vacuum(swt; grid)
-        E(λ) = Sunny.gaussian_energy_per_site(swt; vacuum=Sunny.MagnonVacuum(swt, [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in vac.correction]), bz=grid)
+        sc = Sunny.self_consistent(swt; grid)
+        E(λ) = Sunny.gaussian_energy_per_site(Sunny.with_correction(swt, [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.state.correction]); bz=grid)
         @test abs(E(1 + 1e-3) - E(1 - 1e-3)) / 2e-3 < 1e-6
-        @test E(1) ≈ Sunny.gaussian_energy_per_site(swt; vacuum=vac, bz=grid) atol=1e-14
+        @test E(1) ≈ Sunny.gaussian_energy_per_site(sc) atol=1e-14
         @test E(0) ≈ Sunny.corrected_energy_per_site(swt; bz=grid) - Sunny.hartree_fock_correction(swt; bz=grid).δE atol=1e-12
         @test E(1) < E(0)
     end
@@ -1293,7 +1293,7 @@ end
         o = Sunny.Vec3(0, 0, 0)
         L = Sunny.nbands(swt)
         shift = [Sunny.BosonMonomial(0.3+0im, (L+1, 1), (o, o))]
-        c = Sunny.corrected_channels(swt, qs; energies, η, vacuum=Sunny.MagnonVacuum(swt, shift), grid=Sunny.BZGrid(4, 4, 1))
+        c = Sunny.corrected_channels(Sunny.with_correction(swt, shift), qs; energies, η, grid=Sunny.BZGrid(4, 4, 1))
         @test c.transverse + c.cross + c.direct ≈ chans.transverse + chans.cross + chans.direct atol=1e-12
         @test c.disp ≈ chans.disp .+ 0.3
     end
@@ -1385,7 +1385,7 @@ end
 
         # Onsite ⟨b†b⟩ and ⟨bb⟩, from which ⟨n̂²⟩ = ⟨n̂⟩² + ⟨n̂⟩(1+⟨n̂⟩) + |Δ|²
         o = Sunny.Vec3(0, 0, 0)
-        g = Sunny.contractions(Sunny.MagnonVacuum(swt), [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for i in 1:L for as in ((L+i, i), (i, i))],
+        g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for i in 1:L for as in ((L+i, i), (i, i))],
                                Sunny.BZAdaptive(; tol))
         ss = [swt.data.sqrtS[i]^2 for i in 1:L]
         n = [real(g(L+i, i, o)) for i in 1:L]
@@ -1521,12 +1521,12 @@ end
     # Every Nambu correlation, including the anomalous ones
     o = Sunny.Vec3(0, 0, 0)
     bz = Sunny.BZAdaptive(tol=1e-8)
-    g = Sunny.contractions(Sunny.MagnonVacuum(swt), [Sunny.BosonMonomial(1.0+0im, (a, a′), (o, o)) for a in 1:2L for a′ in 1:2L], bz)
+    g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, (a, a′), (o, o)) for a in 1:2L for a′ in 1:2L], bz)
     @test [g(a, a′, o) for a in 1:2L, a′ in 1:2L] ≈ [expect(bop(a)*bop(a′)) for a in 1:2L, a′ in 1:2L] atol=1e-7
 
     # One contraction of H₄ gives the mean-field form, two the constant
     terms4 = Sunny.quartic_monomials(swt)
-    g = Sunny.contractions(Sunny.MagnonVacuum(swt), terms4, bz)
+    g = Sunny.contractions(swt, terms4, bz)
     terms2 = Sunny.wick_reduce(terms4, g, nothing, Val{2}())
     δE = -Sunny.wick_expectation(terms4, g, nothing; nfactors=2)
     H4 = expand(bop, terms4, dim)
@@ -1548,7 +1548,7 @@ end
     # quadratic Q; a commutator of two linear operators is a c-number, so this
     # pins the three cubic pairings exactly rather than to integration accuracy.
     terms3 = Sunny.cubic_monomials(swt)
-    g = Sunny.contractions(Sunny.MagnonVacuum(swt), terms3, bz)
+    g = Sunny.contractions(swt, terms3, bz)
     ℓ = Sunny.nambu_vector(Sunny.wick_reduce(terms3, g, nothing, Val{1}()), L, 1e-6)
     H3raw = expand(bop, terms3, dim)
     H3mf = sum(a -> ℓ[a] * bop(a), 1:2L)
@@ -1668,7 +1668,7 @@ end
     # the zeroth and first moments of the measure exactly, so those two moments
     # pin it without replicating the binning. The 12 block is the interference,
     # which no published calculation constrains.
-    ρ2m = Sunny.pair_measures(Sunny.MagnonVacuum(swt2m), terms3, qr2, Sunny.LoopGrid([zero(Sunny.Vec3)], [1.0], 1);
+    ρ2m = Sunny.pair_measures(swt2m, terms3, qr2, Sunny.LoopGrid([zero(Sunny.Vec3)], [1.0], 1);
                               bin_width=1e-3, words2=words2m).decay
     rows = [1:L; 2L+1:2L+Nobs]
     bin(v) = [Sunny.bin_entry(v, n, n′) for n in rows, n′ in rows]
@@ -1704,7 +1704,7 @@ end
     # + K_dd, which exercises both channels, all 2L Nambu legs, and the relative
     # orientation of every block. Frequencies of both signs reach the decay and
     # source channels resonantly in turn.
-    (; decay, source) = Sunny.pair_measures(Sunny.MagnonVacuum(swt2m), terms3, qr2, Sunny.LoopGrid([zero(Sunny.Vec3)], [1.0], 1);
+    (; decay, source) = Sunny.pair_measures(swt2m, terms3, qr2, Sunny.LoopGrid([zero(Sunny.Vec3)], [1.0], 1);
                                             bin_width=1e-4, words2=words2m)
     function χexact(λ, z)
         (Es, ψs) = eigen(Hermitian(Matrix(H2 + λ*H3)))
@@ -1949,10 +1949,9 @@ end
     # not depend on where the iteration starts. Both paths share the same
     # quadrature, so its accuracy is irrelevant here and a coarse grid keeps the
     # iterations cheap.
-    ress = map((nothing, Sunny.MagnonVacuum(swt, terms2))) do guess
-        grid = Sunny.BZGrid(8, 8, 1)
-        vac = Sunny.self_consistent_vacuum(swt; grid, guess)
-        return (Sunny.gaussian_energy_per_site(swt; vacuum=vac, bz=grid), Sunny.corrected_dispersion(swt, [[0.3, 0.1, 0]], vac.correction))
+    ress = map((nothing, Sunny.with_correction(swt, terms2))) do guess
+        sc = Sunny.self_consistent(swt; grid=Sunny.BZGrid(8, 8, 1), guess)
+        return (Sunny.gaussian_energy_per_site(sc), dispersion(sc, [[0.3, 0.1, 0]]))
     end
     @test ress[1][1] ≈ ress[2][1] atol=1e-8
     @test ress[1][2] ≈ ress[2][2] atol=1e-7
@@ -2006,14 +2005,14 @@ end
     grid = Sunny.loop_wavevectors((12, 12, 1), k)
     τ₃ = Diagonal([ones(L); -ones(L)])
     Σloop = let Σ = zeros(ComplexF64, 2L, 2L, length(ωs))
-        Sunny.foreach_cubic_line(Sunny.MagnonVacuum(swt), terms3, k, grid, 2L) do a, _b, w, u, x, _p, _T1, _T2
+        Sunny.foreach_cubic_line(swt, terms3, k, grid, 2L) do a, _b, w, u, x, _p, _T1, _T2
             for m′ in 1:2L, m in 1:2L, iω in eachindex(ωs)
                 Σ[m, m′, iω] += (a > L ? -18w : 18w) * τ₃[m, m] * conj(u[m]) * u[m′] / (ωs[iω] - x)
             end
         end
         Σ ./ grid.npts
     end
-    Σbin = let (; decay, source) = Sunny.pair_measures(Sunny.MagnonVacuum(swt), terms3, k, grid; bin_width=0.06/16, words2=[])
+    Σbin = let (; decay, source) = Sunny.pair_measures(swt, terms3, k, grid; bin_width=0.06/16, words2=[])
         K = Sunny.cauchy_transform((decay, source), ωs)
         stack(τ₃ * transpose(K[:, :, iω]) for iω in eachindex(ωs))
     end
@@ -2038,7 +2037,7 @@ end
             q_global = Sunny.orig_crystal(sys).recipvecs * Sunny.Vec3(q)
             words2 = Sunny.observable_pair_monomials(swt, q_reshaped, q_global)
             lg = Sunny.loop_wavevectors(grid, q_reshaped)
-            Sunny.foreach_magnon_pair(Sunny.MagnonVacuum(swt), q_reshaped, lg) do _p, w, T1, T2, ε1, ε2
+            Sunny.foreach_magnon_pair(swt, q_reshaped, lg) do _p, w, T1, T2, ε1, ε2
                 # Decay pairs at x > 0 and source pairs, of negative mass, at x < 0
                 for b in 1:2L, a in 1:2L
                     (a > L) == (b > L) || continue
