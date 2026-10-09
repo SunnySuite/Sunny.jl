@@ -1,5 +1,7 @@
 
-# Bilinear-boson coefficients for a pair coupling A ⊗ B on units (i, j)
+# Bilinear-boson coefficients for a pair coupling A ⊗ B on units (i, j), used
+# by the Ewald term below. The other couplings are compiled from the same
+# expansion, see ExpansionSUN.jl.
 #
 # In SU(N) spin-wave theory each unit carries N-1 Holstein-Primakoff bosons b_m.
 # Once operators are rotated so the condensate is basis state N, a local
@@ -33,9 +35,8 @@ end
 # Scatter a pair coupling A ⊗ B on units (i,j) into the dense Nambu blocks. The
 # on-unit blocks (c1,c2) carry no wrapping phase, so they take the coupling at
 # q=0, `J0`; the inter-unit blocks (c3,c4,c5) take the coupling at wavevector q,
-# `Jq`. In the ordinary pair-coupling case J0 = J and Jq = J exp(2πi q·n), with
-# J = 1 if the strength is already absorbed into A ⊗ B. The Ewald path reuses
-# this same kernel with J0 = A(q=0) and Jq = A(q), the Fourier-space kernel.
+# `Jq`. For Ewald these are J0 = A(q=0) and Jq = A(q), the Fourier-space
+# kernel.
 @inline function accum_pair_dense!(H11, H12, H21, H22, A, B, i, j, J0, Jq, N)
     for m in 1:N-1, n in 1:N-1
         (c1, c2, c3, c4, c5) = swt_pair_coefs(A, B, m, n, N)
@@ -48,100 +49,56 @@ end
     end
 end
 
-# Set the dynamical quadratic Hamiltonian matrix in SU(N) mode.
-function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
+# Adds the long-range dipole-dipole interaction to the dynamical matrix `H` in
+# SU(N) mode. Everything else is compiled into the quadratic table. For an
+# entangled system the Ewald data is that of its uncontracted system.
+function accum_ewald_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
     (; spin_ops) = data
-
     N = sys.Ns[1]
     Na = natoms(sys.crystal)
     L = (N-1) * Na
-    @assert size(H) == (2L, 2L)
-
-    # Onsite and pair couplings, and for an entangled system the bilinear
-    # exchange between units, all compiled into one table
-    H .= 0
-    accum_lower!(H, swt.quadratic_table, q_reshaped)
-    hermitian_from_lower!(H)
-
-    # Long-range dipole-dipole interactions. In case of an entangled system,
-    # this data would be stored in its uncontracted system.
     usys = uncontracted_system(sys)
 
-    if !isnothing(usys.ewald)
-        blockdims = (N-1, Na, N-1, Na)
-        H11 = reshape(view(H, 1:L, 1:L), blockdims)
-        H12 = reshape(view(H, 1:L, L+1:2L), blockdims)
-        H21 = reshape(view(H, L+1:2L, 1:L), blockdims)
-        H22 = reshape(view(H, L+1:2L, L+1:2L), blockdims)
-        (; gs, ewald) = usys
-        (; cache, A) = ewald
-        Nbare = natoms(usys.crystal)
+    blockdims = (N-1, Na, N-1, Na)
+    H11 = reshape(view(H, 1:L, 1:L), blockdims)
+    H12 = reshape(view(H, 1:L, L+1:2L), blockdims)
+    H21 = reshape(view(H, L+1:2L, 1:L), blockdims)
+    H22 = reshape(view(H, L+1:2L, L+1:2L), blockdims)
+    (; gs, ewald) = usys
+    (; cache, A) = ewald
+    Nbare = natoms(usys.crystal)
 
-        # Interaction matrix for wavevector (0,0,0), equivalently:
-        # real.(ewald_interaction_tensor(cache, zero(Vec3)))
-        A0 = reshape(A, Nbare, Nbare)
-        # Interaction matrix for wavevector q
-        Aq = ewald_interaction_tensor(cache, q_reshaped)
-        Aq = reshape(Aq, Nbare, Nbare)
+    # Interaction matrix for wavevector (0,0,0), equivalently:
+    # real.(ewald_interaction_tensor(cache, zero(Vec3)))
+    A0 = reshape(A, Nbare, Nbare)
+    # Interaction matrix for wavevector q
+    Aq = ewald_interaction_tensor(cache, q_reshaped)
+    Aq = reshape(Aq, Nbare, Nbare)
 
-        # For an entangled system, `contract_ewald!` has already stripped
-        # intra-unit couplings in A0 and shifted them to an onsite coupling. The
-        # same stripping must be done for the freshly computed Aq.
-        if is_entangled(sys)
-            for (; ai, aj, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, cache.μ0_μB²)
-                Aq[ai, aj] -= Adir
+    # For an entangled system, `contract_ewald!` has already stripped
+    # intra-unit couplings in A0 and shifted them to an onsite coupling. The
+    # same stripping must be done for the freshly computed Aq.
+    if is_entangled(sys)
+        for (; ai, aj, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, cache.μ0_μB²)
+            Aq[ai, aj] -= Adir
+        end
+    end
+
+    # The Ewald matrices and g-tensors are indexed by bare crystal-atom `a`
+    for i in 1:Na, j in 1:Na
+        for ai in atoms_in_unit(sys, i), aj in atoms_in_unit(sys, j)
+            # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
+            # energy, where μ = - g S. A symmetric contribution will appear for
+            # the bond reversal (a, b) → (b, a).
+            Jq = gs[ai]' * Aq[ai, aj] * gs[aj] / 2
+            J0 = gs[ai]' * A0[ai, aj] * gs[aj] / 2
+
+            for α in 1:3, β in 1:3
+                Ai = spin_ops[α, ai]
+                Bj = spin_ops[β, aj]
+                accum_pair_dense!(H11, H12, H21, H22, Ai, Bj, i, j, J0[α,β], Jq[α,β], N)
             end
         end
-
-        # The Ewald matrices and g-tensors are indexed by bare crystal-atom `a`
-        for i in 1:Na, j in 1:Na
-            for ai in atoms_in_unit(sys, i), aj in atoms_in_unit(sys, j)
-                # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
-                # energy, where μ = - g S. A symmetric contribution will appear for
-                # the bond reversal (a, b) → (b, a).
-                Jq = gs[ai]' * Aq[ai, aj] * gs[aj] / 2
-                J0 = gs[ai]' * A0[ai, aj] * gs[aj] / 2
-
-                for α in 1:3, β in 1:3
-                    Ai = spin_ops[α, ai]
-                    Bj = spin_ops[β, aj]
-                    accum_pair_dense!(H11, H12, H21, H22, Ai, Bj, i, j, J0[α,β], Jq[α,β], N)
-                end
-            end
-        end
-
-        # H must be hermitian up to round-off errors
-        @assert maxdiff(H, H') < 1e-12
-
-        # Make H exactly hermitian
-        hermitianpart!(H)
     end
-
-    # Add small constant shift for positive-definiteness
-    for i in 1:2L
-        H[i,i] += swt.regularization
-    end
-end
-
-
-# Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical
-# matrix). Note that x is assumed to be a 2D array with first index
-# corresponding to q. 
-function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::AbstractMatrix{ComplexF64}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3};
-                                      phases=zeros(ComplexF64, size(qs_reshaped)))
-    (; sys) = swt
-    L = nbands(swt)
-    @assert size(x) == size(y) == (length(qs_reshaped), 2L)
-    y .= 0
-    accum_mul!(y, x, swt.quadratic_table, qs_reshaped, phases)
-
-    if !isnothing(sys.ewald)
-        error("Ewald not supported")
-    end
-
-    # Add small constant shift for positive-definiteness
-    @inbounds @. y += swt.regularization * x
-
-    nothing
 end
