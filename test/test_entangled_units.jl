@@ -70,11 +70,12 @@ end
     positions = [[0, 0, 0.0], [0, 0.5, 0.0]]
     crystal = Crystal(latvecs, positions, 1; types=["A", "B"])
 
-    # AFM inter-unit exchange prefers Néel order
+    # AFM inter-unit exchange prefers Néel order. A DM term makes the bond
+    # asymmetric under reversal, which fixes the sign of its cell offset.
     function build(; entangle)
         sys = System(crystal, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :SUN)
         set_exchange!(sys, -0.3, Bond(1, 2, [0, 0, 0]))  # FM intra-unit
-        set_exchange!(sys,  1.0, Bond(1, 1, [1, 0, 0]))  # AFM inter-unit
+        set_exchange!(sys, [1 0.2 0; -0.2 1 0; 0 0 1], Bond(1, 1, [1, 0, 0]))  # AFM + DM inter-unit
         set_exchange!(sys,  1.0, Bond(2, 2, [1, 0, 0]))
         sys = resize_supercell(sys, (2, 1, 1))           # two units in the mag cell
         entangle && (sys = entangle_system(sys, [[1, 2]]))
@@ -87,21 +88,20 @@ end
 
     @test energy_per_site(esys) ≈ energy_per_site(bsys) ≈ -0.2875
 
-    # Check equivalence of dispersion calculations
+    # Check equivalence of dispersion calculations in a field, which removes
+    # the degeneracy that DM leaves at zero field. The Zeeman term is set on
+    # the entangled system after construction and lives on the uncontracted
+    # clone. It must survive the reshape inside `SpinWaveTheory`; equivalence
+    # with the bare system confirms it is carried.
     qs = [[0.1, 0, 0], [0.25, 0, 0], [0.3, 0.2, 0]]
     disp(s) = sort(dispersion(SpinWaveTheory(s; measure=nothing), qs); dims=1)
-    disp_b = disp(bsys)
-    @test disp(esys)[1:size(disp_b, 1), :] ≈ disp_b
-
-    # In-field: the Zeeman term is set on the entangled system after construction
-    # and lives on the uncontracted clone. It must survive the reshape inside
-    # `SpinWaveTheory`; equivalence with the bare system confirms it is carried.
     for s in (esys, bsys)
         set_field!(s, [0, 0, 3])
         minimize_energy!(s)
     end
     disp_b = disp(bsys)
     @test disp(esys)[1:size(disp_b, 1), :] ≈ disp_b
+
 end
 
 @testitem "Dimer Tests" begin
