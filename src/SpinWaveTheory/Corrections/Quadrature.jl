@@ -158,7 +158,7 @@ function auto_bzgrid(swt; η, tol)
     ε = zeros(L, ncoarse, ncoarse, ncoarse)
     for i in 1:ncoarse, j in 1:ncoarse, k in 1:ncoarse
         q = Vec3((i - 1/2)/ncoarse, (j - 1/2)/ncoarse, (k - 1/2)/ncoarse)
-        view(ε, :, i, j, k) .= view(vacuum_bogoliubov!(ws, H, swt, q), 1:L)
+        view(ε, :, i, j, k) .= view(excitations_reshaped!(ws, H, swt, q), 1:L)
     end
 
     return BZGrid(ntuple(3) do d

@@ -35,31 +35,17 @@
 # equation remains that of LSWT and results differ from the 1/s expansion only
 # at the order neglected.
 
-# The same theory about the harmonic vacuum, i.e. LSWT proper
-harmonic(swt::SpinWaveTheory) = isempty(swt.state.correction) ? swt : SpinWaveTheory(swt, GaussianState())
+# The same theory about the vacuum of the LSWT Hamiltonian plus `terms2`, which
+# replaces any correction that `swt` already carries. The result is not
+# self-consistent, so it records no grid.
+with_correction(swt::SpinWaveTheory, terms2) = SpinWaveTheory(swt, GaussianState(terms2, nothing, (;)))
 
-# The same theory about the vacuum of its quadratic Hamiltonian plus `terms2`
-with_correction(swt::SpinWaveTheory, terms2) =
-    SpinWaveTheory(swt, GaussianState([swt.state.correction; terms2], nothing, (;)))
+# The same theory about the harmonic vacuum, i.e. LSWT proper
+harmonic(swt::SpinWaveTheory) = with_correction(swt, BosonMonomial{2}[])
 
 # Adds the counterterm of the vacuum, minus its correction, to the Nambu matrix δH
 accum_counterterm!(δH, swt::SpinWaveTheory, q_reshaped) =
     accum_quadratic!(δH, [BosonMonomial(-c, as, ns) for (; c, as, ns) in swt.state.correction], q_reshaped)
-
-# Quasi-particles of the vacuum, as `bogoliubov!` returns them in `ws`. A
-# quadratic Hamiltonian that is not positive definite has no vacuum, which is an
-# instability of the structure when the Hamiltonian is the harmonic one.
-function vacuum_bogoliubov!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_reshaped)
-    dynamical_matrix!(H, swt, q_reshaped)
-    try
-        return bogoliubov!(ws, H)
-    catch err
-        err isa PosDefException || rethrow()
-        rethrow(InstabilityError("Quadratic Hamiltonian of the vacuum not positive definite at reshaped wavevector \
-                                  $(vec3_to_string(q_reshaped)). If quantum fluctuations stabilize the structure, \
-                                  see `Sunny.self_consistent`."))
-    end
-end
 
 # The wavevector loop shared by every frequency-dependent momentum integral of
 # this module. Calls `f(𝐩, w, T1, T2, ε1, ε2)` once per wavevector 𝐩 of
@@ -74,8 +60,8 @@ function foreach_magnon_pair(f, swt::SpinWaveTheory, q_reshaped, grid::LoopGrid)
     # Both magnon lines are live at once, so each gets its own workspace
     (ws1, ws2) = (BogoliubovWorkspace(L), BogoliubovWorkspace(L))
     for (p, w) in zip(grid.ps, grid.wts)
-        ε1 = vacuum_bogoliubov!(ws1, H, swt, p)
-        ε2 = vacuum_bogoliubov!(ws2, H, swt, q_reshaped - p)
+        ε1 = excitations_reshaped!(ws1, H, swt, p)
+        ε2 = excitations_reshaped!(ws2, H, swt, q_reshaped - p)
         f(p, w, ws1.T, ws2.T, ε1, ε2)
     end
 end
@@ -175,7 +161,7 @@ end
 function vacuum_modes!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_reshaped)
     L = nbands(swt)
     try
-        vacuum_bogoliubov!(ws, H, swt, q_reshaped)
+        excitations_reshaped!(ws, H, swt, q_reshaped)
         return view(ws.T, :, 1:L)
     catch err
         err isa InstabilityError || rethrow()
