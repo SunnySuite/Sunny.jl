@@ -344,8 +344,15 @@ end
 
 # Linearize each Fourier observable Â(q) = Σᵢ exp(+i q⋅rᵢ) Âᵢ as a coefficient
 # vector u in the Nambu basis of Holstein-Primakoff bosons [a_q, a_-q†].
-function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_global)
-    (; sys, measure, data) = swt
+#
+# The fields `sys` and `measure` of `SpinWaveTheory` are abstract, to limit
+# specialization, so they are passed through a function barrier. Otherwise each
+# observable would dispatch dynamically.
+set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_global) =
+    set_swt_observable_vectors!(u, swt, swt.sys, swt.measure, q_reshaped, q_global)
+
+function set_swt_observable_vectors!(u, swt::SpinWaveTheory, sys::System, measure::MeasureSpec, q_reshaped, q_global)
+    (; data) = swt
     Na = nsites(sys)
     Nobs = num_observables(measure)
     Nf = nflavors(swt)
