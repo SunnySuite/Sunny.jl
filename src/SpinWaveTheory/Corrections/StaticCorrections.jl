@@ -53,7 +53,41 @@ function mean_field(terms4, g::Contractions)
 end
 
 """
-    self_consistent(swt::SpinWaveTheory; grid, guess=nothing, scf_tol=1e-8, maxiters=200)
+    GoldstonePin(q)
+
+A constraint for [`self_consistent`](@ref) that keeps the Goldstone mode at
+wavevector `q` (RLU) exactly gapless. At each iterate a uniform onsite term
+``μ Σ_i b^†_i b_i`` is added, with ``μ`` chosen so that the quadratic Hamiltonian
+has a zero mode at `q`, like the Lagrange multiplier of modified spin-wave
+theory. The resulting state is not stationary in
+[`gaussian_energy_per_site`](@ref), and since [`corrected_intensities`](@ref)
+subtracts every correction of the state as a counterterm, it removes the pin
+again. The pinned spectrum itself is that of [`intensities`](@ref).
+"""
+struct GoldstonePin
+    q :: Vec3
+end
+
+GoldstonePin(q::AbstractVector) = GoldstonePin(Vec3(q))
+
+# Uniform onsite term c Σ_a b†_a b_a
+uniform_shift(c, L) = [BosonMonomial(complex(c), (L+a, a), (zero(Vec3), zero(Vec3))) for a in 1:L]
+
+# Terms that the constraint `pin` adds to the correction `terms2` of the
+# harmonic `swt`, and the multiplier that fixes them. A uniform shift moves
+# every eigenvalue of the dynamical matrix equally, so one evaluation at `q`
+# solves for it exactly. The zero mode is left at `swt.regularization`, like any
+# Goldstone mode of LSWT.
+function constraint_terms(pin::GoldstonePin, swt, terms2)
+    L = nbands(swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    dynamical_matrix!(H, with_correction(swt, terms2), to_reshaped_rlu(swt.sys, pin.q))
+    μ = swt.regularization - eigmin(Hermitian(H))
+    return (uniform_shift(μ, L), (; μ))
+end
+
+"""
+    self_consistent(swt::SpinWaveTheory; grid, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200)
 
 The [`SpinWaveTheory`](@ref) about the Gaussian state that reproduces its own
 mean field, i.e. self-consistent Hartree-Fock-Bogoliubov. Its `dispersion` and
@@ -67,7 +101,9 @@ has no vacuum. The iteration starts from the state of `guess`, a
 `InstabilityError` if the fixed point needs a stabilizing shift.
 Self-consistency resums one class of higher-order terms and drops others of the
 same order. It is uncontrolled, and it gaps the Goldstone mode of a broken
-continuous symmetry.
+continuous symmetry. Each of `constraints`, e.g. [`GoldstonePin`](@ref), adds
+terms to the correction at every iterate, and the multipliers that fix them are
+reported in the `info` of the state.
 
 Momentum integrals are discrete sums over the points of `grid`, a
 [`BZGrid`](@ref). The state records it, and every ``1/s`` correction about
@@ -75,7 +111,8 @@ this state uses the same grid by default, so that the counterterm cancels the
 mean field exactly in [`corrected_intensities`](@ref). A grid that resolves a
 regulator `η` there is, e.g., `auto_bzgrid(swt; η, tol=0.01)`.
 """
-function self_consistent(swt::SpinWaveTheory; grid::BZGrid, guess=nothing, scf_tol=1e-8, maxiters=200, memory=5)
+function self_consistent(swt::SpinWaveTheory; grid::BZGrid, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200,
+                         memory=5)
     # The fixed point of g ↦ contractions in the vacuum of H₂ plus the mean
     # field of g. The iteration is accelerated by Anderson mixing over the last
     # `memory` iterates, with real coefficients, so each iterate is an affine
@@ -88,7 +125,20 @@ function self_consistent(swt::SpinWaveTheory; grid::BZGrid, guess=nothing, scf_t
     L = nbands(swt)
     terms4 = quartic_monomials(swt)
     probe = grid_points(grid)
-    shifted(terms2, s) = with_correction(swt, [terms2; [BosonMonomial(complex(s), (L+a, a), (zero(Vec3), zero(Vec3))) for a in 1:L]])
+    shifted(terms2, s) = with_correction(swt, [terms2; uniform_shift(s, L)])
+
+    # The mean field of `g` with the terms of each constraint, and their
+    # multipliers
+    function correction(g)
+        terms2 = mean_field(terms4, g).terms2
+        info = (;)
+        for c in constraints
+            (extra, i) = constraint_terms(c, swt, terms2)
+            terms2 = [terms2; extra]
+            info = Base.merge(info, i)
+        end
+        return (terms2, info)
+    end
 
     H = zeros(ComplexF64, 2L, 2L)
     function stabilized(terms2)
@@ -112,10 +162,10 @@ function self_consistent(swt::SpinWaveTheory; grid::BZGrid, guess=nothing, scf_t
     (xs, rs) = (Vector{ComplexF64}[], Vector{ComplexF64}[])
     realify(v) = [real(v); imag(v)]
     for iter in 1:maxiters
-        terms2 = mean_field(terms4, g).terms2
+        (terms2, info) = correction(g)
         (g′, s) = stabilized(terms2)
         r = g′.values - g.values
-        norm(r) < scf_tol && return iszero(s) ? SpinWaveTheory(swt, GaussianState(terms2, grid, (; method=:hartree_fock, iter))) :
+        norm(r) < scf_tol && return iszero(s) ? SpinWaveTheory(swt, GaussianState(terms2, grid, (; method=:hartree_fock, iter, info...))) :
             throw(InstabilityError("Quantum fluctuations do not stabilize the structure: the self-consistent \
                                     mean field leaves the quadratic Hamiltonian indefinite."))
         push!(xs, g.values)
