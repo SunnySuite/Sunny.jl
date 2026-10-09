@@ -3,6 +3,7 @@ struct SWTDataDipole
     observables           :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
     stevens_coefs         :: Vector{StevensExpansion} # Rotated onsite coupling as Steven expansion
     sqrtS                 :: Vector{Float64}          # Square root of spin magnitudes
+    interactions          :: Vector{Interactions}     # Pair couplings rotated to local frames
 end
 
 
@@ -10,6 +11,7 @@ struct SWTDataSUN
     local_unitaries  :: Vector{Matrix{ComplexF64}}    # Transformations from global to quantization frame
     observables      :: Array{HermitianC64, 3}        # Rotated observables (nobs × nunits × nparts)
     spin_ops         :: Array{HermitianC64, 2}        # Spin dipoles in local frame (3 × nbareatoms)
+    interactions     :: Vector{Interactions}          # Couplings in local frames, Zeeman in onsite
 end
 
 # To facilitate sharing some code with SpinWaveTheorySpiral
@@ -59,14 +61,13 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
     sys = reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
 
-    # Read the classical energy before `swt_data!` invalidates it
     classical_energy = energy_per_site(sys)
 
     # Rotate local operators to quantization axis
-    data = swt_data!(sys, measure)
+    data = swt_data(sys, measure)
 
     quadratic_table = if sys.mode == :SUN
-        QuadraticTable(sun_monomials(sys, data.spin_ops, Val{2}()), (sys.Ns[1] - 1) * natoms(sys.crystal))
+        QuadraticTable(sun_monomials(sys, data, Val{2}()), (sys.Ns[1] - 1) * natoms(sys.crystal))
     else
         QuadraticTable(quadratic_monomials_dipole(sys, data), natoms(sys.crystal))
     end
@@ -136,10 +137,10 @@ function mul_dynamical_matrix!(swt, y, x, qs_reshaped)
 end
 
 
-# Prepare local operators and observables for spin wave calculation by rotating
-# into the local reference frame as defined by the ground state. Mutates
-# interactions in sys.
-function swt_data!(sys::System{N}, @nospecialize measure) where N
+# Prepare local operators, observables, and couplings for spin wave calculation
+# by rotating into the local reference frame as defined by the ground state. The
+# couplings of `sys` itself are left in the global frame.
+function swt_data(sys::System{N}, @nospecialize measure) where N
     # Calculate transformation matrices into local reference frames
     Na = nsites(sys)
     Nb = nbaresites(sys)
@@ -151,6 +152,7 @@ function swt_data!(sys::System{N}, @nospecialize measure) where N
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
     observables = Array{HermitianC64}(undef, Nobs, Na, nparts)
     spin_ops = fill(Hermitian(zeros(ComplexF64, N, N)), 3, Nb)
+    onsites = [int.onsite for int in sys.interactions_union]
 
     for i in 1:Na
         # Create unitary that rotates [0, ..., 0, 1] into ground state direction
@@ -171,13 +173,11 @@ function swt_data!(sys::System{N}, @nospecialize measure) where N
             observables[μ, i, p] = Hermitian(U' * flat_ops[μ, i, p] * U)
         end
 
-        int = sys.interactions_union[i]
-
         for ai in atoms_in_unit(sys, i)
             # Incorporate Zeeman coupling into onsite
             S = spin_ops_embedded(sys, ai)
             (; gs, extfield) = uncontracted_system(sys)
-            int.onsite += (extfield[ai]' * gs[ai]) * S
+            onsites[i] += (extfield[ai]' * gs[ai]) * S
 
             # Store spin dipoles in the local frame
             for α in 1:3
@@ -186,12 +186,12 @@ function swt_data!(sys::System{N}, @nospecialize measure) where N
         end
     end
 
-    for i in 1:Na
+    interactions = map(1:Na) do i
         Ui = local_unitaries[i]
         int = sys.interactions_union[i]
 
         # Rotate onsite coupling
-        int.onsite = Hermitian(Ui' * int.onsite * Ui)
+        onsite = Hermitian(Ui' * onsites[i] * Ui)
 
         # Convert each pair coupling to a compressed tensor decomposed form and
         # rotate it into the local reference frames of both sites.
@@ -212,18 +212,14 @@ function swt_data!(sys::System{N}, @nospecialize measure) where N
 
             push!(pair_new, PairCoupling(bond, 0.0, 0.0, 0.0, general_rotated))
         end
-        int.pair = pair_new
+        Interactions(onsite, pair_new)
     end
 
-    return SWTDataSUN(
-        local_unitaries,
-        observables,
-        spin_ops,
-    )
+    return SWTDataSUN(local_unitaries, observables, spin_ops, interactions)
 end
 
 
-function swt_data!(sys::System{0}, @nospecialize measure)
+function swt_data(sys::System{0}, @nospecialize measure)
     Na = nsites(sys)
     Nobs = num_observables(measure)
 
@@ -258,13 +254,13 @@ function swt_data!(sys::System{0}, @nospecialize measure)
     obs = reshape(measure.observables::Array{Vec3, 6}, Nobs, Na)
     obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
 
-    # Precompute transformed exchange matrices and store in
-    # sys.interactions_union.
-    for (i, int) in enumerate(sys.interactions_union)
-        for c in eachindex(int.pair)
-            (; bond, scalar, bilin, biquad, general) = int.pair[c]
+    # Precompute transformed exchange matrices. The onsite coupling is kept in
+    # the global frame, its rotated form being `stevens_coefs`.
+    interactions = map(sys.interactions_union) do int
+        pair = map(int.pair) do pc
+            (; bond, scalar, bilin, biquad, general) = pc
+            i = bond.i
 
-            @assert i == bond.i
             j = bond.j
 
             if !iszero(bilin)  # Leave zero if already zero
@@ -280,8 +276,9 @@ function swt_data!(sys::System{0}, @nospecialize measure)
 
             @assert isempty(general.data)
 
-            int.pair[c] = PairCoupling(bond, scalar, bilin, biquad, general)
+            PairCoupling(bond, scalar, bilin, biquad, general)
         end
+        Interactions(int.onsite, pair)
     end
 
     # Rotated Stevens expansion
@@ -292,7 +289,7 @@ function swt_data!(sys::System{0}, @nospecialize measure)
     # Square root of spin magnitudes
     sqrtS = sqrt.(vec(sys.κs))
 
-    return SWTDataDipole(Rs, obs_localized, cs, sqrtS)
+    return SWTDataDipole(Rs, obs_localized, cs, sqrtS, interactions)
 end
 
 # Fourier prefactor for observable μ acting on a flattened unit i of swt.sys,

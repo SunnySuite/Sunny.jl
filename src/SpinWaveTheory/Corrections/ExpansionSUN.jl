@@ -7,7 +7,7 @@
 # the symmetric SU(N) representation, Sunny's :SUN mode being M = 1. Writing the
 # condensate flavor as N and n̂ = Σ_{m<N} b†_m b_m for the number of bosons that
 # have left it, a local operator A — an N×N matrix in the local frame that
-# `swt_data!` rotates into — is promoted to the M-box representation as
+# `swt_data` rotates into — is promoted to the M-box representation as
 #
 #     Â = Σ_{mn<N} A[m,n] b†_m b_n
 #       + Σ_{m<N} (A[m,N] b†_m √(M-n̂) + A[N,m] √(M-n̂) b_m) + A[N,N] (M - n̂).
@@ -51,7 +51,7 @@
 # falls as 1/M, which is precisely the omitted five-boson word.
 #
 # Two consequences for the physics are worth flagging. Biquadratic exchange
-# needs no special treatment, `swt_data!` having already decomposed every
+# needs no special treatment, `swt_data` having already decomposed every
 # coupling into the (A, B) tensor pairs of `coupling.general.data` that the
 # assembly below consumes. And the cubic vertex does *not* vanish for a
 # collinear structure, as it does in dipole mode: flavor-changing words let a
@@ -103,7 +103,7 @@ function local_monomials(A, i, off, ::Val{nb}, Nf, L, M=1) where nb
 end
 
 # Monomials of the K-boson term of the expansion in mode :SUN. Each onsite
-# coupling, which `swt_data!` has already absorbed the Zeeman term into,
+# coupling, which `swt_data` has already absorbed the Zeeman term into,
 # contributes its K-boson word directly. Each pair coupling A_i ⊗ B_j
 # contributes every split of the K bosons between its two sites; all K+1 of them
 # carry the same power M^{2-K/2}, so all are kept. See `local_monomials` for `M`,
@@ -113,9 +113,10 @@ end
 #
 # The K = 2 term is the LSWT Hamiltonian itself, which `QuadraticTable`
 # compiles for `swt_hamiltonian_SUN!`.
-sun_monomials(swt::SpinWaveTheory, k::Val, M=1) = sun_monomials(swt.sys, (swt.data::SWTDataSUN).spin_ops, k, M)
+sun_monomials(swt::SpinWaveTheory, k::Val, M=1) = sun_monomials(swt.sys, swt.data::SWTDataSUN, k, M)
 
-function sun_monomials(sys::System, spin_ops, ::Val{K}, M=1) where K
+function sun_monomials(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
+    (; spin_ops, interactions) = data
     @assert allequal(sys.Ns)
     Nf = sys.Ns[1] - 1
     L = Nf * natoms(sys.crystal)
@@ -134,7 +135,7 @@ function sun_monomials(sys::System, spin_ops, ::Val{K}, M=1) where K
         end
     end
 
-    for (i, int) in enumerate(sys.interactions_union)
+    for (i, int) in enumerate(interactions)
         append!(terms, local_monomials(int.onsite, i, o, Val{K}(), Nf, L, M))
 
         for coupling in int.pair
