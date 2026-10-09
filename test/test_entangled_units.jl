@@ -168,7 +168,7 @@ end
         @test_throws "propose_flip is not supported for general coherent states" step!(esys, sampler)
     end
 
-    ### Test dispersion against analytical formula for antisymmetric channel.
+    ### Test dispersion against analytical formula for antisymmetric channel
 
     qs = [[0.2, 0.3, 0]]
     ω_ref(q, J, J′) = J*sqrt(1 + 2(J′/J) * cos(2π*q))
@@ -186,14 +186,16 @@ end
 
     ### Reshaped entangled system produces the correct intensities
 
+    kernel = gaussian(fwhm=0.1)
+    energies = range(0, 3, 31)
     swt = SpinWaveTheory(esys; measure=ssf_perp(esys))
-    res = intensities_bands(swt, qs)
-    shape = [1 2 0; 0 1 0; 0 0 1]
+    res = intensities(swt, qs; energies, kernel)
+    shape = [1 2 0; 0 2 0; 0 0 1]
     esys_sheared = reshape_supercell(esys, shape)
+    @test esys_sheared.dims == (1, 2, 1)
     swt_sheared = SpinWaveTheory(esys_sheared; measure=ssf_perp(esys_sheared))
-    res_sheared = intensities_bands(swt_sheared, qs)
-    @test res_sheared.disp ≈ res.disp atol=1e-11
-    @test sum(res_sheared.data; dims=1) ≈ sum(res.data; dims=1) atol=1e-11
+    res_sheared = intensities(swt_sheared, qs; energies, kernel)
+    @test res_sheared.data ≈ res.data atol=1e-11
 
     ### Static structure factor must be zero in dipolar sector
 
@@ -201,7 +203,7 @@ end
     add_sample!(ssf, esys)
     @test all(x -> isapprox(x, 0.0; atol=1e-12), ssf.parent.data)
 
-    ### Golden test for classical dynamics ###
+    ### Golden test for classical dynamics
 
     esys = repeat_periodically(esys, (8, 1, 1))
     for site in eachsite(esys)

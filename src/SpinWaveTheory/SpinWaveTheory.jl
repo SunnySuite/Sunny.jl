@@ -290,7 +290,7 @@ end
 # with optional part index.
 function observable_prefactor(measure, μ, i, q_reshaped, q_global, sys; part=1)
     unit = fld1(i, prod(num_lattice_dims(measure)))
-    r = sys.crystal.positions[i] + measure.offsets[unit, part]
+    r = sys.crystal.positions[i] + measure.offsets[unit, part] ./ Vec3(num_lattice_dims(measure))
     ff = measure.formfactors[μ, unit, part]
     cis(2π * dot(q_reshaped, r)) * compute_form_factor(ff, norm2(q_global))
 end
