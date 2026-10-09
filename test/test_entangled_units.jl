@@ -330,6 +330,9 @@ end
     fsys = build(folded=true)
     @test energy_per_site(esys) ≈ energy_per_site(fsys) atol=1e-5
 
+    # Cloning rebuilds the Ewald data, and must not undo the folding
+    @test energy_per_site(Sunny.clone_system(esys)) ≈ energy_per_site(esys)
+
     esys = resize_supercell(esys, (2, 1, 1))
     fsys = resize_supercell(fsys, (2, 1, 1))
     minimize_energy!(esys); minimize_energy!(fsys)

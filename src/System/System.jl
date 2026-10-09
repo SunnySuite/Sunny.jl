@@ -179,6 +179,13 @@ function clone_system(sys::System{N}) where N
         enable_dipole_dipole!(ret, μ0_μB²; demag)
     end
 
+    # The same rebuild on the uncontracted system restores the intra-unit
+    # dipole couplings, which entanglement had folded into the onsite term
+    if is_entangled(ret)
+        (; uncontracted, units) = get_entanglement(ret)
+        contract_ewald!(ret, uncontracted, units)
+    end
+
     return ret
 end
 
