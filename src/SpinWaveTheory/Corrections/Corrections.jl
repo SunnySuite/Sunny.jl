@@ -25,7 +25,7 @@
 #
 # Resummation. Collect the quasi-particles into y_𝐪 = [α_𝐪; α†_{-𝐪}], with
 # metric Ĩ = diagm([ones(L); -ones(L)]), and write w = T†u for the observable
-# amplitudes (u from `set_swt_observable_vectors!`, corrected by
+# amplitudes (u from `observable_vectors!`, corrected by
 # Observables.jl). LSWT gives the retarded response
 #
 #     χ^{μν}(z) = w_μ' G₀(z) w_ν,   G₀(z) = (zĨ - |ε|)⁻¹,
@@ -106,7 +106,7 @@ function corrections_unsupported_reason(swt::SpinWaveTheory)
     isnothing(sys.ewald) || return "do not yet support long-range dipole-dipole interactions"
 
     # In :SUN mode every coupling, biquadratic included, has been decomposed into
-    # the tensor pairs that `sun_monomials` expands, so there is nothing to reject.
+    # the tensor pairs that `monomials_SUN` expands, so there is nothing to reject.
     if sys.mode != :SUN
         for int in sys.interactions_union
             for pc in int.pair

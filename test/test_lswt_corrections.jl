@@ -95,7 +95,7 @@
     # labeled by the occupations of the Nf = N-1 flavors that have left the
     # condensate, which holds the remaining M - Σn boxes. Returns that basis,
     # the generators E_{mn} = b†_m b_n, and the bosons themselves labeled as
-    # `sun_monomials` labels them, flavor fastest with a ≤ L annihilating. The
+    # `monomials_SUN` labels them, flavor fastest with a ≤ L annihilating. The
     # generators are exact; a boson operator that would leave the space is
     # truncated, so residuals may only be read off blocks of low occupation.
     function box_ops(Nf, M, Na)
@@ -261,7 +261,7 @@
     # The same idea in mode :SUN, whose expansion parameter is the number of
     # boxes M of the symmetric SU(N) representation. Sunny uses M = 1, where a
     # site cannot hold two bosons and the asymptotic blocks are unreachable, so
-    # `sun_monomials` takes M as a test-only argument and this promotes the very
+    # `monomials_SUN` takes M as a test-only argument and this promotes the very
     # same local operators to the M-box representation exactly, via its
     # generators.
     function box_errors(M)
@@ -274,7 +274,7 @@
         sys0.coherents .= sysM.coherents
         swt = SpinWaveTheory(sys0; measure=nothing, regularization=0)
         # The couplings that `swt_data` rotated into local frames and absorbed
-        # the Zeeman term into are what `sun_monomials` reads.
+        # the Zeeman term into are what `monomials_SUN` reads.
         sys = swt.sys
         Nf = Sunny.nflavors(swt)
         N = Nf + 1
@@ -293,8 +293,8 @@
             end
         end
 
-        Hs = [expand(bop, Sunny.sun_monomials(swt, Val{K}(), M), dim) for K in 1:4]
-        E0 = real(sum(t -> t.c, Sunny.sun_monomials(swt, Val{0}(), M); init=0.0+0im))
+        Hs = [expand(bop, Sunny.monomials_SUN(swt, Val{K}(), M), dim) for K in 1:4]
+        E0 = real(sum(t -> t.c, Sunny.monomials_SUN(swt, Val{0}(), M); init=0.0+0im))
         R = Hex - E0*I - sum(Hs)
         blk(n) = findall(==(n), nbs)
         scale = norm(Hex)
@@ -623,7 +623,7 @@ end
     # The same idea in mode :SUN, whose expansion parameter is the number of
     # boxes M of the symmetric SU(N) representation. Sunny uses M = 1, where a
     # site cannot hold two bosons and the asymptotic blocks are unreachable, so
-    # `sun_monomials` takes M as a test-only argument and this promotes the very
+    # `monomials_SUN` takes M as a test-only argument and this promotes the very
     # same local operators to the M-box representation exactly, via its
     # generators.
 
@@ -692,8 +692,8 @@ end
         # identically.
         swt = SpinWaveTheory(single_ion(s, :SUN, B); measure=nothing, regularization=0)
         @test sort(dispersion(swt, [[0, 0, 0]])[:]) ≈ gaps
-        @test maximum(abs, [t.c for t in Sunny.sun_monomials(swt, Val{3}())]; init=0.0) < 1e-12
-        @test isempty(Sunny.sun_monomials(swt, Val{4}()))
+        @test maximum(abs, [t.c for t in Sunny.monomials_SUN(swt, Val{3}())]; init=0.0) < 1e-12
+        @test isempty(Sunny.monomials_SUN(swt, Val{4}()))
         # Exactly zero at any tolerance, there being no term left to integrate
         @test iszero(Sunny.hartree_fock_correction(swt; bz=Sunny.BZAdaptive(tol=0.1)).δE)
         @test iszero(Sunny.boson_density(swt; bz=Sunny.BZAdaptive(tol=0.1)))
@@ -1150,7 +1150,7 @@ end
         return map(qs) do q
             q_global = cryst.recipvecs * q
             Sunny.excitations!(T, H, swt, q)
-            Sunny.set_swt_observable_vectors!(u, swt, q_global)
+            Sunny.observable_vectors!(u, swt, q_global)
             fill!(δu, 0)
             isnothing(δc) || Sunny.accum_observable_corrections!(δu, swt, q_global, δc)
             w = T' * (u + δu)
@@ -1638,7 +1638,7 @@ end
     q2m = [0.23, -0.41, 0.17]
     qr2 = Sunny.to_supercell_rlu(sys, q2m)
     qg2 = Sunny.orig_crystal(sys).recipvecs * q2m
-    Sunny.set_swt_observable_vectors!(u2, swt2m, qg2)
+    Sunny.observable_vectors!(u2, swt2m, qg2)
     words2m = Sunny.observable_pair_monomials(swt2m, qg2)
 
     # Observable A_ν(q) as a linear form in the Nambu vector. The index swap is
