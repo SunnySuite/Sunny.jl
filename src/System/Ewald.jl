@@ -202,6 +202,42 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
     return A
 end
 
+# Ewald interaction tensor between every pair of sites of `sys`, at a wavevector
+# in the RLU of its magnetic cell. Entry [i, j] couples site i to site j and all
+# of its periodic images, by linear site index. For an entangled system, the
+# sites are those of the uncontracted system, and the couplings within each
+# unit, which entanglement folds into the onsite term, are excluded.
+function ewald_site_tensor(sys::System, q_reshaped)
+    usys = uncontracted_system(sys)
+    (; cache, A) = usys.ewald
+
+    # The tensor A[cell, a, b] of the crystal cell. Its value at q = 0 is
+    # stored, with the intra-unit couplings already excluded.
+    iszero(q_reshaped) && return cell_to_site_tensor(A, usys, q_reshaped)
+
+    Aq = ewald_interaction_tensor(cache, q_reshaped)
+    if is_entangled(sys)
+        dims = usys.dims
+        for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, cache.μ0_μB²)
+            Aq[CartesianIndex(Tuple(mod.(Δ, dims)) .+ 1), ai, aj] -= cis(2π * dot(q_reshaped, Vec3(fld.(Δ, dims)))) * Adir
+        end
+    end
+    return cell_to_site_tensor(Aq, usys, q_reshaped)
+end
+
+# The tensor between sites of `sys` from that of its crystal cell. The cells of
+# sites i and j differ by Δ, which wraps by w magnetic cells, so that the entry
+# at cell Δ mod dims takes the phase of an image displaced by -w.
+function cell_to_site_tensor(Ac, sys::System, q_reshaped)
+    (; dims) = sys
+    sites = eachsite(sys)
+    return [begin
+                Δ = Tuple(to_cell(sites[j])) .- Tuple(to_cell(sites[i]))
+                cell = CartesianIndex(mod.(Δ, dims) .+ 1)
+                cis(-2π * dot(q_reshaped, Vec3(fld.(Δ, dims)))) * Ac[cell, to_atom(sites[i]), to_atom(sites[j])]
+            end for i in 1:nsites(sys), j in 1:nsites(sys)]
+end
+
 # The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known
 # statically.
 function ewald_energy(@nospecialize(sys::System))

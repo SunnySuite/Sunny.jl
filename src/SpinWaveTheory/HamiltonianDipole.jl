@@ -1,16 +1,3 @@
-# Ewald interaction tensor between sites i and j of `sys`, given the tensor `A`
-# of its crystal cell, A[cell, a, b] coupling atom a of the home cell to atom b
-# of `cell`, at a wavevector in the RLU of the magnetic cell. The cells of the
-# two sites differ by Δ, which wraps by w magnetic cells, so that the entry at
-# cell Δ mod dims takes the phase of an image displaced by -w.
-function ewald_between(A, sys::System, q_reshaped, i::Int, j::Int)
-    (site_i, site_j) = (eachsite(sys)[i], eachsite(sys)[j])
-    Δ = Tuple(to_cell(site_j)) .- Tuple(to_cell(site_i))
-    cell = CartesianIndex(mod.(Δ, sys.dims) .+ 1)
-    w = Vec3(fld.(Δ, sys.dims))
-    return cis(-2π * dot(q_reshaped, w)) * A[cell, to_atom(site_i), to_atom(site_j)]
-end
-
 # Adds the long-range dipole-dipole interaction to the dynamical matrix `H` in
 # dipole mode. Everything else is compiled into the quadratic table.
 function accum_ewald_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
@@ -23,19 +10,19 @@ function accum_ewald_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resha
     H12 = view(H, 1:L, L+1:2L)
     H21 = view(H, L+1:2L, 1:L)
     H22 = view(H, L+1:2L, L+1:2L)
-    (; cache, A) = sys.ewald
     Rs = local_rotations
 
-    # Interaction matrix of the cell at wavevector q. That at zero is `A`.
-    Aq = ewald_interaction_tensor(cache, q_reshaped)
+    # Interaction matrices between sites at wavevector q and at zero
+    Aq = ewald_site_tensor(sys, q_reshaped)
+    A0 = ewald_site_tensor(sys, zero(Vec3))
 
     # Loop over sublattice pairs
     for i in 1:L, j in 1:L
         # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
         # energy. A symmetric contribution will appear for the bond reversal
         # (i, j) → (j, i).  Note that μ = -μB g S.
-        J = gs[i]' * ewald_between(Aq, sys, q_reshaped, i, j) * gs[j] / 2
-        J0 = gs[i]' * ewald_between(A, sys, zero(Vec3), i, j) * gs[j] / 2
+        J = gs[i]' * Aq[i, j] * gs[j] / 2
+        J0 = gs[i]' * A0[i, j] * gs[j] / 2
 
         # Perform same transformation as appears in usual bilinear exchange.
         # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
