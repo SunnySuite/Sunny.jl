@@ -131,7 +131,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
         # Perform same transformation as appears in usual bilinear exchange.
         # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
         J = sqrtS[i] * sqrtS[j] * Rs[i]' * J * Rs[j]
-        J0 = sqrtS[i] * sqrtS[j] * Rs[i]' * J0 * Rs[j]
+        J0zz = (Rs[i]' * J0 * Rs[j])[3, 3]
 
         # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
         Q⁺ = 0.25 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
@@ -149,10 +149,12 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
         H12[j, i] += P⁻
 
         # Interactions for Jᶻᶻ at wavevector (0,0,0).
-        H11[i, i] -= 0.5 * J0[3, 3]
-        H11[j, j] -= 0.5 * J0[3, 3]
-        H22[i, i] -= 0.5 * J0[3, 3]
-        H22[j, j] -= 0.5 * J0[3, 3]
+        # Each site feels the molecular field of the other's ordered moment
+        si, sj = sqrtS[i]^2, sqrtS[j]^2
+        H11[i, i] -= 0.5 * sj * J0zz
+        H11[j, j] -= 0.5 * si * J0zz
+        H22[i, i] -= 0.5 * sj * J0zz
+        H22[j, j] -= 0.5 * si * J0zz
      end
 
     # Add Zeeman term
