@@ -51,12 +51,13 @@ end
 
 # Adds the long-range dipole-dipole interaction to the dynamical matrix `H` in
 # SU(N) mode. Everything else is compiled into the quadratic table. For an
-# entangled system the Ewald data is that of its uncontracted system.
+# entangled system the Ewald data is that of its uncontracted system, coupling
+# the bare sites of each unit.
 function accum_ewald_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
     (; spin_ops) = data
     N = sys.Ns[1]
-    Na = natoms(sys.crystal)
+    Na = nsites(sys)
     L = (N-1) * Na
     usys = uncontracted_system(sys)
 
@@ -67,36 +68,31 @@ function accum_ewald_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped
     H22 = reshape(view(H, L+1:2L, L+1:2L), blockdims)
     (; gs, ewald) = usys
     (; cache, A) = ewald
-    Nbare = natoms(usys.crystal)
 
-    # Interaction matrix for wavevector (0,0,0), equivalently:
-    # real.(ewald_interaction_tensor(cache, zero(Vec3)))
-    A0 = reshape(A, Nbare, Nbare)
-    # Interaction matrix for wavevector q
+    # Interaction matrix of the cell at wavevector q. That at zero is `A`.
     Aq = ewald_interaction_tensor(cache, q_reshaped)
-    Aq = reshape(Aq, Nbare, Nbare)
 
     # For an entangled system, `contract_ewald!` has already stripped
-    # intra-unit couplings in A0 and shifted them to an onsite coupling. The
+    # intra-unit couplings in A and shifted them to an onsite coupling. The
     # same stripping must be done for the freshly computed Aq.
     if is_entangled(sys)
-        for (; ai, aj, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, cache.μ0_μB²)
-            Aq[ai, aj] -= Adir
+        dims_A = size(A)[1:3]
+        for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, cache.μ0_μB²)
+            Aq[CartesianIndex(Tuple(mod.(Δ, dims_A)) .+ 1), ai, aj] -= cis(2π * dot(q_reshaped, Vec3(fld.(Δ, dims_A)))) * Adir
         end
     end
 
-    # The Ewald matrices and g-tensors are indexed by bare crystal-atom `a`
     for i in 1:Na, j in 1:Na
-        for ai in atoms_in_unit(sys, i), aj in atoms_in_unit(sys, j)
+        for bi in bare_indices(sys, i), bj in bare_indices(sys, j)
             # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
             # energy, where μ = - g S. A symmetric contribution will appear for
             # the bond reversal (a, b) → (b, a).
-            Jq = gs[ai]' * Aq[ai, aj] * gs[aj] / 2
-            J0 = gs[ai]' * A0[ai, aj] * gs[aj] / 2
+            Jq = gs[bi]' * ewald_between(Aq, usys, q_reshaped, bi, bj) * gs[bj] / 2
+            J0 = gs[bi]' * ewald_between(A, usys, zero(Vec3), bi, bj) * gs[bj] / 2
 
             for α in 1:3, β in 1:3
-                Ai = spin_ops[α, ai]
-                Bj = spin_ops[β, aj]
+                Ai = spin_ops[α, bi]
+                Bj = spin_ops[β, bj]
                 accum_pair_dense!(H11, H12, H21, H22, Ai, Bj, i, j, J0[α,β], Jq[α,β], N)
             end
         end

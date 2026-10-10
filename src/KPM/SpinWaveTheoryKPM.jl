@@ -71,7 +71,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", swt_kry::SpinWaveTheoryKPM)
     (; swt) = swt_kry
     printstyled(io, "SpinWaveTheoryKPM ", mode_to_str(swt.sys), "\n"; bold=true, color=:underline)
-    println(io, "  ", natoms(swt.sys.crystal), " atoms")
+    println(io, "  ", nsites(swt.sys), " sites")
 end
 
 function intensities(swt_kry::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0, verbose=false)

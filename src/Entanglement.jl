@@ -82,6 +82,14 @@ function bare_sites_for_unit(ent::Entanglement, unit_site)
     return (bare_site(cell, part, dims) for part in units[to_atom(unit_site)])
 end
 
+# The bare sites of unit i, as linear indices into the uncontracted system. A
+# site that is not entangled is its own bare site.
+function bare_indices(sys::System, i::Int)
+    is_entangled(sys) || return (i,)
+    ent = get_entanglement(sys)
+    return (LinearIndices(ent.uncontracted.dipoles)[bs] for bs in bare_sites_for_unit(ent, eachsite(sys)[i]))
+end
+
 # Needed because uncontracted.dipoles and related state are mutably updated
 function clone_entanglement(ent::Entanglement)
     return Entanglement(ent.units, clone_system(ent.uncontracted))
@@ -789,20 +797,20 @@ end
 ################################################################################
 
 # Enumerate the inter-unit bilinear exchange terms delegated to the uncontracted
-# system. Each term invokes `f(i, j, ai, aj, J, n)` to indicate that bare atoms
-# `ai, aj` belong to units `i, j`, have cell displacement `n`, and are coupled
-# with exchange J.
+# system. Each term invokes `f(i, j, bi, bj, J, n)` to indicate that bare sites
+# `bi, bj` of the uncontracted system belong to units `i, j` of `sys`, all as
+# linear site indices, are coupled with exchange J, and are separated by `n`
+# magnetic cells.
 function foreach_entangled_bilinear_term(f, sys::System)
-    (; units) = get_entanglement(sys)
-    for (ai, int) in enumerate(uncontracted_system(sys).interactions_union)
-        i, _ = unit_and_part(units, ai)
-        for pc in int.pair
+    (; uncontracted, units) = get_entanglement(sys)
+    for i in 1:nsites(sys), bi in bare_indices(sys, i)
+        for pc in interactions_at(uncontracted, bi).pair
             pc.isculled && break
-            aj = pc.bond.j
-            j, _ = unit_and_part(units, aj)
+            # The bond between units, from the cell of the unit containing `bi`
+            (j, n) = bond_target(sys, i, contracted_bond(pc.bond, units))
+            (bj, _) = bond_target(uncontracted, bi, pc.bond)
             J = pc.bilin isa Number ? Mat3(pc.bilin*I) : Mat3(pc.bilin)
-            n = contracted_bond(pc.bond, units).n
-            f(i, j, ai, aj, J, n)
+            f(i, j, bi, bj, J, n)
         end
     end
 end

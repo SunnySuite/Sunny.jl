@@ -265,7 +265,7 @@ function anisotropy_monomials(swt::SpinWaveTheory, ::Val{K}) where K
     terms = BosonMonomial{K}[]
     swt.sys.mode == :SUN && return terms
     for i in 1:L
-        iszero(swt.sys.interactions_union[i].onsite) && continue
+        iszero(swt.data.interactions[i].onsite) && continue
         append!(terms, local_word_monomials(anisotropy_coefficients(swt, i), i, L, Val{K}()))
     end
     return terms
@@ -293,7 +293,7 @@ classical energy function.
 function anisotropy_correction(swt::SpinWaveTheory)
     check_corrections_supported(swt)
     δE = sum(1:nbands(swt); init=0.0) do i
-        (swt.sys.mode == :SUN || iszero(swt.sys.interactions_union[i].onsite)) ? 0.0 :
+        (swt.sys.mode == :SUN || iszero(swt.data.interactions[i].onsite)) ? 0.0 :
             real(anisotropy_coefficients(swt, i)[(0, 0)])
     end
     return (; terms2 = anisotropy_monomials(swt, Val{2}()),
@@ -312,7 +312,7 @@ end
 # such as A₂ b†b†/2, enters twice in the Nambu matrix, hence its factor 1/2.
 function quadratic_monomials_dipole(sys::System, data::SWTDataDipole)
     (; local_rotations, stevens_coefs, sqrtS, interactions) = data
-    L = natoms(sys.crystal)
+    L = nsites(sys)
 
     terms = BosonMonomial{2}[]
     add!(c, as, ns) = iszero(c) || push!(terms, BosonMonomial(ComplexF64(c), as, ns))
@@ -320,7 +320,7 @@ function quadratic_monomials_dipole(sys::System, data::SWTDataDipole)
 
     for (i, int) in enumerate(interactions)
         # Zeeman term, suppressed on a vacant site by its null local frame
-        B = sys.gs[1, 1, 1, i]' * sys.extfield[1, 1, 1, i]
+        B = sys.gs[i]' * sys.extfield[i]
         add!(-dot(B, local_rotations[i][:, 3]), (L+i, i), (o, o))
 
         # Single-ion anisotropy
@@ -335,9 +335,7 @@ function quadratic_monomials_dipole(sys::System, data::SWTDataDipole)
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
-            @assert i == bond.i
-            j = bond.j
-            n = Vec3(bond.n)
+            (j, n) = bond_target(sys, i, bond)
             si = sqrtS[i]^2
             sj = sqrtS[j]^2
             sij = sqrtS[i] * sqrtS[j]
@@ -414,19 +412,16 @@ function cubic_monomials_dipole(swt::SpinWaveTheory)
         # rather than the local frame cancels it, and enters through the cubic
         # part of S⁺ and S⁻.
         R = local_rotations[i]
-        B = sys.gs[1, 1, 1, i]' * sys.extfield[1, 1, 1, i]
+        B = sys.gs[i]' * sys.extfield[i]
         add!(-dot(B, R[:, 1] - im*R[:, 2]) / (4√2 * sqrtS[i]), (L+i, i, i), (o, o, o))
         add!(-dot(B, R[:, 1] + im*R[:, 2]) / (4√2 * sqrtS[i]), (L+i, L+i, i), (o, o, o))
 
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
-            @assert i == bond.i
             iszero(coupling.bilin) && continue
-
-            j = bond.j
+            (j, n) = bond_target(sys, i, bond)
             iszero(sqrtS[j]) && continue
-            n = Vec3(bond.n)
             J = coupling.bilin::Mat3
             si = sqrtS[i]^2
             sj = sqrtS[j]^2
@@ -507,12 +502,9 @@ function quartic_monomials_dipole(swt::SpinWaveTheory)
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
-            @assert i == bond.i
             iszero(coupling.bilin) && continue
-
-            j = bond.j
+            (j, n) = bond_target(sys, i, bond)
             iszero(sqrtS[j]) && continue
-            n = Vec3(bond.n)
             J = coupling.bilin::Mat3
 
             # Longitudinal: J_zz (b†b)_i (b†b)_j
