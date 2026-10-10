@@ -247,9 +247,14 @@ function accum_ewald_grad!(∇E, dipoles, @nospecialize(sys::System))
     # performance degrades by ~50%
     fill!(Fϕ, 0.0)
     (_, m1, m2, m3, na) = size(Fμ)
-    ms = CartesianIndices((m1, m2, m3))
-    @inbounds for j in 1:na, i in 1:na, m in ms, α in 1:3, β in 1:3
-        Fϕ[α,m,i] += conj(FA[α,β,m,i,j]) * Fμ[β,m,j]
+    nspatial = m1 * m2 * m3
+    Fϕr = reshape(Fϕ, 3, nspatial, na)
+    Fμr = reshape(Fμ, 3, nspatial, na)
+    FAr = reshape(FA, 3, 3, nspatial, na, na)
+    @inbounds for j in 1:na, i in 1:na, α in 1:3, β in 1:3
+        @simd for s in 1:nspatial
+            Fϕr[α, s, i] += conj(FAr[α, β, s, i, j]) * Fμr[β, s, j]
+        end
     end
 
     # Inverse Fourier transform to get ϕ in real space
