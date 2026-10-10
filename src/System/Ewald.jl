@@ -207,34 +207,27 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_supercell::Vec3)
     return A
 end
 
-# A cell tensor Ac[cell, a, b], viewed as a tensor between sites by linear site
-# index. The cells of sites i and j differ by Δ, which wraps by w magnetic
-# cells, so that entry [i, j] is that at cell Δ mod dims, with the phase of an
-# image displaced by -w.
-struct SitePairView{T}
-    Ac    :: Array{T, 5}
-    sites :: CartesianIndices{4, NTuple{4, Base.OneTo{Int}}}
-    q     :: Vec3
-end
-
-@inline function Base.getindex(v::SitePairView, i::Int, j::Int)
-    (; Ac, sites, q) = v
-    dims = size(sites)[1:3]
-    Δ = Tuple(to_cell(sites[j])) .- Tuple(to_cell(sites[i]))
-    cell = CartesianIndex(mod.(Δ, dims) .+ 1)
-    return cis(-2π * dot(q, Vec3(fld.(Δ, dims)))) * Ac[cell, to_atom(sites[i]), to_atom(sites[j])]
-end
-
-# Ewald interaction tensor between every pair of sites of `sys`, at a wavevector
-# in the RLU of its magnetic cell. Entry [i, j] couples site i to site j and all
-# of its periodic images. For an entangled system, the sites are those of the
-# uncontracted system.
-function ewald_site_tensor(sys::System, q_supercell)
-    usys = uncontracted_system(sys)
-    (; cache, A) = usys.ewald
+# The Ewald interaction tensor Ac[cell, a, b] of `sys` at a wavevector in the
+# RLU of its magnetic cell. For an entangled system, this is the tensor of the
+# uncontracted system, which excludes the couplings within each unit.
+function ewald_interaction_tensor(@nospecialize(sys::System), q_supercell)
+    (; cache, A) = uncontracted_system(sys).ewald
     # The value at q = 0 is stored
-    Ac = iszero(q_supercell) ? A : ewald_interaction_tensor(cache, q_supercell)
-    return SitePairView(Ac, eachsite(usys), Vec3(q_supercell))
+    return iszero(q_supercell) ? A : ewald_interaction_tensor(cache, Vec3(q_supercell))
+end
+
+# The entry of Ac = ewald_interaction_tensor(sys, q_supercell) that couples site
+# i to site j and all of its periodic images, by linear site index. For an
+# entangled system, i and j index the sites of the uncontracted system. Their
+# cells differ by Δ, which wraps by w magnetic cells, so that the entry is that
+# at cell Δ mod dims, with the phase of an image displaced by -w.
+function ewald_pair(Ac, @nospecialize(sys::System), q_supercell, i, j)
+    usys = uncontracted_system(sys)
+    (; dims) = usys
+    si, sj = eachsite(usys)[i], eachsite(usys)[j]
+    Δ = Tuple(to_cell(sj)) .- Tuple(to_cell(si))
+    cell = CartesianIndex(mod.(Δ, dims) .+ 1)
+    return cis(-2π * dot(q_supercell, Vec3(fld.(Δ, dims)))) * Ac[cell, to_atom(si), to_atom(sj)]
 end
 
 # The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known
