@@ -13,6 +13,10 @@ The resulting object can be used to calculate the spin wave
 [`dispersion`](@ref), or the structure factor via [`intensities_bands`](@ref)
 and [`intensities`](@ref).
 
+All interactions must be invariant under rotations about `axis`. This constraint
+excludes many forms of exchange anisotropy, as well as long-range dipole-dipole
+interactions.
+
 The algorithm for this calculation was developed in [Toth and Lake, J. Phys.:
 Condens. Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069) and
 implemented in the [SpinW code](https://spinw.org/).
@@ -22,26 +26,47 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     k :: Vec3              # Propagation wavevector
     k_case :: Int          # Label (1, 2, 3) if (kᵢ ∈ ℕ, 2kᵢ ∈ ℕ, otherwise)
     axis :: Vec3           # Axis for polarization plane
-    J0s :: NTuple{3, Matrix{CMat3}}     # J at wavevectors 0, -k, +k, independent of q
-    buffers :: NTuple{3, Matrix{CMat3}} # J at wavevectors q, q-k, q+k
+    table :: QuadraticTable # Hamiltonian in the frame that co-rotates with the spiral
 
     function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
         if !(sys.mode in (:dipole, :dipole_uncorrected))
             error("SpinWaveTheorySpiral requires :dipole or :dipole_uncorrected mode.")
         end
+        if !isnothing(sys.ewald)
+            error("Dipole-dipole interactions are not supported. Use SpinWaveTheory on a commensurate magnetic cell.")
+        end
+        axis = normalize(axis)
+        check_rotational_symmetry(sys; axis, θ=0.01)
 
         swt = SpinWaveTheory(sys; measure, regularization)
         k_supercell = to_supercell_rlu(sys, k)
         k_case = spiral_propagation_case(k_supercell)
-        L = nsites(sys)
-        J0s = ntuple(3) do b
-            J = zeros(CMat3, L, L)
-            fourier_bilinear_interaction!(J, swt, (zero(Vec3), -k_supercell, k_supercell)[b])
-            J
-        end
-        buffers = ntuple(_ -> zeros(CMat3, L, L), 3)
-        return new(swt, k, k_case, normalize(axis), J0s, buffers)
+        return new(swt, k, k_case, axis, spiral_table(swt, k_supercell, axis))
     end
+end
+
+# The quadratic Hamiltonian in the frame that co-rotates with the spiral. Bond
+# i → j, winding n magnetic cells, couples the spin of j rotated by θ = 2π k⋅n
+# about the axis. Since every coupling is invariant under these rotations, the
+# result is translation invariant, and compiles into an ordinary quadratic
+# table. Mode q of the spiral is the mode q - k of the co-rotating frame, and
+# the three branches q, q ± k are the table at q - k, q and q + k.
+function spiral_table(swt::SpinWaveTheory, k_supercell, axis)
+    (; sys, data) = swt
+    Rs = data.local_rotations
+    interactions = map(1:nsites(sys)) do i
+        int = interactions_at(sys, i)
+        pair = map(int.pair) do pc
+            (; bond, scalar, bilin, biquad, general) = pc
+            iszero(biquad) && isempty(general.data) || error("Biquadratic interactions not supported")
+            (j, n) = bond_target(sys, i, bond)
+            R = axis_angle_to_matrix(axis, 2π * dot(k_supercell, n))
+            PairCoupling(bond, scalar, Rs[i]' * Mat3(bilin*I) * R * Rs[j], biquad, general)
+        end
+        Interactions(int.onsite, pair)
+    end
+    rotating = SWTDataDipole(Rs, data.observables, data.stevens_coefs, data.sqrtS, interactions)
+    return QuadraticTable(quadratic_monomials_dipole(sys, rotating), nbands(swt))
 end
 
 function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., s)
@@ -53,137 +78,16 @@ function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., s)
     return rotate_operator(op, R)
 end
 
-# Sunny's original implementation followed Toth and Lake, which employed
-# pairwise exchange interactions J in real-space. Fourier-space exchange J(q) is
-# required, for example, to support long-range dipole-dipole interactions. Alin
-# Niraula and Xiaojian Bai developed and implemented the approprate
-# generalization in https://github.com/SunnySuite/Sunny.jl/pull/304.
-
-function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_supercell)
-    (; sys) = swt
-    (; gs) = sys
-    fill!(Jq, zero(CMat3))
-
-    for i in 1:nsites(sys)
-        for coupling in interactions_at(sys, i).pair
-            (; isculled, bond, bilin) = coupling
-            isculled && break
-
-            (j, n) = bond_target(sys, i, bond)
-            J = exp(-2π * im * dot(q_supercell, n)) * Mat3(bilin*I)
-            Jq[i, j] += J
-            Jq[j, i] += J'
-        end
-    end
-
-    if !isnothing(sys.ewald)
-        Aq = ewald_interaction_tensor(sys, -q_supercell)
-        for i in 1:nsites(sys), j in 1:nsites(sys)
-            Jq[i, j] += gs[i]' * ewald_pair(Aq, sys, -q_supercell, i, j) * gs[j]
-        end
-    end
-end
-
-
 ## Dispersion and intensities
 
 function dynamical_matrix!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_supercell; branch)
-    (; swt, k, k_case, axis) = sswt
-    (; sys, data) = swt
-    (; local_rotations, stevens_coefs, sqrtS) = data
+    (; swt, k, table) = sswt
     L = nbands(swt)
     @assert size(H) == (2L, 2L)
-    H .= 0.0
-
-    # preallocation
-    H11 = view(H, 1:L, 1:L)
-    H12 = view(H, 1:L, L+1:2L)
-    H21 = view(H, L+1:2L, 1:L)
-    H22 = view(H, L+1:2L, L+1:2L)
-    nx = SA[0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0]
-    R2 = axis * axis'
-    R1 = (I - im * nx - R2) / 2
-    Rs = local_rotations
-
-    k_supercell = to_supercell_rlu(sys, k)
-    q_supercell = q_supercell + (branch - 2) .* k_supercell
-
-    # Add pairwise bilinear term
-
-    J0k, J0mk, J0pk = sswt.J0s
-    Jq, Jqmk, Jqpk = sswt.buffers
-    fourier_bilinear_interaction!(Jq,   swt, q_supercell)
-    fourier_bilinear_interaction!(Jqmk, swt, q_supercell .- k_supercell)
-    fourier_bilinear_interaction!(Jqpk, swt, q_supercell .+ k_supercell)
-
-    for i in 1:L, j in 1:L
-        Jq1   = Jq[i, j]
-        Jqmk1 = Jqmk[i, j]
-        Jqpk1 = Jqpk[i, j]
-        J0k1  = J0k[i, j]
-        J0pk1 = J0pk[i, j]
-        J0mk1 = J0mk[i, j]
-        if k_case == 1
-            J = Jq1
-            J0 = J0k1
-        elseif k_case == 2
-            J = R2 * Jq1* R2 + conj(R1) * Jqpk1 * conj(R1) + R1 * Jqmk1 * R1 + R1 * Jqpk1 * conj(R1) + conj(R1) * Jqmk1 * R1
-            J0 = R2 * J0k1 * R2 + conj(R1) * J0pk1 * conj(R1) + R1 * J0mk1 * R1 + R1 * J0pk1 * conj(R1) + conj(R1) * J0mk1 * R1
-        else @assert k_case == 3
-            J = R2 * Jq1* R2 + conj(R1) * Jqpk1 * conj(R1) + R1 * Jqmk1 * R1
-            J0 = R2 * J0k1 * R2 + conj(R1) * J0pk1 * conj(R1) + R1 * J0mk1 * R1
-        end
-
-        # Perform same transformation as appears in usual bilinear exchange.
-        # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
-        J = sqrtS[i] * sqrtS[j] * Rs[i]' * J * Rs[j]
-        J0zz = (Rs[i]' * J0 * Rs[j])[3, 3]
-
-        # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
-        Q⁺ = 0.25 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
-        Q⁻ = 0.25 * (J[1, 1] + J[2, 2] + im*(J[1, 2] - J[2, 1]))
-        H11[i, j] += conj(Q⁻)
-        H11[j, i] += Q⁻
-        H22[i, j] += conj(Q⁺)
-        H22[j, i] += Q⁺
-
-        P⁺ = 0.25 * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1]))
-        P⁻ = 0.25 * (J[1, 1] - J[2, 2] + im*(J[1, 2] + J[2, 1]))
-        H21[i, j] += conj(P⁻)
-        H21[j, i] += P⁺
-        H12[i, j] += conj(P⁺)
-        H12[j, i] += P⁻
-
-        # Interactions for Jᶻᶻ at wavevector (0,0,0).
-        # Each site feels the molecular field of the other's ordered moment
-        si, sj = sqrtS[i]^2, sqrtS[j]^2
-        H11[i, i] -= 0.5 * sj * J0zz
-        H11[j, j] -= 0.5 * si * J0zz
-        H22[i, i] -= 0.5 * sj * J0zz
-        H22[j, j] -= 0.5 * si * J0zz
-     end
-
-    # Add Zeeman term
-    for i in 1:L
-        B = sys.extfield[i]' * sys.gs[i]
-        B′ = - B * local_rotations[i][:, 3]
-        H[i, i]     += B′
-        H[i+L, i+L] += conj(B′)
-    end
-
-    # Add onsite couplings
-    for i in 1:L
-        s = sqrtS[i]^2
-        (; c2, c4, c6) = stevens_coefs[i]
-        H[i, i]     += -6s*c2[3] - 80*s^3*c4[5] - 336*s^5*c6[7]
-        H[i+L, i+L] += -6s*c2[3] - 80*s^3*c4[5] - 336*s^5*c6[7]
-        H[i, i+L]   += 2s*(c2[1]+im*c2[5]) + 12s^3*(c4[3]+im*c4[7]) + 32s^5*(c6[5]+im*c6[9])
-        H[i+L, i]   += 2s*(c2[1]-im*c2[5]) + 12s^3*(c4[3]-im*c4[7]) + 32s^5*(c6[5]-im*c6[9])
-    end
-
-    @assert maxdiff(H, H') < 1e-12
-    hermitianpart!(H)
-
+    H .= 0
+    k_supercell = to_supercell_rlu(swt.sys, k)
+    accum_lower!(H, table, q_supercell + (branch - 2) * k_supercell)
+    hermitian_from_lower!(H)
     for i in 1:2L
         H[i, i] += swt.regularization
     end
