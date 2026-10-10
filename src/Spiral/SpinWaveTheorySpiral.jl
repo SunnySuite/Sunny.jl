@@ -24,7 +24,6 @@ implemented in the [SpinW code](https://spinw.org/).
 struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     swt :: SpinWaveTheory
     k :: Vec3              # Propagation wavevector
-    k_case :: Int          # Label (1, 2, 3) if (kᵢ ∈ ℕ, 2kᵢ ∈ ℕ, otherwise)
     axis :: Vec3           # Axis for polarization plane
     table :: QuadraticTable # Hamiltonian in the frame that co-rotates with the spiral
 
@@ -39,9 +38,7 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
         check_rotational_symmetry(sys; axis, θ=0.01)
 
         swt = SpinWaveTheory(sys; measure, regularization)
-        k_supercell = to_supercell_rlu(sys, k)
-        k_case = spiral_propagation_case(k_supercell)
-        return new(swt, k, k_case, axis, spiral_table(swt, k_supercell, axis))
+        return new(swt, k, axis, spiral_table(swt, to_supercell_rlu(sys, k), axis))
     end
 end
 
@@ -129,125 +126,91 @@ function dispersion(sswt::SpinWaveTheorySpiral, qpts)
 end
 
 
-# Observables must be dipole moments, with some choice of apply_g. Extract and
-# return this parameter.
-function is_apply_g(sys::System, measure::MeasureSpec)
-    obs1 = measure.observables
-    for apply_g in (true, false)
-        obs2 = all_dipole_observables(sys; apply_g)
-        vec(obs1) ≈ vec(obs2) && return apply_g
-    end
-    error("General measurements not supported for spiral calculation")
+# Observables must be the spin dipoles, optionally with g applied. Their
+# decomposition by angular momentum about the axis then selects the branches.
+function check_dipole_observables(sys::System, measure::MeasureSpec)
+    any(apply_g -> vec(measure.observables) ≈ vec(all_dipole_observables(sys; apply_g)), (true, false)) ||
+        error("General measurements not supported for spiral calculation")
 end
 
-function gs_as_scalar(sys::System, measure::MeasureSpec)
-    return if is_apply_g(sys, measure)
-        map(sys.gs) do g
-            g = to_float_or_mat3(g)
-            g isa Float64 || error("Anisotropic g-tensor not supported for spiral calculation")
-            g
-        end
-    else
-        map(sys.gs) do _
-            1.0
-        end
+# Classes of branches s ∈ (-1, 0, 1) whose shifts s k agree modulo the reciprocal
+# lattice. Branches of one class describe the same modes, and their amplitudes
+# add coherently.
+function branch_classes(k_supercell)
+    same(s, t) = norm((s - t) * k_supercell - round.((s - t) * k_supercell)) < 1e-8
+    classes = Vector{Int}[]
+    for s in (-1, 0, 1)
+        c = findfirst(c -> same(first(c), s), classes)
+        isnothing(c) ? push!(classes, [s]) : push!(classes[c], s)
     end
+    return classes
 end
 
+"""
+    intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0)
 
-function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=false) # TODO: branch=nothing
-    threaded && error("Option `threaded=true` not yet supported for SpinWaveTheorySpiral.")
-    (; swt, k_case, axis) = sswt
-    (; sys, data, measure) = swt
-    (; local_rotations, sqrtS) = data
-
+Like [`intensities_bands`](@ref) for [`SpinWaveTheory`](@ref), but returning
+``3L`` bands, the modes at ``𝐪`` and ``𝐪 ± 𝐤`` of the spiral.
+"""
+function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=false)
+    (; swt, k, axis) = sswt
+    (; sys, measure) = swt
     num_observables(measure) == 0 && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
+    check_dipole_observables(sys, measure)
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
-
-    # Number of atoms in magnetic cell
-    Na = nsites(sys)
-    # Number of chemical cells in magnetic cell
-    Ncells = Na / natoms(cryst)
-    # Number of quasiparticle modes
+    Ncells = nsites(sys) / natoms(cryst)
     L = nbands(swt)
-    # Number of wavevectors
     Nq = length(qpts.qs)
 
-    # Rotation matrices associated with `axis`
+    # Branch s carries the part of the observable that changes the angular
+    # momentum about the axis by s, as selected by the projector P[s+2]. The
+    # projectors sum to the identity.
     nx = CMat3([0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0])
     R2 = CMat3(axis * axis')
     R1 = (1/2) .* CMat3(I - im .* nx - R2)
+    P = (R1, R2, conj(R1))
+    classes = branch_classes(to_supercell_rlu(sys, k))
 
-    # Preallocation
-    H = zeros(ComplexF64, 2L, 2L)
-    T0 = zeros(ComplexF64, 2L, 2L)
-    T = zeros(ComplexF64, 2L, 2L, 3)
-    disp = zeros(Float64, L, 3, Nq)
-    intensity = zeros(eltype(measure), L, 3, Nq)
-    disp_flat = reshape(disp, 3L, Nq)
-    intensity_flat = reshape(intensity, 3L, Nq)
-    S = zeros(CMat3, L, 3)
+    disp = zeros(Float64, 3L, Nq)
+    data = zeros(eltype(measure), 3L, Nq)
 
-    # If g-tensors are included in observables, they must be scalar. Precompute.
-    gs = gs_as_scalar(sys, measure)
+    newbuf() = (
+        ws = BogoliubovWorkspace(L),
+        H  = zeros(ComplexF64, 2L, 2L),
+        u  = zeros(ComplexF64, 2L, 3),
+    )
 
-    for (iq, q) in enumerate(qpts.qs)
-        q_supercell = to_supercell_rlu(sys, q)
+    function calc_iq!(buf, iq)
+        (; ws, H, u) = buf
+        q = qpts.qs[iq]
         q_global = cryst.recipvecs * q
-
-        for branch in 1:3   # (q-k, q, q+k) modes for propagation wavevector k
-            energies = excitations!(T0, H, sswt, q; branch)
-            view(disp, :, branch, iq) .= view(energies, 1:L)
-            view(T, :, :, branch) .= T0
-        end
-
-        for branch in 1:3, band in 1:L
-            Avec = zero(CVec{3})
-            v = reshape(view(T, :, band, branch), Na, 2)
-            for i in 1:Na
-                pref = observable_prefactor(measure, 1, i, q_global, sys)
-                R = local_rotations[i]
-                displacement = R * SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
-                Avec += conj(pref) * (sqrtS[i] / √2) * gs[i] * displacement
+        observable_vectors!(u, swt, q_global)
+        for class in classes
+            dynamical_matrix!(H, sswt, to_supercell_rlu(sys, q); branch=first(class)+2)
+            energies = bogoliubov!(ws, H)
+            Pc = sum(P[s+2] for s in class)
+            for band in 1:L
+                A = Pc * CVec{3}(ntuple(μ -> dot(view(u, :, μ), view(ws.T, :, band)), 3))
+                corr = map(((μ, ν),) -> A[μ] * conj(A[ν]) / Ncells, measure.corr_pairs)
+                val = thermal_prefactor(energies[band]; kT) * measure.combiner(q_global, corr) / length(class)
+                for s in class
+                    disp[band + (s+1)*L, iq] = energies[band]
+                    data[band + (s+1)*L, iq] = val
+                end
             end
-            S[band, branch] = Avec * Avec' / Ncells
-        end
-
-        for band = 1:L
-            if k_case == 1
-                # The three branches (q-k, q, q+k) are equivalent when k = 0
-                # (modulo 1). Spread 1/3 of the intensity among every branch.
-                S[band, 1] *= 1/3
-                S[band, 2] *= 1/3
-                S[band, 3] *= 1/3
-                @assert S[band, 1] ≈ S[band, 2] ≈ S[band, 3]
-            elseif k_case == 2
-                S[band, 1] = R1 * S[band, 1] * R1 + conj(R1) * S[band, 1] * R1
-                S[band, 2] = R2 * S[band, 2] * R2
-                S[band, 3] = conj(R1) * S[band, 3] * conj(R1) +  R1 * S[band, 3] * conj(R1)
-            else @assert k_case == 3
-                S[band, 1] = R1 * S[band, 1] * R1
-                S[band, 2] = R2 * S[band, 2] * R2
-                S[band, 3] = conj(R1) * S[band, 3] * conj(R1)
-            end
-        end
-
-        for branch in 1:3, band in 1:L
-            corr = map(measure.corr_pairs) do (α, β)
-                S[band, branch][α, β]
-            end
-            intensity[band, branch, iq] = thermal_prefactor(disp[band, branch, iq]; kT) * measure.combiner(q_global, corr)
         end
 
         # Dispersion in descending order
-        P = sortperm(disp_flat[:, iq]; rev=true)
-        view(disp_flat, :, iq) .= disp_flat[P, iq]
-        view(intensity_flat, :, iq) .= intensity_flat[P, iq]
+        perm = sortperm(view(disp, :, iq); rev=true)
+        view(disp, :, iq) .= disp[perm, iq]
+        view(data, :, iq) .= data[perm, iq]
     end
 
-    disp_flat = reshape(disp_flat, 3L, size(qpts.qs)...)
-    intensity_flat = reshape(intensity_flat, 3L, size(qpts.qs)...)
-    return BandIntensities(cryst, qpts, disp_flat, intensity_flat)
+    foreach_chunked(calc_iq!, newbuf, 1:Nq; threaded, warn_blas=true)
+
+    disp_reshaped = reshape(disp, 3L, size(qpts.qs)...)
+    data_reshaped = reshape(data, 3L, size(qpts.qs)...)
+    return BandIntensities(cryst, qpts, disp_reshaped, data_reshaped)
 end
