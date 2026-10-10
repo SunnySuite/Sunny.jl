@@ -8,12 +8,12 @@
 #
 # The public-facing user interface expects k in RLU for the conventional cell.
 # If the system has been reshaped, however, then all internal aspects of the
-# calculation must proceed in terms of k_reshaped (RLU for the reshaped cell).
-function spiral_propagation_case(k_reshaped)
+# calculation must proceed in terms of k_supercell, the RLU of the supercell.
+function spiral_propagation_case(k_supercell)
     ϵ = 1e-8
-    if norm(k_reshaped - round.(k_reshaped)) < ϵ
+    if norm(k_supercell - round.(k_supercell)) < ϵ
         return 1
-    elseif norm(2k_reshaped - round.(2k_reshaped)) < 2ϵ
+    elseif norm(2k_supercell - round.(2k_supercell)) < 2ϵ
         return 2
     else
         return 3
@@ -71,7 +71,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
     @assert sys.dims == (1,1,1)
     Na = natoms(sys.crystal)
 
-    k_reshaped = to_reshaped_rlu(sys, k)
+    k_supercell = to_supercell_rlu(sys, k)
 
     axis = normalize(axis)
     x, y, z = axis
@@ -92,7 +92,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
             Sj = sys.dipoles[j]
 
             # Rotation angle along `axis` for cells displaced by `n`
-            θ = 2π * dot(k_reshaped, bond.n)
+            θ = 2π * dot(k_supercell, bond.n)
             dθdk = 2π*bond.n
 
             # Rotation as a 3×3 matrix
@@ -137,9 +137,9 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         μ .= magnetic_moments(sys)
 
         A0 = ewald_site_tensor(sys, zero(Vec3))
-        Ak = ewald_site_tensor(sys, k_reshaped)
+        Ak = ewald_site_tensor(sys, k_supercell)
 
-        k_case = spiral_propagation_case(k_reshaped)
+        k_case = spiral_propagation_case(k_supercell)
 
         for i in 1:Na, j in 1:Na
             if k_case == 1

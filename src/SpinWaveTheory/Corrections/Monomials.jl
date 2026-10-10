@@ -85,10 +85,10 @@ end
 # describe the same operator while being written differently, in which case
 # Hermiticity holds only to the accuracy with which their coefficients were
 # computed; `hermitianpart!` projects out that residual.
-function accum_quadratic!(H, terms::Vector{BosonMonomial{2}}, q_reshaped)
+function accum_quadratic!(H, terms::Vector{BosonMonomial{2}}, q_supercell)
     L = div(size(H, 1), 2)
     for (; c, as, ns) in terms
-        φ = cis(2π * dot(q_reshaped, ns[1] - ns[2]))
+        φ = cis(2π * dot(q_supercell, ns[1] - ns[2]))
         H[nambu_conj(as[2], L), as[1]] += c * φ
         H[nambu_conj(as[1], L), as[2]] += c * conj(φ)
     end

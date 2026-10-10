@@ -86,8 +86,8 @@ end
 
         swt = SpinWaveTheory(sys; measure=nothing)
         energies, T = excitations(swt, q)
-        q_reshaped = Sunny.to_reshaped_rlu(sys, q)
-        bounds = Sunny.eigbounds(swt, q_reshaped, 50)
+        q_supercell = Sunny.to_supercell_rlu(sys, q)
+        bounds = Sunny.eigbounds(swt, q_supercell, 50)
         @test all(extrema(energies) .≈ bounds)
 
         formfactors = [1 => FormFactor("Fe2")]

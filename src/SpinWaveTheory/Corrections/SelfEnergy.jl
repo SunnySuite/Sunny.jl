@@ -88,8 +88,8 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid::BZGrid=auto_bzgr
     for (iq, q) in enumerate(qpts.qs)
         # Each band is evaluated at its own frequency, so the matrices for all L
         # frequencies are built and only their diagonals are kept.
-        k = to_reshaped_rlu(swt.sys, q)
-        ωs = excitations_reshaped!(ws, H, swt, k)[1:L]
+        k = to_supercell_rlu(swt.sys, q)
+        ωs = excitations_supercell!(ws, H, swt, k)[1:L]
         Σ = cubic_self_energy_at(swt, terms3, k, ωs .+ im*η, loop_wavevectors(grid.dims, k), η)
         view(ret, :, iq) .= [Σ[n, n, n] for n in 1:L]
     end
@@ -106,7 +106,7 @@ function cubic_self_energy_matrix(swt::SpinWaveTheory, q, zs; η, grid::BZGrid=a
     check_corrections_supported(swt)
     η > 0 || error("Broadening η must be positive")
     check_grid(swt, grid)
-    k = to_reshaped_rlu(swt.sys, q)
+    k = to_supercell_rlu(swt.sys, q)
     return cubic_self_energy_at(swt, cubic_monomials(swt), k, zs, loop_wavevectors(grid.dims, k), η)
 end
 
@@ -139,7 +139,7 @@ function foreach_cubic_line(f, swt::SpinWaveTheory, terms3, k, grid::LoopGrid, M
     T3 = zeros(ComplexF64, 2L, 2L)
 
     let ws = BogoliubovWorkspace(L)
-        excitations_reshaped!(ws, zeros(ComplexF64, 2L, 2L), swt, k)
+        excitations_supercell!(ws, zeros(ComplexF64, 2L, 2L), swt, k)
         for b in 1:2L, a in 1:2L
             T3[a, b] = conj(ws.T[nambu_conj(a, L), nambu_conj(b, L)])
         end
@@ -298,10 +298,10 @@ end
 # bath. The source channel needs no sign of its own, since its measure already
 # carries the metric.
 
-# Channels of the pair interaction of `terms4` at wavevector `q_reshaped`: their
+# Channels of the pair interaction of `terms4` at wavevector `q_supercell`: their
 # labels, the scaled transformation `R` that takes the amplitudes A of the
 # labeled channels to the rows of y, and the signature `σ`.
-function pair_channels(terms4::Vector{BosonMonomial{4}}, q_reshaped, L)
+function pair_channels(terms4::Vector{BosonMonomial{4}}, q_supercell, L)
     index = Dict{Tuple{Int, Int, Vec3}, Int}()
     chan(α, β, Δ) = get!(index, (α, β, Vec3(round.(Δ))), length(index) + 1)
     entries = Tuple{Int, Int, ComplexF64}[]
@@ -313,7 +313,7 @@ function pair_channels(terms4::Vector{BosonMonomial{4}}, q_reshaped, L)
         # make the factor 12 that `vertex!` would apply to Γ.
         co = chan(nambu_conj(as[o1], L), nambu_conj(as[o2], L), ns[o1] - ns[o2])
         ci = chan(as[i1], as[i2], ns[i1] - ns[i2])
-        push!(entries, (co, ci, 12 * c * cis(2π * dot(q_reshaped, ns[i2] - ns[o2])) / length(perms)))
+        push!(entries, (co, ci, 12 * c * cis(2π * dot(q_supercell, ns[i2] - ns[o2])) / length(perms)))
     end
     C = zeros(ComplexF64, length(index), length(index))
     for (co, ci, v) in entries
@@ -544,24 +544,24 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     (; swt, loop_grid, bin_width) = ol
     (; sys) = swt
     L = nbands(swt)
-    q_reshaped = to_reshaped_rlu(sys, q)
+    q_supercell = to_supercell_rlu(sys, q)
     q_global = orig_crystal(sys).recipvecs * q
 
     ws = BogoliubovWorkspace(L)
-    ε = copy(excitations_reshaped!(ws, zeros(ComplexF64, 2L, 2L), swt, q_reshaped))
+    ε = copy(excitations_supercell!(ws, zeros(ComplexF64, 2L, 2L), swt, q_supercell))
     T = ws.T
-    Σstat = static_self_energy_matrix(swt, ol.terms2, q_reshaped, T)
+    Σstat = static_self_energy_matrix(swt, ol.terms2, q_supercell, T)
 
     u = zeros(ComplexF64, 2L, num_observables(swt.measure))
-    set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
-    accum_observable_corrections!(u, swt, q_reshaped, q_global, ol.δc)
+    set_swt_observable_vectors!(u, swt, q_supercell, q_global)
+    accum_observable_corrections!(u, swt, q_supercell, q_global, ol.δc)
     w = T' * u
 
-    grid = loop_wavevectors(loop_grid, q_reshaped)
-    words2 = observable_pair_monomials(swt, q_reshaped, q_global)
-    chans = ladder ? pair_channels(ol.terms4, q_reshaped, L) : nothing
+    grid = loop_wavevectors(loop_grid, q_supercell)
+    words2 = observable_pair_monomials(swt, q_supercell, q_global)
+    chans = ladder ? pair_channels(ol.terms4, q_supercell, L) : nothing
     ward = ladder ? ol.ward : nothing
-    (; decay, source) = pair_measures(swt, ol.terms3, q_reshaped, grid; bin_width, words2, chans, ward)
+    (; decay, source) = pair_measures(swt, ol.terms3, q_supercell, grid; bin_width, words2, chans, ward)
     nward = isnothing(ward) ? 0 : length(ward.pairs)
     metric = ladder ? cat(Diagonal(chans.σ), ward_metric(nward); dims=(1, 2)) : zeros(0, 0)
     return SelfEnergy(ol.η, ε, T, Σstat, w, decay, source, metric, nward)
