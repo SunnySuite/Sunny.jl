@@ -379,22 +379,22 @@ function contract_ewald!(sys::System, uncontracted::System, units)
     # Continue only if Ewald is defined on the uncontracted system.
     isnothing(uncontracted.ewald) && return
 
-    (; gs, crystal) = uncontracted
+    (; gs, crystal, dims) = uncontracted
     (; A, FA, cache) = uncontracted.ewald :: Ewald
-    (; μ0_μB²) = cache
-    dims_A = size(A)[1:3]
+    @assert isempty(cache.excluded)
 
-    # Subtract intra-unit couplings from uncontracted interaction matrix A.
+    # Exclude intra-unit couplings from the uncontracted interaction tensor
     pairs = PairCoupling[]
-    for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(crystal, units, μ0_μB²)
-        cell = CartesianIndex(Tuple(mod.(Δ, dims_A)) .+ (1, 1, 1))
+    for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(crystal, units, cache.μ0_μB²)
         D = gs[1, 1, 1, ai]' * Adir * gs[1, 1, 1, aj]
         push!(pairs, PairCoupling(Bond(ai, aj, Δ), 0.0, Mat3(D), 0.0, zero(TensorDecomposition)))
-        A[cell, ai, aj] -= Adir
+        cell = CartesianIndex(Tuple(mod.(Δ, dims)) .+ 1)
+        push!(cache.excluded, (; cell, i=ai, j=aj, n=Vec3(fld.(Δ, dims)), Adir))
     end
     isempty(pairs) && return
 
-    # Rebuild the Fourier space representation of A.
+    # Rebuild A at q = 0 and its Fourier space representation
+    A .= real.(ewald_interaction_tensor(cache, zero(Vec3)))
     Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...)
     FA .= FFTW.rfft(Ar, 3:5)
 
