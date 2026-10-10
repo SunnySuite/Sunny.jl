@@ -54,19 +54,15 @@ end
 function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_supercell)
     (; sys) = swt
     (; gs) = sys
-    @assert sys.dims == (1, 1, 1) "System must have only a single cell"
-    Na = natoms(sys.crystal)
     fill!(Jq, zero(CMat3))
 
-    for (i, int) in enumerate(sys.interactions_union)
-        for coupling in int.pair
+    for i in 1:nsites(sys)
+        for coupling in interactions_at(sys, i).pair
             (; isculled, bond, bilin) = coupling
             isculled && break
 
-            @assert i == bond.i
-            j = bond.j
-
-            J = exp(-2π * im * dot(q_supercell, bond.n)) * Mat3(bilin*I)
+            (j, n) = bond_target(sys, i, bond)
+            J = exp(-2π * im * dot(q_supercell, n)) * Mat3(bilin*I)
             Jq[i, j] += J
             Jq[j, i] += J'
         end
@@ -74,7 +70,7 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_supercell)
 
     if !isnothing(sys.ewald)
         Aq = ewald_site_tensor(sys, -q_supercell)
-        for i in 1:Na, j in 1:Na
+        for i in 1:nsites(sys), j in 1:nsites(sys)
             Jq[i, j] += gs[i]' * Aq[i, j] * gs[j]
         end
     end
@@ -259,7 +255,6 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
     cryst = orig_crystal(sys)
 
     # Number of atoms in magnetic cell
-    @assert sys.dims == (1,1,1)
     Na = nsites(sys)
     # Number of chemical cells in magnetic cell
     Ncells = Na / natoms(cryst)
