@@ -135,21 +135,6 @@ function to_supercell_rlu(sys::System, q)
     return Vec3(sys.dims) .* (sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q))
 end
 
-# Spin wave theory indexes the sites of `sys` linearly, as `i` in
-# `1:nsites(sys)`, which is also the band index of the site.
-#
-# The site j that `bond` reaches from site i, and the number of magnetic cells
-# by which it wraps, which is the bond offset in the magnetic cell
-function bond_target(sys::System, i::Int, bond::Bond)
-    cell = Tuple(to_cell(eachsite(sys)[i])) .- 1 .+ Tuple(bond.n)
-    j = LinearIndices(sys.dipoles)[(mod.(cell, sys.dims) .+ 1)..., bond.j]
-    return (j, Vec3(fld.(cell, sys.dims)))
-end
-
-# The interactions of site i, stored per sublattice in a homogeneous system
-interactions_at(sys::System, i::Int) =
-    is_homogeneous(sys) ? sys.interactions_union[to_atom(eachsite(sys)[i])] : sys.interactions_union[i]
-
 function dynamical_matrix(swt::SpinWaveTheory, q_supercell)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
