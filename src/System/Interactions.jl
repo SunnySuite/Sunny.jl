@@ -210,8 +210,12 @@ function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; demag=1/3)
     if !is_entangled(sys)
         sys.ewald = Ewald(sys, μ0_μB², Mat3(demag * I))
     else
-        # For an entangled system, the magnetic moments live on `uncontracted`
-        enable_dipole_dipole!(get_entanglement(sys).uncontracted, μ0_μB²; demag)
+        # For an entangled system, the magnetic moments live on `uncontracted`,
+        # and the couplings within each unit move into its onsite term
+        (; uncontracted, units) = get_entanglement(sys)
+        enable_dipole_dipole!(uncontracted, μ0_μB²; demag)
+        contract_ewald!(sys, uncontracted, units)
+        repopulate_couplings_from_params!(sys)
     end
     return
 end

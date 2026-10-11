@@ -420,6 +420,7 @@ Brillouin zone integrals are evaluated according to `bz`, either
 [`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
 """
 function boson_density(swt::SpinWaveTheory; bz::BZIntegration=default_bz(swt))
+    is_entangled(swt.sys) && error("Corrections are not supported for entangled units")
     check_grid(swt, bz)
     L = nbands(swt)
     nf = nflavors(swt)
@@ -466,6 +467,7 @@ Brillouin zone integrals are evaluated according to `bz`, either
 [`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
 """
 function corrected_magnetic_moments(swt::SpinWaveTheory; bz::BZIntegration=default_bz(swt))
+    is_entangled(swt.sys) && error("Corrections are not supported for entangled units")
     check_grid(swt, bz)
     (; sys) = swt
     L = nbands(swt)

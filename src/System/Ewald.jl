@@ -116,6 +116,9 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_supercell::Vec3)
     recipvecs = cryst.recipvecs / diagm(Vec3(dims))
     V = abs(det(cryst.latvecs)) * prod(dims)
     self_energy = -Mat3(I) / (3(2π)^(3/2) * σ²^(3/2))
+    # Wavevectors that differ by a reciprocal lattice vector are equivalent,
+    # and q_supercell is often an integer only up to round-off
+    q_supercell = map(x -> is_integer(x; tol=1e-12) ? round(x) : x, q_supercell)
     q0 = q_supercell - round.(q_supercell)
     A = zeros(CMat3, dims..., na, na)
 
