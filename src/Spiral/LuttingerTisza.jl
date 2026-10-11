@@ -96,7 +96,7 @@ end
 # energy E = (1/2) Sₖ† Jₖ Sₖ, where Sₖ is some length-3Nₐ vector and Jₖ is the
 # 3Nₐ×3Nₐ exchange matrix. Given a minimum energy eigenpair (ϵₖ, Sₖ) the
 # LT-predicted energy is |Sₖ|² ϵₖ / 2 with normalization |Sₖ|² = ∑ᵢ|Sᵢ|², where
-# index i denotes spin sublattice of the chemical cell. If the components of Sₖ
+# index i denotes a site of the magnetic cell. If the components of Sₖ
 # satisfy local spin normalization constraints, then the LT energy minimized
 # over k is physically correct for the spiral ground state. In practice, the
 # eigenvector Sₖ may violate local spin normalization and the LT-predicted

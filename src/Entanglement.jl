@@ -45,10 +45,6 @@ function uncontracted_system(sys::System)
     is_entangled(sys) ? get_entanglement(sys).uncontracted : sys
 end
 
-function nbaresites(sys::System)
-    length(eachsite(uncontracted_system(sys)))
-end
-
 # Returns the (u, p) indices inverse to units[u][p].atom
 function unit_and_part(units, atom)
     for (u, parts) in enumerate(units)
@@ -61,9 +57,6 @@ end
 # Bare atom indices comprising a unit, ordered to match the units entries.
 function atoms_in_unit(units, u)
     [atom for (; atom) in units[u]]
-end
-function atoms_in_unit(sys::System, u)
-    is_entangled(sys) ? atoms_in_unit(get_entanglement(sys).units, u) : [u]
 end
 
 # Bare site of an entangled unit `part` in `cell` of the uncontracted system.
