@@ -122,6 +122,13 @@ struct Ewald
     ift_plan :: rIFTPlan
 end
 
+# An entangled system delegates Ewald interactions to its "uncontracted"
+# partner, which holds the bare dipoles. This struct serves as a marker.
+struct EwaldDelegated
+    μ0_μB² :: Float64
+    demag  :: Mat3
+end
+
 # An abstract type to avoid Julia's restriction against circular type
 # dependency. The corresponding concrete type is Entanglement.
 abstract type AbstractEntanglement end
@@ -149,7 +156,7 @@ mutable struct System{N}
     interactions_union     :: Union{Vector{Interactions}, Array{Interactions, 4}}
 
     # Optional long-range dipole-dipole interactions
-    ewald                  :: Union{Ewald, Nothing}
+    ewald                  :: Union{Nothing, Ewald, EwaldDelegated}
 
     # Dynamical variables and buffers (dims × natoms)
     const extfield         :: Array{Vec3, 4}            # External B field

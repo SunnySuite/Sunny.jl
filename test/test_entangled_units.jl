@@ -418,6 +418,22 @@ end
               11.597318534836047 11.597144492278936 11.597192079860365]
     @test isapprox(disp, golden; atol=1e-6)
 
+    # Dipole-dipole enabled on a system with dims ≠ (1, 1, 1) survives
+    # entanglement, which rebuilds the system from its origin
+    dsys3 = System(box, moments, :SUN; dims=(2, 1, 1))
+    set_exchange!(dsys3, 1.0, Bond(1, 2, [0, 0, 0]))
+    set_exchange!(dsys3, 0.2, Bond(1, 1, [1, 0, 0]))
+    set_exchange!(dsys3, 0.2, Bond(2, 2, [1, 0, 0]))
+    set_field!(dsys3, [0, 0, -3])
+    enable_dipole_dipole!(dsys3, units.vacuum_permeability; demag=Sunny.Mat3(I/3))
+    edsys3 = entangle_system(dsys3, [[1, 2]])
+    @test !isnothing(Sunny.uncontracted_system(edsys3).ewald)
+    edsys4 = repeat_periodically(edsys, (2, 1, 1))
+    for site in eachsite(edsys3)
+        set_coherent!(edsys3, edsys4.coherents[site], site)
+    end
+    @test energy(edsys3) ≈ energy(edsys4)
+
     # Dipole-dipole may also be enabled after entangling
     dsys2 = System(box, moments, :SUN)
     set_exchange!(dsys2, 1.0, Bond(1, 2, [0, 0, 0]))
