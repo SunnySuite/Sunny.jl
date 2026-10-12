@@ -123,17 +123,8 @@ function monomials_SUN(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
     o = zero(Vec3)
 
     terms = BosonMonomial{K}[]
-    # The split p of the K bosons is a type parameter, which unrolling over a
-    # tuple of Vals keeps static. `SpinWaveTheory` calls this on construction,
-    # and a dynamic dispatch per split would dominate its cost.
-    splits = ntuple(p -> (Val{p-1}(), Val{K-p+1}()), Val{K+1}())
-    function add_pair!(A, i, B, j, n)
-        foreach(splits) do (p, q)
-            for ta in local_monomials(A, i, o, p, Nf, L, M), tb in local_monomials(B, j, n, q, Nf, L, M)
-                push!(terms, BosonMonomial(ta.c * tb.c, (ta.as..., tb.as...), (ta.ns..., tb.ns...)))
-            end
-        end
-    end
+    words(A, i) = ntuple(p -> local_monomials(A, i, o, Val{p-1}(), Nf, L, M), Val{K+1}())
+    add_pair!(A, i, B, j, n) = append_products!(terms, 1, words(A, i), words(B, j), n)
 
     for (i, int) in enumerate(interactions)
         append!(terms, local_monomials(int.onsite, i, o, Val{K}(), Nf, L, M))
