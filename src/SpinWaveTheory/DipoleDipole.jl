@@ -15,12 +15,24 @@ function accum_ewald!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_supercell)
     end
 end
 
-# The coupling J = gᵢᵀ A gⱼ / 2 between sites i and j, at q and at zero
-function ewald_coupling(Aq, A0, @nospecialize(sys::System), q_supercell, i, j)
-    (; gs) = uncontracted_system(sys)
-    Jq = gs[i]' * ewald_pair(Aq, sys, q_supercell, i, j) * gs[j] / 2
-    J0 = gs[i]' * ewald_pair(A0, sys, zero(Vec3), i, j) * gs[j] / 2
-    return (Jq, J0)
+# The Fourier-space coupling gᵢᵀ Aᵢⱼ gⱼ between the spins of site i and site j,
+# and all of its periodic images, where A = ewald_interaction_tensor(sys,
+# q_supercell). Sites (i, j) are by linear index. The cell offset Δ determines
+# both Aᵢⱼ and the supercell winding number w = fld(Δ, dims).
+# 
+# Typically Δ will be inferred from (i, j), but entangled systems require an
+# override. Here, Bloch phases follow the cells of the units rather than the
+# wrapped bare sites. This phase convention is a gauge choice for entangled
+# systems and must be applied consistently.
+function ewald_coupling(A, @nospecialize(sys::System), q_supercell, i, j, Δ=nothing)
+    (; dims, gs) = sys
+    (ci, ai) = to_cell_atom(eachsite(sys)[i])
+    (cj, aj) = to_cell_atom(eachsite(sys)[j])
+    Δ = something(Δ, cj .- ci)
+    cell = CartesianIndex(mod.(Δ, dims) .+ 1)
+    w = Vec3(fld.(Δ, dims))
+    Aᵢⱼ = cis(-2π * dot(q_supercell, w)) * A[cell, ai, aj]
+    return gs[i]' * Aᵢⱼ * gs[j]
 end
 
 # Each site i carries one Holstein-Primakoff boson. In the local frame of the
@@ -37,7 +49,8 @@ function accum_ewald_dipole!(H, swt, Aq, A0, q_supercell)
     H22 = view(H, L+1:2L, L+1:2L)
 
     for i in 1:L, j in 1:L
-        (Jq, J0) = ewald_coupling(Aq, A0, sys, q_supercell, i, j)
+        Jq = ewald_coupling(Aq, sys, q_supercell, i, j) / 2
+        J0 = ewald_coupling(A0, sys, zero(Vec3), i, j) / 2
         Ri, Rj = local_rotations[i], local_rotations[j]
         J = sqrtS[i] * sqrtS[j] * Ri' * Jq * Rj
         J0zz = (Ri' * J0 * Rj)[3, 3]
@@ -75,6 +88,7 @@ end
 function accum_ewald_SUN!(H, swt, Aq, A0, q_supercell)
     (; sys, data) = swt
     (; spin_ops) = data::SWTDataSUN
+    usys = uncontracted_system(sys)
     N = sys.Ns[1]
     Na = nsites(sys)
     L = (N-1) * Na
@@ -84,20 +98,11 @@ function accum_ewald_SUN!(H, swt, Aq, A0, q_supercell)
     H21 = reshape(view(H, L+1:2L, 1:L), blockdims)
     H22 = reshape(view(H, L+1:2L, L+1:2L), blockdims)
 
-    # The bosons live on units, so a bare site that wraps by a different number
-    # of magnetic cells than its unit contributes the corresponding phase
-    usys = uncontracted_system(sys)
-    windings = zeros(Vec3, nsites(usys))
-    if is_entangled(sys)
-        (; units) = get_entanglement(sys)
-        for (i, site) in enumerate(eachsite(sys)), (bi, part) in zip(bare_indices(sys, i), units[to_atom(site)])
-            windings[bi] = fld.(Tuple(to_cell(site)) .- 1 .+ Tuple(part.Δcell), usys.dims)
-        end
-    end
-
-    for i in 1:Na, j in 1:Na, bi in bare_indices(sys, i), bj in bare_indices(sys, j)
-        (Jq, J0) = ewald_coupling(Aq, A0, sys, q_supercell, bi, bj)
-        Jq *= cis(-2π * dot(q_supercell, windings[bj] - windings[bi]))
+    # The bosons live on units, so the phase of each coupling follows the cell
+    # displacement of the units, not that of the wrapped bare sites
+    for i in 1:Na, j in 1:Na, (bi, ci) in bare_indices_and_cells(sys, i), (bj, cj) in bare_indices_and_cells(sys, j)
+        Jq = ewald_coupling(Aq, usys, q_supercell, bi, bj, cj .- ci) / 2
+        J0 = ewald_coupling(A0, usys, zero(Vec3), bi, bj, cj .- ci) / 2
         for α in 1:3, β in 1:3
             A, B = spin_ops[α, bi], spin_ops[β, bj]
             jq, j0 = Jq[α, β], J0[α, β]
