@@ -376,13 +376,16 @@ end
 
 # Monomials of H₂, H₃ and H₄, the two-, three- and four-boson terms. Mode :SUN
 # expands in 1/M rather than 1/s and is handled by ExpansionSUN.jl, which shares
-# everything below the monomial representation itself.
+# everything below the monomial representation itself. The higher orders are
+# cached in `swt`, and must not be mutated.
 quadratic_monomials(sys::System, data) =
     sys.mode == :SUN ? monomials_SUN(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
-cubic_monomials(swt::SpinWaveTheory) =
+cubic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :cubic) do
     swt.sys.mode == :SUN ? monomials_SUN(swt, Val{3}()) : cubic_monomials_dipole(swt)
-quartic_monomials(swt::SpinWaveTheory) =
+end
+quartic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :quartic) do
     swt.sys.mode == :SUN ? monomials_SUN(swt, Val{4}()) : quartic_monomials_dipole(swt)
+end
 
 # Monomials of H₃, the three-boson term. A cubic term arises either as the
 # product of a transverse component on one site of a bond with the fluctuating
