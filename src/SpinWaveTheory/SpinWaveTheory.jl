@@ -275,12 +275,15 @@ function swt_data(sys::System{N}, @nospecialize measure) where N
 end
 
 
-function swt_data(sys::System{0}, @nospecialize measure)
+# The local `frames` may instead be given, e.g. to continue a family of frames
+# smoothly, as `relax_frames` does. Column 3 of each must be the direction of
+# its dipole.
+function swt_data(sys::System{0}, @nospecialize measure; frames=nothing)
     Na = nsites(sys)
     Nobs = num_observables(measure)
 
     # Operators for rotating vectors into local frame
-    Rs = map(1:Na) do i
+    Rs = !isnothing(frames) ? frames : map(1:Na) do i
         # Defines quantization axis.
         n = sys.dipoles[i]
 
