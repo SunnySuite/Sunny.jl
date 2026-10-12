@@ -281,8 +281,7 @@ function with_frames(swt::SpinWaveTheory, frames::Vector{Mat3})
         iszero(frames[i]) || set_dipole!(sys, frames[i][:, 3], site)
     end
     data = swt_data(sys, swt.measure; frames)
-    table = QuadraticTable(quadratic_monomials(sys, data), nbands(swt))
-    return SpinWaveTheory(sys, data, swt.measure, swt.regularization, energy_per_site(sys), GaussianState(), table, table, MonomialCache())
+    return SpinWaveTheory(sys, data, swt.measure, swt.regularization, energy_per_site(sys))
 end
 
 # The local frames of `swt` rotated by angles θ[2i-1], θ[2i] about the two
