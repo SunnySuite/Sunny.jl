@@ -97,14 +97,11 @@ The `dyson` option selects how the one-loop self-energy is resummed:
   and so every Goldstone mode, exactly that of `:nambu`. In a gapped magnet
   this counterterm removes a physical shift, so that the result departs
   slightly from the exact ladder. The ladder is beyond one-loop order. Near a
-  Goldstone mode the off-shell quartic vertex lacks its Adler zero, and in two
-  dimensions it binds pairs of soft magnons below ``ω = 0`` as the loop grid is
-  refined. Where the cubic vertex vanishes, i.e. for collinear order in dipole
-  mode, the pair bath is rotated to restore the Adler zero, which keeps it
-  stable on any grid. Otherwise, including collinear order in `:SUN` mode, the
-  bare ladder is used. In two dimensions its instability is then reported as a
-  breakdown; in three, results near the Goldstone mode are sensitive to the loop
-  grid. Gapped magnets have no Adler zero to protect.
+  Goldstone mode the off-shell quartic vertex lacks its Adler zero. In two
+  dimensions, once the loop grid is fine enough, it binds pairs of soft magnons
+  below ``ω = 0`` at the Goldstone wavevectors, which is reported as a
+  breakdown there. In three dimensions, results near the Goldstone mode are
+  sensitive to the loop grid. Gapped magnets have no Adler zero to protect.
 - `:particle` keeps only the particle block of the self-energy, and collects the
   magnon response plus the bare two-magnon continuum without interference. The
   intensity is never negative at ``ω > 0``. Pole shifts are correct at order
