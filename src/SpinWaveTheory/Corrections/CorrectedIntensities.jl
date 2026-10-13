@@ -72,7 +72,8 @@ e.g. for instrumental resolution, can be used to postprocess the result.
 loop integrals, which keeps Goldstone modes exactly gapless.
 
 The bosons are expanded about the Gaussian state of `swt`, by default the
-harmonic vacuum of LSWT. A state from `Sunny.self_consistent` is used on the
+harmonic vacuum of LSWT. A state from [`about_self_consistent_vacuum`](@ref)
+is used on the
 grid on which it was solved. Its correction to the quadratic Hamiltonian is
 subtracted as a counterterm, so that the result differs from the ``1/s``
 expansion only at the order neglected. A correction that was added to pin a

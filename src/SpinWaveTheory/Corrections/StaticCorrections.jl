@@ -18,8 +18,9 @@ mean-field correction to the quadratic (LSWT) Hamiltonian, with mean fields
 taken in the Gaussian state of `swt`, by default the LSWT ground state. The
 correction is smaller than the LSWT Hamiltonian by a factor of order ``1/s``.
 Returns `(; terms2, δE)`, where `terms2` is a correction to the quadratic
-Hamiltonian, e.g. for `Sunny.swt_with_correction`, and `δE` is a correction to
-the energy per site.
+Hamiltonian, e.g. for [`static_self_energy`](@ref), and `δE` is a correction to
+the energy per site. The theory about the corrected vacuum is
+[`about_hartree_fock_vacuum`](@ref).
 
 The LSWT Hamiltonian need not be positive definite. If its frequencies are real,
 as for a structure that quantum fluctuations select from a classically
@@ -36,6 +37,25 @@ function hartree_fock_correction(swt::SpinWaveTheory; bz=nothing)
     terms4 = quartic_monomials(swt)
     (; terms2, δE) = mean_field(terms4, contractions(swt, terms4, bz))
     return (; terms2, δE = δE / nsites(uncontracted_system(swt.sys)))
+end
+
+"""
+    about_hartree_fock_vacuum(swt::SpinWaveTheory; bz=nothing)
+
+The [`SpinWaveTheory`](@ref) about the vacuum of the quadratic Hamiltonian
+corrected by one mean-field step, [`hartree_fock_correction`](@ref), with mean
+fields taken in the Gaussian state of `swt`. Its `dispersion` and `intensities`
+are those of the corrected quadratic Hamiltonian, rediagonalized, and the
+``1/s`` corrections take its vacuum as the one about which the bosons are
+expanded, subtracting the correction again as a counterterm. For the vacuum
+that reproduces its own mean field, see [`about_self_consistent_vacuum`](@ref).
+
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref).
+"""
+function about_hartree_fock_vacuum(swt::SpinWaveTheory; bz=nothing)
+    (; terms2) = hartree_fock_correction(swt; bz)
+    return swt_with_state(swt, GaussianState(terms2, nothing, (; method=:hartree_fock_step)))
 end
 
 # Mean-field decoupling of the quartic monomials with contractions `g`. One
@@ -56,7 +76,7 @@ end
 """
     GoldstonePin(q)
 
-A constraint for [`self_consistent`](@ref) that keeps the Goldstone mode at
+A constraint for [`about_self_consistent_vacuum`](@ref) that keeps the Goldstone mode at
 wavevector `q` (RLU) exactly gapless. At each iterate a uniform onsite term
 ``μ Σ_i b^†_i b_i`` is added, with ``μ`` chosen so that the quadratic Hamiltonian
 has a zero mode at `q`, like the Lagrange multiplier of modified spin-wave
@@ -87,35 +107,9 @@ function constraint_terms(pin::GoldstonePin, swt, terms2)
     return (uniform_shift(μ, L), (; μ))
 end
 
-"""
-    self_consistent(swt::SpinWaveTheory; bz, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200)
-
-The [`SpinWaveTheory`](@ref) about the Gaussian state that reproduces its own
-mean field, i.e. self-consistent Hartree-Fock-Bogoliubov. Its `dispersion` and
-`intensities` are those of the self-consistent quadratic Hamiltonian, and the
-``1/s`` corrections take it as the vacuum about which the bosons are expanded.
-Among Gaussian states it is stationary in the energy of
-[`gaussian_energy_per_site`](@ref). It exists also for a structure that is
-classically unstable but stabilized by quantum fluctuations, in which case LSWT
-has no vacuum. The iteration starts from the state of `guess`, a
-`SpinWaveTheory`, if given, otherwise from LSWT, and throws an
-`InstabilityError` if the fixed point needs a stabilizing shift.
-Self-consistency resums one class of higher-order terms and drops others of the
-same order. It is uncontrolled, and it gaps the Goldstone mode of a broken
-continuous symmetry. Each of `constraints`, e.g. [`GoldstonePin`](@ref), adds
-terms to the correction at every iterate, and the multipliers that fix them are
-reported in the `info` of the state.
-
-[`self_consistent_tadpole`](@ref) additionally relaxes the structure.
-
-`bz` specifies an explicit grid for integration. The state records it, and every
-``1/s`` correction about this state uses the same grid, so that the counterterm
-cancels the mean field exactly in [`corrected_intensities`](@ref).
-"""
-function self_consistent(swt::SpinWaveTheory; bz, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200,
-                         memory=5)
-    grid = to_bz(bz)
-    grid isa BZGrid || error("Self-consistency needs grid dimensions `bz = (n1, n2, n3)`.")
+# The Gaussian state that reproduces its own mean field, solved on `grid`; see
+# `about_self_consistent_vacuum`.
+function swt_self_consistent(swt::SpinWaveTheory, grid::BZGrid; constraints, guess, scf_tol, maxiters, memory)
     # The fixed point of g ↦ contractions in the vacuum of H₂ plus the mean
     # field of g. The iteration is accelerated by Anderson mixing over the last
     # `memory` iterates, with real coefficients, so each iterate is an affine
@@ -187,22 +181,43 @@ function self_consistent(swt::SpinWaveTheory; bz, constraints=(), guess=nothing,
 end
 
 """
-    self_consistent_tadpole(swt::SpinWaveTheory; bz, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200, memory=5)
+    about_self_consistent_vacuum(swt::SpinWaveTheory; bz, tadpole=false, constraints=(), guess=nothing,
+                                 scf_tol=1e-8, maxiters=200, memory=5)
 
-Like [`self_consistent`](@ref), but additionally relaxes the structure: the
-dipoles are rotated until the energy of the state is stationary in their
-directions too, so that zero-point fluctuations shift e.g. the canting angle in
-a field, as [`tadpole_correction`](@ref) does at first order. The result is the
-stationary point of [`gaussian_energy_per_site`](@ref) jointly in the Gaussian
-state and the structure, so its derivatives obey the Hellmann-Feynman theorem,
-e.g. the magnetization is the expectation value of the moment in the state.
-Only mode `:dipole` is supported.
+The [`SpinWaveTheory`](@ref) about the Gaussian state that reproduces its own
+mean field, i.e. self-consistent Hartree-Fock-Bogoliubov. Its `dispersion` and
+`intensities` are those of the self-consistent quadratic Hamiltonian, and the
+``1/s`` corrections take it as the vacuum about which the bosons are expanded.
+Among Gaussian states it is stationary in the energy of
+[`gaussian_energy_per_site`](@ref). It exists also for a structure that is
+classically unstable but stabilized by quantum fluctuations, in which case LSWT
+has no vacuum. The iteration starts from the state of `guess`, a
+`SpinWaveTheory`, if given, otherwise from LSWT, and throws an
+`InstabilityError` if the fixed point needs a stabilizing shift.
+Self-consistency resums one class of higher-order terms and drops others of the
+same order. It is uncontrolled, and it gaps the Goldstone mode of a broken
+continuous symmetry. Each of `constraints`, e.g. [`GoldstonePin`](@ref), adds
+terms to the correction at every iterate, and the multipliers that fix them are
+reported in the `info` of the state.
+
+`bz` specifies an explicit grid for integration. The state records it, and every
+``1/s`` correction about this state uses the same grid, so that the counterterm
+cancels the mean field exactly in [`corrected_intensities`](@ref).
+
+With `tadpole=true`, the structure is relaxed as well: the dipoles are rotated
+until the energy of the state is stationary in their directions too, so that
+zero-point fluctuations shift e.g. the canting angle in a field, as
+[`tadpole_correction`](@ref) does at first order. The result is the stationary
+point of [`gaussian_energy_per_site`](@ref) jointly in the Gaussian state and
+the structure, so its derivatives obey the Hellmann-Feynman theorem, e.g. the
+magnetization is the expectation value of the moment in the state. Only mode
+`:dipole` is supported.
 
 The energy of a Gaussian state about a structure,
 
     F(frames, g) = E_cl + (⟨H₂⟩ + ⟨H₄⟩) / N,
 
-with contractions g, is the functional that `self_consistent` makes stationary
+with contractions g, is the functional that self-consistency makes stationary
 in g at fixed frames. Making it stationary in the frames as well, at fixed g,
 completes the variational principle: the joint stationary point is the one
 whose derivatives in any coupling, e.g. the field, are partial derivatives of F
@@ -227,14 +242,17 @@ the anomalous ones carry a phase in each local frame, which pins the azimuth,
 so the relaxation cannot drift along the symmetry, and a converged state
 rotated by it is again converged, with the same spectrum.
 """
-function self_consistent_tadpole(swt::SpinWaveTheory; bz, constraints=(), guess=nothing, scf_tol=1e-8,
-                                 maxiters=200, memory=5)
+function about_self_consistent_vacuum(swt::SpinWaveTheory; bz, tadpole=false, constraints=(), guess=nothing,
+                                      scf_tol=1e-8, maxiters=200, memory=5)
     grid = to_bz(bz)
     grid isa BZGrid || error("Self-consistency needs grid dimensions `bz = (n1, n2, n3)`.")
+    opts = (; constraints, scf_tol, maxiters, memory)
+    tadpole || return swt_self_consistent(swt, grid; guess, opts...)
+
     swt.sys.mode == :dipole || error("Self-consistent tadpole requires mode :dipole")
     frames = swt.frames
     for iter in 1:maxiters
-        sc = self_consistent(swt_build(swt.sys, swt.measure, swt.regularization; frames); bz=grid, constraints, guess, scf_tol, maxiters, memory)
+        sc = swt_self_consistent(swt_build(swt.sys, swt.measure, swt.regularization; frames), grid; guess, opts...)
         frames′ = relax_frames(sc, grid)
         δ = maximum(norm(R[:, 3] - R′[:, 3]) for (R, R′) in zip(frames, frames′))
         δ < 10scf_tol && return swt_with_state(sc, GaussianState(sc.state.correction, grid,
@@ -329,9 +347,9 @@ end
 Computes the shift of the ordered magnetic structure caused by zero-point
 fluctuations, which appears at relative order ``1/s``. An example is the change
 in canting angle of an antiferromagnet in an applied field. Returns `(; terms2,
-δE, v)`, where `terms2` is a correction to the quadratic Hamiltonian that can be
-passed to `Sunny.swt_with_correction`, `δE` is a correction to the energy per
-site, and `v` is the boson displacement that realizes the shift, which
+δE, v)`, where `terms2` is a correction to the quadratic Hamiltonian, e.g. for
+[`static_self_energy`](@ref), `δE` is a correction to the energy per site, and
+`v` is the boson displacement that realizes the shift, which
 [`observable_corrections`](@ref) and [`corrected_magnetic_moments`](@ref) need.
 The latter reads the shifted structure off `v`, together with the zero-point
 depletion, and converts to ``μ = -g 𝐒``.
@@ -343,7 +361,8 @@ is of the same size as the mean-field correction of
 [`hartree_fock_correction`](@ref), so for a noncollinear structure the two
 should be applied together. Restoring an exact Goldstone mode requires, in
 addition, the self-energy generated by the cubic vertex, which enters at the
-same order.
+same order. For the structure relaxed self-consistently, see
+[`about_self_consistent_vacuum`](@ref) with `tadpole=true`.
 
 `bz` specifies a relative tolerance or an explicit grid for integration; see
 [`BZIntegration`](@ref).
@@ -476,7 +495,7 @@ end
 
 Expectation value of the Hamiltonian per site, through its four-boson term, in
 the Gaussian state of `swt`. This is a variational upper bound on the ground
-state energy, which is stationary in the state of [`self_consistent`](@ref), and
+state energy, which is stationary in the state of [`about_self_consistent_vacuum`](@ref), and
 so suited to comparing candidate structures under
 self-consistent Hartree-Fock. In the harmonic vacuum it is the result of
 [`corrected_energy_per_site`](@ref) plus ``⟨H₄⟩``, i.e. less the `δE` of
@@ -623,11 +642,11 @@ including its counterterm, as returned by [`hartree_fock_correction`](@ref) or
 concatenated. The result has the same shape as [`dispersion`](@ref), to which it
 is to be added.
 
-Whereas `dispersion(Sunny.swt_with_correction(swt, terms2), qpts)`
-rediagonalizes the corrected Hamiltonian, this function evaluates the correction
-to first order only. The two differ at relative order ``1/s²``, but only the latter can
-be combined with
-[`cubic_self_energy`](@ref), which is likewise a first-order energy shift. It is
+Whereas the `dispersion` of [`about_hartree_fock_vacuum`](@ref) rediagonalizes
+the corrected Hamiltonian, this function evaluates the correction to first
+order only. The two differ at relative order ``1/s²``, but only the latter can
+be combined with [`cubic_self_energy`](@ref), which is likewise a first-order
+energy shift. It is
 also the appropriate choice when the structure supports a Goldstone mode: an
 ``O(1/s)`` correction to a Hamiltonian with a protected zero mode produces a gap
 of order ``\\sqrt{1/s}`` upon rediagonalization, obscuring the cancellation

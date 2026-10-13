@@ -57,8 +57,8 @@ Physically, this shift can be interpreted as application of an inhomogeneous
 field aligned with the magnetic ordering.
 
 A `SpinWaveTheory` may carry a Gaussian state other than the harmonic vacuum,
-e.g. one returned by `Sunny.self_consistent`. Its quadratic Hamiltonian
-then includes the state's correction, which determines `dispersion`,
+e.g. one returned by `Sunny.about_self_consistent_vacuum`. Its quadratic
+Hamiltonian then includes the state's correction, which determines `dispersion`,
 `intensities`, and every other LSWT quantity, while the 1/s corrections treat
 the state as the vacuum about which the bosons are expanded.
 """
@@ -420,7 +420,7 @@ function excitations_supercell!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory,
         rethrow(InstabilityError(isempty(swt.state.correction) ?
             "Not an energy-minimum; wavevector q = $q unstable." :
             "Quadratic Hamiltonian of the Gaussian state is not positive definite at wavevector q = $q. If \
-             quantum fluctuations stabilize the structure, see `Sunny.self_consistent`."))
+             quantum fluctuations stabilize the structure, see `Sunny.about_self_consistent_vacuum`."))
     end
 end
 
