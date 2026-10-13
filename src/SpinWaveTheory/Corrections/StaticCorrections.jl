@@ -162,7 +162,7 @@ function swt_self_consistent(swt::SpinWaveTheory, grid::BZGrid; constraints, gue
         (terms2, info) = correction(g)
         (g′, s) = stabilized(terms2)
         r = g′.values - g.values
-        norm(r) < scf_tol && return iszero(s) ? swt_with_state(swt, GaussianState(terms2, grid, (; method=:hartree_fock, iter, info...))) :
+        norm(r) < scf_tol && return iszero(s) ? swt_with_state(swt, GaussianState(terms2, grid.dims, (; method=:hartree_fock, iter, info...))) :
             throw(InstabilityError("Quantum fluctuations do not stabilize the structure: the self-consistent \
                                     mean field leaves the quadratic Hamiltonian indefinite."))
         push!(xs, g.values)
@@ -255,7 +255,7 @@ function about_self_consistent_vacuum(swt::SpinWaveTheory; bz, tadpole=false, co
         sc = swt_self_consistent(swt_build(swt.sys, swt.measure, swt.regularization; frames), grid; guess, opts...)
         frames′ = relax_frames(sc, grid)
         δ = maximum(norm(R[:, 3] - R′[:, 3]) for (R, R′) in zip(frames, frames′))
-        δ < 10scf_tol && return swt_with_state(sc, GaussianState(sc.state.correction, grid,
+        δ < 10scf_tol && return swt_with_state(sc, GaussianState(sc.state.correction, grid.dims,
                                                      Base.merge(sc.state.info, (; tadpole_iter=iter))))
         (frames, guess) = (frames′, sc)
     end
@@ -660,21 +660,27 @@ function static_self_energy(swt::SpinWaveTheory, qpts, terms2)
     qpts = convert(AbstractQPoints, qpts)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
+    table = static_table(swt, terms2)
     ret = stack(qpts.qs) do q
         q_supercell = to_supercell_rlu(swt.sys, q)
         excitations_supercell!(ws, H, swt, q_supercell)
         # Writing the quadratic form as (1/2) y† Σ y in the quasi-particle
         # basis, the coefficient of α†_n α_n is the n-th diagonal element.
-        real.(diag(static_self_energy_matrix(swt, terms2, q_supercell, ws.T)))[1:L]
+        real.(diag(static_self_energy_matrix(table, q_supercell, ws.T)))[1:L]
     end
     return reshape(ret, L, size(qpts.qs)...)
 end
 
-# Nambu matrix of the static correction `terms2`, counterterm of the vacuum
-# included, in the quasi-particle basis `T` of the vacuum at `q_supercell`
-function static_self_energy_matrix(swt::SpinWaveTheory, terms2, q_supercell, T)
+# The static correction `terms2` together with the counterterm of the vacuum,
+# which subtracts its correction, compiled for evaluation at many wavevectors
+static_table(swt::SpinWaveTheory, terms2) =
+    QuadraticTable([terms2; [BosonMonomial(-c, as, ns) for (; c, as, ns) in swt.state.correction]], nbands(swt))
+
+# Nambu matrix of the compiled static correction `table` in the quasi-particle
+# basis `T` of the vacuum at `q_supercell`
+function static_self_energy_matrix(table::QuadraticTable, q_supercell, T)
     δH = zeros(ComplexF64, size(T))
-    accum_quadratic!(δH, terms2, q_supercell)
-    accum_counterterm!(δH, swt, q_supercell)
+    accum_lower!(δH, table, q_supercell)
+    hermitian_from_lower!(δH)
     return T' * δH * T
 end
