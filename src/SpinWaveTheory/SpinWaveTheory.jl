@@ -92,25 +92,37 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
+    return swt_build(sys, measure, regularization)
+end
+
+# The theory of the structure in `sys` about the harmonic vacuum. By default the
+# local frames follow from the ordered state, as `local_frames` builds them.
+# They may instead be given, so that the boson labels, and with them the phases
+# of the anomalous contractions, continue smoothly as `relax_frames` tilts each
+# frame. The dipole of each site is then set along column 3 of its frame, and
+# the structure need not be a classical energy minimum.
+function swt_build(sys::System, measure, regularization; frames::Union{Nothing, Vector{Mat3}}=nothing)
     # A clone protects against later mutation of `sys`. The quasi-particle
     # bands are indexed by the sites of the whole system, and the wavevectors
     # by the reciprocal lattice of its magnetic cell; see `to_supercell_rlu`.
     sys = clone_system(sys)
-    return SpinWaveTheory(sys, local_frames(sys), measure, regularization, energy_per_site(sys))
-end
-
-# The harmonic theory of the structure in `sys`, given its local `frames`
-function SpinWaveTheory(sys::System, frames, measure, regularization, classical_energy)
+    if isnothing(frames)
+        frames = local_frames(sys)
+    else
+        for (i, site) in enumerate(eachsite(sys))
+            iszero(frames[i]) || set_dipole!(sys, frames[i][:, 3], site)
+        end
+    end
     terms2 = hamiltonian_monomials(sys, frames, Val{2}())
     table = QuadraticTable(terms2, nbands(sys))
     coefs = observable_coefficients(sys, frames, measure)
-    return SpinWaveTheory(sys, frames, measure, regularization, classical_energy, GaussianState(), table, table,
+    return SpinWaveTheory(sys, frames, measure, regularization, energy_per_site(sys), GaussianState(), table, table,
                           MonomialCache(terms2), coefs)
 end
 
-# The same theory about the Gaussian state `state`. Everything but the quadratic
-# table is shared.
-function SpinWaveTheory(swt::SpinWaveTheory, state::GaussianState)
+# The same theory about the Gaussian state `state`, replacing that of `swt`.
+# Everything but the quadratic table is shared.
+function swt_with_state(swt::SpinWaveTheory, state::GaussianState)
     (; sys, frames, measure, regularization, classical_energy, bare_table, monomials, observable_coefs) = swt
     table = isempty(state.correction) ? bare_table :
         QuadraticTable([monomials.quadratic; state.correction], nbands(swt))
