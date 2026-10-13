@@ -100,9 +100,10 @@
     # labeled by the occupations of the Nf = N-1 flavors that have left the
     # condensate, which holds the remaining M - Σn boxes. Returns that basis,
     # the generators E_{mn} = b†_m b_n, and the bosons themselves labeled as
-    # `monomials_SUN` labels them, flavor fastest with a ≤ L annihilating. The
-    # generators are exact; a boson operator that would leave the space is
-    # truncated, so residuals may only be read off blocks of low occupation.
+    # `hamiltonian_monomials` labels them, flavor fastest with a ≤ L
+    # annihilating. The generators are exact; a boson operator that would leave
+    # the space is truncated, so residuals may only be read off blocks of low
+    # occupation.
     function box_ops(Nf, M, Na)
         sb = [ns for ns in Iterators.product(ntuple(_ -> 0:M, Nf)...) if sum(ns) <= M]
         pos = Dict(ns => k for (k, ns) in enumerate(sb))
@@ -202,9 +203,8 @@
         # Exact cluster Hamiltonian, in the local frames that the boson
         # expansion uses and with the same Zeeman convention (+𝐁⋅𝐒). The
         # anisotropy is rotated by hand, so this is independent of the
-        # implementation, which instead works from the Stevens coefficients that
-        # `swt_data` stored.
-        Rs = swt.data.local_rotations
+        # implementation, which instead rotates the Stevens coefficients.
+        Rs = swt.frames
         Hex = spzeros(ComplexF64, dim, dim)
         for i in 1:3
             Bi = Rs[i]' * (sys.gs[1, 1, 1, i]' * sys.extfield[1, 1, 1, i])
@@ -278,8 +278,8 @@
     # The same idea in mode :SUN, whose expansion parameter is the number of
     # boxes M of the symmetric SU(N) representation. Sunny uses M = 1, where a
     # site cannot hold two bosons and the asymptotic blocks are unreachable, so
-    # `monomials_SUN` takes M as a test-only argument and this promotes the very
-    # same local operators to the M-box representation exactly, via its
+    # `hamiltonian_monomials` takes M as a test-only argument and this promotes
+    # the very same local operators to the M-box representation exactly, via its
     # generators.
     function box_errors(M)
         # The couplings to expand are the unscaled ones, `local_monomials`
@@ -290,8 +290,8 @@
         sys0 = sun_cluster()
         sys0.coherents .= sysM.coherents
         swt = SpinWaveTheory(sys0; measure=nothing, regularization=0)
-        # The couplings that `swt_data` rotated into local frames and absorbed
-        # the Zeeman term into are what `monomials_SUN` reads.
+        # The couplings that `local_interactions` rotates into local frames and
+        # absorbs the Zeeman term into are what `hamiltonian_monomials` reads.
         sys = swt.sys
         Nf = Sunny.nflavors(swt)
         N = Nf + 1
@@ -299,7 +299,8 @@
         prom(A, i) = sum(A[m, n] * E(m, n, i) for m in 1:N, n in 1:N if !iszero(A[m, n]))
 
         Hex = spzeros(ComplexF64, dim, dim)
-        for (i, int) in enumerate(swt.data.interactions)
+        for i in 1:Sunny.nsites(sys)
+            int = Sunny.local_interactions(sys, swt.frames, i)
             iszero(int.onsite) || (Hex .+= prom(Matrix(int.onsite), i))
             for c in int.pair
                 c.isculled && continue
@@ -310,8 +311,8 @@
             end
         end
 
-        Hs = [expand(bop, Sunny.monomials_SUN(swt, Val{K}(), M), dim) for K in 1:4]
-        E0 = real(sum(t -> t.c, Sunny.monomials_SUN(swt, Val{0}(), M); init=0.0+0im))
+        Hs = [expand(bop, Sunny.hamiltonian_monomials(sys, swt.frames, Val{K}(); M), dim) for K in 1:4]
+        E0 = real(sum(t -> t.c, Sunny.hamiltonian_monomials(sys, swt.frames, Val{0}(); M); init=0.0+0im))
         R = Hex - E0*I - sum(Hs)
         blk(n) = findall(==(n), nbs)
         scale = norm(Hex)
@@ -648,8 +649,8 @@ end
     # The same idea in mode :SUN, whose expansion parameter is the number of
     # boxes M of the symmetric SU(N) representation. Sunny uses M = 1, where a
     # site cannot hold two bosons and the asymptotic blocks are unreachable, so
-    # `monomials_SUN` takes M as a test-only argument and this promotes the very
-    # same local operators to the M-box representation exactly, via its
+    # `hamiltonian_monomials` takes M as a test-only argument and this promotes
+    # the very same local operators to the M-box representation exactly, via its
     # generators.
 
     # Two values of M give the scaling of the quartic residual, which would
@@ -717,8 +718,8 @@ end
         # identically.
         swt = SpinWaveTheory(single_ion(s, :SUN, B); measure=nothing, regularization=0)
         @test sort(dispersion(swt, [[0, 0, 0]])[:]) ≈ gaps
-        @test maximum(abs, [t.c for t in Sunny.monomials_SUN(swt, Val{3}())]; init=0.0) < 1e-12
-        @test isempty(Sunny.monomials_SUN(swt, Val{4}()))
+        @test maximum(abs, [t.c for t in Sunny.cubic_monomials(swt)]; init=0.0) < 1e-12
+        @test isempty(Sunny.quartic_monomials(swt))
         # Exactly zero at any tolerance, there being no term left to integrate
         @test iszero(Sunny.hartree_fock_correction(swt; bz=0.1).δE)
         @test iszero(Sunny.boson_density(swt; bz=0.1))
@@ -864,7 +865,7 @@ end
         # `with_frames` at the frames already in `swt.data` must reproduce `swt`
         # itself: those frames already carry its own gauge twist, so there is
         # no hidden rotation left for the labels to pick up.
-        let swt2 = Sunny.with_frames(swt, swt.data.local_rotations)
+        let swt2 = Sunny.with_frames(swt, swt.frames)
             @test dispersion(swt2, [[0.3, 0.1, 0]]) ≈ dispersion(swt, [[0.3, 0.1, 0]])
             @test swt2.classical_energy ≈ swt.classical_energy
         end
@@ -887,10 +888,10 @@ end
         # structure is collinear and does not move.
         relaxed(B) = Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, B); measure=nothing); bz, scf_tol=1e-10)
         st = relaxed(1.0)
-        Sz(sw) = sum((1/2 - n) * R[3, 3] for (n, R) in zip(Sunny.boson_density(sw), sw.data.local_rotations)) / 2
+        Sz(sw) = sum((1/2 - n) * R[3, 3] for (n, R) in zip(Sunny.boson_density(sw), sw.frames)) / 2
         @test Sunny.gaussian_energy_per_site(st) < E(1)
         @test (Sunny.gaussian_energy_per_site(relaxed(1.001)) - Sunny.gaussian_energy_per_site(relaxed(0.999))) / 0.002 ≈ Sz(st) atol=1e-7
-        @test Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, 0); measure=nothing); bz).data.local_rotations[1][3, 3] ≈ 0 atol=1e-12
+        @test Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, 0); measure=nothing); bz).frames[1][3, 3] ≈ 0 atol=1e-12
     end
     # A field along the moments shifts the magnons by ±B without changing the
     # Bogoliubov transformation. It leaves the Néel state energetically
@@ -966,10 +967,10 @@ end
     # diagonalization has certified above.
     #
     # Only gauge-invariant output may be compared. `bogoliubov!` fixes the phase
-    # of each band independently, and the dipole `swt_data` puts a deliberate
-    # rotation into each local frame, so the vertex tensors, the Bogoliubov
-    # matrices and the dynamical matrices themselves all differ between the two
-    # modes by phases.
+    # of each band independently, and the dipole `local_frames` puts a
+    # deliberate rotation into each local frame, so the vertex tensors, the
+    # Bogoliubov matrices and the dynamical matrices themselves all differ
+    # between the two modes by phases.
     #
     # The tolerance below is loose because `hcubature` decides how finely to
     # subdivide by comparing an error estimate against `tol`, so the two modes
@@ -1079,7 +1080,7 @@ end
     # easy-plane ferromagnet leaves a zero mode at 𝐪 = 0, while the cubic and
     # linear vertices vanish identically by that same symmetry. That leaves
     # `anisotropy_correction` to cancel the mean field on its own -- which it
-    # can only do because `monomials_dipole` keeps exactly one order in
+    # can only do because `hamiltonian_monomials` keeps exactly one order in
     # 1/s per word. Since a perturbation of the quadratic form opens a gap like
     # its square root, expanding the anisotropy exactly instead, thereby
     # injecting a partial set of O(1/s²) terms, would gap the mode at O(1/s).
@@ -1419,7 +1420,7 @@ end
         o = Sunny.Vec3(0, 0, 0)
         g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for i in 1:L for as in ((L+i, i), (i, i))],
                                Sunny.BZAdaptive(tol))
-        ss = [swt.data.sqrtS[i]^2 for i in 1:L]
+        ss = [swt.sys.κs[i] for i in 1:L]
         n = [real(g(L+i, i, o)) for i in 1:L]
         n2 = [n[i]^2 + n[i] * (1 + n[i]) + abs2(g(i, i, o)) for i in 1:L]
 
@@ -2027,12 +2028,13 @@ end
              Sunny.observable_corrections(swt; bz=1e-4)
         (err, mag) = (0.0, 0.0)
         for i in 1:2
-            σ = √2 * swt.data.sqrtS[i]
+            σ = √(2swt.sys.κs[i])
             # The tilted axis in the local frame, where LSWT's is ẑ
-            tilt = Sunny.Vec3(σ*real(tad.v[i]), σ*imag(tad.v[i]), swt.data.sqrtS[i]^2)
+            tilt = Sunny.Vec3(σ*real(tad.v[i]), σ*imag(tad.v[i]), swt.sys.κs[i])
             Rot = Sunny.rotation_between_vectors([0, 0, 1], tilt)
             for μ in 1:3
-                (O, O′) = (swt.data.observables[μ, i], Rot' * swt.data.observables[μ, i])
+                O = Sunny.local_observable(swt.sys, swt.frames, swt.measure, μ, i)
+                O′ = Rot' * O
                 δcp = ((O′[1] - O[1]) - im*(O′[2] - O[2])) / 2
                 δcm = ((O′[1] - O[1]) + im*(O′[2] - O[2])) / 2
                 err = max(err, abs(σ*δcp - δc[i, μ]), abs(σ*δcm - δc[2+i, μ]))
@@ -2071,7 +2073,7 @@ end
         return SpinWaveTheory(sys; measure=nothing)
     end
     swt = anisotropic_site([0.3, 0.5, 0.8])
-    Rloc = swt.data.local_rotations[1]
+    Rloc = swt.frames[1]
     δE₀(n) = Sunny.anisotropy_correction(anisotropic_site(n)).δE
     # Tilting n by t along a transverse axis of the local frame moves that component of
     # the dipole by s t, to first order

@@ -40,8 +40,7 @@ end
 # of J(q) give hopping and pairing between the sites, and Jᶻᶻ at q = 0, the
 # molecular field of the ordered moments, shifts each site by -sⱼ J₀ᶻᶻ.
 function accum_ewald_dipole!(H, swt, Aq, A0, q_supercell)
-    (; sys, data) = swt
-    (; local_rotations, sqrtS) = data
+    (; sys, frames) = swt
     L = nbands(swt)
     H11 = view(H, 1:L, 1:L)
     H12 = view(H, 1:L, L+1:2L)
@@ -51,8 +50,9 @@ function accum_ewald_dipole!(H, swt, Aq, A0, q_supercell)
     for i in 1:L, j in 1:L
         Jq = ewald_coupling(Aq, sys, q_supercell, i, j) / 2
         J0 = ewald_coupling(A0, sys, zero(Vec3), i, j) / 2
-        Ri, Rj = local_rotations[i], local_rotations[j]
-        J = sqrtS[i] * sqrtS[j] * Ri' * Jq * Rj
+        Ri, Rj = frames[i], frames[j]
+        (si, sj) = (sys.κs[i], sys.κs[j])
+        J = sqrt(si * sj) * Ri' * Jq * Rj
         J0zz = (Ri' * J0 * Rj)[3, 3]
 
         Q⁻ = (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1])) / 2
@@ -69,7 +69,6 @@ function accum_ewald_dipole!(H, swt, Aq, A0, q_supercell)
         H12[i, j] += P⁺
         H12[j, i] += conj(P⁻)
 
-        si, sj = sqrtS[i]^2, sqrtS[j]^2
         H11[i, i] -= sj * J0zz
         H22[i, i] -= sj * J0zz
         H11[j, j] -= si * J0zz
@@ -86,8 +85,7 @@ end
 # term on one unit times the mean on the other stays on one unit, and takes J
 # at q = 0. Linear terms on both units couple them, and take J at q.
 function accum_ewald_SUN!(H, swt, Aq, A0, q_supercell)
-    (; sys, data) = swt
-    (; spin_ops) = data::SWTDataSUN
+    (; sys, frames) = swt
     usys = uncontracted_system(sys)
     N = sys.Ns[1]
     Na = nsites(sys)
@@ -103,8 +101,9 @@ function accum_ewald_SUN!(H, swt, Aq, A0, q_supercell)
     for i in 1:Na, j in 1:Na, (bi, ci) in bare_indices_and_cells(sys, i), (bj, cj) in bare_indices_and_cells(sys, j)
         Jq = ewald_coupling(Aq, usys, q_supercell, bi, bj, cj .- ci) / 2
         J0 = ewald_coupling(A0, usys, zero(Vec3), bi, bj, cj .- ci) / 2
+        (Si, Sj) = (local_spin_ops(sys, frames[i], bi), local_spin_ops(sys, frames[j], bj))
         for α in 1:3, β in 1:3
-            A, B = spin_ops[α, bi], spin_ops[β, bj]
+            A, B = Si[α], Sj[β]
             jq, j0 = Jq[α, β], J0[α, β]
             for m in 1:N-1, n in 1:N-1
                 # Quadratic on one unit, mean on the other

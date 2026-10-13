@@ -573,9 +573,9 @@ end
 @testitem "Vacant sites" begin
     # A vacant site must decouple from the spin wave calculation entirely: it
     # contributes only null bands, and the surviving sites behave as though it
-    # were absent. `swt_data` achieves this by zeroing the local frame, which is
-    # load bearing for the Zeeman term alone -- the anisotropy and exchange terms
-    # are already suppressed by the vanishing spin magnitude.
+    # were absent. `local_frames` achieves this by zeroing the local frame,
+    # which is load bearing for the Zeeman term alone -- the anisotropy and
+    # exchange terms are already suppressed by the vanishing spin magnitude.
     cryst = Crystal(lattice_vectors(1, 1.3, 1.7, 90, 90, 90), [[0, 0, 0]])
 
     function build(mode, dims)
@@ -684,7 +684,7 @@ end
         # which the 1/s corrections certify against exact diagonalization
         if mode == :SUN
             H3 = zeros(ComplexF64, 2L, 2L)
-            Sunny.accum_quadratic!(H3, Sunny.monomials_SUN(swt, Val{2}()), q)
+            Sunny.accum_quadratic!(H3, Sunny.hamiltonian_monomials(swt.sys, swt.frames, Val{2}()), q)
             @test H1 ≈ H3 + swt.regularization * I
             @test H1 == H1'
         end
