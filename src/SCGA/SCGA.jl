@@ -41,6 +41,7 @@ struct SCGA
         sys.dims == (1, 1, 1) || error("Use system with dims=(1, 1, 1) for efficiency")
 
         measure = @something measure empty_measurespec(sys)
+        measure isa MeasureSpec{StevensExpansion} && error("SCGA measures only spin dipoles")
         if num_lattice_dims(measure) != sys.dims || num_units_per_cell(measure) != natoms(sys.crystal)
             error("Size mismatch. Check that measure is built using consistent system.")
         end

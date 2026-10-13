@@ -1,6 +1,8 @@
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}             # Rotations from global to quantization frame
-    observables           :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
+    # Observables rotated to local frame (nobs × nsites), each a spin component
+    # 𝐎⋅𝐒 or, for a measure of general observables, a Stevens expansion
+    observables           :: Union{Array{Vec3, 2}, Array{StevensExpansion, 2}}
     stevens_coefs         :: Vector{StevensExpansion} # Rotated onsite coupling as Steven expansion
     sqrtS                 :: Vector{Float64}          # Square root of spin magnitudes
     interactions          :: Vector{Interactions}     # Pair couplings rotated to local frames
@@ -335,9 +337,15 @@ function swt_data(sys::System{0}, @nospecialize measure; frames=nothing)
 
     # Observable is semantically a 1x3 row vector but stored in transpose
     # (column) form. To achieve effective right-multiplication by R, we should
-    # in practice left-multiply column vector by R'.
-    obs = reshape(measure.observables::Array{Vec3, 6}, Nobs, Na)
-    obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
+    # in practice left-multiply column vector by R'. A Stevens expansion rotates
+    # as the onsite coupling does.
+    num_parts_per_unit(measure) == 1 || error("Distinct parts unsupported in dipole-mode.")
+    obs = reshape(measure.observables, Nobs, Na)
+    obs_localized = if obs isa Array{Vec3}
+        [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
+    else
+        [iszero(Rs[i]) ? obs[μ, i] * 0.0 : rotate_operator(obs[μ, i], Rs[i]) for μ in 1:Nobs, i in 1:Na]
+    end
 
     # Precompute transformed exchange matrices, per site. The onsite coupling
     # is kept in the global frame, its rotated form being `stevens_coefs`.
@@ -393,7 +401,7 @@ end
 function observable_coefficients(sys::System, data, measure::MeasureSpec)
     C = zeros(ComplexF64, 2nbands(sys), num_observables(measure), num_parts_per_unit(measure))
     for p in axes(C, 3), μ in axes(C, 2), i in 1:nsites(sys)
-        for (; c, as) in observable_monomials(sys, data, μ, i, Val{1}(); part=p)
+        for (; c, as) in observable_monomials(sys, data, μ, i, Val{1}(); part=p, beyond_tree=false)
             C[as[1], μ, p] += c
         end
     end

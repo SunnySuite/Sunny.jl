@@ -298,6 +298,25 @@ end
     disp_SUN = dispersion(swt_SUN, [q])
 
     @test only(disp_dip) ≈ disp_SUN[end-1]
+
+    # General observables, given as Stevens expansions in dipole mode and as
+    # matrices in SU(N) mode. The one-magnon amplitude in dipole mode is that of
+    # the quantum operator, which mode :SUN expands exactly, including odd ranks
+    # and those that also create a magnon pair.
+    O = stevens_matrices(s)
+    ops = [spin_matrices(s)[1], O[2, 1], O[2, 2], O[3, -1], O[4, 3] + O[2, 0], O[6, 5]]
+    function op_measure(sys, ops)
+        obs = [sys.mode == :SUN ? Hermitian(ComplexF64.(A)) :
+               Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(Hermitian(ComplexF64.(A))))
+               for A in ops, _ in 1:1, _ in 1:1, _ in 1:1, _ in 1:1, _ in 1:1]
+        ffs = fill(one(FormFactor), length(ops), 1, 1)
+        return Sunny.MeasureSpec(obs, [(μ, μ) for μ in eachindex(ops)], (q, corr) -> real(sum(corr)), ffs)
+    end
+    for μ in eachindex(ops)
+        res_dip = intensities_bands(SpinWaveTheory(sys_dip; measure=op_measure(sys_dip, ops[μ:μ])), [q])
+        res_SUN = intensities_bands(SpinWaveTheory(sys_SUN; measure=op_measure(sys_SUN, ops[μ:μ])), [q])
+        @test only(res_dip.data) ≈ res_SUN.data[end-1]
+    end
 end
 
 

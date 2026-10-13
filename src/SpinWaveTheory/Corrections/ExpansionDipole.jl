@@ -208,6 +208,26 @@ function stevens_words(cs, x, rcs::Bool)
     end
 end
 
+# The exact words of the local operator Σ_kq c_kq 𝒪_k^q at a site of spin s,
+# given as in `stevens_words`. Words of at most four bosons read only matrix
+# elements between the lowest seven boson states, which are closed-form at any
+# s, so no series is needed: for half-integer s these are the words of the
+# (2s+1)×(2s+1) matrix itself, and otherwise their continuation in s. An
+# observable never enters the Hamiltonian, so unlike a coupling it is not
+# truncated; see Observables.jl.
+function exact_stevens_words(cs, s)
+    iszero(s) && return zero(Words)
+    off = [√complex(j * (2s + 1 - j)) / 2 for j in 1:6]
+    J = (diagm(1 => off, -1 => off), diagm(1 => -im*off, -1 => im*off), diagm(ComplexF64[s - n for n in 0:6]))
+    𝒪 = sum(cs; init=zeros(ComplexF64, 7, 7)) do (k, c)
+        sum(((ckq, O),) -> ckq * O, zip(c, stevens_abstract_polynomials(; J, k)); init=zeros(ComplexF64, 7, 7))
+    end
+    g(d, m) = 𝒪[m+d+1, m+1] / √prod(m+1:m+d; init=1)
+    return Words(map(WORD_KEYS) do (d, j)
+        sum(m -> (-1)^(j-m) * binomial(j, m) * g(d, m), 0:j) / factorial(j)
+    end)
+end
+
 # Stevens coefficients of the spin component 𝐫 ⋅ 𝐒, since (𝒪_1^1, 𝒪_1^0, 𝒪_1^-1) =
 # (Sˣ, Sᶻ, Sʸ), and the leading words of that component. Its sub-leading words of
 # at most two bosons vanish: Sᶻ = s - b†b is exact, as are the one-boson words
