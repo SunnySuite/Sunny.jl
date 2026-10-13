@@ -20,7 +20,7 @@ labels=["K", "Γ", "M", "Y₁", "Y"]
 path = q_space_path(cryst, qpts, 200; labels)
 η = 0.03s
 energies = 0:(η/2):ωmax
-res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true, dyson=:particle)
+res = Sunny.corrected_intensities(swt, path; energies, η, dyson=:particle, threaded=true, verbose=true)
 
 plot_intensities(res; colormap=:jet, colorrange=(0, s+3/2),
                  title="s = $s_str", axis=(; xlabel="", ylabel="ω / J"))
