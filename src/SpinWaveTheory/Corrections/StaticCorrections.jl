@@ -377,13 +377,13 @@ function tadpole(swt::SpinWaveTheory, terms3, g::Contractions)
     (; noise) = g
 
     # The linear term at the classical minimum: one contraction of H₃, the
-    # tadpole itself, plus the one-boson word of an onsite anisotropy. The
-    # latter is proportional to the classical energy gradient, so like the
-    # contractions it vanishes at a classical minimum but not once tadpole
-    # relaxation has moved the structure off one. In mode :dipole it vanishes
-    # identically, because `rcs_factors` leaves the classical energy exact. See
-    # `anisotropy_coefficients`.
-    ℓ = nambu_vector([wick_reduce(terms3, g, nothing, Val{1}()); anisotropy_monomials(swt, Val{1}())], L, noise)
+    # tadpole itself, plus the sub-leading one-boson words. These are
+    # proportional to the classical energy gradient, so like the contractions
+    # they vanish at a classical minimum but not once tadpole relaxation has
+    # moved the structure off one. In mode :dipole those of an onsite
+    # anisotropy vanish identically, because `rcs_factors` leaves the classical
+    # energy exact. See `monomials_dipole`.
+    ℓ = nambu_vector([wick_reduce(terms3, g, nothing, Val{1}()); lswt_correction_monomials(swt, Val{1}())], L, noise)
 
     # Packing v into the Nambu vector w, with w[i] = v_i and w[L+i] = conj(v_i),
     # the displacement of H₂ = Σ_𝐪 (1/2) x†_𝐪 H_𝐪 x_𝐪, that of LSWT rather

@@ -29,8 +29,8 @@
 # odd ones. And the words of nb ≤ 2 are exactly what LSWT already holds — LSWT
 # compiles its Hamiltonian from the nb = 2 words, and the classical energy is
 # A[N,N] — so unlike dipole mode there is no sub-leading
-# remainder at low boson number, which is why `anisotropy_monomials` has nothing
-# to return here.
+# remainder at low boson number, which is why `lswt_correction_monomials` has
+# nothing to return here.
 #
 # THE TRUNCATION RULE, in the form the discussion in ExpansionDipole.jl takes
 # here: each n-boson sector is kept at its leading order in 1/M, which is its
