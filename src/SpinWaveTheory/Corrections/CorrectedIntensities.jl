@@ -173,7 +173,7 @@ function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=n
     res = Intensities(cryst, qpts, energies, data)
     isnothing(kernel) || (res = broaden(res; kernel))
     if mark_breakdown
-        reshape(res.data, length(energies), :)[abs.(energies) .≤ η, breakdown] .= NaN
+        reshape(res.data, length(energies), :)[abs.(energies) .≤ η, breakdown] .*= NaN
     end
     return res
 end
