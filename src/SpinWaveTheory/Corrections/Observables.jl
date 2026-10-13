@@ -108,10 +108,28 @@ end
 observable_monomials(swt::SpinWaveTheory, μ, ::Val{K}) where K =
     reduce(vcat, observable_monomials(swt, μ, i, Val{K}()) for i in 1:nsites(swt.sys))
 
-# The cubic monomials of every observable, which are what a correction to the
-# one-magnon amplitude contracts
-observable_cubic_monomials(swt::SpinWaveTheory) =
-    reduce(vcat, (observable_monomials(swt, μ, Val{3}()) for μ in 1:num_observables(swt.measure)); init=BosonMonomial{3}[])
+# The monomials of K bosons of every observable. Those of K = 3 and 4 are what a
+# correction to the one-magnon and two-magnon amplitudes contract.
+all_observable_monomials(swt::SpinWaveTheory, ::Val{K}) where K =
+    reduce(vcat, (observable_monomials(swt, μ, Val{K}()) for μ in 1:num_observables(swt.measure)); init=BosonMonomial{K}[])
+
+# Correction of relative order 1/s to the amplitude for each observable to
+# create a pair of magnons, as two-boson words of each observable μ and site i,
+# without the Fourier prefactor: one contraction of its four-boson words. It is
+# the pair analogue of `observable_corrections`. Like the pair word itself, which
+# the exact words of `observable_monomials` already hold, it matters at O(1/s)
+# only for an observable that creates no single magnon, e.g. a quadrupole that
+# changes Sᶻ by two in the local frame. It vanishes for a spin component, which
+# has no four-boson word, and in mode :SUN.
+#
+# Not included is the analogue of the tilt in `observable_corrections`, one
+# displaced leg of the three-boson words, which is nonzero only where the
+# tadpole is. For an observable that also creates a single magnon it is beyond
+# the order kept, and for one that does not it has not been validated.
+function observable_pair_corrections(swt::SpinWaveTheory, g)
+    return [wick_reduce(observable_monomials(swt, μ, i, Val{4}()), g, nothing, Val{2}())
+            for μ in 1:num_observables(swt.measure), i in 1:nsites(swt.sys)]
+end
 
 # Monomials of `K` bosons in the expansion of the spin component α of site i, in
 # the local frame. Unlike `observable_monomials`, which describes what `measure`
@@ -145,15 +163,18 @@ end
 
 # The even words of each observable at one wavevector, as [`pair_amplitude`](@ref)
 # consumes them: one list per observable, carrying the Fourier phase and form
-# factor of its site. The prefactor is conjugated because the amplitude sought is
-# that of creating a pair, whereas `observable_prefactor` describes the observable
-# as `observable_vectors!` applies it, to the amplitude for the adjoint
-# process.
-function observable_pair_monomials(swt::SpinWaveTheory, q_global)
+# factor of its site, together with the corrections `δpair` of
+# `observable_pair_corrections`, if given. The prefactor is conjugated because the
+# amplitude sought is that of creating a pair, whereas `observable_prefactor`
+# describes the observable as `observable_vectors!` applies it, to the amplitude
+# for the adjoint process.
+function observable_pair_monomials(swt::SpinWaveTheory, q_global; δpair=nothing)
     (; sys, measure) = swt
     return map(1:num_observables(measure)) do μ
         [BosonMonomial(conj(observable_prefactor(measure, μ, i, q_global, sys)) * c, as, ns)
-         for i in 1:nsites(sys) for (; c, as, ns) in observable_monomials(swt, μ, i, Val{2}())]
+         for i in 1:nsites(sys)
+         for (; c, as, ns) in Iterators.flatten((observable_monomials(swt, μ, i, Val{2}()),
+                                                  isnothing(δpair) ? () : δpair[μ, i]))]
     end
 end
 

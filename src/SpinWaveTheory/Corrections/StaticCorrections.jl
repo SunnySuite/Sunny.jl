@@ -436,7 +436,7 @@ function observable_corrections(swt::SpinWaveTheory; v=nothing, bz::BZIntegratio
     check_corrections_supported(swt)
     check_grid(swt, bz)
     w = isnothing(v) ? nothing : [v; conj(v)]
-    g = contractions(swt, observable_cubic_monomials(swt), bz)
+    g = contractions(swt, all_observable_monomials(swt, Val{3}()), bz)
     return observable_corrections(swt, w, g)
 end
 
