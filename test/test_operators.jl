@@ -268,7 +268,7 @@ end
         # Random dipole and Stevens coefficients
         s = normalize(randn(Sunny.Vec3))
         c = map(OffsetArrays.OffsetArray(0:6, 0:6)) do k
-            iseven(k) ? randn(2k+1) : zero(2k+1)
+            iseven(k) ? randn(2k+1) : zeros(2k+1)
         end
         stvexp = Sunny.StevensExpansion(c)
 

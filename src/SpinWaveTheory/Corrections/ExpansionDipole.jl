@@ -255,8 +255,8 @@ spin_component_words(r, x) = first(stevens_words(spin_component_coefs(r), x, fal
 # `tadpole_correction` only away from the classical minimum.
 
 # Each local operator of the Hamiltonian as Stevens coefficients, in the local
-# frame: the onsite anisotropy of each site, and the quadrupoles 𝒪_2^q,
-# ordered as in `stevens_matrices`.
+# frame: the onsite anisotropy of each site, which is time-reversal even, and
+# the quadrupoles 𝒪_2^q, ordered as in `stevens_matrices`.
 onsite_stevens_coefs(stvexp::StevensExpansion) =
     ((0, stvexp.c0), (2, stvexp.c2), (4, stvexp.c4), (6, stvexp.c6))
 quadrupole_coefs(q) = ((2, ntuple(p -> p == q ? 1.0 : 0.0, 5)),)

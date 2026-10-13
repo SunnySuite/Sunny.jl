@@ -1,24 +1,36 @@
 # Coefficients for an expansion in Stevens functions. Each component ck lists
 # coefficients in descending order q = k,..-k. In :dipole mode, the
-# renormalization factors (`rcs_factor`) are included in these coefficients.
+# renormalization factors (`rcs_factor`) are included in the coefficients of an
+# anisotropy.
+#
+# An onsite anisotropy is time-reversal even, and so has only even ranks, which
+# are all that classical dynamics reads. `kmax` is the largest even rank
+# present. An observable may also carry odd ranks, e.g. a dipole, and `odd`
+# records whether any is present.
 struct StevensExpansion
     c0 :: SVector{1, Float64}
     c2 :: SVector{5, Float64}
     c4 :: SVector{9, Float64}
     c6 :: SVector{13, Float64}
     kmax :: Int
+    c1 :: SVector{3, Float64}
+    c3 :: SVector{7, Float64}
+    c5 :: SVector{11, Float64}
+    odd :: Bool
 end
 
-function StevensExpansion(c0, c2, c4, c6)
-    (c0, c2, c4, c6) = (norm(ck) < 1e-12 ? zero(ck) : ck for ck in (c0, c2, c4, c6))
+function StevensExpansion(c0, c2, c4, c6, c1=zero(SVector{3}), c3=zero(SVector{7}), c5=zero(SVector{11}))
+    (c0, c1, c2, c3, c4, c5, c6) = (norm(ck) < 1e-12 ? zero(ck) : ck for ck in (c0, c1, c2, c3, c4, c5, c6))
     kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
-    return StevensExpansion(c0, c2, c4, c6, kmax)
+    odd = !(iszero(c1) && iszero(c3) && iszero(c5))
+    return StevensExpansion(c0, c2, c4, c6, kmax, c1, c3, c5, odd)
 end
 
-function StevensExpansion(c)
-    iszero(c[[1, 3, 5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
-    return StevensExpansion(c[0], c[2], c[4], c[6])
-end
+# From coefficients indexed by rank k = 0…6
+StevensExpansion(c) = StevensExpansion(c[0], c[2], c[4], c[6], c[1], c[3], c[5])
+
+# Pairs (k, c_k) of every rank, as the boson expansion consumes them
+stevens_ranks(s::StevensExpansion) = ((0, s.c0), (1, s.c1), (2, s.c2), (3, s.c3), (4, s.c4), (5, s.c5), (6, s.c6))
 
 struct TensorDecomposition
     # Generators of rotations for (Aᵢ, Bᵢ) respectively
