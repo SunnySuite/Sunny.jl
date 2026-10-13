@@ -472,12 +472,13 @@ end
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 0, 1/2)))
         set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 1/2, 1/2)))
         swt_afm1 = SpinWaveTheory(sys_afm1; measure=nothing)
-        # A fixed grid rather than `BZAdaptive`, so that both modes integrate
-        # the same function at the same points. `corrected_energy_per_site` reports an absolute
-        # energy, so the classical part is subtracted off to compare against the
-        # published correction. Using `sys_afm1` rather than the clone inside
-        # `swt_afm1`, whose exchange has been rotated.
-        δE_afm1 = Sunny.corrected_energy_per_site(swt_afm1; bz=Sunny.BZGrid(24, 24, 24)) -
+        # A fixed grid rather than adaptive cubature, so that both modes
+        # integrate the same function at the same points.
+        # `corrected_energy_per_site` reports an absolute energy, so the
+        # classical part is subtracted off to compare against the published
+        # correction. Using `sys_afm1` rather than the clone inside `swt_afm1`,
+        # whose exchange has been rotated.
+        δE_afm1 = Sunny.corrected_energy_per_site(swt_afm1; bz=(24, 24, 24)) -
                   energy_per_site(sys_afm1)
         return isapprox(δE_afm1_ref, δE_afm1; atol=1e-3)
     end
@@ -493,7 +494,7 @@ end
         set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
         polarize_spins!(sys, [0, 0, 1])
         swt = SpinWaveTheory(sys; measure=nothing)
-        @test Sunny.corrected_energy_per_site(swt; bz=Sunny.BZGrid(8, 8, 1)) ≈ energy_per_site(sys) atol=1e-12
+        @test Sunny.corrected_energy_per_site(swt; bz=(8, 8, 1)) ≈ energy_per_site(sys) atol=1e-12
     end
 
     # The onsite coupling contributes a constant at this same order, which
@@ -538,7 +539,7 @@ end
         swt = SpinWaveTheory(sys; measure=nothing)
         # Only the first 3 digits, for faster testing. At s = 1/2 the boson density
         # is the shortening of the dipole.
-        @test -Sunny.boson_density(swt; bz=Sunny.BZAdaptive(tol=1e-3))[1] ≈ δS_ref atol=1e-3
+        @test -Sunny.boson_density(swt; bz=1e-3)[1] ≈ δS_ref atol=1e-3
     end
 
 
@@ -575,7 +576,7 @@ end
         swt = SpinWaveTheory(sys; measure=nothing)
 
         @test norm(sys.dipoles[1]) ≈ d_ref atol=1e-6
-        @test Sunny.boson_density(swt; bz=Sunny.BZAdaptive(tol=1e-4))[1] ≈ n_ref atol=1e-5
+        @test Sunny.boson_density(swt; bz=1e-4)[1] ≈ n_ref atol=1e-5
     end
 end
 
@@ -719,8 +720,8 @@ end
         @test maximum(abs, [t.c for t in Sunny.monomials_SUN(swt, Val{3}())]; init=0.0) < 1e-12
         @test isempty(Sunny.monomials_SUN(swt, Val{4}()))
         # Exactly zero at any tolerance, there being no term left to integrate
-        @test iszero(Sunny.hartree_fock_correction(swt; bz=Sunny.BZAdaptive(tol=0.1)).δE)
-        @test iszero(Sunny.boson_density(swt; bz=Sunny.BZAdaptive(tol=0.1)))
+        @test iszero(Sunny.hartree_fock_correction(swt; bz=0.1).δE)
+        @test iszero(Sunny.boson_density(swt; bz=0.1))
 
         # Mode :dipole keeps one band, and RCS makes it the exact gap to the
         # level one unit of magnetization down — *not* the smallest gap, which
@@ -791,7 +792,7 @@ end
     # comes out 1.4e-7 from its reference here, seven times inside the `atol`
     # asserted. Checks that instead compare two corrections computed from the
     # same quadrature, or extract a ratio from them, loosen it individually.
-    bz = Sunny.BZAdaptive(tol=1e-4)
+    bz = 1e-4
 
     # ---- Oguchi's Z_c, on a supercell and on a multi-atom basis ----
 
@@ -839,18 +840,18 @@ end
     # last because the cubic monomials are proportional to a transverse
     # effective field that vanishes at a classical minimum.
     swt = SpinWaveTheory(canted_square(1/2, 0); measure=nothing)
-    @test Sunny.boson_density(swt; bz=Sunny.BZAdaptive(tol=1e-4))[1] ≈ 0.19656 atol=1e-5
-    @test norm(Sunny.corrected_magnetic_moments(swt; bz=Sunny.BZAdaptive(tol=1e-4))[1]) ≈ 0.303437 atol=1e-6
+    @test Sunny.boson_density(swt; bz=1e-4)[1] ≈ 0.19656 atol=1e-5
+    @test norm(Sunny.corrected_magnetic_moments(swt; bz=1e-4)[1]) ≈ 0.303437 atol=1e-6
     # Para-unitarity of the Bogoliubov transform: ⟨bᵢb†ᵢ⟩ - ⟨b†ᵢbᵢ⟩ = 1
     L = Sunny.nbands(swt)
     o = Sunny.Vec3(0, 0, 0)
     g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for as in ((L+1, 1), (1, L+1))],
-                           Sunny.BZAdaptive(tol=1e-4))
+                           Sunny.BZAdaptive(1e-4))
     @test g(1, L+1, o) - g(L+1, 1, o) ≈ 1 atol=1e-10
-    @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, grid=Sunny.BZGrid(6, 6, 1))) < 1e-12
-    grid32 = Sunny.BZGrid(32, 32, 1)
+    @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, bz=(6, 6, 1))) < 1e-12
+    grid32 = (32, 32, 1)
     Zcs = map((Sunny.hartree_fock_correction(swt; bz=grid32).terms2,
-               Sunny.self_consistent(swt; grid=grid32, scf_tol=1e-7).state.correction)) do terms2
+               Sunny.self_consistent(swt; bz=grid32, scf_tol=1e-7).state.correction)) do terms2
         dispersion(Sunny.with_correction(swt, terms2), [[0.3, 0.1, 0]])
     end
     @test Zcs[1] ≈ Zcs[2] atol=1e-7
@@ -859,7 +860,7 @@ end
     # harmonic vacuum, which is the harmonic energy plus ⟨H₄⟩ = -δE. At zero
     # field the mean field only rescales H₂ and the two vacua coincide, so the
     # structure is canted.
-    let grid = Sunny.BZGrid(16, 16, 1), swt = SpinWaveTheory(canted_square(1/2, 1.0); measure=nothing)
+    let bz = (16, 16, 1), swt = SpinWaveTheory(canted_square(1/2, 1.0); measure=nothing)
         # `with_frames` at the frames already in `swt.data` must reproduce `swt`
         # itself: those frames already carry its own gauge twist, so there is
         # no hidden rotation left for the labels to pick up.
@@ -867,29 +868,29 @@ end
             @test dispersion(swt2, [[0.3, 0.1, 0]]) ≈ dispersion(swt, [[0.3, 0.1, 0]])
             @test swt2.classical_energy ≈ swt.classical_energy
         end
-        sc = Sunny.self_consistent(swt; grid)
-        E(λ) = Sunny.gaussian_energy_per_site(Sunny.with_correction(swt, [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.state.correction]); bz=grid)
+        sc = Sunny.self_consistent(swt; bz)
+        E(λ) = Sunny.gaussian_energy_per_site(Sunny.with_correction(swt, [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.state.correction]); bz)
         @test abs(E(1 + 1e-3) - E(1 - 1e-3)) / 2e-3 < 1e-6
         @test E(1) ≈ Sunny.gaussian_energy_per_site(sc) atol=1e-14
-        @test E(0) ≈ Sunny.corrected_energy_per_site(swt; bz=grid) - Sunny.hartree_fock_correction(swt; bz=grid).δE atol=1e-12
+        @test E(0) ≈ Sunny.corrected_energy_per_site(swt; bz) - Sunny.hartree_fock_correction(swt; bz).δE atol=1e-12
         @test E(1) < E(0)
         # The self-consistent mean field gaps the Goldstone mode at the ordering
         # wavevector, and a pin restores the harmonic one, which only the
         # regularization gaps
         gap(sw) = minimum(dispersion(sw, [[0, 0, 0]]))
-        pinned = Sunny.self_consistent(swt; grid, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
+        pinned = Sunny.self_consistent(swt; bz, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
         @test gap(sc) > 0.1
         @test gap(pinned) ≈ gap(swt) rtol=0.1
         # Relaxing the structure as well lowers the energy further, and makes
         # the state jointly stationary, so the magnetization is the expectation
         # value of the spin, ∂E/∂B = ⟨Sᶻ⟩ for g = 1. At zero field the
         # structure is collinear and does not move.
-        relaxed(B) = Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, B); measure=nothing); grid, scf_tol=1e-10)
+        relaxed(B) = Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, B); measure=nothing); bz, scf_tol=1e-10)
         st = relaxed(1.0)
         Sz(sw) = sum((1/2 - n) * R[3, 3] for (n, R) in zip(Sunny.boson_density(sw), sw.data.local_rotations)) / 2
         @test Sunny.gaussian_energy_per_site(st) < E(1)
         @test (Sunny.gaussian_energy_per_site(relaxed(1.001)) - Sunny.gaussian_energy_per_site(relaxed(0.999))) / 0.002 ≈ Sz(st) atol=1e-7
-        @test Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, 0); measure=nothing); grid).data.local_rotations[1][3, 3] ≈ 0 atol=1e-12
+        @test Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, 0); measure=nothing); bz).data.local_rotations[1][3, 3] ≈ 0 atol=1e-12
     end
     # A field along the moments shifts the magnons by ±B without changing the
     # Bogoliubov transformation. It leaves the Néel state energetically
@@ -903,7 +904,7 @@ end
         @test dispersion(Sunny.with_correction(swt, hfB.terms2), [[0.3, 0.1, 0]]) ≈ Zcs[1] atol=1e-7
     end
     # The tadpole vanishes term by term, at 1e-34, so `tol` is irrelevant to it
-    tad = Sunny.tadpole_correction(swt; bz=Sunny.BZAdaptive(tol=1e-3))
+    tad = Sunny.tadpole_correction(swt; bz=1e-3)
     @test all(t -> abs(t.c) < 1e-12, tad.terms2)
     @test abs(tad.δE) < 1e-12
     @test norm(tad.v) < 1e-12
@@ -915,7 +916,7 @@ end
     let
         sys = canted_square(1, 3)
         swt = SpinWaveTheory(sys; measure=nothing)
-        corrected = Sunny.corrected_magnetic_moments(swt; bz=Sunny.BZAdaptive(tol=1e-5))
+        corrected = Sunny.corrected_magnetic_moments(swt; bz=1e-5)
         @test size(corrected) == size(magnetic_moments(sys)) == (1, 1, 1, 2)
         @test vec(corrected) ≈ [[-0.8244219, 0, 0.3256618], [0.8244219, 0, 0.3256618]] atol=1e-6
     end
@@ -929,9 +930,9 @@ end
     let
         swt = SpinWaveTheory(canted_square(1, 3; mode=:SUN); measure=nothing)
         swt′ = SpinWaveTheory(canted_square(1, 3); measure=nothing)
-        @test Sunny.boson_density(swt; bz=Sunny.BZAdaptive(tol=1e-3)) ≈ Sunny.boson_density(swt′; bz=Sunny.BZAdaptive(tol=1e-3)) rtol=1e-5
-        @test Sunny.corrected_magnetic_moments(swt; bz=Sunny.BZAdaptive(tol=1e-3)) ≈
-              Sunny.corrected_magnetic_moments(swt′; bz=Sunny.BZAdaptive(tol=1e-3)) rtol=1e-5
+        @test Sunny.boson_density(swt; bz=1e-3) ≈ Sunny.boson_density(swt′; bz=1e-3) rtol=1e-5
+        @test Sunny.corrected_magnetic_moments(swt; bz=1e-3) ≈
+              Sunny.corrected_magnetic_moments(swt′; bz=1e-3) rtol=1e-5
     end
 
     # Thermodynamic consistency in :SUN mode, Σᵢ μᵢ = -∂E/∂𝐁 against the
@@ -946,11 +947,11 @@ end
         # Only the zero-point energy, since δμ below is likewise only the correction
         zp(B) = let sys = sun_cluster(; field=B)
             swt = SpinWaveTheory(sys; measure=nothing)
-            Sunny.corrected_energy_per_site(swt; bz=Sunny.BZAdaptive(tol=1e-6)) - energy_per_site(sys)
+            Sunny.corrected_energy_per_site(swt; bz=1e-6) - energy_per_site(sys)
         end
         sys = sun_cluster()
         swt = SpinWaveTheory(sys; measure=nothing)
-        μs = Sunny.corrected_magnetic_moments(swt; bz=Sunny.BZAdaptive(tol=1e-5)) - magnetic_moments(sys)
+        μs = Sunny.corrected_magnetic_moments(swt; bz=1e-5) - magnetic_moments(sys)
         δμ = sum(i -> μs[1, 1, 1, i] ⋅ n̂, 1:2) / 2
         # Differencing the energy is what limits this, not the quadrature
         @test δμ ≈ -(zp(cluster_B + 1e-4*n̂) - zp(cluster_B - 1e-4*n̂)) / 2e-4 atol=1e-8
@@ -978,7 +979,7 @@ end
     # still caught.
     let
         (s, B, tol) = (1/2, 0.6, 0.02)
-        bz = Sunny.BZAdaptive(; tol)
+        bz = tol
         qs = [[0.23, 0.11, 0], [0.4, 0.3, 0]]
         rs = map((:dipole_uncorrected, :SUN)) do mode
             sys = canted_square(s, B; mode)
@@ -990,9 +991,9 @@ end
                       n = Sunny.boson_density(swt; bz),
                       δE = [hf.δE, tad.δE],
                       εc = dispersion(Sunny.with_correction(swt, [hf.terms2; tad.terms2]), qs),
-                      Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, grid=Sunny.BZGrid(8, 8, 1)),
+                      Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, bz=(8, 8, 1)),
                       I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61),
-                                                      η=0.1, grid=Sunny.BZGrid(26, 26, 1)).data)
+                                                      η=0.1, bz=(26, 26, 1)).data)
         end
         for k in keys(rs[1])
             @test maximum(abs, getfield(rs[1], k) .- getfield(rs[2], k)) < 1e-5
@@ -1032,7 +1033,7 @@ end
         q = [[0.3, 0.1, 0]]
         @test dispersion(swt′, q)[:] ≈ [8, 8, 4.387482, 4.387482] atol=1e-5
         Σs = map(((0.05, 24), (0.025, 48))) do (η, nk)
-            Sunny.cubic_self_energy(swt′, q; η, grid=Sunny.BZGrid(nk, nk, 1))[:]
+            Sunny.cubic_self_energy(swt′, q; η, bz=(nk, nk, 1))[:]
         end
         # Overdamped: the width exceeds a tenth of the energy, and is η-independent
         @test all(Σ -> -imag(Σ[1]) > 0.8 * 0.05, Σs)
@@ -1059,18 +1060,17 @@ end
     # mismatch is the discretization error of the self-energy, falling off like
     # 1/nk.
     swt = SpinWaveTheory(canted_square(1, 3); measure=nothing)
-    for nk in (8, 16)
-        grid = Sunny.BZGrid(nk, nk, 1)
-        t2 = [Sunny.hartree_fock_correction(swt; bz=grid).terms2
-              Sunny.tadpole_correction(swt; bz=grid).terms2]
+    for bz in ((8, 8, 1), (16, 16, 1))
+        t2 = [Sunny.hartree_fock_correction(swt; bz).terms2
+              Sunny.tadpole_correction(swt; bz).terms2]
         δ = Sunny.static_self_energy(swt, [[0, 0, 0]], t2)[2]
         @test δ > 1e3
-        @test abs(δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=1e-8, grid)[2])) < 1e-8 * δ
+        @test abs(δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=1e-8, bz)[2])) < 1e-8 * δ
     end
-    t2 = [Sunny.hartree_fock_correction(swt; bz=Sunny.BZAdaptive(tol=1e-4)).terms2
-          Sunny.tadpole_correction(swt; bz=Sunny.BZAdaptive(tol=1e-4)).terms2]
+    t2 = [Sunny.hartree_fock_correction(swt; bz=1e-4).terms2
+          Sunny.tadpole_correction(swt; bz=1e-4).terms2]
     δ = Sunny.static_self_energy(swt, [[0, 0, 0]], t2)[2]
-    rs = map(nk -> (δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=0.005, grid=Sunny.BZGrid(nk, nk, 1))[2])) / δ, (16, 32))
+    rs = map(nk -> (δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=0.005, bz=(nk, nk, 1))[2])) / δ, (16, 32))
     @test rs[1] ≈ 2 * rs[2] rtol=0.01
     @test rs[2] < 0.02
 
@@ -1118,7 +1118,7 @@ end
     # original one-site cell; the three-site cell folds 𝐪 together with 𝐪 ±
     # 𝐊, so each wavevector gates all three bands at once, and with them the
     # folding convention.
-    @test Sunny.corrected_energy_per_site(swt; bz=Sunny.BZAdaptive(tol=1e-4)) ≈ -0.53881 atol=1e-4
+    @test Sunny.corrected_energy_per_site(swt; bz=1e-4) ≈ -0.53881 atol=1e-4
     q = [[1/2, 0, 0]]
     @test dispersion(swt, q)[:] ≈ [√2.5, √2.5, 1] atol=1e-6
     γ(q) = (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*(q[1] + q[2]))) / 3
@@ -1134,13 +1134,13 @@ end
     # zero-point fluctuations. Unlike the collinear case the cubic monomials are
     # individually nonzero, so their cancellation here tests their relative
     # phases.
-    tad = Sunny.tadpole_correction(swt; bz=Sunny.BZAdaptive(tol=1e-3))
+    tad = Sunny.tadpole_correction(swt; bz=1e-3)
     @test maximum(t -> abs(t.c), tad.terms2) < 1e-6
     @test abs(tad.δE) < 1e-12
 
-    terms2 = [Sunny.hartree_fock_correction(swt; bz=Sunny.BZAdaptive(tol=1e-3)).terms2; tad.terms2]
+    terms2 = [Sunny.hartree_fock_correction(swt; bz=1e-3).terms2; tad.terms2]
     δ = Sunny.static_self_energy(swt, q, terms2)[:]
-    Σs = map(nk -> Sunny.cubic_self_energy(swt, q; η=0.02, grid=Sunny.BZGrid(nk, nk, 1))[:], (24, 48))
+    Σs = map(nk -> Sunny.cubic_self_energy(swt, q; η=0.02, bz=(nk, nk, 1))[:], (24, 48))
 
     # The self-energy converges like 1/nk, so a Richardson step gives the O(1/s)
     # magnon energy at the M point. It falls 27% below the harmonic value, most
@@ -1157,7 +1157,7 @@ end
     # maximum ~0.3 that the reference reports. The M-point magnon instead sits
     # on the boundary, and its apparent width is entirely the Lorentzian tail of
     # the regularization, falling off like η.
-    Σ = Sunny.cubic_self_energy(swt, q; η=0.01, grid=Sunny.BZGrid(48, 48, 1))[:]
+    Σ = Sunny.cubic_self_energy(swt, q; η=0.01, bz=(48, 48, 1))[:]
     @test imag(Σ[3]) ≈ imag(Σs[2][3]) / 2 rtol=0.01
     @test imag(Σ[1]) / imag(Σs[2][1]) > 0.85
 
@@ -1168,7 +1168,7 @@ end
     # at ω > 0 where the auxiliary model is stable. Both hold at s = 1/2. The
     # spectrum sums its mean fields on its loop grid, so the reference is built
     # from the same grid.
-    grid = Sunny.BZGrid(12, 12, 1)
+    bz = (12, 12, 1)
     swt2 = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
     qs2 = [[0.476, 0, 0], [0.375, 0.125, 0]]
 
@@ -1205,7 +1205,7 @@ end
             real(swt.measure.combiner(q_global, corr))
         end
     end
-    δc = Sunny.observable_corrections(swt2; v=Sunny.tadpole_correction(swt2; bz=grid).v, bz=grid)
+    δc = Sunny.observable_corrections(swt2; v=Sunny.tadpole_correction(swt2; bz).v, bz)
     refs = static_weights(swt2, qs2, δc)
     comms = static_weights(swt2, qs2, δc; metric=true)
 
@@ -1213,7 +1213,7 @@ end
     # the step is a fraction of η.
     η = 0.06
     energies = range(-20, 24, 1501)
-    chans = Sunny.corrected_channels(swt2, qs2; energies, η, grid)
+    chans = Sunny.corrected_channels(swt2, qs2; energies, η, bz)
     (; transverse) = chans
     pos = energies .> 0
     @test !any(chans.breakdown)
@@ -1227,10 +1227,10 @@ end
 
     # The public `SelfEnergy` is the propagator of `:nambu`, whose spectral
     # matrix it must reproduce
-    let z = energies[800] + im*η, Σ = Sunny.SelfEnergy(Sunny.OneLoop(swt2; η, grid), qs2[1])
+    let z = energies[800] + im*η, Σ = Sunny.SelfEnergy(Sunny.OneLoop(swt2; η, bz), qs2[1])
         Ĩ = Diagonal([ones(L); -ones(L)])
         G = inv(z * Ĩ - Diagonal(abs.(Σ.ε)) - Σ(z))
-        c = Sunny.corrected_channels(swt2, qs2[1:1]; energies=[real(z)], η, grid, spectral=true)
+        c = Sunny.corrected_channels(swt2, qs2[1:1]; energies=[real(z)], η, bz, spectral=true)
         @test ((G' - G) / (2π*im))[1:L, 1:L] ≈ c.specfunc[:, :, 1, 1]
     end
 
@@ -1240,7 +1240,7 @@ end
     # metric, so it satisfies the commutator sum rule; `:on_shell` keeps a
     # unit-weight Lorentzian per pole.
     for dyson in (:particle, :on_shell)
-        c = Sunny.corrected_channels(swt2, qs2; energies, η, dyson, grid, spectral=true)
+        c = Sunny.corrected_channels(swt2, qs2; energies, η, dyson, bz, spectral=true)
         @test all(≥(0), (c.transverse + c.cross + c.direct)[pos, :])
         if dyson == :particle
             @test maximum(abs, vec(sum(c.transverse; dims=1)) * step(energies) - comms) < 2e-3 * maximum(refs)
@@ -1263,7 +1263,7 @@ end
     # pair at x ≈ 0 contributes just half of its Lorentzian.
     qs4 = vec([[i, j, 0] ./ 3 for i in 0:2, j in 0:2])
     chans4 = Sunny.corrected_channels(swt2, qs4; energies=range(-4, 12, 161), η=0.3,
-                                      grid=Sunny.BZGrid(3, 3, 1))
+                                      bz=(3, 3, 1))
     @test abs(sum(chans4.cross)) < 1e-3 * sum(chans4.direct)
 
     # ---- Gauge invariance, where Σ̂ is genuinely off-diagonal ----
@@ -1296,13 +1296,13 @@ end
                     end, (0.0, 0.9))
     qs3 = [[0.23, 0.11, 0], [0.37, 0.09, 0]]
     Σ3 = Sunny.cubic_self_energy_matrix(swts[1], qs3[1], dispersion(swts[1], qs3[1:1])[1:1] .+ 0.05im;
-                                        η=0.05, grid=Sunny.BZGrid(6, 6, 1))[1:L, 1:L, 1]
+                                        η=0.05, bz=(6, 6, 1))[1:L, 1:L, 1]
     @test maximum(abs, Σ3 - Diagonal(diag(Σ3))) > 0.2 * maximum(abs, diag(Σ3))
     energies = range(0.2, 2.0, 25)
     for dyson in (:nambu, :ladder, :particle, :on_shell)
-        data = Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, dyson, grid=Sunny.BZGrid(4, 4, 1)).data
+        data = Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, dyson, bz=(4, 4, 1)).data
         mirror = Sunny.corrected_intensities(swts[2], -qs3; energies=-reverse(energies), η=0.15,
-                                             dyson, grid=Sunny.BZGrid(4, 4, 1)).data
+                                             dyson, bz=(4, 4, 1)).data
         @test data ≈ -reverse(mirror; dims=1) rtol=1e-6
     end
 
@@ -1326,7 +1326,7 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(0, 10, 101), 0.2)
-        chans = Sunny.corrected_channels(swt, qs; energies, η, grid=Sunny.BZGrid(4, 4, 1))
+        chans = Sunny.corrected_channels(swt, qs; energies, η, bz=(4, 4, 1))
         @test maximum(abs, chans.direct) < 1e-25
         kernel = lorentzian(fwhm=2η)
         mirror = reverse(intensities(swt, -qs; energies=-reverse(energies), kernel).data)
@@ -1340,7 +1340,7 @@ end
         o = Sunny.Vec3(0, 0, 0)
         L = Sunny.nbands(swt)
         shift = [Sunny.BosonMonomial(0.3+0im, (L+1, 1), (o, o))]
-        c = Sunny.corrected_channels(Sunny.with_correction(swt, shift), qs; energies, η, grid=Sunny.BZGrid(4, 4, 1))
+        c = Sunny.corrected_channels(Sunny.with_correction(swt, shift), qs; energies, η, bz=(4, 4, 1))
         @test c.transverse + c.cross + c.direct ≈ chans.transverse + chans.cross + chans.direct atol=1e-12
         @test c.disp ≈ chans.disp .+ 0.3
     end
@@ -1372,7 +1372,7 @@ end
         @test vertex_scale(canted) > 1e-2
 
         chans = Sunny.corrected_channels(swt, [[0.3, 0.2, 0]]; energies=range(0, 12, 121),
-                                         η=0.2, grid=Sunny.BZGrid(8, 8, 1))
+                                         η=0.2, bz=(8, 8, 1))
         @test iszero(chans.cross) && !iszero(chans.direct)
     end
 
@@ -1384,13 +1384,13 @@ end
         sys = canted_square(1/2, 0)
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
         qs = [[0, 0, 0], [1/2, 1/2, 0], [0.05, 0, 0], [1/2, 0.45, 0]]
-        chans = Sunny.corrected_channels(swt, qs; energies=[1.0], η=0.1, dyson=:ladder, grid=Sunny.BZGrid(64, 64, 1))
+        chans = Sunny.corrected_channels(swt, qs; energies=[1.0], η=0.1, dyson=:ladder, bz=(64, 64, 1))
         @test chans.breakdown == [true, true, false, false]
 
         # A breakdown is marked by NaN in every component of a measure that
         # returns a vector
         swt = SpinWaveTheory(sys; measure=ssf_custom((q, ssf) -> diag(ssf), sys))
-        res = Sunny.corrected_intensities(swt, qs[1:1]; energies=[-0.05, 0.05], η=0.1, dyson=:ladder, grid=Sunny.BZGrid(64, 64, 1))
+        res = Sunny.corrected_intensities(swt, qs[1:1]; energies=[-0.05, 0.05], η=0.1, dyson=:ladder, bz=(64, 64, 1))
         @test all(x -> all(isnan, x), res.data)
     end
 
@@ -1418,7 +1418,7 @@ end
         # Onsite ⟨b†b⟩ and ⟨bb⟩, from which ⟨n̂²⟩ = ⟨n̂⟩² + ⟨n̂⟩(1+⟨n̂⟩) + |Δ|²
         o = Sunny.Vec3(0, 0, 0)
         g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for i in 1:L for as in ((L+i, i), (i, i))],
-                               Sunny.BZAdaptive(; tol))
+                               Sunny.BZAdaptive(tol))
         ss = [swt.data.sqrtS[i]^2 for i in 1:L]
         n = [real(g(L+i, i, o)) for i in 1:L]
         n2 = [n[i]^2 + n[i] * (1 + n[i]) + abs2(g(i, i, o)) for i in 1:L]
@@ -1427,7 +1427,7 @@ end
         # correlations at distances below `nq`, leaving only the onsite ones
         # above.
         qs = vec([[(a - 0.5)/nq, (b - 0.5)/nq, 0] for a in 1:nq, b in 1:nq])
-        δc = Sunny.observable_corrections(swt; bz=Sunny.BZAdaptive(; tol))
+        δc = Sunny.observable_corrections(swt; bz=tol)
         harm = sum(static_weights(swt, qs, nothing)) / length(qs)
         transverse = sum(static_weights(swt, qs, δc; drop=true)) / length(qs)
 
@@ -1442,7 +1442,7 @@ end
         # chemical cell this average is the longitudinal weight per site.
         qs2 = vec([[(a - 0.5)/3, (b - 0.5)/3, 0] for a in 1:3, b in 1:3])
         energies = range(-2, 16, 181)
-        direct = Sunny.corrected_channels(swt, qs2; energies, η=0.2, grid=Sunny.BZGrid(12, 12, 1)).direct
+        direct = Sunny.corrected_channels(swt, qs2; energies, η=0.2, bz=(12, 12, 1)).direct
         longitudinal = sum(direct) * step(energies) / length(qs2)
 
         return (; harm, transverse, elastic, longitudinal,
@@ -1521,7 +1521,7 @@ end
         # -(1/π) ∫ χ(iy) dy, so that no broadening enters.
         function corrected_weight(swt, ε)
             L = Sunny.nbands(swt)
-            ol = Sunny.OneLoop(swt; η=1e-3, grid=Sunny.BZGrid(1, 1, 1))
+            ol = Sunny.OneLoop(swt; η=1e-3, bz=(1, 1, 1))
             ol = Sunny.OneLoop(ol.swt, ol.η, ol.loop_grid, ol.bin_width, scaled(ol.terms3, ε), ol.terms4,
                                scaled(ol.terms2, ε^2), ε^2 * ol.δc, map(ts -> scaled(ts, ε^2), ol.δpair))
             se = Sunny.SelfEnergy(ol, [0, 0, 0])
@@ -1635,7 +1635,7 @@ end
     # summed, and it is small against η.
     # Each `dyson` scheme is pinned, as (sum, maximum) of the intensities.
     function pinned(swt, qs, energies, η, dims, dyson)
-        res = Sunny.corrected_intensities(swt, qs; energies, η, dyson, grid=Sunny.BZGrid(dims))
+        res = Sunny.corrected_intensities(swt, qs; energies, η, dyson, bz=dims)
         return [sum(res.data), maximum(res.data)]
     end
 
@@ -1689,7 +1689,7 @@ end
 
     # Every Nambu correlation, including the anomalous ones
     o = Sunny.Vec3(0, 0, 0)
-    bz = Sunny.BZAdaptive(tol=1e-8)
+    bz = Sunny.BZAdaptive(1e-8)
     g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, (a, a′), (o, o)) for a in 1:2L for a′ in 1:2L], bz)
     @test [g(a, a′, o) for a in 1:2L, a′ in 1:2L] ≈ [expect(bop(a)*bop(a′)) for a in 1:2L, a′ in 1:2L] atol=1e-7
 
@@ -1744,14 +1744,14 @@ end
     # magnitude above this tolerance.
     ωs = [0.5 + 0.3im, -1.1 + 0.25im]
     Σed = cluster_self_energy(H2, H3, bop, T0, ε, 0.06, ωs)
-    Σm = Sunny.cubic_self_energy_matrix(swt, [0, 0, 0], ωs; η=1e-10, grid=Sunny.BZGrid(1, 1, 1))
+    Σm = Sunny.cubic_self_energy_matrix(swt, [0, 0, 0], ωs; η=1e-10, bz=(1, 1, 1))
     @test collect(eachslice(Σm; dims=3)) ≈ Σed atol=3e-4
     @test maximum(abs, Σm[:, :, 1] - Diagonal(diag(Σm[:, :, 1]))) > 0.2 * maximum(abs, diag(Σm[:, :, 1]))
 
     # Below the three-magnon threshold, unitarity requires τ₃Σ̂ to be Hermitian,
     # which is what makes the Dyson equation preserve spectral weight. The
     # broadening η is what breaks it, by an amount η ∂Σ/∂ω.
-    Σh = Sunny.cubic_self_energy_matrix(swt, [0, 0, 0], [0.5 + 1e-10im]; η=1e-10, grid=Sunny.BZGrid(1, 1, 1))[:, :, 1]
+    Σh = Sunny.cubic_self_energy_matrix(swt, [0, 0, 0], [0.5 + 1e-10im]; η=1e-10, bz=(1, 1, 1))[:, :, 1]
     @test τ₃ * Σh ≈ (τ₃ * Σh)' atol=1e-9
 
     # Second-order perturbation theory in H₃, evaluated exactly in the truncated
@@ -1770,7 +1770,7 @@ end
         return [E[1]; [ΔE[argmin(abs.(ΔE .- ε[n]))] for n in 1:L]]
     end
     shifts = ((levels(0.01) + levels(-0.01))/2 - levels(0)) / 0.01^2
-    Σ = Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=1e-10, grid=Sunny.BZGrid(1, 1, 1))
+    Σ = Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=1e-10, bz=(1, 1, 1))
     @test real(vec(Σ)) ≈ shifts[2:L+1] atol=1e-3
     @test maximum(abs, imag(Σ)) < 1e-8
     U3 = vertex(swt, terms3, ntuple(_ -> zero(Sunny.Vec3), 3))
@@ -1982,7 +1982,7 @@ end
     using LinearAlgebra
     using .CorrectionModels: canted_square
 
-    bz = Sunny.BZAdaptive(tol=1e-6)
+    bz = 1e-6
 
     # ---- Two independent routes to the tadpole, canted ----
 
@@ -2011,20 +2011,20 @@ end
         B = 3s
         sys = canted_square(s, B)
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-        tad = Sunny.tadpole_correction(swt; bz=Sunny.BZAdaptive(tol=1e-6))
-        corrected = Sunny.corrected_magnetic_moments(swt; bz=Sunny.BZAdaptive(tol=1e-6))
+        tad = Sunny.tadpole_correction(swt; bz=1e-6)
+        corrected = Sunny.corrected_magnetic_moments(swt; bz=1e-6)
         δmz = sum(i -> (corrected[1, 1, 1, i] - magnetic_moments(sys)[1, 1, 1, i])[3], 1:2) / 2
         # Only the 1/s part of the energy, since `δmz` is likewise only the correction to
         # the magnetization; the classical -∂E/∂B would add the classical moment itself
         function zp(B′)
             sys′ = canted_square(s, B′)
             swt′ = SpinWaveTheory(sys′; measure=nothing)
-            return Sunny.corrected_energy_per_site(swt′; bz=Sunny.BZAdaptive(tol=1e-6)) - energy_per_site(sys′)
+            return Sunny.corrected_energy_per_site(swt′; bz=1e-6) - energy_per_site(sys′)
         end
         δzp = -(zp(B + 1e-4) - zp(B - 1e-4)) / 2e-4
 
-        δc = Sunny.observable_corrections(swt; v=tad.v, bz=Sunny.BZAdaptive(tol=1e-4)) -
-             Sunny.observable_corrections(swt; bz=Sunny.BZAdaptive(tol=1e-4))
+        δc = Sunny.observable_corrections(swt; v=tad.v, bz=1e-4) -
+             Sunny.observable_corrections(swt; bz=1e-4)
         (err, mag) = (0.0, 0.0)
         for i in 1:2
             σ = √2 * swt.data.sqrtS[i]
@@ -2119,7 +2119,7 @@ end
     # quadrature, so its accuracy is irrelevant here and a coarse grid keeps the
     # iterations cheap.
     ress = map((nothing, Sunny.with_correction(swt, terms2))) do guess
-        sc = Sunny.self_consistent(swt; grid=Sunny.BZGrid(8, 8, 1), guess)
+        sc = Sunny.self_consistent(swt; bz=(8, 8, 1), guess)
         return (Sunny.gaussian_energy_per_site(sc), dispersion(sc, [[0.3, 0.1, 0]]))
     end
     @test ress[1][1] ≈ ress[2][1] atol=1e-8
@@ -2150,7 +2150,7 @@ end
     # dominates the integral. Nothing about this 𝐪 is singular, so grids on either side
     # of it must agree; a fixed half-step offset instead gave +1.07 - 0.23im for the
     # first band, wrong even in sign, and -2.82 for the second.
-    Σgrid = [Sunny.cubic_self_energy(swt, [[0, 1/4, 0]]; η=0.02, grid=Sunny.BZGrid(nk, nk, 1))[:] for nk in (24, 26)]
+    Σgrid = [Sunny.cubic_self_energy(swt, [[0, 1/4, 0]]; η=0.02, bz=(nk, nk, 1))[:] for nk in (24, 26)]
     @test all(Σ -> isapprox(Σ, [-0.655 - 0.086im, -0.996 - 0.040im, -0.996 - 0.040im]; atol=0.012), Σgrid)
 
     # Binning the measure in the pair energy is a choice of quadrature, so it
@@ -2236,7 +2236,7 @@ end
         (η, grid) = (0.15, (8, 8, 1))
         qs = [[0.3, 0.2, 0], [1/6, 1/6, 0]]
         energies = range(0, 4, 61)
-        direct = Sunny.corrected_channels(swt5, qs; energies, η, dyson=:on_shell, grid=Sunny.BZGrid(grid)).direct
+        direct = Sunny.corrected_channels(swt5, qs; energies, η, dyson=:on_shell, bz=grid).direct
         ref = direct_unbinned(β -> imag(β[1] * conj(β[2])), swt5, qs, energies, η, grid)
         scale = maximum(abs, ref)
         @test scale > 1e-2   # the measure is not trivially zero
@@ -2257,7 +2257,7 @@ end
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(-2, 16, 181), 0.2)
         direct(grid) = Sunny.corrected_channels(swt, qs; energies, η, dyson=:on_shell,
-                                                grid=Sunny.BZGrid(grid)).direct
+                                                bz=grid).direct
         ref = direct((32, 32, 1))
         scale = maximum(abs, ref)
         @test 1e-3 < maximum(abs, direct((16, 16, 1)) - ref) / scale < 1e-2
