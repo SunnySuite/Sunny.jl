@@ -20,8 +20,7 @@ end
 # by rotate_operator(). Embed them in a large StevensExpansion object that can
 # be passed to is_anisotropy_valid().
 function is_stevens_expansion_valid(cryst, i, b)
-    stvexp = StevensExpansion(ntuple(k -> SVector{2k-1}(length(b) == 2k-1 ? b : zeros(2k-1)), 7))
-    return is_anisotropy_valid(cryst, i, stvexp)
+    return is_anisotropy_valid(cryst, i, stevens_expansion_of_single_rank(b))
 end
 
 function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R_global::Mat3, tol::Float64)

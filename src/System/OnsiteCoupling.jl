@@ -1,3 +1,51 @@
+# From coefficients indexed by rank 0:6, as `matrix_to_stevens_coefficients`
+# returns them
+function StevensExpansion(c::OffsetArray)
+    axes(c) == (0:6,) || error("Expected coefficients indexed by rank 0:6")
+    return StevensExpansion(c[0], c[1], c[2], c[3], c[4], c[5], c[6])
+end
+
+# The expansion with coefficients `c` at rank k = (length(c) - 1)/2 only. For a
+# tuple or SVector, the length determines the rank statically.
+function stevens_expansion_of_single_rank(c)
+    M = length(c)
+    isodd(M) && M <= 13 || error("Expected 2k+1 coefficients for a rank k ≤ 6, got $M")
+    cs = ntuple(r -> zero(SVector{2r-1, Float64}), Val{7}())
+    return StevensExpansion(Base.setindex(cs, SVector{M, Float64}(c), (M+1) ÷ 2)...)
+end
+
+# The coefficients of every rank, in order, paired with their rank
+stevens_ranks(s::StevensExpansion) = ((0, s.c0), (1, s.c1), (2, s.c2), (3, s.c3), (4, s.c4), (5, s.c5), (6, s.c6))
+
+# Maps `f` over the coefficient vectors of each rank, as `f(k, c)`
+map_ranks(f, stvexp::StevensExpansion) = StevensExpansion(map(((k, c),) -> f(k, c), stevens_ranks(stvexp))...)
+
+Base.iszero(stvexp::StevensExpansion) = iszero(stvexp.c0) && iszero(stvexp.kmax)
+Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion) =
+    all(map(((_, c), (_, c′)) -> c ≈ c′, stevens_ranks(stvexp), stevens_ranks(stvexp′)))
+Base.:+(stvexp::StevensExpansion, stvexp′::StevensExpansion) =
+    StevensExpansion(map(((_, c), (_, c′)) -> c + c′, stevens_ranks(stvexp), stevens_ranks(stvexp′))...)
+Base.:*(stvexp::StevensExpansion, x::Real) = map_ranks((_, c) -> c * x, stvexp)
+
+# Let c denote coefficients of an operator expansion 𝒜 = cᵀ 𝒪. Under the
+# rotation R, Stevens operators transform as 𝒪 → V 𝒪. Alternatively, we can
+# treat the Stevens operators as fixed, provided the coefficients transform as
+# cᵀ → cᵀ V, or c → Vᵀ c. Rank 0 is a scalar, and invariant. A vanishing rank
+# stays zero, and is skipped because building its V dominates the cost.
+function rotate_operator(stvexp::StevensExpansion, R)
+    return map_ranks(stvexp) do k, c
+        k == 0 || iszero(c) ? c : typeof(c)(transpose(operator_for_stevens_rotation(k, R)) * c)
+    end
+end
+
+function operator_to_matrix(stvexp::StevensExpansion; N)
+    acc = zeros(ComplexF64, N, N)
+    for (k, c) in stevens_ranks(stvexp)
+        acc += c' * stevens_matrices_of_dim(k; N)
+    end
+    return acc
+end
+
 function onsite_coupling(sys, site, matrep::AbstractMatrix)
     N = sys.Ns[site]
     size(matrep) == (N, N) || error("Invalid matrix size.")
@@ -62,32 +110,10 @@ end
 
 function empty_anisotropy(mode, N)
     if mode in (:dipole, :dipole_uncorrected)
-        return StevensExpansion(ntuple(k -> zero(SVector{2k-1, Float64}), 7))
+        return stevens_expansion_of_single_rank((0.0,))
     elseif mode == :SUN
         return Hermitian(zeros(ComplexF64, N, N))
     end
-end
-
-Base.iszero(stvexp::StevensExpansion) = iszero(stvexp.c0) && iszero(stvexp.kmax)
-
-Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion) =
-    all(map(≈, coefs_by_rank(stvexp), coefs_by_rank(stvexp′)))
-Base.:+(stvexp::StevensExpansion, stvexp′::StevensExpansion) =
-    StevensExpansion(map(+, coefs_by_rank(stvexp), coefs_by_rank(stvexp′)))
-Base.:*(stvexp::StevensExpansion, x::Real) = StevensExpansion(map(c -> c * x, coefs_by_rank(stvexp)))
-
-# Rank 0 is a scalar, and invariant
-function rotate_operator(stvexp::StevensExpansion, R)
-    (c0, cs...) = coefs_by_rank(stvexp)
-    return StevensExpansion((c0, map(c -> typeof(c)(rotate_stevens_coefficients(c, R)), cs)...))
-end
-
-function operator_to_matrix(stvexp::StevensExpansion; N)
-    acc = zeros(ComplexF64, N, N)
-    for (k, c) in stevens_ranks(stvexp)
-        acc += c' * stevens_matrices_of_dim(k; N)
-    end
-    return acc
 end
 
 function is_anisotropy_valid(cryst::Crystal, i::Int, onsite)
