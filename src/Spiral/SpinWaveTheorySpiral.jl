@@ -53,7 +53,8 @@ end
 # table. Branch s ∈ (-1, 0, 1), at momentum transfer q + s k, is this table
 # evaluated at q + s k.
 function spiral_table(swt::SpinWaveTheory, k_supercell, axis)
-    (; sys, frames) = swt
+    (; sys) = swt
+    (; frames) = swt.vacuum
     for i in 1:nsites(sys), pc in interactions_at(sys, i).pair
         iszero(pc.biquad) && isempty(pc.general.data) || error("Biquadratic interactions not supported")
     end

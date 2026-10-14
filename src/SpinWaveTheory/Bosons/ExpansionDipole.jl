@@ -163,7 +163,7 @@ end
 # ExpansionSUN.jl.
 function lswt_correction_monomials(swt::SpinWaveTheory, k::Val{K}) where K
     @assert K <= 2
-    return hamiltonian_monomials(swt.sys, swt.frames, k; beyond_lswt=true)
+    return hamiltonian_monomials(swt.sys, swt.vacuum.frames, k; beyond_lswt=true)
 end
 
 """
@@ -194,10 +194,10 @@ end
 
 # Monomials of H₃ and H₄, cached in `swt` and not to be mutated
 cubic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :cubic) do
-    hamiltonian_monomials(swt.sys, swt.frames, Val{3}(); beyond_lswt=true)
+    hamiltonian_monomials(swt.sys, swt.vacuum.frames, Val{3}(); beyond_lswt=true)
 end
 quartic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :quartic) do
-    hamiltonian_monomials(swt.sys, swt.frames, Val{4}(); beyond_lswt=true)
+    hamiltonian_monomials(swt.sys, swt.vacuum.frames, Val{4}(); beyond_lswt=true)
 end
 
 # True when the cubic vertex is numerically zero, so that everything it

@@ -684,7 +684,7 @@ end
         # which the 1/s corrections certify against exact diagonalization
         if mode == :SUN
             H3 = zeros(ComplexF64, 2L, 2L)
-            Sunny.accum_quadratic!(H3, Sunny.hamiltonian_monomials(swt.sys, swt.frames, Val{2}()), q)
+            Sunny.accum_quadratic!(H3, Sunny.hamiltonian_monomials(swt.sys, swt.vacuum.frames, Val{2}()), q)
             @test H1 ≈ H3 + swt.regularization * I
             @test H1 == H1'
         end

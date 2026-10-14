@@ -43,7 +43,7 @@ end
 # support
 function observable_monomials(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
     @assert num_parts_per_unit(swt.measure) == 1  # Entangled units are rejected
-    return observable_monomials(swt.sys, swt.frames, swt.measure, μ, i, Val{K}())
+    return observable_monomials(swt.sys, swt.vacuum.frames, swt.measure, μ, i, Val{K}())
 end
 
 # Every K-boson word of observable μ, over the sites of the magnetic cell.
@@ -68,7 +68,8 @@ all_observable_monomials(swt::SpinWaveTheory, ::Val{K}) where K =
 # directly, ⟨𝐒⟩ = R (σ Re v, σ Im v, s - ⟨b†b⟩) in a local frame whose ẑ is the
 # classical dipole.
 function spin_monomials(swt::SpinWaveTheory, α, i, ::Val{K}) where K
-    (; sys, frames) = swt
+    (; sys) = swt
+    (; frames) = swt.vacuum
     L = nbands(swt)
     if sys.mode == :SUN
         S = local_spin_ops(sys, frames[i], i)[α]
