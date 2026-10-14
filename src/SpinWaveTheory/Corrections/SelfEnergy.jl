@@ -44,10 +44,10 @@
 On-shell self-energy of each magnon due to the cubic term of the
 Holstein-Primakoff expansion, ``Σ_n(𝐪, ε_{𝐪n})``, where ``ε`` are the energies
 of the quasi-particles of the Gaussian state of `swt`, by default the
-[`dispersion`](@ref) of linear spin wave theory. Returns an array of complex numbers with the same
-shape as `dispersion(swt, qpts)`. The real part is a correction to the magnon
-energy of relative order ``1/s``, and should be added to the mean-field
-corrections of [`hartree_fock_correction`](@ref) and
+[`dispersion`](@ref) of linear spin wave theory. Returns an array of complex
+numbers with the same shape as `dispersion(swt, qpts)`. The real part is a
+correction to the magnon energy of relative order ``1/s``, and should be added
+to the mean-field corrections of [`hartree_fock_correction`](@ref) and
 [`tadpole_correction`](@ref), which enter at the same order. Minus the imaginary
 part is the half-width of the magnon peak, arising from decay into the
 two-magnon continuum, which [`corrected_intensities`](@ref) resolves. For the
@@ -66,9 +66,12 @@ compared to the linewidths themselves. The default grid is chosen accordingly.
 [`BZIntegration`](@ref).
 
 The real part converges much more readily than the imaginary one, being a
-principal value. Taking `η` below the energy grid spacing makes the imaginary
-part far too small, because the sampled wavevectors then miss the resonant
-surface entirely. A width that halves when `η` does is such an artifact.
+principal value. Its static part is taken at real ``ω = 0``, where it cancels
+the mean fields at a Goldstone mode exactly, and only its frequency dependence
+is regularized by `η`, so that a soft band does not shift with `η`. Taking `η`
+below the energy grid spacing makes the imaginary part far too small, because
+the sampled wavevectors then miss the resonant surface entirely. A width that
+halves when `η` does is such an artifact.
 
 Because only the diagonal part of the self-energy is returned, the result is
 unreliable where two bands are degenerate.
@@ -90,8 +93,9 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, bz=nothing)
         # frequencies are built and only their diagonals are kept.
         k = to_supercell_rlu(swt.sys, q)
         ωs = excitations_supercell!(ws, H, swt, k)[1:L]
-        Σ = cubic_self_energy_at(swt, terms3, k, ωs .+ im*η, loop_wavevectors(grid, k), η)
-        view(ret, :, iq) .= [Σ[n, n, n] for n in 1:L]
+        Σ = cubic_self_energy_at(swt, terms3, k, [ωs .+ im*η; im*η; 0], loop_wavevectors(grid, k), η)
+        δ = static_shift(Σ[:, :, L+1], Σ[:, :, L+2])
+        view(ret, :, iq) .= [Σ[n, n, n] + δ[n, n] for n in 1:L]
     end
 
     return reshape(ret, L, size(qpts.qs)...)
@@ -488,9 +492,23 @@ end
 # the quasi-particle basis. It reduces to K_nn(ε_n) on the diagonal and is
 # Hermitian up to its absorptive part. The on-shell poles of `dyson=:on_shell`
 # diagonalize its particle and hole blocks.
+#
+# The dispersive part of K is taken at ω = 0 on the real axis, where it cancels
+# Σstat at a Goldstone mode, plus its change from ω = 0 to the shell, which is
+# regularized by η; see `static_shift`. At ε + iη directly, the 1/ε parts of K
+# would not cancel, and soft bands would shift with η.
 function on_shell_form(Σ::SelfEnergy)
     (; ε, η) = Σ
     L = length(ε) ÷ 2
-    K = cauchy_transform((Σ.decay, Σ.source), ε .+ im*η)
-    return Diagonal(abs.(ε)) + Σ.Σstat + [(K[m, n, m] + K[m, n, n]) / 2 for m in 1:2L, n in 1:2L]
+    K = cauchy_transform((Σ.decay, Σ.source), [ε .+ im*η; im*η; 0])
+    δ = static_shift(K[:, :, 2L+1], K[:, :, 2L+2])
+    Kon = [(K[m, n, m] + K[m, n, n]) / 2 + δ[m, n] for m in 1:2L, n in 1:2L]
+    return Diagonal(abs.(ε)) + Σ.Σstat + Kon
 end
+
+# Correction to a transform K taken at ω + iη, given its values `Kη` at iη and
+# `K0` at 0, that moves its static part to the real axis: the regularization
+# then enters only the change of K from ω = 0, which keeps the cancellation
+# against the static mean fields exact at a Goldstone mode. Only the Hermitian
+# part moves, since the absorptive part of K at ω ≈ 0 has no static counterpart.
+static_shift(Kη, K0) = hermitianpart(K0 - Kη)
