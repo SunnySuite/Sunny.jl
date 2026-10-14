@@ -1,5 +1,15 @@
-# Recommended alternative to OpenBLAS for threaded workloads, or `nothing` if none
-# for this platform. Serial workloads may run faster with OpenBLAS.
+# Returns a recommended alternative to OpenBLAS for threaded, small-matrix
+# workloads, or `nothing` if none for this platform. As of Oct 2026:
+#   * OpenBLAS is serially fast, but does poorly on multi-threaded, small-matrix
+#     workloads.
+#   * AppleAccelerate.jl is the obvious choice on Apple ARM.
+#   * MKL.jl seems to outperform AOCL.jl on both Intel and AMD x86 processors,
+#     as empirically measured for multi-threaded, small-matrix workloads.
+#   * NVPL BLAS is natural on Nvidia ARM but, in our tests, seemed significantly
+#     slower than OpenBLAS on single-core, small-matrix workloads. Also, a
+#     registered NVPL.jl package does not seem to exist yet.
+#   * ArmPL.jl for generic ARM is available but minimally maintained, so we're
+#     not recommending it at this time.
 threading_blas_backend() = Sys.isapple() ? :AppleAccelerate : Sys.ARCH === :x86_64 ? :MKL : nothing
 
 """
