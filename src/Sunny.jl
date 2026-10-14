@@ -15,6 +15,7 @@ import MappedArrays: mappedarray
 import OffsetArrays: OffsetArrays, OffsetArray
 import Optim
 import Printf: Printf, @printf, @sprintf
+import ProgressMeter
 import Random: Random, randn!
 import SpecialFunctions: erf, erfc
 import Statistics
@@ -28,6 +29,8 @@ import RowEchelon: rref!
 import Spglib
 
 include("MathBasics.jl")
+include("Threading.jl")
+export load_blas_for_threading
 
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")

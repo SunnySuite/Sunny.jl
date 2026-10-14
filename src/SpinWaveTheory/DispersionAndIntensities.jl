@@ -1,10 +1,40 @@
+import LinearAlgebra: BlasInt
+
+# Storage for `bogoliubov!`, holding the transformation `T` and energies `ε`
+# that it produces, together with the LAPACK scratch space that `eigen!` would
+# otherwise allocate on every call.
+struct BogoliubovWorkspace
+    T     :: Matrix{ComplexF64}   # Transformation, as documented by `excitations!`
+    ε     :: Vector{Float64}      # Signed energies, in the same grouping
+    Tscr  :: Matrix{ComplexF64}   # Scratch for the reordering below
+    εscr  :: Vector{Float64}
+    work  :: Vector{ComplexF64}   # LAPACK scratch for zhegvd
+    rwork :: Vector{Float64}
+    iwork :: Vector{BlasInt}
+    info  :: Base.RefValue{BlasInt}
+end
+
+function BogoliubovWorkspace(L::Int)
+    n = 2L
+    # Minimum scratch sizes documented for ZHEGVD with jobz = 'V' and n > 1
+    # (always true here, since n = 2L).
+    return BogoliubovWorkspace(zeros(ComplexF64, n, n), zeros(n), zeros(ComplexF64, n, n), zeros(n),
+                               zeros(ComplexF64, 2n + n^2), zeros(1 + 5n + 2n^2), zeros(BlasInt, 3 + 5n),
+                               Ref(BlasInt(0)))
+end
+
 # Bogoliubov transformation that diagonalizes a quadratic bosonic Hamiltonian,
 # allowing for anomalous terms. The general procedure derives from Colpa,
-# Physica A, 93A, 327-353 (1978). Overwrites data in H.
-function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
-    L = div(size(H, 1), 2)
-    @assert size(T) == size(H) == (2L, 2L)
-    # H0 = copy(H)
+# Physica A, 93A, 327-353 (1978). Overwrites data in H. The returned energies
+# alias `ws.ε`, and so are valid only until the next call on the same workspace.
+function bogoliubov!(ws::BogoliubovWorkspace, H::Matrix{ComplexF64})
+    (; T, ε, Tscr, εscr, work, rwork, iwork, info) = ws
+    n = size(T, 1)
+    L = div(n, 2)
+    @assert size(H) == (n, n)
+    # `eigen!` rejects a non-finite matrix before reaching LAPACK, which is not
+    # guaranteed to terminate on one. Retain that check.
+    all(isfinite, H) || throw(ArgumentError("Hamiltonian contains non-finite entries"))
 
     # Initialize T to the para-unitary identity Ĩ = diagm([ones(L), -ones(L)])
     T .= 0
@@ -13,45 +43,68 @@ function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
         T[i+L, i+L] = -1
     end
 
-    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of T.
-    # Eigenvalues are sorted such that positive values appear first, and are
-    # otherwise ascending in absolute value.
-    sortby(x) = (-sign(x), abs(x))
-    λ, T0 = eigen!(Hermitian(T), Hermitian(H); sortby)
-
-    # Note that T0 and T refer to the same data.
-    @assert T0 === T
-
-    # Normalize columns of T so that para-unitarity holds, T† Ĩ T = Ĩ.
-    for j in axes(T, 2)
-        c = 1 / sqrt(abs(λ[j]))
-        view(T, :, j) .*= c
-    end
-
-    # Inverse of λ are eigenvalues of Ĩ H, or equivalently, of √H Ĩ √H.
-    energies = λ        # reuse storage
-    @. energies = 1 / λ
+    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of T. This is
+    # `eigen!(Hermitian(T), Hermitian(H))` with every allocation hoisted into `ws`.
+    ccall((BLAS.@blasfunc(zhegvd_), LinearAlgebra.libblastrampoline), Cvoid,
+          (Ref{BlasInt}, Ref{UInt8}, Ref{UInt8}, Ref{BlasInt},
+           Ptr{ComplexF64}, Ref{BlasInt}, Ptr{ComplexF64}, Ref{BlasInt},
+           Ptr{Float64}, Ptr{ComplexF64}, Ref{BlasInt}, Ptr{Float64},
+           Ref{BlasInt}, Ptr{BlasInt}, Ref{BlasInt}, Ptr{BlasInt},
+           Clong, Clong),
+          1, 'V', 'U', n, T, n, H, n, ε, work, length(work), rwork,
+          length(rwork), iwork, length(iwork), info, 1, 1)
+    info[] < 0 && throw(ArgumentError("Invalid argument #$(-info[]) to LAPACK zhegvd"))
+    info[] > 0 && throw(PosDefException(info[]))
 
     # By Sylvester's theorem, "inertia" (sign signature) is invariant under a
-    # congruence transform Ĩ → √H Ĩ √H. The first L elements are positive,
-    # while the next L elements are negative. Their absolute values are
-    # excitation energies for the wavevectors q and -q, respectively.
-    @assert all(>(0), view(energies, 1:L)) && all(<(0), view(energies, L+1:2L))
-
-    # Disable tests below for speed. Note that the data in H has been
-    # overwritten by eigen!, so H0 should refer to an original copy of H.
-    #=
-    Ĩ = Diagonal([ones(L); -ones(L)])
-    @assert T' * Ĩ * T ≈ Ĩ
-    @assert diag(T' * H0 * T) ≈ Ĩ * energies
-    # Reflection symmetry H(q) = H(-q) is identified as H11 = conj(H22). In this
-    # case, eigenvalues come in pairs.
-    if H0[1:L, 1:L] ≈ conj(H0[L+1:2L, L+1:2L])
-        @assert energies[1:L] ≈ -energies[L+1:2L]
+    # congruence transform Ĩ → √H Ĩ √H, so exactly L of the λ are negative. LAPACK
+    # returns them in ascending order, whereas they are wanted with the positive values
+    # first and otherwise ascending in absolute value. That reordering is therefore the
+    # fixed permutation [L+1:2L; L:-1:1], and no sort is required. It is not a product
+    # of disjoint transpositions, so both T and ε are permuted out of scratch copies.
+    #
+    # Degenerate λ are the one case where this differs from sorting: `eigen!` breaks ties
+    # with an unstable QuickSort, so the order within a degenerate block used to be
+    # arbitrary, whereas it is now inherited from LAPACK. Either choice is a valid
+    # eigenbasis, differing by a rotation within the block, and the permutation below is
+    # at least reproducible.
+    @assert ε[L] < 0 < ε[L+1]
+    copyto!(Tscr, T)
+    copyto!(εscr, ε)
+    for j in 1:L
+        for i in 1:n
+            T[i, j]   = Tscr[i, L+j]
+            T[i, L+j] = Tscr[i, L+1-j]
+        end
+        ε[j]   = εscr[L+j]
+        ε[L+j] = εscr[L+1-j]
     end
-    =#
 
-    return energies
+    # Normalize columns of T so that para-unitarity holds, T† Ĩ T = Ĩ.
+    for j in 1:n
+        c = 1 / sqrt(abs(ε[j]))
+        for i in 1:n
+            T[i, j] *= c
+        end
+    end
+
+    # Inverse of λ are eigenvalues of Ĩ H, or equivalently, of √H Ĩ √H. The first L
+    # elements are positive, while the next L elements are negative. Their absolute
+    # values are excitation energies for the wavevectors q and -q, respectively.
+    @. ε = 1 / ε
+
+    return ε
+end
+
+# Variant for callers outside a hot loop, which allocates a workspace per call. Unlike
+# the method above, the returned energies are freshly allocated, and so remain valid.
+function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
+    L = div(size(H, 1), 2)
+    @assert size(T) == size(H) == (2L, 2L)
+    ws = BogoliubovWorkspace(L)
+    bogoliubov!(ws, H)
+    copyto!(T, ws.T)
+    return ws.ε
 end
 
 
@@ -91,12 +144,20 @@ given momentum transfer ``𝐪``.
 function excitations!(T, tmp, swt::SpinWaveTheory, q)
     L = nbands(swt)
     size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
+    ws = BogoliubovWorkspace(L)
+    energies = excitations!(ws, tmp, swt, q)
+    copyto!(T, ws.T)
+    return energies
+end
 
+# Allocation-free variant that stores the transformation in `ws.T`. The returned
+# energies alias `ws.ε`.
+function excitations!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q)
     q_reshaped = to_reshaped_rlu(swt.sys, q)
-    dynamical_matrix!(tmp, swt, q_reshaped)
+    dynamical_matrix!(H, swt, q_reshaped)
 
     try
-        return bogoliubov!(T, tmp)
+        return bogoliubov!(ws, H)
     catch err
         if err isa PosDefException
             rethrow(InstabilityError("Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable."))
@@ -140,13 +201,14 @@ function dispersion(swt::SpinWaveTheory, qpts)
 end
 
 """
-    intensities_bands(swt::SpinWaveTheory, qpts; kT=0)
+    intensities_bands(swt::SpinWaveTheory, qpts; kT=0, threaded=false)
 
-Calculate spin wave excitation bands for a set of q-points in reciprocal space.
-This calculation is analogous to [`intensities`](@ref), but does not perform
-line broadening of the bands.
+Calculate spin wave excitation bands for a set of ``𝐪``-points in reciprocal
+space. This calculation is analogous to [`intensities`](@ref), but does not
+perform line broadening of the bands. Use [`load_blas_for_threading`](@ref) and
+set `threaded=true` to parallelize the calculation using Julia threads.
 """
-function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
+function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false, threaded=false)
     (; sys, measure) = swt
     num_observables(measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     with_negative && error("Option `with_negative=true` not yet supported.")
@@ -167,20 +229,25 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     # Temporary storage for pair correlations
     Nobs = num_observables(measure)
     Ncorr = num_correlations(measure)
-    corr = zeros(ComplexF64, Ncorr)
 
-    # Preallocation
-    T = zeros(ComplexF64, 2L, 2L)
-    H = zeros(ComplexF64, 2L, 2L)
-    u = zeros(ComplexF64, 2L, Nobs)
-    Avec = zeros(ComplexF64, Nobs)
     disp = zeros(Float64, L, Nq)
-    intensity = zeros(eltype(measure), L, Nq)
+    data = zeros(eltype(measure), L, Nq)
 
-    for (iq, q) in enumerate(qpts.qs)
+    newbuf() = (
+        ws   = BogoliubovWorkspace(L),
+        H    = zeros(ComplexF64, 2L, 2L),
+        u    = zeros(ComplexF64, 2L, Nobs),
+        Avec = zeros(ComplexF64, Nobs),
+        corr = zeros(ComplexF64, Ncorr),
+    )
+
+    function calc_iq!(buf, iq)
+        (; ws, H, u, Avec, corr) = buf
+        T = ws.T
+        q = qpts.qs[iq]
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
-        view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
+        view(disp, :, iq) .= view(excitations!(ws, H, swt, q), 1:L)
 
         # Linearized observables Â_μ(q) in Holstein-Primakoff bosons
         set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
@@ -195,33 +262,37 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
                 # Pair correlations ⟨0|Â_μ(q)†|n⟩⟨n|Â_ν(q)|0⟩
                 Avec[μ] * conj(Avec[ν]) / Ncells
             end
-            intensity[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corr)
+            data[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corr)
         end
     end
 
-    disp = reshape(disp, L, size(qpts.qs)...)
-    intensity = reshape(intensity, L, size(qpts.qs)...)
-    return BandIntensities(cryst, qpts, disp, intensity)
+    foreach_chunked(calc_iq!, newbuf, 1:Nq; threaded, warn_blas=true)
+
+    # Reassigning `disp` and `data` would box these captured variables
+    disp_reshaped = reshape(disp, L, size(qpts.qs)...)
+    data_reshaped = reshape(data, L, size(qpts.qs)...)
+
+    return BandIntensities(cryst, qpts, disp_reshaped, data_reshaped)
 end
 
 """
-    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, kT=0)
+    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, kT=0, threaded=false)
     intensities!(data, sc::SampledCorrelations, qpts; energies, kernel=nothing, kT=0)
 
 Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
 """
-function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
+function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0, threaded=false)
     qpts = convert(AbstractQPoints, qpts)
     @assert size(data) == (length(energies), size(qpts.qs)...)
-    bands = intensities_bands(swt, qpts; kT)
+    bands = intensities_bands(swt, qpts; kT, threaded)
     @assert eltype(bands) == eltype(data)
-    broaden!(data, bands; energies, kernel)
+    broaden!(data, bands; energies, kernel, threaded)
     return Intensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
 end
 
 """
-    intensities(swt::SpinWaveTheory, qpts; energies, kernel, kT=0)
+    intensities(swt::SpinWaveTheory, qpts; energies, kernel, kT=0, threaded=false)
     intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
 
 Calculates dynamical pair correlation intensities for a set of ``𝐪``-points in
@@ -249,12 +320,12 @@ convolution along the energy axis on top of any intrinsic broadening already
 present in the correlation data. In this case, `energies` must be an explicit
 list specifying the desired output energies, exactly as for `SpinWaveTheory`.
 """
-function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
-    return broaden(intensities_bands(swt, qpts; kT); energies, kernel)
+function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0, threaded=false)
+    return broaden(intensities_bands(swt, qpts; kT, threaded); energies, kernel, threaded)
 end
 
 """
-    intensities_static(swt::SpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0)
+    intensities_static(swt::SpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0, threaded=false)
     intensities_static(sc::SampledCorrelations, qpts; bounds=(-Inf, Inf), kT)
     intensities_static(sc::SampledCorrelationsStatic, qpts)
 
@@ -277,8 +348,8 @@ Static intensities calculated from [`SampledCorrelationsStatic`](@ref) are
 dynamics-independent. Instead, instantaneous correlations sampled from the
 classical Boltzmann distribution will be reported.
 """
-function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0)
-    res = intensities_bands(swt, qpts; kT)  # TODO: with_negative=true
+function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0, threaded=false)
+    res = intensities_bands(swt, qpts; kT, threaded)  # TODO: with_negative=true
     data_reduced = zeros(eltype(res.data), size(res.data)[2:end])
     for iq in CartesianIndices(data_reduced), ib in axes(res.data, 1)
         ϵ = res.disp[ib, iq]
