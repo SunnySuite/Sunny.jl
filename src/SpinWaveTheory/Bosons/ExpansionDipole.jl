@@ -64,13 +64,13 @@
 # here.
 #
 # Two consequences for the sub-leading words, both gated against exact
-# diagonalization in the test suite. Mode :dipole leaves only the anomalous
-# word b†b† of an onsite anisotropy: a boson coherent state is not a spin
-# coherent state, their amplitudes on one deviation agreeing but those on two
-# differing by √(1 - 1/2s). In mode :dipole_uncorrected every word of at most two
-# bosons is also rescaled, by -binomial(k, 2)/2s, the leading deviation of λ_k
-# from unity. In either mode the one-boson word is proportional to the
-# classical energy gradient, so an onsite anisotropy sources
+# diagonalization in the test suite. Mode :dipole leaves only the anomalous word
+# b†b† of an onsite anisotropy: a boson coherent state is not a spin coherent
+# state, their amplitudes on one deviation agreeing but those on two differing
+# by √(1 - 1/2s). In mode :dipole_uncorrected every word of at most two bosons
+# is also rescaled, by the leading deviation of λ_k from unity (see
+# `rcs_factor_first_order`). In either mode the one-boson word is proportional
+# to the classical energy gradient, so an onsite anisotropy sources
 # `tadpole_correction` only away from the classical minimum.
 
 
