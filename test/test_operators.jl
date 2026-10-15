@@ -228,14 +228,14 @@ end
     let
         N = 7
         A = Hermitian(randn(ComplexF64, N, N))
-        c = Sunny.matrix_to_stevens_coefficients(A)
+        stvexp = Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(A))
 
         # Rotate coefficients directly
-        c′1 = Sunny.rotate_stevens_coefficients.(c, Ref(R))
+        c′1 = rotate_operator(stvexp, R)
 
         # Rotate matrix and recalculate coefficients
         A′ = rotate_operator(A, R)
-        c′2 = Sunny.matrix_to_stevens_coefficients(A′)
+        c′2 = Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(A′))
 
         @test c′1 ≈ c′2
     end
@@ -268,7 +268,7 @@ end
         # Random dipole and Stevens coefficients
         s = normalize(randn(Sunny.Vec3))
         c = map(OffsetArrays.OffsetArray(0:6, 0:6)) do k
-            iseven(k) ? randn(2k+1) : zero(2k+1)
+            iseven(k) ? randn(2k+1) : zeros(2k+1)
         end
         stvexp = Sunny.StevensExpansion(c)
 

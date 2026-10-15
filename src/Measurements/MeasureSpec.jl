@@ -1,7 +1,31 @@
-# Op is the type of a local observable operator. Either a Vec3 representing
-# `op⋅S` (:dipole mode) or a HermitianC64 representing the N×N matrix directly
-# (:SUN mode). The "parts" index is needed for entangled units.
-struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
+# Verify that `combiner` is real-linear in its correlation argument (i.e.,
+# linear in the space of Hermitian inputs). This property allows calculators to
+# apply `combiner` prior to performing other summations.
+function test_combiner_linearity(combiner, corr_pairs)
+    # Random correlation data of the kind a combiner actually receives.
+    function randn_corr(corr_pairs)
+        return [μ == ν ? complex(randn(Float64)) : randn(ComplexF64) for (μ, ν) in corr_pairs]
+    end
+
+    for q in [randn(Vec3) for _ in 1:10]
+        c1 = randn_corr(corr_pairs)
+        c2 = randn_corr(corr_pairs)
+        islinear = try
+            combiner(q, c1 + c2) ≈ combiner(q, c1) + combiner(q, c2)
+        catch
+            # Some q are illegal, e.g. outside a Blume-Maleev scattering plane
+            continue
+        end
+        islinear || error("Detected a nonlinear combiner function")
+    end
+end
+
+# Op is the type of a local observable operator. In the dipole modes, either a
+# Vec3 representing `op⋅S`, or a StevensExpansion for a general polynomial in S,
+# which only `SpinWaveTheory` accepts. In :SUN mode, a HermitianC64 representing
+# the N×N matrix directly. The "parts" index and `offsets` field is needed for
+# entangled units.
+struct MeasureSpec{Op <: Union{Vec3, StevensExpansion, HermitianC64}, F, Ret}
     observables :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × nunits × nparts)
     formfactors :: Array{FormFactor, 3}   # (nobs × nunits × nparts)
     offsets     :: Array{Vec3, 2}         # (nunits × nparts)
@@ -11,6 +35,7 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     function MeasureSpec(observables::Array{Op, 6}, corr_pairs, combiner::F, formfactors::Array{FormFactor, 3}; offsets=nothing) where {Op, F}
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
+        test_combiner_linearity(combiner, corr_pairs)
         nobs    = size(observables, 1)
         nunits  = size(observables, 5)
         nparts  = size(observables, 6)
@@ -42,8 +67,9 @@ num_units_per_cell(measure::MeasureSpec) = size(measure.observables, 5)
 num_parts_per_unit(measure::MeasureSpec) = size(measure.observables, 6)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs)
 
-function empty_measurespec(sys)
-    observables = zeros(Vec3, 0, size(eachsite(sys))..., 1)
+function empty_measurespec(sys::System{N}) where N
+    Op = iszero(N) ? Vec3 : HermitianC64
+    observables = Array{Op, 6}(undef, 0, size(eachsite(sys))..., 1)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
     formfactors = zeros(FormFactor, 0, natoms(sys.crystal), 1)
@@ -143,6 +169,121 @@ end
 
 CRC.@non_differentiable MeasureSpec(observables, corr_pairs, combiner, formfactors)
 CRC.@non_differentiable ssf_custom(f, sys)
+
+
+# A tuple of static arrays, with the arithmetic of a vector space. Calculators
+# accumulate measured data with `zero`, `+`, and scalar `*`, which Base does not
+# define for tuples.
+struct TupleVec{T <: Tuple}
+    data :: T
+end
+Base.zero(::Type{TupleVec{T}}) where T = TupleVec(map(zero, fieldtypes(T)))
+Base.zero(a::TupleVec) = zero(typeof(a))
+Base.:+(a::TupleVec, b::TupleVec) = TupleVec(map(+, a.data, b.data))
+Base.:*(c::Number, a::TupleVec) = TupleVec(map(x -> c * x, a.data))
+Base.:*(a::TupleVec, c::Number) = c * a
+Base.:/(a::TupleVec, c::Number) = TupleVec(map(x -> x / c, a.data))
+Base.iterate(a::TupleVec, i...) = iterate(a.data, i...)
+Base.getindex(a::TupleVec, i) = a.data[i]
+Base.length(a::TupleVec) = length(a.data)
+LinearAlgebra.norm(a::TupleVec) = norm(map(norm, a.data))
+Base.isapprox(a::TupleVec, b::TupleVec; kws...) = all(map((x, y) -> isapprox(x, y; kws...), a.data, b.data))
+
+"""
+    ssf_multipoles(f, sys::System; max_k)
+
+Specify measurement of a spin structure factor involving multipoles up to rank
+``k_\\mathrm{max}``. The multipoles of rank ``k`` are the Stevens operators
+``𝒪_{k,q}`` of [`stevens_matrices`](@ref), applied identically at every site in
+the global frame. Rank 1 holds the spin components, ``(𝒪_{1,1}, 𝒪_{1,0},
+𝒪_{1,-1}) = (S_x, S_z, S_y)``, rank 2 holds the quadrupoles, ``(S_x^2 - S_y^2,
+…)`` and so on.
+
+The function `f` accepts a wavevector ``𝐪`` in global Cartesian coordinates and
+the correlations `C`, and returns any number or `isbits` type. With `f = (q, C)
+-> C`, the measured data is `C` itself, a `TupleVec` of matrices, one for each
+pair of ranks ``k_1 ≤ k_2``, ordered as ``(1, 1), (1, 2), …, (1,
+k_\\mathrm{max}), (2, 2), …``. Within a block, rows run over ``q_1 = k_1, k_1 -
+1, …, -k_1`` and columns over ``q_2``. The helper function
+[`extract_multipole_block`](@ref) extracts blocks of `C` in an interpretable
+form.
+
+A site of spin ``s`` has multipoles only up to rank ``2s``; higher ranks give
+zero. In dipole mode, the measure is supported by [`SpinWaveTheory`](@ref), but
+not by classical [`SampledCorrelations`](@ref), whose dynamics track only the
+spin dipole; use [`ssf_custom`](@ref) there. Mode `:dipole_uncorrected` is not
+supported. No form factors are applied, since the radial form factor of a
+multipole depends on its rank.
+
+# Examples
+
+```julia
+# All correlations up to rank 2
+measure = ssf_multipoles((q, C) -> C, sys; max_k=2)
+res = intensities_bands(SpinWaveTheory(sys; measure), qpts)
+(DD, DQ, QQ) = res.data[1]                                    # 3×3, 3×5, 5×5
+extract_multipole_block(res.data[1], Val(1), Val(2))[1, -2]   # ⟨Sˣ 𝒪₂₋₂⟩
+
+# The quadrupole-quadrupole correlation ⟨O₂₋₁ O₂₁⟩
+measure = ssf_multipoles(sys; max_k=2) do q, C
+    real(extract_multipole_block(C, Val(2), Val(2))[-1, 1])
+end
+```
+"""
+function ssf_multipoles(f, sys::System; max_k)
+    if is_entangled(sys)
+        (; uncontracted) = get_entanglement(sys)
+        measure_atom = ssf_multipoles(f, uncontracted; max_k)
+        return entangled_measure(measure_atom, sys)
+    end
+    sys.mode == :dipole_uncorrected && error("Mode :dipole_uncorrected is not supported")
+    1 ≤ max_k ≤ 6 || error("Require 1 ≤ max_k ≤ 6")
+
+    # The observables 𝒪_{k,q}, rank by rank with q = k…-k, so that the i-th of
+    # rank k is observable k² - 1 + i. In mode :SUN, the matrix itself, and in
+    # dipole mode a Stevens expansion with a single coefficient.
+    n = max_k * (max_k + 2)
+    Op = sys.mode == :SUN ? HermitianC64 : StevensExpansion
+    observables = Array{Op, 6}(undef, n, size(eachsite(sys))..., 1)
+    for site in eachsite(sys), k in 1:max_k, i in 1:2k+1
+        observables[k^2 - 1 + i, site, 1] = sys.mode == :SUN ? stevens_matrices_of_dim(k; N=sys.Ns[site])[i] :
+                                            stevens_expansion_of_single_rank(ntuple(j -> Float64(j == i), 2k+1))
+    end
+
+    # Every pair once, as the upper triangle. Rank pairs are type parameters, so
+    # that each block is a static matrix of inferable size.
+    corr_pairs = [(μ, ν) for ν in 1:n for μ in 1:ν]
+    entry(corr, μ, ν) = μ ≤ ν ? corr[packed_index(μ, ν)] : conj(corr[packed_index(ν, μ)])
+    block(corr, ::Val{k1}, ::Val{k2}) where {k1, k2} =
+        SMatrix{2k1+1, 2k2+1, ComplexF64}(entry(corr, k1^2-1+i, k2^2-1+j) for i in 1:2k1+1, j in 1:2k2+1)
+    ranks = Tuple((Val{k1}(), Val{k2}()) for k1 in 1:max_k for k2 in k1:max_k)
+    combiner(q, corr) = f(q, TupleVec(map(r -> block(corr, r...), ranks)))
+
+    ffs = fill(one(FormFactor), n, natoms(sys.crystal), 1)
+    return MeasureSpec(observables, corr_pairs, combiner, ffs)
+end
+
+CRC.@non_differentiable ssf_multipoles(f, sys)
+
+"""
+    extract_multipole_block(C, Val(k1), Val(k2))
+
+The block of the multipole correlations `C` of [`ssf_multipoles`](@ref) between
+ranks `k1` and `k2`, indexed by ``q_1 ∈ -k_1:k_1`` and ``q_2 ∈ -k_2:k_2``, so
+that entry `[q1, q2]` is the correlation of ``𝒪_{k_1,q_1}`` and
+``𝒪_{k_2,q_2}``. For rank 1, the spin components are ``(Sˣ, Sʸ, Sᶻ) =
+(𝒪_{1,1}, 𝒪_{1,-1}, 𝒪_{1,0})``. Either order of the two ranks is allowed.
+Passing the ranks as `Val` makes the block's size static, so that the call
+allocates nothing and its result has an inferable type.
+"""
+function extract_multipole_block(C::TupleVec, ::Val{k1}, ::Val{k2}) where {k1, k2}
+    # The blocks are the rank pairs k1 ≤ k2, in order, with rows q = k…-k
+    k1 > k2 && return extract_multipole_block(C, Val(k2), Val(k1))'
+    max_k = isqrt(2length(C))
+    1 ≤ k1 && k2 ≤ max_k || error("Ranks must be between 1 and $max_k")
+    b = (k1 - 1) * (2max_k - k1 + 2) ÷ 2 + (k2 - k1 + 1)
+    return OffsetArray(reverse(C[b]), -k1:k1, -k2:k2)
+end
 
 """
     ssf_custom_bm(f, sys::System; u, v, apply_g=true, formfactors=nothing)

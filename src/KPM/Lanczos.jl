@@ -172,11 +172,11 @@ end
 
 Returns estimates of the extremal eigenvalues of the matrix (Ĩ D)^2 using the
 Lanczos algorithm. Here Ĩ is the Bogoliubov identity and D is the dynamical
-matrix from SWT for the wavevector q_reshaped. `niters` should be given a value
+matrix from SWT for the wavevector q_supercell. `niters` should be given a value
 smaller than the dimension of `A`.
 """
-function eigbounds(swt, q_reshaped, niters)
-    q_reshaped = Vec3(q_reshaped)
+function eigbounds(swt, q_supercell, niters)
+    q_supercell = Vec3(q_supercell)
     L = nbands(swt)
 
     # w = Ĩ v
@@ -187,7 +187,7 @@ function eigbounds(swt, q_reshaped, niters)
 
     # w = D v
     function mulS!(w, v)
-        mul_dynamical_matrix!(swt, reshape(w, 1, :), reshape(v, 1, :), [q_reshaped])
+        mul_dynamical_matrix!(swt, reshape(w, 1, :), reshape(v, 1, :), [q_supercell])
     end
 
     v = randn(ComplexF64, 2L)

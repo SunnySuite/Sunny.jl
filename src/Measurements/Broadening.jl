@@ -80,20 +80,21 @@ function gaussian(; fwhm=nothing, σ=nothing)
 end
 
 
-function broaden!(data::AbstractArray{Ret}, bands::BandIntensities{Ret}; energies, kernel) where Ret
-    energies = collect(Float64, energies)
-    issorted(energies) || error("energies must be sorted")
+function broaden!(data::AbstractArray{Ret}, bands::BandIntensities{Ret}; energies, kernel, threaded=false) where Ret
+    ωs = collect(Float64, energies)
+    issorted(ωs) || error("energies must be sorted")
 
-    nω = length(energies)
+    nω = length(ωs)
     nq = size(bands.qpts.qs)
     (nω, nq...) == size(data) || error("Argument data must have size ($nω×$(sizestr(bands.qpts)))")
+    isnothing(bands.widths) || error("Broadening of bands with intrinsic widths is not yet supported.")
 
     cutoff = 1e-12 * Statistics.quantile(norm.(vec(bands.data)), 0.95)
 
-    for iq in CartesianIndices(bands.qpts.qs)
+    foreach_chunked(Returns(nothing), CartesianIndices(bands.qpts.qs); threaded) do _, iq
         for (ib, b) in enumerate(view(bands.disp, :, iq))
             norm(bands.data[ib, iq]) < cutoff && continue
-            @inbounds for (iω, ω) in enumerate(energies)
+            @inbounds for (iω, ω) in enumerate(ωs)
                 data[iω, iq] += kernel(b, ω) * bands.data[ib, iq]
             end
             # If this broadening is a bottleneck, one can terminate when kernel
@@ -120,9 +121,9 @@ function broaden!(data::AbstractArray{Ret}, bands::BandIntensities{Ret}; energie
     return data
 end
 
-function broaden(bands::BandIntensities; energies, kernel)
+function broaden(bands::BandIntensities; energies, kernel, threaded=false)
     data = zeros(eltype(bands.data), length(energies), size(bands.qpts.qs)...)
-    broaden!(data, bands; energies, kernel)
+    broaden!(data, bands; energies, kernel, threaded)
     return Intensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
 end
 
@@ -137,8 +138,6 @@ function broaden!(data::AbstractArray{Ret}, ωs::AbstractVector, is::AbstractArr
     nq = size(is)[2:end]
     (nω, nq...) == size(data) || error("Argument `data` must have size ($nω×$(join(nq, "×")))")
 
-    cutoff = 1e-12 * Statistics.quantile(norm.(vec(is)), 0.95)
-
     kernelbuf = zeros(nω)
     for (iω0, ω0) in enumerate(ωs)
         @inbounds for (iω, ω) in enumerate(energies)
@@ -146,7 +145,8 @@ function broaden!(data::AbstractArray{Ret}, ωs::AbstractVector, is::AbstractArr
         end
         for iq in CartesianIndices(nq)
             x = is[iω0, iq]
-            norm(x) < cutoff && continue
+            # Input NaNs are treated as zero
+            (iszero(x) || isnan(norm(x))) && continue
             for iω in 1:nω
                 data[iω, iq] += kernelbuf[iω] * x * Δω
             end
@@ -160,4 +160,22 @@ function broaden(ωs::AbstractVector, is::AbstractArray{Ret}; energies, kernel::
     data = zeros(Ret, length(energies), size(is)[2:end]...)
     broaden!(data, ωs, is; energies, kernel, Δω)
     return data
+end
+
+"""
+    broaden(res::Intensities; kernel, energies=res.energies)
+
+Convolves the intensities along the energy axis with a line-broadening `kernel`,
+e.g., to model instrumental resolution. The input energies must be uniformly
+spaced, and the output is sampled at `energies`. Intensity is lost within about
+one kernel width of the ends of the input energy range, which should therefore
+extend somewhat beyond the range of interest. Input `NaN` values are treated as
+zero.
+"""
+function broaden(res::Intensities; kernel::AbstractBroadening, energies=res.energies)
+    ωs = res.energies
+    Δω = (last(ωs) - first(ωs)) / (length(ωs) - 1)
+    length(ωs) > 1 && all(≈(Δω; rtol=1e-6), diff(ωs)) || error("Energies of `res` must be uniformly spaced")
+    data = broaden(ωs, res.data; energies, kernel, Δω)
+    return Intensities(res.crystal, res.qpts, collect(Float64, energies), data)
 end

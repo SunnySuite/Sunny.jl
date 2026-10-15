@@ -1,3 +1,51 @@
+# From coefficients indexed by rank 0:6, as `matrix_to_stevens_coefficients`
+# returns them
+function StevensExpansion(c::OffsetArray)
+    axes(c) == (0:6,) || error("Expected coefficients indexed by rank 0:6")
+    return StevensExpansion(c[0], c[1], c[2], c[3], c[4], c[5], c[6])
+end
+
+# The expansion with coefficients `c` at rank k = (length(c) - 1)/2 only. For a
+# tuple or SVector, the length determines the rank statically.
+function stevens_expansion_of_single_rank(c)
+    M = length(c)
+    isodd(M) && M <= 13 || error("Expected 2k+1 coefficients for a rank k ≤ 6, got $M")
+    cs = ntuple(r -> zero(SVector{2r-1, Float64}), Val{7}())
+    return StevensExpansion(Base.setindex(cs, SVector{M, Float64}(c), (M+1) ÷ 2)...)
+end
+
+# The coefficients of every rank, in order, paired with their rank
+stevens_ranks(s::StevensExpansion) = ((0, s.c0), (1, s.c1), (2, s.c2), (3, s.c3), (4, s.c4), (5, s.c5), (6, s.c6))
+
+# Maps `f` over the coefficient vectors of each rank, as `f(k, c)`
+map_ranks(f, stvexp::StevensExpansion) = StevensExpansion(map(((k, c),) -> f(k, c), stevens_ranks(stvexp))...)
+
+Base.iszero(stvexp::StevensExpansion) = iszero(stvexp.c0) && iszero(stvexp.kmax)
+Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion) =
+    all(map(((_, c), (_, c′)) -> c ≈ c′, stevens_ranks(stvexp), stevens_ranks(stvexp′)))
+Base.:+(stvexp::StevensExpansion, stvexp′::StevensExpansion) =
+    StevensExpansion(map(((_, c), (_, c′)) -> c + c′, stevens_ranks(stvexp), stevens_ranks(stvexp′))...)
+Base.:*(stvexp::StevensExpansion, x::Real) = map_ranks((_, c) -> c * x, stvexp)
+
+# Let c denote coefficients of an operator expansion 𝒜 = cᵀ 𝒪. Under the
+# rotation R, Stevens operators transform as 𝒪 → V 𝒪. Alternatively, we can
+# treat the Stevens operators as fixed, provided the coefficients transform as
+# cᵀ → cᵀ V, or c → Vᵀ c. Rank 0 is a scalar, and invariant. A vanishing rank
+# stays zero, and is skipped because building its V dominates the cost.
+function rotate_operator(stvexp::StevensExpansion, R)
+    return map_ranks(stvexp) do k, c
+        k == 0 || iszero(c) ? c : typeof(c)(transpose(operator_for_stevens_rotation(k, R)) * c)
+    end
+end
+
+function operator_to_matrix(stvexp::StevensExpansion; N)
+    acc = zeros(ComplexF64, N, N)
+    for (k, c) in stevens_ranks(stvexp)
+        acc += c' * stevens_matrices_of_dim(k; N)
+    end
+    return acc
+end
+
 function onsite_coupling(sys, site, matrep::AbstractMatrix)
     N = sys.Ns[site]
     size(matrep) == (N, N) || error("Invalid matrix size.")
@@ -16,7 +64,7 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
     elseif sys.mode == :dipole
         s = spin_label_site(sys, site)
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
-        return StevensExpansion(rcs_factors(s) .* c)
+        return anisotropy_expansion(rcs_factors(s) .* c)
     elseif sys.mode == :dipole_uncorrected
         error("System with mode :dipole_uncorrected requires a symbolic operator.")
     end
@@ -37,67 +85,32 @@ function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
 
     # No renormalization here because symbolic polynomials `p` are associated
     # with the large-s limit.
+    return anisotropy_expansion(c)
+end
+
+# An onsite anisotropy is time-reversal even, so only even ranks are allowed
+function anisotropy_expansion(c)
+    iszero(c[[1, 3, 5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
     return StevensExpansion(c)
 end
 
 
-# k-dependent renormalization of Stevens operators O[k,q] as derived in
-# https://arxiv.org/abs/2304.03874.
-function rcs_factors(s)
-    λ = [1,                                                                  # k=0
-         1,                                                                  # k=1
-         1 - (1/2)/s,                                                        # k=2
-         1 - (3/2)/s + (1/2)/s^2,                                            # k=3
-         1 - 3/s + (11/4)/s^2 - (3/4)/s^3,                                   # k=4
-         1 - 5/s + (35/4)/s^2 - (25/4)/s^3 + (3/2)/s^4,                      # k=5
-         1 - (15/2)/s + (85/4)/s^2 - (225/8)/s^3 + (137/8)/s^4 - (15/4)/s^5] # k=6
-    return OffsetArray(λ, 0:6)
-end
+# k-dependent renormalization λ_k = ∏_{j<k} (1 - j/2s) of Stevens operators
+# O[k,q] as derived in https://arxiv.org/abs/2304.03874. For example,
+# rcs_factors(s)[2] is 1 - 1/2s, which gives the renormalization factor for
+# quadrupolar anisotropy (k=2).
+rcs_factors(s) = OffsetArray([prod(j -> 1 - j/2s, 1:k-1; init=1.0) for k in 0:6], 0:6)
+
+# The coefficient a_k of the expansion λ_k = 1 - a_k/2s + O(1/s²), read off from
+# the product above. To the same order, 1/λ_k = 1 + a_k/2s.
+rcs_factor_first_order(k) = sum(1:k-1; init=0)
 
 function empty_anisotropy(mode, N)
     if mode in (:dipole, :dipole_uncorrected)
-        c = map(k -> zeros(2k+1), OffsetArray(0:6, 0:6))
-        return StevensExpansion(c)
+        return stevens_expansion_of_single_rank((0.0,))
     elseif mode == :SUN
         return Hermitian(zeros(ComplexF64, N, N))
     end
-end
-
-function Base.iszero(stvexp::StevensExpansion)
-    (; c0, kmax) = stvexp
-    return iszero(c0) && iszero(kmax)
-end
-
-function Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion)
-    return (stvexp.c0 ≈ stvexp′.c0) && (stvexp.c2 ≈ stvexp′.c2) &&
-           (stvexp.c4 ≈ stvexp′.c4) && (stvexp.c6 ≈ stvexp′.c6)
-end
-
-function Base.:+(stvexp::StevensExpansion, stvexp′::StevensExpansion)
-    return StevensExpansion(stvexp.c0 + stvexp′.c0,
-                            stvexp.c2 + stvexp′.c2,
-                            stvexp.c4 + stvexp′.c4,
-                            stvexp.c6 + stvexp′.c6)
-end
-
-function Base.:*(stvexp::StevensExpansion, x::Real)
-    (; c0, c2, c4, c6) = stvexp
-    return StevensExpansion(c0*x, c2*x, c4*x, c6*x)
-end
-
-function rotate_operator(stvexp::StevensExpansion, R)
-    c2′ = rotate_stevens_coefficients(stvexp.c2, R)
-    c4′ = rotate_stevens_coefficients(stvexp.c4, R)
-    c6′ = rotate_stevens_coefficients(stvexp.c6, R)
-    return StevensExpansion(stvexp.c0, c2′, c4′, c6′, stvexp.kmax)
-end
-
-function operator_to_matrix(stvexp::StevensExpansion; N)
-    acc = zeros(ComplexF64, N, N)
-    for (k, c) in zip((0, 2, 4, 6), (stvexp.c0, stvexp.c2, stvexp.c4, stvexp.c6))
-        acc += c' * stevens_matrices_of_dim(k; N)
-    end
-    return acc
 end
 
 function is_anisotropy_valid(cryst::Crystal, i::Int, onsite)

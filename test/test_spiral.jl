@@ -27,6 +27,11 @@
 
     @test E1 ≈ E2
 
+    # The spiral energy is invariant to enlarging the magnetic cell
+    sys2 = repeat_periodically_as_spiral(sys, (1, 2, 3); k, axis)
+    enable_dipole_dipole!(sys2, 1.0)
+    @test spiral_energy_per_site(sys2; k, axis) ≈ E1
+
     ################ test random case ###################
     La, Lb, Lc = (2, 3, 4)
     k = [1/La, 1/Lb, 1/Lc]
@@ -45,6 +50,14 @@
     E2 = energy_per_site(sys_large)
 
     @test E1 ≈ E2
+
+    # On a magnetic cell commensurate with k, the supercell RLU of k are
+    # integers only up to round-off
+    k = [0, 0, 1/5]
+    sys5 = repeat_periodically_as_spiral(sys, (1, 1, 5); k, axis)
+    enable_dipole_dipole!(sys5, 1.0)
+    @test Sunny.to_supercell_rlu(sys5, k)[3] != 1
+    @test spiral_energy_per_site(sys5; k, axis) ≈ energy_per_site(sys5)
 end
 
 
@@ -70,6 +83,13 @@ end
     k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
     @test k[1:2] ≈ [0.5, 0.5]
     @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
+
+    # The k-gradient on a reshaped cell
+    using FiniteDiff: finite_difference_gradient
+    sys_r = reshape_supercell(sys, [1 1 0; -1 1 0; 0 0 1])
+    k0 = [0.13, 0.27, 0.31]
+    _, dEdk = Sunny.spiral_energy_and_gradient_aux!(nothing, sys_r; k=k0, axis)
+    @test dEdk ≈ finite_difference_gradient(k -> spiral_energy(sys_r; k, axis), k0)
 
     # Luttinger Tisza exchange gives almost the right energy but: (1) The
     # "constant shift" associated with the anisotropy needs to be included,
@@ -103,6 +123,15 @@ end
     @test res.data[1] + res.data[2] ≈ res2.data[2]
     @test res.disp[end] ≈ res2.disp[end]
     @test res.data[end] ≈ res2.data[end]
+
+    # The energy is independent of k₃. With k₃ = 0, k is half-integer, and the
+    # branches q ± k coincide. Compare broadened spectra.
+    swt3 = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys), k=[k[1], k[2], 0], axis)
+    energies = range(0, 6, 30)
+    kernel = gaussian(fwhm=0.3)
+    res3 = intensities(swt3, [q]; energies, kernel)
+    res4 = intensities(swt2, [q]; energies, kernel)
+    @test res3.data ≈ res4.data
 end
 
 
@@ -221,7 +250,7 @@ end
 
 
 @testitem "DM Spiral" begin
-    import LinearAlgebra: diagm
+    import LinearAlgebra: diagm, eigvals, Hermitian
 
     latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
     cryst = Crystal(latvecs, [[0, 0, 0], [0, 0.1, 0]]; types=["a", "b"])
@@ -242,6 +271,19 @@ end
     sys2 = repeat_periodically_as_spiral(sys, (1, 1, 4); k, axis)
     @test spiral_energy_per_site(sys; axis, k) ≈ energy_per_site(sys2) ≈ -1.0
 
+    # The spiral energy is invariant to enlarging the magnetic cell, for any k.
+    # A generic k makes the winding phases across the enlarged cell nontrivial.
+    kg = [0.1, 0.2, 0.37]
+    sys2g = repeat_periodically_as_spiral(sys, (1, 1, 4); k=kg, axis)
+    @test spiral_energy_per_site(sys2g; axis, k=kg) ≈ spiral_energy_per_site(sys; axis, k=kg)
+
+    # The Luttinger-Tisza exchange matrix of the enlarged system has the folded
+    # eigenvalues of the original one
+    q = [0.1, 0.2, 0.37]
+    evals2 = eigvals(Hermitian(Sunny.fourier_exchange_matrix(sys2; q)))
+    evals = [eigvals(Hermitian(Sunny.fourier_exchange_matrix(sys; q=q+[0, 0, n/4]))) for n in 0:3]
+    @test evals2 ≈ sort(reduce(vcat, evals))
+
     # Compare SWT calculated both ways
 
     qs = [[0, 0, -1/2], [0, 0, 1/3]]
@@ -255,4 +297,16 @@ end
 
     @test res.data[1:3, 1] ≈ res2.data[1:3, 1]
     @test res.data[1:3, 2] ≈ res2.data[[1, 3, 4], 2]
+
+    # The spiral calculation is invariant to enlarging the magnetic cell. Its
+    # folded bands carry no intensity, so compare broadened spectra. The energy
+    # is independent of k₁ and k₂; with these zero, k is integer in the RLU of
+    # sys2, and all three branches coincide.
+    k = [0, 0, k[3]]
+    swt3 = SpinWaveTheorySpiral(sys2; measure=ssf_trace(sys2; apply_g=false), k, axis)
+    energies = range(0, 3, 20)
+    kernel = gaussian(fwhm=0.2)
+    res = intensities(swt, qs; energies, kernel, kT=D/10)
+    res3 = intensities(swt3, qs; energies, kernel, kT=D/10)
+    @test res3.data ≈ res.data
 end
