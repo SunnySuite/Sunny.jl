@@ -49,6 +49,17 @@ end
 has_damping(λ::Float64) = !iszero(λ)
 has_damping(::Array{Float64, 4}) = true
 
+# Zero out the proposed update `Δ` at every site where `mask` is false, so that
+# site is left completely unchanged by this integration stage. Used to combine
+# multiple integrators acting on disjoint subsets of sites (see
+# `MixedIntegrator`). The default `mask = nothing` is a no-op, so ordinary
+# single-integrator usage pays no cost.
+freeze!(Δ, ::Nothing) = Δ
+function freeze!(Δ, mask::AbstractArray{Bool, 4})
+    @. Δ = ifelse(mask, Δ, zero(Δ))
+    return Δ
+end
+
 # Print a parameter compactly
 param_string(x::Real) = repr(x)
 param_string(x::AbstractArray) = "<$(join(size(x), "×")) array>"
@@ -399,14 +410,14 @@ function step! end
 # arguments through a function barrier. The call is union-split into statically
 # dispatched branches. The NamedTuple `integrator` built inside has concrete
 # types, and serves in place of the integrator for `rhs_dipole!`, etc.
-function step!(sys::System{0}, integrator::Langevin)
+function step!(sys::System{0}, integrator::Langevin; mask=nothing)
     check_timestep_available(integrator)
     check_site_params(integrator, size(sys.dipoles))
     (; dt, damping, kT) = integrator
-    step_langevin!(sys, dt, damping, kT)
+    step_langevin!(sys, dt, damping, kT; mask)
 end
 
-function step_langevin!(sys::System{0}, dt, damping, kT)
+function step_langevin!(sys::System{0}, dt, damping, kT; mask=nothing)
     integrator = (; dt, damping, kT)
     (S′, ΔS₁, ΔS₂, ξ, ∇E) = get_dipole_buffers(sys, 5)
     S = sys.dipoles
@@ -416,25 +427,27 @@ function step_langevin!(sys::System{0}, dt, damping, kT)
     # Euler prediction step
     set_energy_grad_dipoles!(∇E, S, sys)
     rhs_dipole!(ΔS₁, S, ξ, ∇E, integrator)
+    freeze!(ΔS₁, mask)
     @. S′ = normalize_dipole(S + ΔS₁, sys.κs)
 
     # Correction step
     set_energy_grad_dipoles!(∇E, S′, sys)
     rhs_dipole!(ΔS₂, S′, ξ, ∇E, integrator)
+    freeze!(ΔS₂, mask)
     @. S = normalize_dipole(S + (ΔS₁+ΔS₂)/2, sys.κs)
 
     return
 end
 
 
-function step!(sys::System{N}, integrator::Langevin) where N
+function step!(sys::System{N}, integrator::Langevin; mask=nothing) where N
     check_timestep_available(integrator)
     check_site_params(integrator, size(sys.dipoles))
     (; dt, damping, kT) = integrator
-    step_langevin!(sys, dt, damping, kT)
+    step_langevin!(sys, dt, damping, kT; mask)
 end
 
-function step_langevin!(sys::System{N}, dt, damping, kT) where N
+function step_langevin!(sys::System{N}, dt, damping, kT; mask=nothing) where N
     integrator = (; dt, damping, kT)
     (Z′, ΔZ₁, ΔZ₂, ζ, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents
@@ -444,11 +457,13 @@ function step_langevin!(sys::System{N}, dt, damping, kT) where N
     # Euler prediction step
     set_energy_grad_coherents!(HZ, Z, sys)
     rhs_sun!(ΔZ₁, Z, ζ, HZ, integrator)
+    freeze!(ΔZ₁, mask)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction step
     set_energy_grad_coherents!(HZ, Z′, sys)
     rhs_sun!(ΔZ₂, Z′, ζ, HZ, integrator)
+    freeze!(ΔZ₂, mask)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
@@ -477,7 +492,7 @@ end
 #   Ŝ = S̄ / |S̄|
 #   (S′ - S)/dt = 2(S̄ - S)/dt = - Ŝ × B,
 # where B = -∂E/∂Ŝ.
-function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
+function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100, mask=nothing)
     check_timestep_available(integrator)
 
     S = sys.dipoles
@@ -496,6 +511,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
 
         set_energy_grad_dipoles!(∇E, Ŝ, sys)
         rhs_dipole!(ΔS, Ŝ, ξ, ∇E, integrator)
+        freeze!(ΔS, mask)
 
         @. S″ = S + ΔS
 
@@ -520,7 +536,7 @@ end
 #
 #   (Z′-Z)/dt = - i H(Z̄) Z, where Z̄ = (Z+Z′)/2
 #
-function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
+function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100, mask=nothing) where N
     check_timestep_available(integrator)
 
     Z = sys.coherents
@@ -537,6 +553,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
 
         set_energy_grad_coherents!(HZ, Z̄, sys)
         rhs_sun!(ΔZ, Z̄, ζ, HZ, integrator)
+        freeze!(ΔZ, mask)
 
         @. Z″ = Z + ΔZ
 

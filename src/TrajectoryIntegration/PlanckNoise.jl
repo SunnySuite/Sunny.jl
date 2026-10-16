@@ -409,7 +409,7 @@ end
     return ζ
 end
 
-function step!(sys::System{0}, integrator::LangevinPlanck)
+function step!(sys::System{0}, integrator::LangevinPlanck; mask=nothing)
     check_timestep_available(integrator)
 
     (S′, ΔS₁, ΔS₂, ∇E) = get_dipole_buffers(sys, 5)
@@ -420,11 +420,13 @@ function step!(sys::System{0}, integrator::LangevinPlanck)
     # Euler prediction step
     set_energy_grad_dipoles!(∇E, S, sys)
     rhs_dipole_pn!(ΔS₁, S, ζ, ∇E, integrator)
+    freeze!(ΔS₁, mask)
     @. S′ = normalize_dipole(S + ΔS₁, sys.κs)
 
     # Correction step
     set_energy_grad_dipoles!(∇E, S′, sys)
     rhs_dipole_pn!(ΔS₂, S′, ζ, ∇E, integrator)
+    freeze!(ΔS₂, mask)
     @. S = normalize_dipole(S + (ΔS₁+ΔS₂)/2, sys.κs)
 
     return
@@ -487,14 +489,14 @@ end
     end
 end
 
-function step!(sys::System{N}, integrator::LangevinPlanck) where N
+function step!(sys::System{N}, integrator::LangevinPlanck; mask=nothing) where N
     check_timestep_available(integrator)
     # Function barrier for the Float64 or per-site `damping` (see `Langevin`)
     (; damping, dt, noisesource) = integrator
-    step_planck!(sys, noisesource, dt, damping)
+    step_planck!(sys, noisesource, dt, damping; mask)
 end
 
-function step_planck!(sys::System{N}, noisesource, dt, damping) where N
+function step_planck!(sys::System{N}, noisesource, dt, damping; mask=nothing) where N
     integrator = (; dt, damping)
     (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents
@@ -510,6 +512,7 @@ function step_planck!(sys::System{N}, noisesource, dt, damping) where N
     end
     set_energy_grad_coherents!(HZ, Z, sys)
     rhs_sun!(ΔZ₁, Z, ξ, HZ, integrator)
+    freeze!(ΔZ₁, mask)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction step. The multiplicative noise is re-evaluated at Z′, with the
@@ -519,10 +522,69 @@ function step_planck!(sys::System{N}, noisesource, dt, damping) where N
     end
     set_energy_grad_coherents!(HZ, Z′, sys)
     rhs_sun!(ΔZ₂, Z′, ξ, HZ, integrator)
+    freeze!(ΔZ₂, mask)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
     sync_dipoles!(sys)
 
+    return
+end
+
+
+################################################################################
+# Mixed integration
+################################################################################
+
+"""
+    MixedIntegrator(thermal::Union{Langevin, LangevinPlanck})
+
+Combines `thermal` with an exactly energy-conserving [`ImplicitMidpoint`](@ref)
+integrator, splitting sites according to `thermal`'s per-site `damping` and
+`kT` arrays (see [`Langevin`](@ref)): sites with `damping == kT == 0` evolve
+under symplectic Hamiltonian dynamics, while the remaining sites evolve under
+`thermal`'s Langevin dynamics. One call to [`step!`](@ref) advances the system
+by `thermal.dt`, via a symmetric (Strang) splitting: a half-step of
+conservative dynamics, a full step of `thermal` dynamics, and another
+half-step of conservative dynamics. Each stage holds the complementary sites
+completely fixed, so the two subsets interact only through the shared energy
+gradient evaluated at the other subset's current configuration.
+
+`thermal.damping` and `thermal.kT` must already be per-site arrays (not
+scalars), with at least one site having `damping == kT == 0` and at least one
+site having `damping != 0`. To change `dt`, construct a new `MixedIntegrator`
+rather than mutating `thermal.dt` in place.
+"""
+mutable struct MixedIntegrator{T <: Union{Langevin, LangevinPlanck}} <: AbstractIntegrator
+    thermal      :: T
+    conservative :: ImplicitMidpoint
+    mask         :: Array{Bool, 4}  # true at sites integrated conservatively
+end
+
+function MixedIntegrator(thermal::Union{Langevin, LangevinPlanck})
+    (; damping, kT, dt) = thermal
+    if damping isa Float64 && kT isa Float64
+        error("`damping` and `kT` must be per-site arrays to define a MixedIntegrator")
+    end
+    mask = Array{Bool}(@. iszero(damping) & iszero(kT))
+    any(mask) || error("No sites have `damping == kT == 0`; use `thermal` directly")
+    all(mask) && error("All sites have `damping == kT == 0`; use `ImplicitMidpoint` directly")
+    conservative = ImplicitMidpoint(dt/2)
+    return MixedIntegrator(thermal, conservative, mask)
+end
+
+function Base.copy(dyn::MixedIntegrator)
+    MixedIntegrator(copy(dyn.thermal), copy(dyn.conservative), copy(dyn.mask))
+end
+
+function Base.show(io::IO, integrator::MixedIntegrator)
+    println(io, "MixedIntegrator(", rstrip(sprint(show, integrator.thermal)), ")")
+end
+
+function step!(sys::System, integrator::MixedIntegrator)
+    (; thermal, conservative, mask) = integrator
+    step!(sys, conservative; mask)
+    step!(sys, thermal; mask=(!).(mask))
+    step!(sys, conservative; mask)
     return
 end

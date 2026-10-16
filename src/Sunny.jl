@@ -81,7 +81,7 @@ export entangle_system
 
 include("TrajectoryIntegration/Integrators.jl")
 include("TrajectoryIntegration/PlanckNoise.jl")
-export Langevin, LangevinPlanck, ImplicitMidpoint, step!, suggest_timestep
+export Langevin, LangevinPlanck, ImplicitMidpoint, MixedIntegrator, step!, suggest_timestep
 
 include("Optimization.jl")
 export minimize_energy!
