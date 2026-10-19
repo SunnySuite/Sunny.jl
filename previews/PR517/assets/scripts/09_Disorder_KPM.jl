@@ -1,10 +1,11 @@
-using Sunny, GLMakie
+using Sunny, GLMakie, LinearAlgebra
 @assert pkgversion(Sunny) >= v"0.10.0"
 
 latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
 cryst = Crystal(latvecs, [[0, 0, 0]])
 sys = System(cryst, [1 => Moment(s=1/2, g=1)], :dipole; dims=(3, 3, 1), seed=0)
-set_exchange!(sys, +1.0, Bond(1, 1, [1,0,0]))
+J = diagm([1, 1, 0.95])
+set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
 
 randomize_spins!(sys)
 minimize_energy!(sys)
@@ -14,24 +15,25 @@ qs = [[0, 0, 0], [1/3, 1/3, 0], [1/2, 0, 0], [0, 0, 0]]
 labels = ["Γ", "K", "M", "Γ"]
 path = q_space_path(cryst, qs, 150; labels)
 
-kernel = lorentzian(fwhm=0.4)
+η = 0.05
+kernel = gaussian(fwhm=0.4)
 energies = range(0.0, 3.0, 150)
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-res = intensities(swt, path; energies, kernel)
+res = intensities(swt, path; energies, η, kernel)
 plot_intensities(res)
 
-sys_inhom = to_inhomogeneous(repeat_periodically(sys, (10, 10, 1)))
+sys_inhom = to_inhomogeneous(repeat_periodically(sys, (20, 20, 1)))
 
 for (site1, site2, offset) in symmetry_equivalent_bonds(sys_inhom, Bond(1, 1, [1, 0, 0]))
     noise = randn(sys_inhom.rng)/3
-    set_exchange_at!(sys_inhom, 1.0 + noise, site1, site2; offset)
+    set_exchange_at!(sys_inhom, (1.0 + noise) * J, site1, site2; offset)
 end
 
-minimize_energy!(sys_inhom, maxiters=2_000)
+minimize_energy!(sys_inhom)
 plot_spins(sys_inhom; color=[S[3] for S in sys_inhom.dipoles], ndims=2)
 
-swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
-res = intensities(swt, path; energies, kernel)
+swt = SpinWaveTheoryLarge(sys_inhom; measure=ssf_perp(sys_inhom))
+res = intensities(swt, path; energies, η, kernel, threaded=true)
 plot_intensities(res)
 
 set_field!(sys_inhom, [0, 0, 7.5])
@@ -39,8 +41,8 @@ randomize_spins!(sys_inhom)
 minimize_energy!(sys_inhom)
 
 energies = range(0.0, 9.0, 150)
-swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
-res = intensities(swt, path; energies, kernel)
+swt = SpinWaveTheoryLarge(sys_inhom; measure=ssf_perp(sys_inhom))
+res = intensities(swt, path; energies, η, kernel, threaded=true)
 plot_intensities(res)
 
 for site in eachsite(sys_inhom)
@@ -50,13 +52,13 @@ end
 randomize_spins!(sys_inhom)
 minimize_energy!(sys_inhom)
 
-swt = SpinWaveTheoryKPM(sys_inhom; measure=ssf_perp(sys_inhom), tol=0.05)
-res = intensities(swt, path; energies, kernel)
+swt = SpinWaveTheoryLarge(sys_inhom; measure=ssf_perp(sys_inhom))
+res = intensities(swt, path; energies, η, kernel, threaded=true)
 plot_intensities(res)
 
 set_field!(sys, [0, 0, 7.5])
 randomize_spins!(sys)
 minimize_energy!(sys)
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-res = intensities(swt, path; energies, kernel)
+res = intensities(swt, path; energies, η, kernel)
 plot_intensities(res)
