@@ -5,7 +5,7 @@
 # The paper defines the renormalized dispersion as the pole of the full Dyson
 # equation, their Eq. (40), which is what `dyson=:nambu` solves. It is read off
 # here as the peak of the spectral function, not from the first-order poles of
-# `corrected_intensities_bands`, which differ at s = 1/2 by up to 0.02 meV.
+# `dyson=:on_shell`, which differ at s = 1/2 by up to 0.02 meV.
 
 using Sunny, LinearAlgebra
 using GLMakie

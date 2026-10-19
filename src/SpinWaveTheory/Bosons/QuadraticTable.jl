@@ -77,22 +77,3 @@ function hermitian_from_lower!(H)
         end
     end
 end
-
-# Accumulates Y[q, :] += H(qs[q]) X[q, :], the matrix-free product, for each
-# row q of X and Y.
-function accum_mul!(Y, X, t::QuadraticTable, qs_supercell, phases)
-    for (n, rg) in zip(t.offsets, t.ranges)
-        @. phases = cis(2π * dot(qs_supercell, (n,)))
-        @inbounds for e in rg
-            (r, c, v) = (t.rows[e], t.cols[e], t.vals[e])
-            for q in axes(Y, 1)
-                Y[q, r] += phases[q] * v * X[q, c]
-            end
-            if r != c
-                for q in axes(Y, 1)
-                    Y[q, c] += conj(phases[q] * v) * X[q, r]
-                end
-            end
-        end
-    end
-end
