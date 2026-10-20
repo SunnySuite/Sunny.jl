@@ -40,9 +40,8 @@ path = q_space_path(cryst, qs, 150; labels)
 # Perform a traditional spin wave calculation. The spectrum shows sharp modes
 # associated with coherent excitations about the K-point ordering wavevector,
 # ``𝐪 = [1/3, 1/3, 0]``. The Gaussian `kernel` models instrumental resolution.
-# A small intrinsic broadening `η`, the half-width of a Lorentzian line shape,
-# regularizes the Goldstone mode at the K point, whose intensity in linear spin
-# wave theory diverges as the energy goes to zero.
+# A small regulator `η` damps the divergent intensity of the Goldstone mode at
+# the K point.
 
 η = 0.05
 kernel = gaussian(fwhm=0.4)
@@ -74,11 +73,8 @@ minimize_energy!(sys_inhom)
 plot_spins(sys_inhom; color=[S[3] for S in sys_inhom.dipoles], ndims=2)
 
 # Traditional spin wave theory with exact diagonalization becomes impractical
-# for large system sizes. Using [`SpinWaveTheoryLarge`](@ref), the cost of an
-# [`intensities`](@ref) calculation becomes _linear_ in the system size. Here
-# the intrinsic broadening `η` is required. Iteration continues to a relative
-# error tolerance `tol`, by default `1e-2`. Set `threaded=true` to parallelize
-# over wavevectors.
+# for large system sizes. For such systems, use instead
+# [`SpinWaveTheoryLarge`](@ref), which employs a highly scalable algorithm.
 #
 # Observe that disorder in the nearest-neighbor exchange serves to broaden the
 # discrete excitation bands into a continuum.

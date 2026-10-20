@@ -74,12 +74,12 @@ loop integrals, which keeps Goldstone modes exactly gapless.
 
 The bosons are expanded about the vacuum of `swt`, by default the harmonic
 vacuum of LSWT; see [`to_hartree_fock_corrected_vacuum`](@ref). A vacuum from
-[`to_self_consistent_vacuum`](@ref) is used on the grid on which it was
-solved. Its correction to the quadratic Hamiltonian is subtracted as a
-counterterm, so that the result differs from the ``1/s`` expansion only at the
-order neglected. A correction that was added to pin a Goldstone mode is
-therefore removed again; for the spectrum of the corrected quadratic Hamiltonian
-itself, use [`intensities`](@ref).
+[`to_self_consistent_vacuum`](@ref) is used on the grid on which it was solved.
+Its correction to the quadratic Hamiltonian is subtracted as a counterterm, so
+that the result differs from the ``1/s`` expansion only at the order neglected.
+A correction that was added to pin a Goldstone mode is therefore removed again;
+for the spectrum of the corrected quadratic Hamiltonian itself, use
+[`intensities`](@ref).
 
 The `dyson` option selects how the one-loop self-energy is resummed:
 
