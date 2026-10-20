@@ -1,12 +1,11 @@
-# Reproduce Fig. 4 of Zhang et al. (https://arxiv.org/abs/2508.21142).
-# Calculates the longitudinal structure factor Sᶻᶻ of the up-up-down (UUD)
-# plateau phase of the triangular XXZ antiferromagnet in a field.
+# Reproduce Fig. 4 of Zhang et al. (https://arxiv.org/abs/2508.21142) using
+# diagrammatic ladder resummation. Calculates the longitudinal structure factor
+# Sᶻᶻ of the up-up-down (UUD) plateau phase of the triangular XXZ
+# antiferromagnet in a field.
 #
-# The UUD state is collinear, so Sᶻᶻ is purely two-magnon. A one-loop
-# correction (`dyson=:nambu`) gives only a faint continuum. The ladder
-# resummation (`dyson=:ladder`) includes the interaction between the two
-# magnons, which binds them into sharp branches. This reproduces the truncated
-# Hilbert space calculation (THED) of the paper.
+# The UUD state is collinear, so Sᶻᶻ is purely two-magnon. The `:one_loop`
+# correction scheme gives only a faint continuum. The `:two_magnon_ladder`
+# scheme allows magnon pairs to interact and bind into sharp branches.
 
 using Sunny, LinearAlgebra
 using GLMakie
@@ -46,19 +45,28 @@ for (row, (; Δ, energies, colorrange)) in enumerate(panels)
     measure = ssf_custom((q, ssf) -> real(ssf[3, 3]), sys; apply_g=false)
     swt = SpinWaveTheory(sys; measure)
     swt_hf = Sunny.to_hartree_fock_corrected_vacuum(swt)
-    for (col, dyson) in enumerate((:nambu, :ladder))
-        res = Sunny.corrected_intensities(swt_hf, path; energies, η, kernel, dyson, threaded=true, verbose=true)
+    for (col, scheme) in enumerate((:one_loop, :two_magnon_ladder))
+        res = Sunny.corrected_intensities(swt_hf, path; energies, η, kernel, scheme,
+                                          threaded=true, verbose=true)
         plot_intensities!(fig[row, col], res; colormap=:viridis, colorrange,
-                          title="Sᶻᶻ, Δ = $Δ, dyson = :$dyson")
+                          title="Sᶻᶻ, Δ = $Δ, scheme = :$scheme")
     end
 end
 fig
 
-# At Δ = 5, the ladder gives the four flat bound-state branches of Fig. 4(a),
-# below the continuum. At Δ = 2, the upper two branches enter the continuum and
-# broaden, as in Fig. 4(b). At Δ = 1, the UUD state is classically unstable, but
-# is stabilized by quantum fluctuations. Expanding about the Hartree-Fock
-# corrected vacuum captures this, gapping the soft mode. The lower branch then has
-# minimum 0.69 J at the K point, compared with 0.75 J from THED. The weak mode
-# near 1.5 J that MPS finds is attributed to four-magnon states, which both THED
-# and the ladder omit.
+# Zhang et al. used truncated Hilbert space exact diagonalization (THED), which
+# builds the bosonic Hamiltonian for states with at most two magnons, and
+# diagonalizes it exactly. Sunny's `:two_magnon_ladder` scheme is a diagrammatic
+# resummation that captures the same two-magnon bound states. It additionally
+# includes processes that create or annihilate magnon pairs out of the ground
+# state, which reflect its quantum fluctuations.
+#
+# At Δ = 5, the ladder scheme gives the four flat bound-state branches below the
+# continuum. At Δ = 2, the upper two branches enter the continuum and broaden.
+# At Δ = 1, the UUD state is classically unstable, but is stabilized by quantum
+# fluctuations. The calculation captures this by starting from the Hartree-Fock
+# corrected ground state `swt_hf`, which gives the soft mode a gap. The lower
+# branch then has its K point minimum at 0.69 J (slighly lower than 0.75 J from
+# THED). The paper's matrix product state calculation also finds a weak mode
+# near 1.5 J, attributed to four-magnon states, which both THED and the ladder
+# scheme omit.
