@@ -566,18 +566,18 @@ an iterative calculation method that scales well to large system sizes; this can
 be useful for studying disordered systems or magnetic structures with
 approximately incommensurate ordering wavevectors.
 
-The target is the structure factor ``(1 + n_B(ω)) χ''(𝐪, ω)`` at temperature
-`kT`, where ``n_B(ω) = 1/(e^{ω/kT}-1)`` is the Bose function for energy transfer
-``ω``. The dynamical susceptibility ``χ''(𝐪, ω) = -\\mathrm{Im}\\, χ(𝐪, ω +
-iη)/π`` allows for an optional energy-scale regulator `η`. This regulator damps
-soft mode intensities, e.g., in the vicinity of a Goldstone mode.
+The target is the dynamical structure factor ``π^{-1} (1 + n_B(ω)) χ''(𝐪, ω +
+iη)``. The thermal prefactor involves the Bose function ``n_B(ω) =
+1/(e^{ω/kT}-1)`` at temperature ``kT`` and energy transfer ``ω``. The symbol
+``χ'' = (χ - χ^†)/2i`` denotes the anti-Hermitian part of the retarded
+susceptibility matrix ``χ``. A nonnegative regulator `η` provides the half width
+of Lorentzian broadening. For soft modes, this intrinsic broadening typically
+introduces cancellations across positive and negative frequencies that damp
+intensity.
 
-The `kernel` is intended for modeling instrument resolution effects (e.g.,
-[`gaussian`](@ref) broadening). In the special case that a positive `η` is
-supplied, but `kernel` is omitted, the magnons will have a Lorentzian line
-shape. If both `η` and `kernel` are supplied, then [`SpinWaveTheory`](@ref) and
-[`SpinWaveTheorySpiral`](@ref) (but not [`SpinWaveTheoryLarge`](@ref)) use the
-`kernel` alone as the line shape.
+The `kernel` models the instrument resolution function, e.g., as a
+[`gaussian`](@ref). It is applied as a post-processing step. At least one of `η`
+or `kernel` must be specified.
 
 If `threaded=true`, the calculation will be parallelized over ``𝐪``. Direct
 solvers then benefit strongly from an appropriate BLAS backend; see

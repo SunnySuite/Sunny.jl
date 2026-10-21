@@ -62,12 +62,12 @@ end
         @test isapprox(res1.data, res2.data, rtol=1e-6)
         @test isapprox(res1.data[far], res3.data[far], rtol=1e-2)
 
-        # With a kernel, dense SWT omits the Lorentzian line shape, and agrees
-        # with SpinWaveTheoryLarge up to O(η) relative to the kernel width
+        # With a kernel for instrument resolution, both calculators apply it
+        # after the Lorentzian line shape and the thermal factor
         kernel = gaussian(fwhm=0.3)
-        res1 = intensities(swt, [q]; energies, η=1e-4, kernel)
-        res2 = intensities(swt_large, [q]; energies, η=1e-4, kernel)
-        @test isapprox(res1.data, res2.data, rtol=1e-3)
+        res1 = intensities(swt, [q]; energies, η=0.05, kernel, kT=0.3)
+        res2 = intensities(swt_large, [q]; energies, η=0.05, kernel, kT=0.3)
+        @test isapprox(res1.data, res2.data, rtol=1e-6)
     end
 end
 
@@ -112,14 +112,11 @@ end
     ref = sum(@. (η/π) / ((ω - disp)^2 + η^2) * residues) / (1 - exp(-ω/kT))
     @test res1[40, 2] ≈ ref
 
-    # With a kernel, dense SWT gives each pole the weight of its Lorentzian. This
-    # removes the dependence on the regularization, and conserves the spectral
-    # weight of SpinWaveTheoryLarge.
+    # Likewise with a kernel for instrument resolution
     kernel = gaussian(fwhm=0.3)
     res1 = intensities(swt, qs; energies, η=0.01, kernel, kT).data
     res2 = intensities(swt_large, qs; energies, η=0.01, kernel, kT).data
-    @test isapprox(sum(res1; dims=1), sum(res2; dims=1); rtol=1e-2)
-    @test isapprox(res1, res2; rtol=3e-2)
+    @test isapprox(res1, res2; rtol=1e-6)
 end
 
 
@@ -148,8 +145,13 @@ end
     kernel = gaussian(fwhm=0.5)
     @test intensities(swt_kpm, [[0.3, 0, 0]]; energies, kernel).data ≈ intensities(swt, [[0.3, 0, 0]]; energies, η=0.05, kernel).data
 
-    # A soft mode, unresolved by the kernel, is regularized by η
+    # With a kernel, the default η = 0 is the limit η → 0⁺
     q = [0.01, 0, 0]
-    @test_throws "η` is required" intensities(swt, [q]; energies, kernel)
+    @test_throws "Specify a `kernel`" intensities(swt, [q]; energies)
+    res0 = intensities(swt, [q]; energies, kernel).data
+    @test isapprox(res0, intensities(swt, [q]; energies, kernel, η=1e-9).data; rtol=1e-4)
     @test all(isfinite, intensities(swt, [q]; energies, kernel, η=0.05).data)
+
+    # A kernel much narrower than η is an error
+    @test_throws "Kernel width must exceed η/4" intensities(swt, [q]; energies, kernel, η=2.5)
 end

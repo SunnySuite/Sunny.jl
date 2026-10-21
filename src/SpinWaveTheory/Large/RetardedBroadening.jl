@@ -1,35 +1,46 @@
-# Instrumental broadening of the structure factor (1 + n_B(ω)) χ''(ω + iη), for a
-# retarded susceptibility χ(z) that is analytic above the real axis, at each of
-# the output `energies`. Here χ'' = -(χ - χ†)/2πi, and the result at energy ωᵢ is
-# a linear combination of χ at complex nodes zⱼ, shared by all wavevectors,
+# Instrumental broadening of the structure factor (1 + n_B(ω)) χ''(ω + iη), for
+# a retarded susceptibility χ(z) that is analytic above the real axis, at each
+# of the output `energies`. Used by SpinWaveTheoryLarge, and by dense spin wave
+# theory when both η and a kernel are given. Here χ'' = -(χ - χ†)/2πi, and the
+# result at energy ωᵢ is a linear combination of χ at complex nodes zⱼ, shared
+# by all wavevectors,
 #
 #     Cᵢ = -(Aᵢ - Aᵢ†)/2πi,    Aᵢ = Σⱼ Wᵢⱼ χ(zⱼ).
 #
 # With a kernel K, the integral ∫ K(ω′, ω) (1 + n_B(ω′)) χ(ω′ + iη) dω′ over
 # real ω′ would need a grid of spacing η, to resolve the poles of χ a distance η
 # below the real axis. Instead, the path is lifted to a height s, a quarter of
-# the kernel width, where the integrand varies on the scale s and Gauss–Legendre
-# quadrature converges rapidly. This requires that the kernel be analytic within
-# the strip of height s. Because K and 1 + n_B are real on the real axis, the
-# integral of χ† is the adjoint. The path rises from and returns to the ends of
-# a window beyond which the kernel weight is negligible. At kT = 0, the thermal
-# factor θ(ω′) restricts the window to ω′ ≥ 0. At kT > 0, the poles of 1 + n_B
-# at the Matsubara energies 2πikTn are kept off the path, and those enclosed
-# contribute residues. The pole at ω′ = 0, on the real axis, contributes half
-# its residue.
+# the narrowest kernel width over the output energies, where the integrand
+# varies on the scale s and Gauss–Legendre quadrature converges rapidly. This
+# requires that the kernel be analytic within the strip of height s. The
+# narrowest width matters: a Gaussian of width σ grows like exp(s²/2σ²) at
+# height s. Because K and 1 + n_B are real on the real axis, the integral of χ†
+# is the adjoint. The path rises from and returns to the ends of a window beyond
+# which the kernel weight is negligible. At kT = 0, the thermal factor θ(ω′)
+# restricts the window to ω′ ≥ 0. At kT > 0, the poles of 1 + n_B at the
+# Matsubara energies 2πikTn are kept off the path, and those enclosed contribute
+# residues. The pole at ω′ = 0, on the real axis, contributes half its residue.
 #
-# Without a kernel, or with one narrower than η/4, which is negligible against
-# the Lorentzian line shape, the structure factor is evaluated at each energy.
+# The panels use Gauss–Legendre quadrature of the given `order`. For a kernel
+# with poles, e.g. `lorentzian`, these lie close to the path relative to the
+# panel length, so convergence is slow: order 8 gives a relative accuracy of
+# about 1e-5, and order 16 about 1e-12. For a short-range kernel, each node
+# contributes only to the energies within a few kernel widths, so the weights
+# are banded. Each node keeps the contiguous range of energies whose weights
+# exceed `cutoff` relative to the largest. A heavy-tailed kernel couples every
+# node to every energy, and the cost per wavevector grows as the square of the
+# energy range.
 struct RetardedBroadening
-    width :: Float64            # Kernel width at zero energy transfer
-    zs    :: Vector{ComplexF64} # Nodes, including the shift iη
-    W     :: Matrix{ComplexF64} # Weights, energies × nodes
+    width  :: Float64                 # Narrowest kernel width over the energies
+    zs     :: Vector{ComplexF64}      # Nodes, including the shift iη
+    W      :: Matrix{ComplexF64}      # Weights, energies × nodes
+    ranges :: Vector{UnitRange{Int}}  # Energies with significant weight, per node
 end
 
-function RetardedBroadening(energies, η, kernel, kT)
+function RetardedBroadening(energies; η, kernel, kT, order=8, cutoff=1e-9)
     ωs = collect(Float64, energies)
     issorted(ωs) || error("Energies must be sorted")
-    width = isnothing(kernel) ? 0.0 : kernel_width_at_zero(kernel)
+    width = isnothing(kernel) ? 0.0 : minimum(ω -> kernel_fwhm(kernel, ω), ωs)
     zs = ComplexF64[]
     cols = Vector{ComplexF64}[]
     function add_node!(z, w)
@@ -37,7 +48,13 @@ function RetardedBroadening(energies, η, kernel, kT)
         push!(cols, w)
     end
 
-    if width < η/4
+    if !isnothing(kernel) && width < η/4
+        (w_str, η_str) = number_to_simple_string.((width, η); digits=3)
+        error("Kernel width must exceed η/4 for efficiency (width = $w_str, η = $η_str); omit kernel or choose smaller η")
+    end
+
+    # Without a kernel, the structure factor is evaluated at each energy.
+    if isnothing(kernel)
         for (i, ω) in enumerate(ωs)
             e(c) = [j == i ? complex(c) : 0im for j in eachindex(ωs)]
             if iszero(ω) && kT > 0
@@ -54,7 +71,7 @@ function RetardedBroadening(energies, η, kernel, kT)
         try
             kernel(0.1im, 0.0) isa Complex || error()
         catch
-            error("The kernel must accept complex energies, e.g., `gaussian` or `lorentzian`.")
+            error("The kernel must accept complex energies, e.g., `gaussian`")
         end
 
         # Panels are fine within a few kernel widths of the output energies. The
@@ -83,7 +100,7 @@ function RetardedBroadening(energies, η, kernel, kT)
         n >= 0 && (s = 2π*kT * (n + 1/2))
         occ(z) = iszero(kT) ? 1 : 1 / (1 - exp(-z/kT))
         if hi > lo
-            for (z, w) in zip(contour_quadrature(lo, hi, flo, fhi, s, η, kT)...)
+            for (z, w) in zip(contour_quadrature(lo, hi, flo, fhi, s, η, kT; order)...)
                 add_node!(z, [w * occ(z) * kernel(z, ω) for ω in ωs])
             end
             for z in 2π*im*kT .* (1:n)
@@ -93,17 +110,22 @@ function RetardedBroadening(energies, η, kernel, kT)
         end
     end
     W = isempty(cols) ? zeros(ComplexF64, length(ωs), 0) : reduce(hcat, cols)
-    return RetardedBroadening(width, zs, W)
+    threshold = cutoff * maximum(abs, W; init=0.0)
+    ranges = map(eachcol(W)) do w
+        (i1, i2) = (findfirst(x -> abs(x) > threshold, w), findlast(x -> abs(x) > threshold, w))
+        isnothing(i1) ? (1:0) : (i1:i2)
+    end
+    return RetardedBroadening(width, zs, W, ranges)
 end
 
-# Nodes and weights of 8-point composite Gauss–Legendre quadrature along the path
+# Nodes and weights of composite Gauss–Legendre quadrature along the path
 # lo → lo + is → hi + is → hi. Along the top, panels are at most 2s long within
 # [flo, fhi], and outside grow geometrically, where the integrand is smooth on
 # the scale of the distance. On the vertical legs, panels grow geometrically
 # from η/4 at the real axis. At kT > 0, 1 + n_B is a Fermi function of Re z, of
 # width kT, and panels also grow geometrically from kT/4 away from Re z = 0.
-function contour_quadrature(lo, hi, flo, fhi, s, η, kT)
-    (x, w) = gauss_legendre(8)
+function contour_quadrature(lo, hi, flo, fhi, s, η, kT; order)
+    (x, w) = gauss_legendre(order)
     graded(h, len) = [0; filter(<(len), h .* 2.0 .^ (0:60)); len]
     ts = graded(η/4, s)
     xs = collect(range(flo, fhi, ceil(Int, (fhi - flo) / 2s) + 1))
@@ -130,15 +152,15 @@ function gauss_legendre(n)
 end
 
 # The broadened structure factor Cᵢ = -(Aᵢ - Aᵢ†)/2πi of a matrix-valued
-# susceptibility χ, with Aᵢ = Σⱼ Wᵢⱼ χ(zⱼ)
+# susceptibility χ, with Aᵢ = Σⱼ Wᵢⱼ χ(zⱼ), skipping negligible weights
 function broaden_retarded(χ, rb::RetardedBroadening)
-    (; zs, W) = rb
-    χs = χ.(zs)
-    return map(axes(W, 1)) do i
-        A = zero(first(χs))
-        for j in eachindex(χs)
-            A += W[i, j] * χs[j]
+    (; zs, W, ranges) = rb
+    As = [zero(χ(first(zs))) for _ in axes(W, 1)]
+    for (j, z) in enumerate(zs)
+        χj = χ(z)
+        for i in ranges[j]
+            As[i] += W[i, j] * χj
         end
-        -(A - A') / (2π*im)
     end
+    return map(A -> -(A - A') / (2π*im), As)
 end

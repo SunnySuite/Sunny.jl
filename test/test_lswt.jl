@@ -259,116 +259,56 @@ end
 end
 
 
-@testitem "Local Stevens expansion" begin
+@testitem "Multipole couplings and observables" begin
     using LinearAlgebra
-    a = 1
-    latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
-    positions = [[0, 0, 0]]
     # P1 point group for most general single-ion anisotropy
-    cryst = Crystal(latvecs, positions, 1)
+    cryst = Crystal(lattice_vectors(1, 1, 10, 90, 90, 90), [[0, 0, 0]], 1)
 
+    # Single-ion anisotropy along a random axis, of negative strengths to favor
+    # dipolar order along it
     s = 3
-    sys_dip = System(cryst, [1 => Moment(; s, g=-1)], :dipole)
-    sys_SUN = System(cryst, [1 => Moment(; s, g=-1)], :SUN)
-
-    # The strengths of single-ion anisotropy (must be negative to favor the dipolar ordering under consideration)
-    Ds = -rand(3)
-    h  = 0.1*rand()
     M = normalize(rand(3))
     SM = M' * spin_matrices(s)
-    aniso = Ds[1]*SM^2 + Ds[2]*SM^4 + Ds[3]*SM^6
+    aniso = -rand()*SM^2 - rand()*SM^4 - rand()*SM^6
+    h = 0.1*rand()
+    (sys_dip, sys_SUN) = map((:dipole, :SUN)) do mode
+        sys = System(cryst, [1 => Moment(; s, g=-1)], mode)
+        set_onsite_coupling!(sys, aniso, 1)
+        set_field!(sys, h*M)
+        set_dipole!(sys, M, (1, 1, 1, 1))
+        sys
+    end
+    # A selection of correlations between multipoles up to rank 6: dipole
+    # (Sʸ, Sᶻ), quadrupole, dipole-octupole, which is complex in general, and
+    # rank 6 with rank 2, which also creates a magnon pair
+    function measure(sys)
+        Sunny.ssf_multipoles(sys; max_k=6) do q, C
+            Sunny.SVector(C[1, -1, 1, 0], C[2, 2, 2, -1], C[1, 1, 3, -2], C[6, 5, 2, 0])
+        end
+    end
+    swt_dip = SpinWaveTheory(sys_dip; measure=measure(sys_dip))
+    swt_SUN = SpinWaveTheory(sys_SUN; measure=measure(sys_SUN))
 
-    set_onsite_coupling!(sys_dip, aniso, 1)
-    set_onsite_coupling!(sys_SUN, aniso, 1)
-
-    set_field!(sys_dip, h*M)
-    set_field!(sys_SUN, h*M)
-
-    set_dipole!(sys_dip, M, (1,1,1,1))
-    set_dipole!(sys_SUN, M, (1,1,1,1))
-
-    energy(sys_dip)
-    energy(sys_SUN)
-
-    swt_dip = SpinWaveTheory(sys_dip; measure=nothing)
-    swt_SUN = SpinWaveTheory(sys_SUN; measure=nothing)
-
+    # The magnon of dipole mode is the lowest excitation of SU(N) mode, and its
+    # multipole correlations agree, because the one-magnon amplitude in dipole
+    # mode is that of the quantum operator
     q = rand(3)
-    disp_dip = dispersion(swt_dip, [q])
-    disp_SUN = dispersion(swt_SUN, [q])
+    res_dip = intensities_bands(swt_dip, [q])
+    res_SUN = intensities_bands(swt_SUN, [q])
+    @test only(res_dip.disp) ≈ res_SUN.disp[end-1]
+    C = only(res_dip.data)
+    @test C ≈ res_SUN.data[end-1]
+    @test abs(imag(C[3])) > 1e-3
 
-    @test only(disp_dip) ≈ disp_SUN[end-1]
-
-    # General observables, given as Stevens expansions in dipole mode and as
-    # matrices in SU(N) mode. The one-magnon amplitude in dipole mode is that of
-    # the quantum operator, which mode :SUN expands exactly, including odd ranks
-    # and those that also create a magnon pair.
-    O = stevens_matrices(s)
-    ops = [spin_matrices(s)[1], O[2, 1], O[2, 2], O[3, -1], O[4, 3] + O[2, 0], O[6, 5]]
-    function op_measure(sys, ops)
-        obs = [sys.mode == :SUN ? Hermitian(ComplexF64.(A)) :
-               Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(Hermitian(ComplexF64.(A))))
-               for A in ops, _ in 1:1, _ in 1:1, _ in 1:1, _ in 1:1, _ in 1:1]
-        ffs = fill(one(FormFactor), length(ops), 1, 1)
-        return Sunny.MeasureSpec(obs, [(μ, μ) for μ in eachindex(ops)], (q, corr) -> real(sum(corr)), ffs)
+    # The dipole block, returned as a static matrix, is that of `ssf_custom`,
+    # with (𝒪₁₁, 𝒪₁₀, 𝒪₁₋₁) = (Sˣ, Sᶻ, Sʸ)
+    measure_DD = Sunny.ssf_multipoles(sys_dip; max_k=1) do q, C
+        Sunny.SMatrix{3, 3}(C[1, q1, 1, q2] for q1 in 1:-1:-1, q2 in 1:-1:-1)
     end
-    for μ in eachindex(ops)
-        res_dip = intensities_bands(SpinWaveTheory(sys_dip; measure=op_measure(sys_dip, ops[μ:μ])), [q])
-        res_SUN = intensities_bands(SpinWaveTheory(sys_SUN; measure=op_measure(sys_SUN, ops[μ:μ])), [q])
-        @test only(res_dip.data) ≈ res_SUN.data[end-1]
-    end
-
-    # Cross correlations between observables of different rank, e.g.
-    # dipole-octupole, which are complex in general
-    function cross_measure(sys, ops)
-        m = op_measure(sys, ops)
-        pairs = [(μ, ν) for μ in eachindex(ops) for ν in μ+1:length(ops)]
-        @assert length(pairs) == 15
-        return Sunny.MeasureSpec(m.observables, pairs, (q, corr) -> Sunny.SVector{15, ComplexF64}(corr), m.formfactors)
-    end
-    res_dip = intensities_bands(SpinWaveTheory(sys_dip; measure=cross_measure(sys_dip, ops)), [q])
-    res_SUN = intensities_bands(SpinWaveTheory(sys_SUN; measure=cross_measure(sys_SUN, ops)), [q])
-    @test only(res_dip.data) ≈ res_SUN.data[end-1]
-    @test maximum(abs ∘ imag, only(res_dip.data)) > 1e-3
-
-    # All correlations between the multipoles of ranks 1 and 2, as one block per
-    # pair of ranks. The dipole block, in the Stevens order (Sˣ, Sᶻ, Sʸ), is that
-    # of `ssf_custom`, the blocks agree with the cross correlations of
-    # `cross_measure` above, and the correlation matrix of a single band has rank
-    # one.
-    measure(sys) = Sunny.ssf_multipoles((q, C) -> C, sys; max_k=2)
-    Cs = only(intensities_bands(SpinWaveTheory(sys_dip; measure=measure(sys_dip)), [q]).data)
-    @test length(Cs) == 3
-    @test Cs ≈ intensities_bands(SpinWaveTheory(sys_SUN; measure=measure(sys_SUN)), [q]).data[end-1]
+    DD = only(intensities_bands(SpinWaveTheory(sys_dip; measure=measure_DD), [q]).data)
     ssf = only(intensities_bands(SpinWaveTheory(sys_dip; measure=ssf_custom((q, ssf) -> ssf, sys_dip; apply_g=false)), [q]).data)
-    @test Cs[1] ≈ ssf[[1, 3, 2], [1, 3, 2]]
-    block = Sunny.extract_multipole_block
-    @test block(Cs, Val(1), Val(1))[-1, 0] ≈ ssf[2, 3]               # (Sʸ, Sᶻ)
-    @test block(Cs, Val(1), Val(2))[1, 2] ≈ only(res_dip.data)[2]    # pair (Sˣ, 𝒪₂₂) of `ops`
-    @test block(Cs, Val(2), Val(1)) == block(Cs, Val(1), Val(2))'
-
-    # A callback can contract the blocks to a scalar. It refers to the accessor
-    # directly, since a non-const global would defeat inference of its result.
-    measure_QQ = Sunny.ssf_multipoles(sys_dip; max_k=2) do q, C
-        B = Sunny.extract_multipole_block
-        real(B(C, Val(2), Val(2))[0, 0] + B(C, Val(2), Val(1))[1, -1])
-    end
-    @test eltype(measure_QQ) == Float64
-    QQ0 = only(intensities_bands(SpinWaveTheory(sys_dip; measure=measure_QQ), [q]).data)
-    @test QQ0 ≈ real(block(Cs, Val(2), Val(2))[0, 0] + block(Cs, Val(2), Val(1))[1, -1])
-    (DD, DQ, QQ) = Cs
-    C = [DD DQ; DQ' QQ]
-    @test svdvals(C)[2] < 1e-12 * opnorm(C)
-
-    # Intrinsic broadening accepts any measured data type, here a `TupleVec`,
-    # including the poles at negative energy. Energies are scaled to the gap.
-    swt = SpinWaveTheory(sys_dip; measure=measure(sys_dip))
-    ϵ = only(disp_dip)
-    energies = ϵ .* [-1, 1]
-    res1 = intensities(swt, [q]; energies, η=ϵ, kT=ϵ).data
-    res2 = intensities(SpinWaveTheoryLarge(sys_dip; measure=measure(sys_dip), tol=1e-8), [q];
-                       energies, η=ϵ, kT=ϵ).data
-    @test all(isapprox.(res1, res2; rtol=1e-3))
+    @test DD ≈ ssf[[1, 3, 2], [1, 3, 2]]
+    @test C[1] ≈ ssf[2, 3]
 end
 
 

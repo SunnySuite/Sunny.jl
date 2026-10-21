@@ -19,11 +19,11 @@
   axes in 1D and 2D is clarified ([#516](@ref)).
 * [`SpinWaveTheorySpiral`](@ref) strictly enforces uniaxial symmetry of the
   interactions; long-range dipole-dipole interactions now excluded.
-* [`SpinWaveTheoryLarge`](@ref) replaces `SpinWaveTheoryKPM`, and uses block
-  Lanczos to evaluate the dynamical susceptibility at complex energy ``ω + iη``.
-  Convergence is faster and fully robust. The regulator `η` defines intrinsic
-  Lorentzian broadening, damps soft mode intensity, and bounds computational
-  cost. Dense spin wave calculators also accept `η` to damp soft mode intensity.
+* Spin wave [`intensities`](@ref) accept a width `η` for intrinsic Lorentzian
+  broadening. This allows to damp intensities of soft modes.
+* [`SpinWaveTheoryLarge`](@ref) replaces `SpinWaveTheoryKPM`, and uses Lanczos
+  to evaluate the dynamical susceptibility. Convergence is faster and more
+  robust.
 * At `kT > 0`, [`intensities`](@ref) and [`intensities_static`](@ref) yield the
   correct intensity at negative energies.
 * Fix spin wave theory with dipole-dipole interactions and unequal spin
