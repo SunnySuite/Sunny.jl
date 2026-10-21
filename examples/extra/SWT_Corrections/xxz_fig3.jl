@@ -52,7 +52,7 @@ path = q_space_path(cryst, [M, K′, Γ, K, M, Γ], 400;
 η = 0.02 # vs. 0.005 used in Maksimov et al.
 energies = 0:(η/2):2.0
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-res = Sunny.corrected_intensities(swt, path; energies, η, scheme=:one_loop,
+res = Sunny.corrected_intensities(swt, path, :one_loop; energies, η,
                                   threaded=true, verbose=true)
 
 # Compare with Fig. 3a of Maksimov et al.

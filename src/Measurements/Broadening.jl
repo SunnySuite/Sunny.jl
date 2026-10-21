@@ -107,7 +107,7 @@ end
 # The structure factor ∫ K(ω′, ω) (1 + n_B(ω′)) χ''(ω′ + iη) dω′ of the poles
 # of χ'', i.e., an intrinsic Lorentzian line shape of half width η, followed by
 # the thermal factor, and then the kernel K for instrument resolution
-function broaden_poles(disp, residues; energies, kernel, η, kT, threaded)
+function broaden_poles(disp, residues; energies, η, kernel, kT, threaded)
     η >= 0 || error("Require η ≥ 0")
     iszero(η) && isnothing(kernel) && error("Specify a `kernel`, a broadening `η`, or both.")
     issorted(energies) || error("Energies must be sorted")
