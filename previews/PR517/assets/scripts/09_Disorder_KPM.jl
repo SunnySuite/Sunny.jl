@@ -22,7 +22,7 @@ swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities(swt, path; energies, η, kernel)
 plot_intensities(res)
 
-sys_inhom = to_inhomogeneous(repeat_periodically(sys, (20, 20, 1)))
+sys_inhom = to_inhomogeneous(repeat_periodically(sys, (10, 10, 1)))
 
 for (site1, site2, offset) in symmetry_equivalent_bonds(sys_inhom, Bond(1, 1, [1, 0, 0]))
     noise = randn(sys_inhom.rng)/3
@@ -46,7 +46,7 @@ res = intensities(swt, path; energies, η, kernel, threaded=true)
 plot_intensities(res)
 
 for site in eachsite(sys_inhom)
-    noise = randn(sys_inhom.rng)/6
+    noise = randn(sys_inhom.rng)/8
     sys_inhom.gs[site] = [1 0 0; 0 1 0; 0 0 1+noise]
 end
 randomize_spins!(sys_inhom)
