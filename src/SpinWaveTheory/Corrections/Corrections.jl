@@ -23,68 +23,20 @@
 # eigenvectors at `-q` (see `excitations!`), so a band index ranging over the
 # full Nambu space `1:2L` reaches both channels at once.
 #
-# Resummation. Collect the quasi-particles into y_𝐪 = [α_𝐪; α†_{-𝐪}], with
-# metric Ĩ = diagm([ones(L); -ones(L)]), and write w = T†u for the observable
-# amplitudes (u from `observable_vectors!`, corrected by
-# ObservableCorrections.jl). LSWT gives the retarded response
+# `bogoliubov!` fixes the phase of each band independently, so nothing ties the
+# eigenvectors of one call to those of another, and degenerate bands may even
+# get different bases. Every expression that combines amplitudes is therefore
+# built from a single diagonalization per wavevector. Where T(-𝐪) is needed
+# alongside T(𝐪), it comes from the exact Nambu symmetry P H(𝐪)ᵗ P = H(-𝐪),
+# with P the swap a ↦ nambu_conj(a, L), rather than from a second call. The
+# symmetry follows from H22(𝐪) = H11(-𝐪)ᵗ and H12(𝐪) = H12(-𝐪)ᵗ.
 #
-#     χ^{μν}(z) = w_μ' G₀(z) w_ν,   G₀(z) = (zĨ - |ε|)⁻¹,
-#
-# whose anti-Hermitian part (χ' - χ)/2πi is the broadened `intensities` at z = ω
-# + iη, including the mirror poles at ω < 0.
-#
-# At O(1/s) the static mean fields of StaticCorrections.jl, the mean field,
-# tadpole and anisotropy corrections, add Σstat = T†δH T, for a perturbation
-# (1/2)x†δH x of the quadratic Hamiltonian. The cubic vertex couples each magnon
-# to pairs of magnons, and the observable creates pairs directly too (Sᶻ = s -
-# b†b). Both are captured by an auxiliary quadratic model: magnons coupled to a
-# bath of free two-magnon states. For each pair of internal lines (𝐩 a, 𝐪-𝐩
-# b) at pair energy x, define
-#
-#     y = [√18 U[a, b, :]; β],
-#
-# the vertex to each of the 2L external Nambu legs and the amplitudes β for each
-# observable to create the pair (`pair_amplitude`). Forward lines (x > 0) are
-# bath particles, backward lines (x < 0) bath holes of the opposite metric sign.
-# Integrating out the bath gives the Cauchy transform
-#
-#     K(z) = Σ_pairs ± y y† / (z - x),
-#
-# with blocks K_mm (the cubic self-energy), K_md, K_dm and K_dd (the direct
-# two-magnon continuum). The exact response of the auxiliary model is then
-#
-#     χ = w'Gw + K_dm G w + w'G K_md + K_dm G K_md + K_dd,
-#     G = (zĨ - |ε| - Σstat - K_mm)⁻¹.
-#
-# This is exact at O(1/s) and, being the resolvent of a quadratic model,
-# inherits its structure: Nambu symmetry, Goldstone protection (the static and
-# dynamic 1/ε divergences cancel in the full 2L inverse), η as a pure
-# Lorentzian, and the commutator sum rule ∫dω S = w'Ĩw. It is positive at ω > 0
-# whenever the auxiliary model is stable, i.e. |ε| + Σstat + K_mm(0) ⪰ 0. Where
-# it is not, the 1/s correction to some mode is comparable to its harmonic
-# energy, and a resummed pole moves onto the imaginary axis. This is a breakdown
-# of the expansion for that mode rather than a physical instability, and that
-# mode may carry little weight in the observable; `corrected_channels` reports
-# it. The interference terms linear in K_md are absent from the standard 1/s
-# treatment, which takes the magnon spectral function as the major component of
-# S and adds the two-magnon continuum separately (PRB 79, 144416, Sec. VI). For
-# a trace measure they cancel in a zone sum, but not pointwise.
-#
-# K depends on frequency only through the scalar x, so the masses y y†, summed
-# over the wavevectors of `loop_wavevectors`, are accumulated into bins of x and
-# the Cauchy transform is applied afterwards. Linear splitting between
-# neighbouring bins keeps each channel's measure semidefinite and preserves its
-# zeroth and first moments; the shape error is O((Δ/η)²).
-#
-# The test suite certifies every term by comparing to exact diagonalization of a
-# cluster with anisotropic interactions and readouts.
-#
-# Entry points. Every function takes `swt`, whose Gaussian state is the vacuum,
-# harmonic by default. The keyword `bz` selects the quadrature over the zone: a
-# relative accuracy, met by adaptive cubature for static averages and by a grid
-# resolving `η` for loop integrals, or the dimensions of a fixed grid. A vacuum
-# produced by `to_self_consistent_vacuum` records its grid, which subsequent
-# calls use.
+# The expansion is about the Gaussian state of `swt`, its vacuum; see Vacuum.jl.
+# Static corrections are contractions in it (StaticCorrections.jl), the cubic
+# vertex gives a frequency-dependent self-energy (SelfEnergy.jl), and
+# CorrectedIntensities.jl resums both into the structure factor. The test suite
+# certifies every term by comparing to exact diagonalization of a cluster with
+# anisotropic interactions and readouts.
 #
 #     Vacuum       to_hartree_fock_corrected_vacuum, to_self_consistent_vacuum,
 #                  GoldstonePin
@@ -95,10 +47,13 @@
 #                  observable_corrections, anisotropy_correction,
 #                  static_self_energy, cubic_self_energy
 #     Internals    OneLoop, SelfEnergy, corrected_channels
+#
+# Their keyword `bz` selects the Brillouin-zone grid, and the static corrections
+# take `tol` for adaptive cubature; see `BZIntegration`.
 
-# Why the 1/s corrections of this directory are unavailable for `swt`, or `nothing`
-# if they are available. Returned rather than thrown so that a caller offering a
-# correct but weaker result in the unsupported cases, such as
+# Why the 1/s corrections of this directory are unavailable for `swt`, or
+# `nothing` if they are available. Returned rather than thrown so that a caller
+# offering a correct but weaker result in the unsupported cases, such as
 # `corrected_magnetic_moments`, can ask without catching.
 function corrections_unsupported_reason(swt::SpinWaveTheory)
     (; sys) = swt
