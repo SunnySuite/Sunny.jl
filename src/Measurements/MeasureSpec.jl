@@ -67,6 +67,38 @@ num_units_per_cell(measure::MeasureSpec) = size(measure.observables, 5)
 num_parts_per_unit(measure::MeasureSpec) = size(measure.observables, 6)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs)
 
+# The Hermitian M(q) such that the combiner is tr(M C) for every Hermitian
+# correlation matrix C, given a real-valued combiner. Real-linearity makes this
+# exact, and M follows from probing with basis matrices of the Hermitian space.
+function combiner_matrix(measure::MeasureSpec, q_global)
+    p = num_observables(measure)
+    corr = zeros(ComplexF64, num_correlations(measure))
+    M = zeros(ComplexF64, p, p)
+    E = zeros(ComplexF64, p, p)
+    function f(E)
+        map!(((a, b),) -> E[a, b], corr, measure.corr_pairs)
+        return measure.combiner(q_global, corr)
+    end
+    for b in 1:p, a in 1:b
+        if a == b
+            E[a, a] = 1
+            M[a, a] = f(E)
+            E[a, a] = 0
+        else
+            # With m = M[a, b], tr(M E) is 2 Re m for E[a, b] = E[b, a] = 1, and
+            # 2 Im m for E[a, b] = -E[b, a] = i
+            (E[a, b], E[b, a]) = (1, 1)
+            x = f(E)
+            (E[a, b], E[b, a]) = (im, -im)
+            y = f(E)
+            (E[a, b], E[b, a]) = (0, 0)
+            M[a, b] = (x + im*y) / 2
+            M[b, a] = conj(M[a, b])
+        end
+    end
+    return Hermitian(M)
+end
+
 function empty_measurespec(sys::System{N}) where N
     Op = iszero(N) ? Vec3 : HermitianC64
     observables = Array{Op, 6}(undef, 0, size(eachsite(sys))..., 1)
@@ -228,7 +260,12 @@ function ssf_multipoles(f, sys::System; max_k)
                                             stevens_expansion_of_single_rank(ntuple(j -> Float64(j == i), 2k+1))
     end
 
-    # Every pair once, as the upper triangle
+    # Every pair once, as the upper triangle. The `combiner` function maps to a
+    # matrix M(q) via `combiner_matrix`. For typical scattering intensities,
+    # this matrix has low rank, even with many local observables. TODO:
+    # SpinWaveTheoryLarge already leverages the low rank of M(q), but it could
+    # also be used to accelerate `corrected_intensities`. This becomes
+    # especially important when the list of multipole observables grows large.
     corr_pairs = [(μ, ν) for ν in 1:n for μ in 1:ν]
     combiner(q, corr) = f(q, MultipoleCorrelations(corr, max_k))
 

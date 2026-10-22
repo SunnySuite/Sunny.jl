@@ -1,26 +1,37 @@
-@testitem "Block Lanczos moments" begin
+@testitem "Lanczos resolvent" begin
     using LinearAlgebra, Random
 
-    # Lanczos with A = Ĩ in the inner product of S builds a block tridiagonal T
-    # whose moments R₀†[Tᵏ]₁₁R₀ reproduce V†S(ĨS)ᵏV for k < 2m, where m is the
-    # number of steps. A repeated starting row is linearly dependent, and must
-    # be handled by a rank-revealing first step.
+    # Lanczos with A = Ĩ in the inner product of S approximates χ = v† S (z -
+    # ĨS)⁻¹ v / β₀² by the leading entry x₁ of the resolvent of T, and the probe
+    # products vₐ† S (z - ĨS)⁻¹ v / β₀ by the sums sₐ. The error estimates are
+    # approximate for x₁, and a Cauchy–Schwarz bound for sₐ, which shares the
+    # approximation, and so holds within the factor 2 margin of `tol`. Once the
+    # Krylov space is exhausted, the estimates vanish and the results are exact.
     Random.seed!(0)
-    n = 40
+    n = 12
     L = n ÷ 2
     S = let X = randn(ComplexF64, n, n); Hermitian(X'*X/n + I) end
     Ĩ = Diagonal([ones(L); -ones(L)])
-    V = randn(ComplexF64, 3, n)
-    V = [V; V[1:1, :]]
-    mulS!(Y, X) = (Y .= transpose(S * transpose(X)))
-    lz = Sunny.BlockLanczos(mulS!, V)
-    Sunny.extend!(lz, 6)
-    T = Sunny.lanczos_matrix(lz)
-    r = size(lz.R₀, 1)
-    @test r == 3
-    Vc = transpose(V)
-    for k in 0:2Sunny.nsteps(lz)-1
-        @test lz.R₀' * (Matrix(T)^k)[1:r, 1:r] * lz.R₀ ≈ Vc' * S * (Ĩ * S)^k * Vc
+    (v, probes) = (randn(ComplexF64, n), randn(ComplexF64, n, 2))
+    mulS!(y, x) = (y .= S * x)
+    zs = [0.3 + 0.1im, -1.2 + 0.01im]
+
+    r = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, probes, zs), 4)
+    r_exact = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, probes, zs), n + 1)
+    @test (r.nrows, r_exact.nrows) == (4, n)
+    @test Sunny.exhausted(r_exact)
+    for (i, z) in enumerate(zs)
+        R = S * inv(z*I - Ĩ * S) * v
+        @test r.β₀^2 * r_exact.x₁[i] ≈ v' * R
+        @test r.β₀ * r_exact.s[:, i] ≈ probes' * R
+        @test Sunny.error_estimates(r_exact, i) == (0, 0)
+
+        (δx, δe) = Sunny.error_estimates(r, i)
+        @test 0.1 < δx / abs(r_exact.x₁[i] - r.x₁[i]) < 10
+        for a in 1:2
+            normS = sqrt(real(probes[:, a]' * S * probes[:, a]))
+            @test abs(r_exact.s[a, i] - r.s[a, i]) <= 2 * normS * δe
+        end
     end
 end
 
@@ -68,11 +79,22 @@ end
         res1 = intensities(swt, [q]; energies, η=0.05, kernel, kT=0.3)
         res2 = intensities(swt_large, [q]; energies, η=0.05, kernel, kT=0.3)
         @test isapprox(res1.data, res2.data, rtol=1e-6)
+
+        # A matrix-valued combiner needs all correlations, including the
+        # off-diagonal ones
+        measure = ssf_custom((q, ssf) -> ssf, sys; formfactors)
+        swt = SpinWaveTheory(sys; measure)
+        swt_large = SpinWaveTheoryLarge(sys; measure, tol=1e-10)
+        res1 = intensities(swt, [q]; energies, η=0.05, kernel, kT=0.3)
+        res2 = intensities(swt_large, [q]; energies, η=0.05, kernel, kT=0.3)
+        @test isapprox(res1.data, res2.data, rtol=1e-6)
     end
 end
 
 
 @testitem "SpinWaveTheoryLarge at Goldstone modes and negative energies" begin
+    using LinearAlgebra
+
     # A disordered antiferromagnet with continuous symmetry has exact zero modes
     # at the ordering wavevector of its supercell
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
@@ -106,6 +128,10 @@ end
     @test isapprox(res1, res2; rtol=1e-6)
     @test isapprox(res1, res3; rtol=1e-3)
 
+    # Exceeding the iteration cap is an error
+    swt_capped = SpinWaveTheoryLarge(sys; measure, tol=1e-6, maxiters=5)
+    @test_throws "Exceeded maxiters" intensities(swt_capped, qs; energies, η=0.1)
+
     # The line shape of a single pole, explicitly
     (disp, residues) = Sunny.susceptibility_poles(swt, Sunny.QPoints(qs[2:2]); threaded=false)
     (ω, η) = (energies[40], 0.1)
@@ -117,6 +143,30 @@ end
     res1 = intensities(swt, qs; energies, η=0.01, kernel, kT).data
     res2 = intensities(swt_large, qs; energies, η=0.01, kernel, kT).data
     @test isapprox(res1, res2; rtol=1e-6)
+
+    # A matrix-valued combiner obtains cross correlations from probes, whose
+    # convergence is slower. Near the soft modes, at kT > 0, the thermal factor
+    # amplifies their error, which a check of the diagonal alone would miss.
+    sys = System(cryst, [1 => Moment(s=1/2, g=1)], :dipole; dims=(1, 1, 1), seed=0)
+    J = diagm([1, 1, 0.95])
+    set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
+    sys = to_inhomogeneous(repeat_periodically(sys, (9, 9, 1)))
+    for (s1, s2, offset) in symmetry_equivalent_bonds(sys, Bond(1, 1, [1, 0, 0]))
+        set_exchange_at!(sys, (1.0 + randn(sys.rng)/3) * J, s1, s2; offset)
+    end
+    for site in eachsite(sys)
+        θ = 2π/3 * mod(site[1] - site[2], 3)
+        set_dipole!(sys, [cos(θ), sin(θ), 0], site)
+    end
+    minimize_energy!(sys; maxiters=10_000)
+    measure = ssf_custom((q, ssf) -> ssf, sys)
+    kernel = gaussian(fwhm=0.4)
+    qs = [[0.1, 0.2, 0], [0.3, 0.3, 0], [0.2, 0.05, 0]]
+    swt = SpinWaveTheory(sys; measure)
+    swt_large = SpinWaveTheoryLarge(sys; measure, tol=1e-2)
+    res1 = intensities(swt, qs; energies, η=0.05, kernel, kT).data
+    res2 = intensities(swt_large, qs; energies, η=0.05, kernel, kT).data
+    @test maximum(x -> maximum(abs, x), res1 - res2) < 1e-2 * maximum(x -> maximum(abs, x), res1)
 end
 
 
@@ -136,10 +186,6 @@ end
     set_dipole!(sys, [0, 0, -1], (2, 1, 1, 1))
     swt = SpinWaveTheoryLarge(sys; measure, tol=1e-2)
     @test all(isfinite, intensities(swt, qs; energies, η=0.1).data)
-
-    # Exceeding the iteration cap is an error
-    swt_capped = SpinWaveTheoryLarge(sys; measure, tol=1e-6, maxiters=1)
-    @test_throws "Exceeded maxiters" intensities(swt_capped, qs; energies, η=0.1)
 
     # The deprecated interface infers η from the kernel width
     swt_kpm = @test_logs (:warn, r"deprecated") SpinWaveTheoryKPM(sys; measure, tol=1e-2)

@@ -100,6 +100,7 @@ include("Measurements/MeasureSpec.jl")
 include("Measurements/QPoints.jl")
 include("Measurements/IntensitiesTypes.jl")
 include("Measurements/Broadening.jl")
+include("Measurements/RetardedBroadening.jl")
 include("Measurements/RotationalAverages.jl")
 export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid,
     find_qs_along_path, lorentzian, gaussian, powder_average, domain_average
@@ -130,7 +131,6 @@ export minimize_spiral_energy!, spiral_energy, spiral_energy_per_site, SpinWaveT
 
 include("SpinWaveTheory/Large/SparseDynamicalMatrix.jl")
 include("SpinWaveTheory/Large/Lanczos.jl")
-include("SpinWaveTheory/Large/RetardedBroadening.jl")
 include("SpinWaveTheory/Large/SpinWaveTheoryLarge.jl")
 export SpinWaveTheoryLarge, SpinWaveTheoryKPM
 
