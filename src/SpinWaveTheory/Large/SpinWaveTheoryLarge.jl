@@ -176,7 +176,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     end
 
     verbose && println("SpinWaveTheoryLarge intensities\n  dimension       $n, $Nobs observables")
-    desc = verbose ? "  wavevectors     " : nothing
+    desc = verbose ? "  wavevectors     " : string()
     elapsed = @elapsed foreach_chunked(calc_iq!, newbuf, CartesianIndices(qpts.qs); threaded, desc)
 
     if verbose

@@ -45,8 +45,8 @@ end
 # held in a `TaskLocalValue`, and performed similarly on benchmarks. Set
 # `warn_blas` if `f` calls BLAS with small matrices, to flag the poor thread
 # scaling of OpenBLAS. A progress bar labeled `desc` advances per block, unless
-# `desc` is nothing.
-function foreach_chunked(f, newbuf, indices; threaded, warn_blas=false, desc=nothing)
+# `desc` is empty.
+function foreach_chunked(f, newbuf, indices; threaded, warn_blas=false, desc=string())
     if threaded && Threads.nthreads() == 1
         @warn "Option `threaded=true` has no effect here. Restart with `julia --threads=auto`." maxlog=1
     end
@@ -66,8 +66,8 @@ function foreach_chunked(f, newbuf, indices; threaded, warn_blas=false, desc=not
     blocksize = threaded ? max(1, n ÷ 16ntasks) : 1
     next = Threads.Atomic{Int}(1)
     # To animate, the bar must rewrite the line with `\r`, which requires a TTY
-    enabled = !isnothing(desc) && stdout isa Base.TTY
-    meter = ProgressMeter.Progress(n; desc=something(desc, ""), output=stdout, enabled)
+    enabled = !isempty(desc) && stdout isa Base.TTY
+    meter = ProgressMeter.Progress(n; desc=desc, output=stdout, enabled)
     function work()
         buf = newbuf()
         while (start = Threads.atomic_add!(next, blocksize)) <= n

@@ -351,7 +351,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
               loop grid       $(join(ol.loop_grid, "×")) = $(prod(ol.loop_grid)) points""")
     end
 
-    desc = verbose ? "  wavevectors     " : nothing
+    desc = verbose ? "  wavevectors     " : string()
     elapsed = @elapsed foreach_chunked((_, iq) -> calc_iq!(iq), Returns(nothing), eachindex(qpts.qs);
                                        threaded, warn_blas=true, desc)
 
