@@ -16,8 +16,8 @@
 # agreement with [Bai et al., Phys. Rev. Lett. **122**, 097201
 # (2019)](https://doi.org/10.1103/PhysRevLett.122.097201).
 #
-# Sunny's SCGA fitting workflow is inspired by the Spinteract code: [J.
-# Paddison, J. Phys.: Condens. Matter **35**, 495802
+# Sunny's SCGA fitting workflow is inspired by the Spinteract code: [Paddison,
+# J. Phys.: Condens. Matter **35**, 495802
 # (2023)](https://doi.org/10.1088/1361-648X/acf261).
 
 using Sunny, GLMakie, LinearAlgebra

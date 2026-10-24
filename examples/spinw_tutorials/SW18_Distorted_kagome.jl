@@ -4,8 +4,8 @@
 # 18](https://spinw.org/tutorials/18tutorial), originally authored by Goran
 # Nilsen and Sandor Toth. This tutorial illustrates spin wave calculations for
 # KCu₃As₂O₇(OD)₃. The Cu ions are arranged in a distorted kagome lattice and
-# exhibit an incommensurate helical magnetic order, as described in [G. J.
-# Nilsen, et al., Phys. Rev. B **89**, 140412
+# exhibit an incommensurate helical magnetic order, as described in [Nilsen et
+# al., Phys. Rev. B **89**, 140412
 # (2014)](https://doi.org/10.1103/PhysRevB.89.140412). The model follows [Toth
 # and Lake, J. Phys.: Condens. Matter **27**, 166002
 # (2015)](https://arxiv.org/abs/1402.6069).

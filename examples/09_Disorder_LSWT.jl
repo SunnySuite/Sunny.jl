@@ -3,10 +3,10 @@
 # This example uses [`to_inhomogeneous`](@ref) and [`SpinWaveTheoryLarge`](@ref)
 # to efficiently calculate the inelastic neutron spectrum of Rb₂Mn₁₋ₓMgₓF₄, a
 # disordered quasi-2D antiferromagnet. The doping fraction ``x`` introduces
-# random magnetic vacancies. Inelastic neutron measurements were reported in [R.
-# A. Cowley, G. Shirane, R. J. Birgeneau, and H. J. Guggenheim, Phys. Rev. B
-# **15**, 4292 (1977)](https://doi.org/10.1103/PhysRevB.15.4292). Sunny models
-# this data using spin wave calculations on very large supercells.
+# random magnetic vacancies. Inelastic neutron measurements were reported in
+# [Cowley et al., Phys. Rev. B **15**, 4292
+# (1977)](https://doi.org/10.1103/PhysRevB.15.4292). Sunny models this data
+# using spin wave calculations on very large supercells.
 
 using Sunny, GLMakie
 
@@ -27,10 +27,10 @@ minimize_energy!(sys)
 
 # A helper function that builds an 80×80 supercell, converts it
 # [`to_inhomogeneous`](@ref), and calls [`set_vacancy_at!`](@ref) for a fraction
-# `x` of randomly selected sites. These vacancies model substitution of the
-# non-magnetic ion Mg. A more complicated model could also modify the local
-# couplings via [`set_exchange_at!`](@ref), [`set_onsite_coupling_at!`](@ref),
-# and related functions.
+# ``x`` of random sites. These vacancies model substitution of the non-magnetic
+# ion Mg. A more complicated model could also modify the local couplings via
+# [`set_exchange_at!`](@ref), [`set_onsite_coupling_at!`](@ref), and related
+# functions.
 
 function diluted_system(sys, x)
     sys_inhom = to_inhomogeneous(resize_supercell(sys, (80, 80, 1)))

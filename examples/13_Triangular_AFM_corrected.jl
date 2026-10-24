@@ -2,8 +2,8 @@
 #
 # This tutorial calculates the spin wave spectrum of a triangular
 # antiferromagnet, including all perturbative corrections at order ``1/s``. The
-# study follows [Mourigal, Fuhrman, Chernyshev and Zhitomirsky, Phys. Rev. B
-# **88**, 094407 (2013)](https://doi.org/10.1103/PhysRevB.88.094407).
+# study follows [Mourigal et al., Phys. Rev. B **88**, 094407
+# (2013)](https://doi.org/10.1103/PhysRevB.88.094407).
 
 using Sunny, LinearAlgebra, Printf, Statistics
 using GLMakie
