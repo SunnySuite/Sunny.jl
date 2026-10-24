@@ -1,10 +1,9 @@
+# Rounds to `digits` significant digits. Numbers within `tol` of an integer, and
+# whole numbers after rounding, print without a decimal point.
 function number_to_simple_string(x::Real; digits, tol=1e-12)
-    if is_integer(x; tol)
-        return string(round(Int, x))
-    else
-        fmt = Printf.Format("%#.$(digits)g")
-        return Printf.format(fmt, x)
-    end
+    is_integer(x; tol) && return string(round(Int, x))
+    s = string(round(x; sigdigits=digits))
+    return endswith(s, ".0") ? chop(s; tail=2) : s
 end
 
 # Convert number to string using simple math formulas where possible.
@@ -52,7 +51,8 @@ function fractional_coord_to_string(x::Real; digits=4, tol=1e-12)
         end
     end
 
-    return number_to_simple_string(x; digits, tol)
+    # Pad with zeros to align coordinates
+    return Printf.format(Printf.Format("%#.$(digits)g"), x)
 end
 
 # Appropriate for coordinates in fractions of the lattice vectors

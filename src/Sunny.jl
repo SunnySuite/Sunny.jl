@@ -4,7 +4,6 @@ using LinearAlgebra
 
 import ChainRulesCore as CRC
 import DynamicPolynomials as DP
-import ElasticArrays: ElasticArray
 import FFTW
 import FiniteDiff
 import HCubature: hcubature
@@ -15,10 +14,11 @@ import MappedArrays: mappedarray
 import OffsetArrays: OffsetArrays, OffsetArray
 import Optim
 import Printf: Printf, @printf, @sprintf
+import ProgressMeter
 import Random: Random, randn!
 import SpecialFunctions: erf, erfc
 import Statistics
-import StaticArrays: SVector, SMatrix, SArray, SA
+import StaticArrays: SVector, SMatrix, SArray, SA, setindex
 
 # Specific to Symmetry/
 import Brillouin
@@ -28,6 +28,8 @@ import RowEchelon: rref!
 import Spglib
 
 include("MathBasics.jl")
+include("Threading.jl")
+export load_blas_for_threading
 
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
@@ -98,15 +100,27 @@ include("Measurements/MeasureSpec.jl")
 include("Measurements/QPoints.jl")
 include("Measurements/IntensitiesTypes.jl")
 include("Measurements/Broadening.jl")
+include("Measurements/RetardedBroadening.jl")
 include("Measurements/RotationalAverages.jl")
 export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid,
     find_qs_along_path, lorentzian, gaussian, powder_average, domain_average
 
+include("SpinWaveTheory/Bogoliubov.jl")
+include("SpinWaveTheory/Bosons/Monomials.jl")
+include("SpinWaveTheory/Bosons/QuadraticTable.jl")
+include("SpinWaveTheory/Bosons/StevensWords.jl")
 include("SpinWaveTheory/SpinWaveTheory.jl")
-include("SpinWaveTheory/HamiltonianDipole.jl")
-include("SpinWaveTheory/HamiltonianSUN.jl")
-include("SpinWaveTheory/DispersionAndIntensities.jl")
-include("SpinWaveTheory/LSWTCorrections.jl")
+include("SpinWaveTheory/Bosons/ExpansionDipole.jl")
+include("SpinWaveTheory/Bosons/ExpansionSUN.jl")
+include("SpinWaveTheory/Bosons/ObservableWords.jl")
+include("SpinWaveTheory/DipoleDipole.jl")
+include("SpinWaveTheory/Corrections/Corrections.jl")
+include("SpinWaveTheory/Corrections/Quadrature.jl")
+include("SpinWaveTheory/Corrections/ObservableCorrections.jl")
+include("SpinWaveTheory/Corrections/Vacuum.jl")
+include("SpinWaveTheory/Corrections/StaticCorrections.jl")
+include("SpinWaveTheory/Corrections/SelfEnergy.jl")
+include("SpinWaveTheory/Corrections/CorrectedIntensities.jl")
 export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands,
     intensities_static
 
@@ -115,10 +129,10 @@ include("Spiral/SpiralEnergy.jl")
 include("Spiral/SpinWaveTheorySpiral.jl")
 export minimize_spiral_energy!, spiral_energy, spiral_energy_per_site, SpinWaveTheorySpiral
 
-include("KPM/Lanczos.jl")
-include("KPM/Chebyshev.jl")
-include("KPM/SpinWaveTheoryKPM.jl")
-export SpinWaveTheoryKPM
+include("SpinWaveTheory/Large/SparseDynamicalMatrix.jl")
+include("SpinWaveTheory/Large/Lanczos.jl")
+include("SpinWaveTheory/Large/SpinWaveTheoryLarge.jl")
+export SpinWaveTheoryLarge, SpinWaveTheoryKPM
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")

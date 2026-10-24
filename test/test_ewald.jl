@@ -82,7 +82,7 @@ end
     # value of `ewald_interaction_tensor` is actually indexed as A_q[n1, n2, n3,
     # i, j], corresponding to the cell offset (n1-1, n2-1, n3-1). The general
     # case q ≠ 0 and dims > 1 is not exercised in current Sunny, but may become
-    # relevant for future FFT-based Ewald support of SpinWaveTheoryKPM (this
+    # relevant for future FFT-based Ewald support of SpinWaveTheoryLarge (this
     # will require an enlarged dynamical matrix D, with matrix-free projection
     # onto the quantization axis).
     latvecs = lattice_vectors(1.1, 0.9, 0.8, 92, 85, 95)

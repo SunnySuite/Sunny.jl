@@ -1,23 +1,27 @@
-# Coefficients for an expansion in Stevens functions. Each component ck lists
-# coefficients in descending order q = k,..-k. In :dipole mode, the
-# renormalization factors (`rcs_factor`) are included in these coefficients.
+# Coefficients for an expansion in Stevens functions of rank k = 0…6. Each
+# component ck lists coefficients in descending order q = k,..-k. In :dipole
+# mode, the renormalization factors (`rcs_factor`) are included in the
+# coefficients of an anisotropy. An anisotropy is time-reversal even, so has
+# only even ranks, but an observable may have any. `kmax` is the largest rank
+# present, and negligible ranks are stored as exact zeros.
 struct StevensExpansion
     c0 :: SVector{1, Float64}
+    c1 :: SVector{3, Float64}
     c2 :: SVector{5, Float64}
+    c3 :: SVector{7, Float64}
     c4 :: SVector{9, Float64}
+    c5 :: SVector{11, Float64}
     c6 :: SVector{13, Float64}
     kmax :: Int
-end
 
-function StevensExpansion(c0, c2, c4, c6)
-    (c0, c2, c4, c6) = (norm(ck) < 1e-12 ? zero(ck) : ck for ck in (c0, c2, c4, c6))
-    kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
-    return StevensExpansion(c0, c2, c4, c6, kmax)
-end
-
-function StevensExpansion(c)
-    iszero(c[[1, 3, 5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
-    return StevensExpansion(c[0], c[2], c[4], c[6])
+    function StevensExpansion(c0, c1, c2, c3, c4, c5, c6)
+        cs = map(fieldtypes(StevensExpansion)[1:7], (c0, c1, c2, c3, c4, c5, c6)) do T, ck
+            ck = T(ck)
+            norm(ck) < 1e-12 ? zero(ck) : ck
+        end
+        kmax = maximum(map((k, ck) -> iszero(ck) ? 0 : k, (0, 1, 2, 3, 4, 5, 6), cs))
+        return new(cs..., kmax)
+    end
 end
 
 struct TensorDecomposition
@@ -103,6 +107,10 @@ struct EwaldTensorCache
 
     nmax        :: NTuple{3, Int}  # Grid of real-space cells
     real_terms  :: Array{Vector{Tuple{NTuple{3, Int}, Mat3}}, 5}  # [cell, i, j] -> (shift n, interaction)
+
+    # Direct couplings to exclude, e.g. those within entangled units. Each
+    # removes the coupling A_loc along a bond between atoms of the crystal.
+    excluded    :: Vector{@NamedTuple{bond::Bond, A_loc::Mat3}}
 end
 
 struct Ewald
@@ -116,6 +124,13 @@ struct Ewald
     Fϕ       :: Array{ComplexF64, 5}  # Cross correlation, F[ϕ] = conj(F[A]) F[s]  [α,m1,m2,m3,i]
     plan     :: rFTPlan
     ift_plan :: rIFTPlan
+end
+
+# An entangled system delegates Ewald interactions to its "uncontracted"
+# partner, which holds the bare dipoles. This struct serves as a marker.
+struct EwaldDelegated
+    μ0_μB² :: Float64
+    demag  :: Mat3
 end
 
 # An abstract type to avoid Julia's restriction against circular type
@@ -145,7 +160,7 @@ mutable struct System{N}
     interactions_union     :: Union{Vector{Interactions}, Array{Interactions, 4}}
 
     # Optional long-range dipole-dipole interactions
-    ewald                  :: Union{Ewald, Nothing}
+    ewald                  :: Union{Nothing, Ewald, EwaldDelegated}
 
     # Dynamical variables and buffers (dims × natoms)
     const extfield         :: Array{Vec3, 4}            # External B field

@@ -1,23 +1,31 @@
-# Identify the "special cases" for the propagation wavevector k. Case 1 is all
-# integer k components (i.e., k=[0,0,0] up to periodicity), and Case 2 is all
-# half integer k components, apart from Case 1. The fallback, Case 3, is any
-# other k. The spiral energy can be discontinuous between these cases. For
-# example, the wavevector k = [1/2, 0, 0] is not equivalent to [1/2+ϵ, 0, 0] in
-# the limit ϵ → 0. To account for some floating point roundoff, however, we
-# identify wavevector components (x+ϵ ≈ x) within the tolerance ϵ < 1e-8.
+# A vector decomposes by angular momentum s ∈ (-1, 0, 1) about the spiral axis,
+# via the projectors P[s+2], which sum to the identity. Under a rotation by θ
+# about the axis, part s acquires the phase e^{-isθ}.
+function spiral_projectors(axis)
+    nx = CMat3([0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0])
+    R2 = CMat3(axis * axis')
+    R1 = (1/2) .* CMat3(I - im .* nx - R2)
+    return (R1, R2, conj(R1))
+end
+
+# Classes of angular momenta s ∈ (-1, 0, 1) whose shifts s k agree modulo the
+# reciprocal lattice. The parts of one class carry the same wavevector, and
+# interfere. Results can therefore be discontinuous in k: for example, k = [1/2,
+# 0, 0] is not equivalent to [1/2+ϵ, 0, 0] in the limit ϵ → 0. To account for
+# floating point roundoff, shifts are identified within a tolerance of 1e-8.
 #
 # The public-facing user interface expects k in RLU for the conventional cell.
-# If the system has been reshaped, however, then all internal aspects of the
-# calculation must proceed in terms of k_reshaped (RLU for the reshaped cell).
-function spiral_propagation_case(k_reshaped)
-    ϵ = 1e-8
-    if norm(k_reshaped - round.(k_reshaped)) < ϵ
-        return 1
-    elseif norm(2k_reshaped - round.(2k_reshaped)) < 2ϵ
-        return 2
-    else
-        return 3
+# All internal aspects of the calculation, however, proceed in terms of
+# k_supercell, the RLU of the magnetic cell of the system.
+function spiral_classes(k_supercell)
+    same(s, t) = norm((s - t) * k_supercell - round.((s - t) * k_supercell)) < 1e-8
+    classes = Vector{Int}[]
+    # Visiting s = 0 first makes it the representative of its class
+    for s in (0, -1, 1)
+        c = findfirst(c -> same(first(c), s), classes)
+        isnothing(c) ? push!(classes, [s]) : push!(classes[c], s)
     end
+    return classes
 end
 
 
@@ -37,12 +45,18 @@ the lattice vectors of the chemical cell.
 The return value is the energy associated with one periodic copy of `sys`.
 Selecting ``𝐤 = 0`` yields the ordinary system [`energy`](@ref).
 
+Long-range dipole-dipole interactions, if enabled, are included exactly.
+Unlike exchange, they do not commute with rotations about `axis`, so full
+energy minimization would typically distort the spiral, introducing higher
+harmonics of ``𝐤``. The spiral energy remains useful as a first-order
+estimate, e.g., to determine how weak dipole-dipole interactions break a
+degeneracy of spiral states.
+
 See also [`minimize_spiral_energy!`](@ref) and
 [`repeat_periodically_as_spiral`](@ref).
 """
 function spiral_energy(sys::System{0}; k, axis)
     sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")
-    sys.dims == (1, 1, 1) || error("System must have only a single cell")
 
     check_rotational_symmetry(sys; axis, θ=0.01)
 
@@ -68,17 +82,17 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
     end
     dEdk = zero(Vec3)
 
-    @assert sys.dims == (1,1,1)
-    Na = natoms(sys.crystal)
-
-    k_reshaped = to_reshaped_rlu(sys, k)
+    k_supercell = to_supercell_rlu(sys, k)
+    # The linear map from k to k_supercell, needed for dθ/dk
+    k_supercell_jacobian = diagm(Vec3(sys.dims)) * (sys.crystal.recipvecs \ orig_crystal(sys).recipvecs)
 
     axis = normalize(axis)
     x, y, z = axis
     K = Mat3([0 -z y; z 0 -x; -y x 0])
     K² = K*K
 
-    for (i, int) in enumerate(sys.interactions_union)
+    for i in 1:nsites(sys)
+        int = interactions_at(sys, i)
         Si = sys.dipoles[i]
 
         # Pair coupling
@@ -86,14 +100,12 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
             (; isculled, bond, bilin, biquad) = coupling
             isculled && break
 
-            @assert i == bond.i
-            j = bond.j
-
+            (j, n) = bond_target(sys, i, bond)
             Sj = sys.dipoles[j]
 
-            # Rotation angle along `axis` for cells displaced by `n`
-            θ = 2π * dot(k_reshaped, bond.n)
-            dθdk = 2π*bond.n
+            # Rotation angle along `axis` for magnetic cells displaced by `n`
+            θ = 2π * dot(k_supercell, n)
+            dθdk = 2π * k_supercell_jacobian' * n
 
             # Rotation as a 3×3 matrix
             s, c = sincos(θ)
@@ -131,25 +143,18 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         end
     end
 
-    # See "spiral_energy.lyx" for derivation
+    # Part s of a spin rotating with the spiral carries wavevector -s k. Parts
+    # within one class interfere, and couple through A at that wavevector. The
+    # g-tensors commute with rotations about `axis`, and so with each projector.
     if !isnothing(sys.ewald)
-        (; μ, cache, A) = sys.ewald
-        μ .= magnetic_moments(sys)
-
-        A0 = reshape(A, Na, Na)
-
-        Ak = ewald_interaction_tensor(cache, k_reshaped)
-        Ak = reshape(Ak, Na, Na)
-
-        k_case = spiral_propagation_case(k_reshaped)
-
-        for i in 1:Na, j in 1:Na
-            if k_case == 1
-                E += real(μ[i]' * A0[i, j] * μ[j]) / 2
-            elseif k_case == 2
-                E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + K²*Ak[i, j]*K²) * μ[j]) / 2
-            else @assert k_case == 3
-                E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + (im*K+K²)*Ak[i, j]*(im*K+K²)/2) * μ[j]) / 2
+        S = sys.dipoles
+        P = spiral_projectors(axis)
+        for class in spiral_classes(k_supercell)
+            q = -first(class) * k_supercell
+            A = ewald_interaction_tensor(sys, q)
+            Pc = sum(P[s+2] for s in class)
+            for i in 1:nsites(sys), j in 1:nsites(sys)
+                E += real(S[i]' * Pc' * ewald_coupling(A, sys, q, i, j) * Pc * S[j]) / 2
             end
         end
 
@@ -223,7 +228,6 @@ function minimize_spiral_energy!(sys, axis; maxiters=1000, k_guess=randn(sys.rng
     axis = normalize(axis)
 
     sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")
-    sys.dims == (1, 1, 1) || error("System must have only a single cell")
     norm([S × axis for S in sys.dipoles]) > 1e-12 || error("Spins cannot be exactly aligned with polarization axis")
 
     # Note: if k were fixed, we could check θ = 2πkᵅ for each component α, which

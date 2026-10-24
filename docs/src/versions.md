@@ -3,6 +3,8 @@
 ## v0.10.0
 (In development)
 
+**Breaking changes** in this release.
+
 * Enhancements to simulations with entangled units. The new
   [`entangle_system`](@ref) function is officially supported, offers improved
   integration with other Sunny features, and in some cases runs significantly
@@ -15,14 +17,23 @@
   ([#507](@ref)).
 * One-dimensional paths supported in [`q_space_grid`](@ref). Labeling of plot
   axes in 1D and 2D is clarified ([#516](@ref)).
+* [`SpinWaveTheorySpiral`](@ref) strictly enforces uniaxial symmetry of the
+  interactions; long-range dipole-dipole interactions now excluded.
+* Spin wave [`intensities`](@ref) accept a width `η` for intrinsic Lorentzian
+  broadening. This allows to damp intensities of soft modes.
+* [`SpinWaveTheoryLarge`](@ref) replaces `SpinWaveTheoryKPM`, and now uses
+  Lanczos to evaluate the dynamical susceptibility. Convergence is faster and
+  more robust.
+* At `kT > 0`, [`intensities`](@ref) and [`intensities_static`](@ref) yield the
+  correct intensity at negative energies.
+* Fix spin wave theory with dipole-dipole interactions and unequal spin
+  magnitudes.
 
 ## v0.9.2
 (Jul 13, 2026)
 
 * Bug fixes and improvements to experimental entangled units feature
   ([#494](@ref)).
-
-* Bug fixes and improvements to entangled units ([#494](@ref)).
 
 ## v0.9.1
 (Apr 25, 2026)
@@ -126,7 +137,7 @@ This release brings significant support for model fitting ([#471](@ref)).
 * Add missing 3D support for [`q_space_grid`](@ref) ([#457](@ref)).
 * If user-provided lattice vectors do not match crystallographic conventions,
   suggest the use of [`standardize`](@ref) ([#461](@ref)).
-* Improve robustness of [`SpinWaveTheoryKPM`](@ref) ([#462](@ref)).
+* Improve robustness of `SpinWaveTheoryKPM` ([#462](@ref)).
 
 ## v0.7.8
 (Jul 1, 2025)
@@ -154,7 +165,7 @@ This release brings significant support for model fitting ([#471](@ref)).
 * Extend [`powder_average`](@ref) to support static intensities.
 * Vacancies defined by [`set_vacancy_at!`](@ref) are supported in linear spin
   wave theory. Empty sites are modeled using bosons that do not excite.
-* The default implementation of [`SpinWaveTheoryKPM`](@ref) now uses Lanczos for
+* The default implementation of `SpinWaveTheoryKPM` now uses Lanczos for
   higher accuracy.
 * Fix correctness of [`suggest_magnetic_supercell`](@ref) when multiple
   wavevectors are provided.
@@ -200,7 +211,7 @@ This release brings significant support for model fitting ([#471](@ref)).
 
 * Fix error in `print_symmetry_table` for slightly-distorted crystal cells
   ([#317](@ref)).
-* Stabilize [`SpinWaveTheoryKPM`](@ref). It now automatically selects the
+* Stabilize `SpinWaveTheoryKPM`. It now automatically selects the
   polynomial order according to an error tolerance.
 * Rename mode `:dipole_large_S` to `:dipole_uncorrected` to emphasize that
   corrections are missing.
