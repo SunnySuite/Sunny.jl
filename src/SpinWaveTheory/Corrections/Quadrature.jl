@@ -1,0 +1,213 @@
+# Momentum-space quadrature: the Brillouin-zone averages of the static
+# corrections, the loop grid of the frequency-dependent ones, and the binned
+# measure over pair energy into which a loop is accumulated.
+
+# ---- Brillouin-zone quadrature ----
+
+# Rule for averaging a function of the wavevector over the magnetic Brillouin
+# zone, 𝐪 ∈ [0, 1)³ in reshaped RLU: either adaptive cubature, controlled by a
+# relative accuracy `tol` and/or a budget of `maxevals` integrand evaluations,
+# or a plain average over a uniform `grid` offset by half a step. The grid
+# offset by half a step is closed under 𝐪 ↦ -𝐪, which keeps every average of a
+# Hermitian quantity Hermitian.
+struct BZQuadrature
+    tol      :: Union{Float64, Nothing}
+    maxevals :: Union{Int, Nothing}
+    grid     :: Union{NTuple{3, Int}, Nothing}
+end
+
+function BZQuadrature(; tol=nothing, maxevals=nothing, grid=nothing)
+    isnothing(tol) && isnothing(maxevals) && isnothing(grid) &&
+        error("Must specify `tol` or `maxevals` to control momentum-space integration.")
+    return BZQuadrature(tol, maxevals, isnothing(grid) ? nothing : NTuple{3, Int}(grid))
+end
+
+# Scale of the error that the quadrature leaves in an identity that holds only
+# for exact integrals, against which such identities are asserted.
+quadrature_noise(quad::BZQuadrature) = max(@something(quad.tol, 1e-3), 1e-8)
+
+# Brillouin-zone average of `f(q_reshaped)`, which may be array valued.
+#
+# HCubature stops once `err ≤ max(atol, rtol * norm(val))`, so a `tol` of zero
+# directs it to converge as far as `maxevals` allows. Setting `atol` equal to
+# `tol` measures the accuracy against max(norm(val), 1), so that averages
+# vanishing by symmetry converge at once instead of exhausting the budget. The
+# averages taken here, correlations and energies per site, are of order one.
+function bz_average(f, quad::BZQuadrature)
+    if !isnothing(quad.grid)
+        ps = [Vec3((Tuple(c) .- 1/2) ./ quad.grid) for c in CartesianIndices(quad.grid)]
+        return sum(f, ps) / length(ps)
+    end
+
+    (; tol, maxevals) = quad
+    (val, err) = hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=@something(tol, 0),
+                           atol=@something(tol, 0), maxevals=@something(maxevals, typemax(Int)))
+
+    # Adaptive integration stops either on the `tol` target or on the evaluation
+    # budget, and the caller cannot tell which without the error estimate. A
+    # near-singular integrand exhausts the budget instead of converging: the
+    # correlations diverge at the Goldstone wavevector of an ordered structure,
+    # integrably but with slow subdivision.
+    if !isnothing(tol) && err > tol * max(norm(val), 1)
+        @warn """Momentum integrals reached relative accuracy \
+                 $(round(err / max(norm(val), 1), sigdigits=2)) within the budget of $maxevals \
+                 evaluations, short of the target `tol = $tol`. Raise `maxevals` \
+                 or loosen the tolerance.""" maxlog=1
+    end
+    return val
+end
+
+# Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
+# integrand that pairs a line at 𝐩 with one at 𝐪-𝐩, carrying a multiplicity
+# `wts` each and totalling `npts = prod(dims)` points. Each channel diverges at
+# the zone centre, so the grid must avoid it in 𝐩 and in 𝐪-𝐩 alike;
+# offsetting by half a step does only the former. In units of a step, and per
+# dimension, the forbidden offsets are 0, putting 𝐩 on the zone centre, and t =
+# dims*𝐪 mod 1, putting 𝐪-𝐩 there. Sit at the midpoint of the larger arc
+# between them, which keeps a quarter step of clearance on both lines and
+# reduces to the half step when 𝐪 is commensurate with the grid. Without this
+# the integral picks up a spurious divergence from one grid point whenever
+# dims*𝐪 has a half-integer component, afflicting isolated wavevectors of a
+# path rather than all of them.
+#
+# That offset also makes the grid closed under the involution 𝐩 ↦ 𝐪-𝐩, which
+# halves the work: the two magnon lines are interchangeable, so a point and its
+# partner contribute equally to every integrand of this module, and only one of
+# the two need be visited. Closure is exact rather than approximate, since
+# dims*𝐪 - 2*offset is dims*𝐪 minus its own fractional part, less one in the
+# branch that adds a half step. Writing 𝐦 for that integer, the partner of grid
+# index 𝐢 is 𝐦 - 𝐢 + 2 taken mod dims; the fixed points of the map, at most one
+# per dimension pair, keep multiplicity one.
+struct LoopGrid
+    ps::Vector{Vec3}
+    wts::Vector{Float64}
+    npts::Int
+end
+
+function loop_wavevectors(dims, q_reshaped=zero(Vec3))
+    offsets = ntuple(3) do d
+        t = mod(dims[d] * q_reshaped[d], 1)
+        t < 1/2 ? (t + 1)/2 : t/2
+    end
+    ms = ntuple(d -> round(Int, dims[d] * q_reshaped[d] - 2offsets[d]), 3)
+    partner = c -> CartesianIndex(ntuple(d -> mod(ms[d] - c[d] + 1, dims[d]) + 1, 3))
+
+    (ps, wts) = (Vec3[], Float64[])
+    visited = falses(dims)
+    for c in CartesianIndices(visited)
+        visited[c] && continue
+        visited[c] = visited[partner(c)] = true
+        push!(ps, Vec3(ntuple(d -> (c[d] - 1 + offsets[d]) / dims[d], 3)))
+        push!(wts, partner(c) == c ? 1 : 2)
+    end
+    return LoopGrid(ps, wts, prod(dims))
+end
+
+# Dimensions of the loop grid needed to reach a relative accuracy `tol` at
+# regulator `η`, for the internal lines of the vacuum `vac`. Every
+# frequency-dependent integrand here is a function of the pair energy x(𝐤) =
+# ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so the grid must resolve x to within
+# η. The number of points along a direction therefore goes as the range x sweeps
+# there divided by η, estimated below by the range each band sweeps along a
+# line, doubled for the two magnons; a non-dispersing direction needs no grid.
+#
+# The dependence on `tol` and the prefactor are calibrated rather than derived,
+# convergence being algebraic because the dispersion is non-analytic at the
+# Goldstone wavevectors. Measured on the triangular-lattice antiferromagnet, the
+# error in the integrated weight falls as n^-1.6 with a factor-of-two scatter,
+# since how closely the grid approaches a near-singular point depends on n
+# arithmetically. The prefactor carries margin accordingly. The cost grows as
+# 1/√tol per dimension, so a tenfold tighter tolerance is a tenfold longer
+# calculation in two dimensions.
+function auto_loop_grid(vac, η, tol)
+    ncoarse = 8
+    L = nbands(vac.swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    ws = BogoliubovWorkspace(L)
+    ε = zeros(L, ncoarse, ncoarse, ncoarse)
+    for i in 1:ncoarse, j in 1:ncoarse, k in 1:ncoarse
+        q = Vec3((i - 1/2)/ncoarse, (j - 1/2)/ncoarse, (k - 1/2)/ncoarse)
+        view(ε, :, i, j, k) .= view(vacuum_bogoliubov!(ws, H, vac, q), 1:L)
+    end
+
+    return ntuple(3) do d
+        r = maximum(maximum(ε; dims=d+1) - minimum(ε; dims=d+1))
+        # The denominator is 0.8η at the default tolerance, and shrinks as √tol
+        2r < η ? 1 : max(4, ceil(Int, 2r / (8η * √tol)))
+    end
+end
+
+# Matrix-valued measure over a bath energy x of either sign, binned as described
+# above: bin j is centered at jΔ. Each channel gets its own measure. Bins are
+# Hermitian, so each stores only its upper triangle, packed column by column
+# (the BLAS "packed" layout), and is read with `bin_entry`.
+struct PairMeasure
+    Δ::Float64
+    dim::Int
+    bins::Dict{Int, Vector{ComplexF64}}
+end
+
+PairMeasure(Δ, dim) = PairMeasure(Δ, dim, Dict{Int, Vector{ComplexF64}}())
+
+# Position of element (n, n′), n ≤ n′, in a packed upper triangle
+packed_index(n, n′) = n + n′ * (n′ - 1) ÷ 2
+
+# Element (n, n′) of packed Hermitian bin `v`, for any n, n′
+bin_entry(v, n, n′) = n ≤ n′ ? v[packed_index(n, n′)] : conj(v[packed_index(n′, n)])
+
+# Accumulates the rank-one mass c y y† at bath energy x. The weight c carries the
+# sign of the channel, and would carry its thermal factor at T > 0.
+function accum_binned!(ρ::PairMeasure, x, c, y)
+    t = x / ρ.Δ
+    j = floor(Int, t)
+    f = t - j
+    for (jj, cc) in ((j, c * (1 - f)), (j + 1, c * f))
+        v = get!(() -> zeros(ComplexF64, packed_index(ρ.dim, ρ.dim)), ρ.bins, jj)
+        @inbounds for n′ in 1:ρ.dim, n in 1:n′
+            v[packed_index(n, n′)] += cc * y[n] * conj(y[n′])
+        end
+    end
+end
+
+# Cauchy transform K(z) = Σ_j ρ_j / (z - jΔ), summed over the measures `ρs` and
+# returned as a `dim×dim×length(zs)` array. Frequencies are processed in small
+# blocks, which keeps the matrix products cache resident.
+function cauchy_transform(ρs, zs; nb=16)
+    dim = first(ρs).dim
+    K = zeros(ComplexF64, dim, dim, length(zs))
+    Kr = reshape(K, dim^2, length(zs))
+    for ρ in ρs
+        js = collect(keys(ρ.bins))
+        P = zeros(ComplexF64, dim^2, length(js))
+        for (i, j) in enumerate(js), n′ in 1:dim, n in 1:dim
+            P[n + (n′ - 1) * dim, i] = bin_entry(ρ.bins[j], n, n′)
+        end
+        C = zeros(ComplexF64, length(js), nb)
+        for r in Iterators.partition(eachindex(zs), nb)
+            Cr = view(C, :, 1:length(r))
+            for (k, iz) in enumerate(r), (i, j) in enumerate(js)
+                Cr[i, k] = 1 / (zs[iz] - j * ρ.Δ)
+            end
+            mul!(view(Kr, :, r), P, Cr, true, true)
+        end
+    end
+    return K
+end
+# Applies `f` to each index, optionally in parallel. The wavevector loops of
+# this module allocate their buffers per iteration so that they may be threaded.
+# A progress bar labeled `desc` is shown unless `desc` is nothing; `next!` is
+# itself thread safe. To animate the bar, stdout must allow the `\r` character
+# to rewrite the current line; this is only supported on TTY outputs.
+function foreach_maybe_threaded(f, threaded, indices; desc=nothing)
+    enabled = !isnothing(desc) && stdout isa Base.TTY
+    meter = ProgressMeter.Progress(length(indices); desc=@something(desc, ""),
+                                  enabled, output=stdout)
+    g = i -> (f(i); ProgressMeter.next!(meter))
+    if threaded
+        Threads.@threads for i in indices
+            g(i)
+        end
+    else
+        foreach(g, indices)
+    end
+end

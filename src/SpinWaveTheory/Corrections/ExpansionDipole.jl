@@ -1,49 +1,6 @@
-# Vertices of the Holstein-Primakoff expansion beyond the quadratic (LSWT)
-# order. Overall conventions are collected in Corrections.jl.
-#
-# The expansion is most transparent in real space. Each monomial
-#
-#     c Σ_𝐫 ∏ₛ b^{σₛ}_{iₛ, 𝐫+𝐧ₛ}
-#
-# is a product of K boson operators, summed over the N magnetic cells 𝐫.
-# Operator s acts on sublattice iₛ of the cell displaced by the integer offset
-# 𝐧ₛ. Following Sunny's Nambu packing, the operator is labeled by an index a ∈
-# 1:2L that selects b_i when a = i and b†_i when a = L+i. Operators within a
-# monomial are stored in the order they are to be multiplied, which matters only
-# when two of them act on the same site of the same cell.
-struct BosonMonomial{K}
-    c::ComplexF64
-    as::NTuple{K, Int}
-    ns::NTuple{K, Vec3}
-end
-
-# Sums the coefficients of monomials that describe the same operator product,
-# which typically shrinks a decoupled term list several-fold. Worth doing
-# because the resulting list is contracted once per point of a momentum-space
-# integration. Offsets are keyed by integers, which are exactly comparable.
-#
-# Returned sorted by offset tuple, which lets `vertex!` compute the phases of
-# one tuple once for the whole run of terms sharing it.
-function merge_monomials(terms::Vector{BosonMonomial{K}}) where K
-    ret = Dict{Tuple{NTuple{K, Int}, NTuple{K, NTuple{3, Int}}}, BosonMonomial{K}}()
-    for term in terms
-        key = (term.as, map(n -> round.(Int, Tuple(n)), term.ns))
-        prev = get(ret, key, nothing)
-        ret[key] = isnothing(prev) ? term : BosonMonomial(prev.c + term.c, term.as, term.ns)
-    end
-    return sort!(collect(values(ret)); by = t -> map(n -> round.(Int, Tuple(n)), t.ns))
-end
-
-# All permutations of (1, …, K), used to symmetrize a vertex over its slots.
-function slot_permutations(K::Int)
-    K == 1 && return [(1,)]
-    return [(p[1:i-1]..., K, p[i:end]...) for p in slot_permutations(K-1) for i in 1:K]
-end
-
-# Cached for the K of interest, because `vertex!` needs them in the innermost loop
-# of a momentum-space integration, where rebuilding the list costs more than the
-# rest of the call.
-const SLOT_PERMUTATIONS = ntuple(slot_permutations, 4)
+# Holstein-Primakoff expansion of the Hamiltonian in the dipole modes, as boson
+# monomials beyond the quadratic (LSWT) order. Overall conventions are collected
+# in Corrections.jl and the monomial representation in Monomials.jl.
 
 # In a local frame where the classical dipole points along ẑ, the
 # Holstein-Primakoff expansion reads
@@ -74,7 +31,7 @@ const SLOT_PERMUTATIONS = ntuple(slot_permutations, 4)
 # band shift of the square-lattice antiferromagnet, a thirty-fold cancellation between the
 # longitudinal and transverse parts of H₄, and spoils its exact independence of 𝐪.
 # Expanding an onsite anisotropy exactly gaps out the Goldstone mode of an easy-plane
-# ferromagnet; see `anisotropy_words`.
+# ferromagnet; see `anisotropy_coefficients`.
 #
 # Writing a bilinear coupling in the raising/lowering basis,
 #
@@ -168,7 +125,7 @@ end
 
 # Graded Stevens operators 𝒪_k^q for even k, ordered as in `stevens_matrices`, and
 # the reciprocals of the `rcs_factors` renormalizations. These depend on nothing,
-# and building them dominates the cost of `anisotropy_words`, so they are built once
+# and building them dominates the cost of `anisotropy_coefficients`, so they are built once
 # here. Only matrix elements between boson numbers ≤ 4 are ever read, and a Stevens
 # operator of order k ≤ 6 shifts the boson number by at most k while its diagonal
 # factors reach one further, so seven states suffice.
@@ -228,7 +185,7 @@ const GRADED_INV_RCS = map(inv, rcs_factors(monomial(2, 1/2)))
 # word is proportional to the classical energy gradient in both modes, so an onsite
 # anisotropy sources `tadpole_correction` only away from the classical minimum, and never in
 # mode :dipole.
-function anisotropy_words(swt::SpinWaveTheory, i::Int)
+function anisotropy_coefficients(swt::SpinWaveTheory, i::Int)
     (; sys, data) = swt
     stvexp = data.stevens_coefs[i]
     x = √2 * data.sqrtS[i]
@@ -263,7 +220,7 @@ end
 #
 # Empty in mode :SUN, where an onsite coupling is not a Stevens polynomial to be
 # re-expanded but a matrix that `sun_monomials` promotes exactly, leaving no
-# remainder at any boson number. See VerticesSUN.jl.
+# remainder at any boson number. See ExpansionSUN.jl.
 function anisotropy_monomials(swt::SpinWaveTheory, ::Val{K}) where K
     L = nbands(swt)
     terms = BosonMonomial{K}[]
@@ -272,7 +229,7 @@ function anisotropy_monomials(swt::SpinWaveTheory, ::Val{K}) where K
 
     for i in 1:L
         iszero(swt.sys.interactions_union[i].onsite) && continue
-        words = anisotropy_words(swt, i)
+        words = anisotropy_coefficients(swt, i)
         for d in K:-2:0
             j = div(K - d, 2)
             c = words[(d, j)]
@@ -311,14 +268,14 @@ function anisotropy_correction(swt::SpinWaveTheory)
     check_corrections_supported(swt)
     δE = sum(1:nbands(swt); init=0.0) do i
         (swt.sys.mode == :SUN || iszero(swt.sys.interactions_union[i].onsite)) ? 0.0 :
-            real(anisotropy_words(swt, i)[(0, 0)])
+            real(anisotropy_coefficients(swt, i)[(0, 0)])
     end
     return (; terms2 = anisotropy_monomials(swt, Val{2}()),
               δE = δE / nsites(uncontracted_system(swt.sys)))
 end
 
 # Monomials of H₃ and H₄, the three- and four-boson terms. Mode :SUN expands in
-# 1/M rather than 1/s and is handled by VerticesSUN.jl, which shares everything
+# 1/M rather than 1/s and is handled by ExpansionSUN.jl, which shares everything
 # below the monomial representation itself.
 cubic_monomials(swt::SpinWaveTheory) =
     swt.sys.mode == :SUN ? sun_monomials(swt, Val{3}()) : cubic_monomials_dipole(swt)
@@ -463,107 +420,4 @@ function quartic_monomials_dipole(swt::SpinWaveTheory)
     end
 
     return [terms; anisotropy_monomials(swt, Val{4}())]
-end
-
-# Fourier transforming a monomial and summing over cells yields
-#
-#     Σ_𝐫 ∏ₛ b^{σₛ}_{iₛ, 𝐫+𝐧ₛ} = N^{1-K/2} Σ_{Σ𝐤=0} e^{2πi Σₛ 𝐤ₛ⋅𝐧ₛ} ∏ₛ x_{𝐤ₛ}[aₛ],
-#
-# where x_𝐤 = [b_𝐤; b†_{-𝐤}] is the Nambu vector, so that every component of
-# x_𝐤 removes momentum 𝐤 and the momenta of a monomial sum to zero. This phase
-# convention agrees with `swt_hamiltonian_dipole!`, whose b†_i b_j coefficient
-# carries `cis(2π 𝐪⋅𝐧)` for a bond offset 𝐧. Writing x_𝐤 = T_𝐤 y_𝐤 with
-# y_𝐤 = [α_𝐤; α†_{-𝐤}] then gives, for example,
-#
-#     H₃ = N^(-1/2) Σ_{𝐤₁+𝐤₂+𝐤₃=0} Σ_{n₁n₂n₃} U₃(𝐤; n) y_{𝐤₁}[n₁] y_{𝐤₂}[n₂] y_{𝐤₃}[n₃].
-#
-# Bands range over the full Nambu space 1:2L, so a single tensor holds every
-# channel: a slot taken from 1:L annihilates a quasi-particle and a slot taken
-# from L+1:2L creates one. In particular the decay vertex Γ₁ and the source
-# vertex Γ₂ are both read off from U₃.
-#
-# Averaging over the K! assignments of a monomial's operators to slots makes the
-# result symmetric under simultaneous permutation of the (momentum, band) pairs.
-# This is exact up to commutators, which reorder operators only into terms of
-# lower boson number, and so contribute to the linear term addressed by tadpole
-# relaxation rather than to the vertex itself.
-#
-# The work is arranged as an accumulation followed by a change of basis, rather
-# than as a sum of rank-one tensors. Each (monomial, permutation) contributes a
-# single coefficient to the Nambu operator product it names, so the whole term
-# list collapses into one (2L)^K tensor C at a cost independent of L;
-# transforming its slots to the Bogoliubov basis is then K matrix products.
-# Summing rank-one tensors instead costs K! per monomial times the (2L)^K size
-# of the output, which for the cubic vertex of a three-band system is seventy
-# times more arithmetic. `scratch` holds C and the intermediates; the innermost
-# loop of a momentum-space integration should pass one in to be reused.
-function vertex!(U::Array{ComplexF64, K}, terms::Vector{BosonMonomial{K}},
-                 qs::NTuple{K, Vec3}, Ts::NTuple{K, Matrix{ComplexF64}},
-                 scratch::Array{ComplexF64, K}=similar(U)) where K
-    @assert all(x -> abs(x - round(x)) < 1e-12, sum(qs)) "Vertex momenta must sum to zero"
-    # A change of basis leaves a vanishing tensor vanishing, so an empty term
-    # list skips the matrix products entirely. Worth a branch because callers
-    # that have discarded a negligible vertex still run the loop for its other
-    # consumers.
-    isempty(terms) && return fill!(U, 0)
-    N = size(U, 1)
-    # The cache is indexed by a value rather than a type, so the lookup must be
-    # annotated for the loop below to be type stable. That loop is the innermost
-    # one of a momentum-space integration.
-    perms = SLOT_PERMUTATIONS[K]::Vector{NTuple{K, Int}}
-
-    # Coefficient of the operator product ∏ₜ x_{𝐤ₜ}[aₜ]. Zero offsets are
-    # common and carry no phase, so they are given none. Many terms share one
-    # tuple of offsets — a triangular-lattice cubic vertex has 52 of them over
-    # 13 distinct tuples — and `merge_monomials` groups those together, so the
-    # K² phases need recomputing only when the tuple changes. That reuse is
-    # worth having because this is the innermost loop of a momentum-space
-    # integration, and the `cis` calls dominate it.
-    fill!(scratch, 0)
-    local ph
-    for (i, term) in enumerate(terms)
-        if i == 1 || term.ns != terms[i-1].ns
-            ph = ntuple(Val{K}()) do t
-                ntuple(s -> iszero(term.ns[s]) ? 1.0+0im : cis(2π * dot(qs[t], term.ns[s])), Val{K}())
-            end
-        end
-        for p in perms
-            c = term.c / length(perms)
-            for t in 1:K
-                c *= ph[t][p[t]]
-            end
-            scratch[CartesianIndex(ntuple(t -> term.as[p[t]], Val{K}()))] += c
-        end
-    end
-
-    # Transform one slot at a time. With the slot being transformed leading, the
-    # contraction is a matrix product, and writing its result last cycles the next
-    # slot into the leading position, so no index permutation is ever needed.
-    (A, B) = (scratch, U)
-    for t in 1:K
-        mul!(reshape(B, N^(K-1), N), transpose(reshape(A, N, N^(K-1))), Ts[t])
-        (A, B) = (B, A)
-    end
-    A === U || copyto!(U, A)
-
-    return U
-end
-
-# Bogoliubov transformations at each of the given wavevectors.
-function bogoliubov_matrices(swt::SpinWaveTheory, qs::NTuple{K, Vec3}) where K
-    L = nbands(swt)
-    H = zeros(ComplexF64, 2L, 2L)
-    return ntuple(K) do t
-        T = zeros(ComplexF64, 2L, 2L)
-        dynamical_matrix!(H, swt, qs[t])
-        bogoliubov!(T, H)
-        return T
-    end
-end
-
-# Vertex for the given momenta, which must sum to zero.
-function vertex(swt::SpinWaveTheory, terms::Vector{BosonMonomial{K}}, qs::NTuple{K, Vec3}) where K
-    L = nbands(swt)
-    U = zeros(ComplexF64, ntuple(_ -> 2L, K))
-    return vertex!(U, terms, qs, bogoliubov_matrices(swt, qs))
 end
