@@ -105,6 +105,7 @@ include("Measurements/RotationalAverages.jl")
 export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid,
     find_qs_along_path, lorentzian, gaussian, powder_average, domain_average
 
+include("SpinWaveTheory/QuadraticTable.jl")
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
 include("SpinWaveTheory/HamiltonianSUN.jl")
