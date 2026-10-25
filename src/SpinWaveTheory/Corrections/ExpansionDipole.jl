@@ -153,7 +153,7 @@ const GRADED_INV_RCS = map(inv, rcs_factors(monomial(2, 1/2)))
 #
 #   * for n ≤ 2 that leading power is exactly what LSWT keeps — the classical
 #     energy, its gradient, and the coefficients A1 and A2 of
-#     `swt_hamiltonian_dipole!` — so the sub-leading power x^{2k-n-2} is returned;
+#     `quadratic_monomials_dipole` — so the sub-leading power x^{2k-n-2} is returned;
 #   * for n = 3, 4 nothing is already present, so the leading power is returned.
 #
 # Reading off a fixed power per word keeps this construction consistent with the truncated
@@ -170,7 +170,7 @@ const GRADED_INV_RCS = map(inv, rcs_factors(monomial(2, 1/2)))
 # an operator only up to the relative order 1/s computed here.
 #
 # For n ≤ 2 the result is therefore two scalars times the leading word L that LSWT already
-# holds, gated against `swt_hamiltonian_dipole!` in the test suite:
+# holds, gated against `quadratic_monomials_dipole` in the test suite:
 #
 #   * The lift rescales every such word by -binomial(k, 2)/2s, the leading deviation of
 #     `rcs_factors` from unity, in mode :dipole_uncorrected only. Mode :dipole is the more
@@ -275,7 +275,7 @@ function anisotropy_correction(swt::SpinWaveTheory)
 end
 
 # Monomials of H₂, the LSWT Hamiltonian in the dipole modes, which
-# `QuadraticTable` compiles for `swt_hamiltonian_dipole!`. Each term is the
+# `QuadraticTable` compiles for `dynamical_matrix!`. Each term is the
 # leading order of a bond or site, the sub-leading corrections being those of
 # `anisotropy_correction`. A bilinear exchange in the local frames contributes
 #
@@ -351,9 +351,11 @@ function quadratic_monomials_dipole(sys::System, data::SWTDataDipole)
     return terms
 end
 
-# Monomials of H₃ and H₄, the three- and four-boson terms. Mode :SUN expands in
-# 1/M rather than 1/s and is handled by ExpansionSUN.jl, which shares everything
-# below the monomial representation itself.
+# Monomials of H₂, H₃ and H₄, the two-, three- and four-boson terms. Mode :SUN
+# expands in 1/M rather than 1/s and is handled by ExpansionSUN.jl, which shares
+# everything below the monomial representation itself.
+quadratic_monomials(sys::System, data) =
+    sys.mode == :SUN ? sun_monomials(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
 cubic_monomials(swt::SpinWaveTheory) =
     swt.sys.mode == :SUN ? sun_monomials(swt, Val{3}()) : cubic_monomials_dipole(swt)
 quartic_monomials(swt::SpinWaveTheory) =

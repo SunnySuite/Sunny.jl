@@ -576,7 +576,7 @@ end
         swt = SpinWaveTheory(sys; measure=nothing)
         L = Sunny.nbands(swt)
         H = zeros(ComplexF64, 2L, 2L)
-        Sunny.swt_hamiltonian_SUN!(H, swt, Sunny.Vec3(q))
+        Sunny.dynamical_matrix!(H, swt, Sunny.Vec3(q))
         return H
     end
 
