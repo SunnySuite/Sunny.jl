@@ -1410,8 +1410,8 @@ end
         # A breakdown is marked by NaN in every component of a measure that
         # returns a vector
         swt = SpinWaveTheory(sys; measure=ssf_custom((q, ssf) -> diag(ssf), sys))
-        res = Sunny.corrected_intensities(swt, qs[1:1], :two_magnon_ladder; energies=[-0.05, 0.05],
-                                          η=0.1, bz=(64, 64, 1))
+        res = @test_logs (:warn, r"will not resolve") Sunny.corrected_intensities(swt, qs[1:1], :two_magnon_ladder;
+                                                                                  energies=[-0.05, 0.05], η=0.1, bz=(64, 64, 1))
         @test all(x -> all(isnan, x), res.data)
     end
 

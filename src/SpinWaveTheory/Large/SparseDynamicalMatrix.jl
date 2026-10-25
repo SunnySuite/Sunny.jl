@@ -7,9 +7,6 @@
 # over the entries e of row r, where ε is the regularization. Each entry refers to
 # its cell offset 𝐧ₑ by index. Per wavevector, `values_at!` folds the phases into
 # a copy of the values, so that a product costs one multiply-add per entry.
-#
-# Vectors are the rows of a matrix X, so that the values X[:, c] of a batch of
-# vectors are contiguous. Each entry is then loaded once for the whole batch.
 struct SparseDynamicalMatrix
     offsets        :: Vector{Vec3}
     rowptr         :: Vector{Int32}
@@ -61,29 +58,24 @@ function values_at!(Hq, H::SparseDynamicalMatrix, q_supercell)
     return Hq
 end
 
-# Y = H(𝐪) X for each row of X, given the values Hq of `values_at!`. A column of
-# the batch is a static vector, so that each output accumulates in registers.
-mul_rows!(Y::Matrix, H::SparseDynamicalMatrix, X::Matrix, Hq) = mul_rows!(Y, H, X, Hq, Val{size(X, 1)}())
-
-function mul_rows!(Y, H::SparseDynamicalMatrix, X, Hq, ::Val{B}) where B
+# y = H(𝐪) x, given the values Hq of `values_at!`
+function mul_sparse!(y, H::SparseDynamicalMatrix, x, Hq)
     (; rowptr, cols, regularization) = H
-    @assert size(Y) == size(X) == (B, size(H, 1))
-    Xs = reinterpret(reshape, SVector{B, ComplexF64}, X)
-    Ys = reinterpret(reshape, SVector{B, ComplexF64}, Y)
-    @inbounds for r in eachindex(Xs)
-        acc = regularization * Xs[r]
+    @assert length(y) == length(x) == size(H, 1)
+    @inbounds for r in eachindex(y)
+        acc = regularization * x[r]
         for e in rowptr[r]:rowptr[r+1]-1
-            acc += Hq[e] * Xs[cols[e]]
+            acc += Hq[e] * x[cols[e]]
         end
-        Ys[r] = acc
+        y[r] = acc
     end
-    return Y
+    return y
 end
 
-# Y = Ĩ X for each row of X, where Ĩ = diag(I, -I) is the Bogoliubov identity
-function mul_Ĩ_rows!(Y, X)
-    L = size(X, 2) ÷ 2
-    @views Y[:, 1:L] .= X[:, 1:L]
-    @views Y[:, L+1:2L] .= .-X[:, L+1:2L]
+# Y = Ĩ X for each column of X, where Ĩ = diag(I, -I) is the Bogoliubov identity
+function mul_Ĩ!(Y, X)
+    L = size(X, 1) ÷ 2
+    @views Y[1:L, :] .= X[1:L, :]
+    @views Y[L+1:2L, :] .= .-X[L+1:2L, :]
     return Y
 end

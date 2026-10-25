@@ -150,17 +150,3 @@ function gauss_legendre(n)
     (x, V) = eigen(SymTridiagonal(zeros(n), β))
     return (x, 2 * V[1, :] .^ 2)
 end
-
-# The broadened structure factor Cᵢ = -(Aᵢ - Aᵢ†)/2πi of a matrix-valued
-# susceptibility χ, with Aᵢ = Σⱼ Wᵢⱼ χ(zⱼ), skipping negligible weights
-function broaden_retarded(χ, rb::RetardedBroadening)
-    (; zs, W, ranges) = rb
-    As = [zero(χ(first(zs))) for _ in axes(W, 1)]
-    for (j, z) in enumerate(zs)
-        χj = χ(z)
-        for i in ranges[j]
-            As[i] += W[i, j] * χj
-        end
-    end
-    return map(A -> -(A - A') / (2π*im), As)
-end

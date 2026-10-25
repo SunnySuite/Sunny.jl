@@ -658,9 +658,9 @@ end
         Hs = Sunny.SparseDynamicalMatrix(swt)
         Hq = Sunny.values_at!(similar(Hs.vals), Hs, q)
         H2 = mapreduce(hcat, 1:2L) do j
-            x = zeros(ComplexF64, 1, 2L)
+            x = zeros(ComplexF64, 2L)
             x[j] = 1
-            vec(Sunny.mul_rows!(zero(x), Hs, x, Hq))
+            Sunny.mul_sparse!(zero(x), Hs, x, Hq)
         end
 
         @test H1 ≈ H2
