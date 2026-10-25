@@ -88,8 +88,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     data = swt_data(sys, measure)
 
     L = (sys.mode == :SUN ? sys.Ns[1] - 1 : 1) * natoms(sys.crystal)
-    terms2 = sys.mode == :SUN ? sun_monomials(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
-    table = QuadraticTable(terms2, L)
+    table = QuadraticTable(quadratic_monomials(sys, data), L)
     return SpinWaveTheory(sys, data, measure, regularization, classical_energy, GaussianState(), table, table)
 end
 
@@ -97,8 +96,8 @@ end
 # table is shared.
 function SpinWaveTheory(swt::SpinWaveTheory, state::GaussianState)
     (; sys, data, measure, regularization, classical_energy, bare_table) = swt
-    terms2 = sys.mode == :SUN ? sun_monomials(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
-    table = isempty(state.correction) ? bare_table : QuadraticTable([terms2; state.correction], nbands(swt))
+    table = isempty(state.correction) ? bare_table :
+        QuadraticTable([quadratic_monomials(sys, data); state.correction], nbands(swt))
     return SpinWaveTheory(sys, data, measure, regularization, classical_energy, state, table, bare_table)
 end
 
@@ -141,12 +140,24 @@ function dynamical_matrix(swt::SpinWaveTheory, q_reshaped)
     return Hermitian(H)
 end
 
+# The quadratic table, then the Ewald term, which is dense in q and so not
+# compiled, then a small constant shift for positive-definiteness
 function dynamical_matrix!(H, swt::SpinWaveTheory, q_reshaped)
-    if swt.sys.mode == :SUN
-        swt_hamiltonian_SUN!(H, swt, q_reshaped)
-    else
-        @assert swt.sys.mode in (:dipole, :dipole_uncorrected)
-        swt_hamiltonian_dipole!(H, swt, q_reshaped)
+    L = nbands(swt)
+    @assert size(H) == (2L, 2L)
+    H .= 0
+    accum_lower!(H, swt.quadratic_table, q_reshaped)
+    hermitian_from_lower!(H)
+
+    if !isnothing(uncontracted_system(swt.sys).ewald)
+        swt.sys.mode == :SUN ? accum_ewald_SUN!(H, swt, q_reshaped) : accum_ewald_dipole!(H, swt, q_reshaped)
+        # Hermitian up to round-off errors, then exactly
+        @assert maxdiff(H, H') < 1e-12
+        hermitianpart!(H)
+    end
+
+    for i in 1:2L
+        H[i, i] += swt.regularization
     end
 end
 
@@ -155,16 +166,14 @@ function mul_dynamical_matrix(swt, x, qs_reshaped)
     mul_dynamical_matrix!(swt, y, x, qs_reshaped)
 end
 
-function mul_dynamical_matrix!(swt, y, x, qs_reshaped)
-    @assert size(x) == size(y) "Dimensions of x and y do not match"
-    @assert size(x, 1) == length(qs_reshaped)
-
-    if swt.sys.mode == :SUN
-        multiply_by_hamiltonian_SUN!(y, x, swt, qs_reshaped)
-    else
-        multiply_by_hamiltonian_dipole!(y, x, swt, qs_reshaped)
-    end
-
+# Matrix-free y = H x at many wavevectors, where row q of x and y belongs to
+# `qs_reshaped[q]`
+function mul_dynamical_matrix!(swt, y, x, qs_reshaped; phases=zeros(ComplexF64, length(qs_reshaped)))
+    @assert size(x) == size(y) == (length(qs_reshaped), 2nbands(swt))
+    isnothing(swt.sys.ewald) || error("Ewald not supported")
+    y .= 0
+    accum_mul!(y, x, swt.quadratic_table, qs_reshaped, phases)
+    @. y += swt.regularization * x
     return y
 end
 

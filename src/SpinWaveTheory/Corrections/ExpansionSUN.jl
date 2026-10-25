@@ -112,7 +112,7 @@ end
 # expands in the local-frame spin operators `spin_ops` of the bare atoms.
 #
 # The K = 2 term is the LSWT Hamiltonian itself, which `QuadraticTable`
-# compiles for `swt_hamiltonian_SUN!`.
+# compiles for `dynamical_matrix!`.
 sun_monomials(swt::SpinWaveTheory, k::Val, M=1) = sun_monomials(swt.sys, swt.data::SWTDataSUN, k, M)
 
 function sun_monomials(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
