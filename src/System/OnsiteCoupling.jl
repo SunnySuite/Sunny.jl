@@ -16,7 +16,7 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
     elseif sys.mode == :dipole
         s = spin_label_site(sys, site)
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
-        return StevensExpansion(rcs_factors(s) .* c)
+        return anisotropy_expansion(rcs_factors(s) .* c)
     elseif sys.mode == :dipole_uncorrected
         error("System with mode :dipole_uncorrected requires a symbolic operator.")
     end
@@ -37,6 +37,12 @@ function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
 
     # No renormalization here because symbolic polynomials `p` are associated
     # with the large-s limit.
+    return anisotropy_expansion(c)
+end
+
+# An onsite anisotropy is time-reversal even, so only even ranks are allowed
+function anisotropy_expansion(c)
+    iszero(c[[1, 3, 5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
     return StevensExpansion(c)
 end
 
@@ -64,37 +70,30 @@ function empty_anisotropy(mode, N)
 end
 
 function Base.iszero(stvexp::StevensExpansion)
-    (; c0, kmax) = stvexp
-    return iszero(c0) && iszero(kmax)
+    (; c0, kmax, odd) = stvexp
+    return iszero(c0) && iszero(kmax) && !odd
 end
+
+# The coefficients of every rank, ordered by rank k = 0…6
+stevens_coefs_by_rank(s::StevensExpansion) = (s.c0, s.c1, s.c2, s.c3, s.c4, s.c5, s.c6)
+from_coefs_by_rank(c) = StevensExpansion(c[1], c[3], c[5], c[7], c[2], c[4], c[6])
 
 function Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion)
-    return (stvexp.c0 ≈ stvexp′.c0) && (stvexp.c2 ≈ stvexp′.c2) &&
-           (stvexp.c4 ≈ stvexp′.c4) && (stvexp.c6 ≈ stvexp′.c6)
+    return all(map(≈, stevens_coefs_by_rank(stvexp), stevens_coefs_by_rank(stvexp′)))
 end
 
-function Base.:+(stvexp::StevensExpansion, stvexp′::StevensExpansion)
-    return StevensExpansion(stvexp.c0 + stvexp′.c0,
-                            stvexp.c2 + stvexp′.c2,
-                            stvexp.c4 + stvexp′.c4,
-                            stvexp.c6 + stvexp′.c6)
-end
-
-function Base.:*(stvexp::StevensExpansion, x::Real)
-    (; c0, c2, c4, c6) = stvexp
-    return StevensExpansion(c0*x, c2*x, c4*x, c6*x)
-end
+Base.:+(stvexp::StevensExpansion, stvexp′::StevensExpansion) =
+    from_coefs_by_rank(map(+, stevens_coefs_by_rank(stvexp), stevens_coefs_by_rank(stvexp′)))
+Base.:*(stvexp::StevensExpansion, x::Real) = from_coefs_by_rank(map(c -> c * x, stevens_coefs_by_rank(stvexp)))
 
 function rotate_operator(stvexp::StevensExpansion, R)
-    c2′ = rotate_stevens_coefficients(stvexp.c2, R)
-    c4′ = rotate_stevens_coefficients(stvexp.c4, R)
-    c6′ = rotate_stevens_coefficients(stvexp.c6, R)
-    return StevensExpansion(stvexp.c0, c2′, c4′, c6′, stvexp.kmax)
+    (c0, cs...) = stevens_coefs_by_rank(stvexp)
+    return from_coefs_by_rank((c0, map(c -> typeof(c)(rotate_stevens_coefficients(c, R)), cs)...))
 end
 
 function operator_to_matrix(stvexp::StevensExpansion; N)
     acc = zeros(ComplexF64, N, N)
-    for (k, c) in zip((0, 2, 4, 6), (stvexp.c0, stvexp.c2, stvexp.c4, stvexp.c6))
+    for (k, c) in stevens_ranks(stvexp)
         acc += c' * stevens_matrices_of_dim(k; N)
     end
     return acc
