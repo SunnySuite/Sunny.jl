@@ -1,30 +1,56 @@
-# Dynamical structure factor at O(1/s), S = (χ' - χ)/2πi at z = ω + iη.
+# Dynamical structure factor at O(1/s), S = (χ' - χ)/2πi at z = ω + iη. The
+# docstring of `corrected_intensities` states what each `scheme` gives; these
+# notes describe the construction and justify its claims. References [n] are to
+# the docstring's list.
 #
-# The docstring of `corrected_intensities` states what each `scheme` gives and
-# where it comes from; references [n] are to its list. These notes describe the
-# construction and justify the claims made there.
+# Collect the quasi-particles into y_𝐪 = [α_𝐪; α†_{-𝐪}], with metric Ĩ =
+# diagm([ones(L); -ones(L)]), and write w = T†u for the observable amplitudes
+# (u from `observable_vectors!`, corrected by ObservableCorrections.jl). LSWT
+# gives the retarded response χ = w'G₀w, with G₀(z) = (zĨ - |ε|)⁻¹, including
+# the mirror poles at ω < 0.
 #
-# Each `scheme` propagates the magnons with the 2L×2L Nambu resolvent G of a
-# quadratic model of magnons coupled to the binned two-magnon bath of
-# Corrections.jl. The schemes make three independent choices: which blocks of
-# the self-energy to keep, whether to invert the resolvent or take its
-# first-order poles, and how much of the model's response to assemble.
+# At O(1/s) the static corrections add Σstat = T†δH T. The cubic vertex couples
+# each magnon to pairs of magnons, and the observable creates pairs directly too
+# (Sᶻ = s - b†b). Both are captured by an auxiliary quadratic model: magnons
+# coupled to a bath of free two-magnon states. Each pair of internal lines (𝐩 a,
+# 𝐪-𝐩 b) at pair energy x enters through y = [√18 U[a, b, :]; β], its vertex to
+# the 2L Nambu legs and the amplitudes β for each observable to create it
+# (`pair_amplitude`). Forward lines (x > 0) are bath particles, backward lines
+# (x < 0) bath holes of the opposite metric sign. Integrating out the bath gives
 #
-# `:one_loop` keeps the whole model and assembles the Schur complement of its
-# resolvent onto the observables,
+#     K(z) = Σ_pairs ± y y† / (z - x),
+#
+# binned as in `PairMeasure`, with blocks K_mm (the cubic self-energy), K_md,
+# K_dm and K_dd (the direct two-magnon continuum). The response of the model is
+# the Schur complement of its resolvent onto the observables,
 #
 #     χ = w'Gw + K_dm G w + w'G K_md + K_dm G K_md + K_dd,
+#     G = (zĨ - |ε| - Σstat - K_mm)⁻¹.
 #
-# which inherits the frequency sum rule and is positive at ω > 0, up to the O(η)
-# tails of the mirror poles, whenever the model is stable. `:two_magnon_ladder`
-# is the same model with the pair interaction of H₄ added to the bath (see
-# `ladder_transform`), which is solved exactly and so keeps all of this. Its
-# static counterterm, which pins the Goldstone modes, removes a physical shift
-# in a gapped magnet, so there it departs slightly from the exact ladder. Near a
-# Goldstone mode in three dimensions its results are sensitive to the loop grid;
-# in two dimensions it binds soft pairs below ω = 0 (see SelfEnergy.jl). The
-# other two schemes assemble only the magnon term w'Gw and the bare continuum
-# K_dd.
+# This is `:one_loop`. Exact at O(1/s) and the resolvent of a quadratic model,
+# it inherits that structure: Nambu symmetry, Goldstone protection (the static
+# and dynamic 1/ε divergences cancel in the full 2L inverse), η as a pure
+# Lorentzian, and the sum rule ∫dω S = w'Ĩw. It is positive at ω > 0, up to the
+# O(η) tails of the mirror poles, whenever the model is stable, i.e. its static
+# magnon matrix |ε| + Σstat + K_mm, evaluated at iη, is positive semidefinite.
+# Where it is not, the 1/s correction to some mode is comparable to its harmonic
+# energy. That is a breakdown of the expansion for that mode rather than a
+# physical instability, and the mode may carry little weight in the observable.
+# The interference terms linear in K_md are absent from the standard treatment,
+# which adds the two-magnon continuum to the magnon spectral function separately
+# [4, Sec. VI]. For a trace measure they cancel in a zone sum, but not
+# pointwise.
+#
+# The schemes make three independent choices: which blocks of the self-energy
+# to keep, whether to invert the resolvent or take its first-order poles, and
+# how much of the response to assemble. `:two_magnon_ladder` adds the pair
+# interaction of H₄ to the bath (see `ladder_transform`), solved exactly, and so
+# keeps all of the structure above. Its static counterterm, which pins the
+# Goldstone modes, removes a physical shift in a gapped magnet, so there it
+# departs slightly from the exact ladder. Near a Goldstone mode its results are
+# sensitive to the loop grid in three dimensions, and in two it binds soft pairs
+# below ω = 0 (see SelfEnergy.jl). The other two schemes assemble only the
+# magnon term w'Gw and the bare continuum K_dd.
 #
 # `:one_loop_projected` is the rotating-wave truncation. Each bath couples only
 # to the legs it resonates with, decay pairs to particles and source pairs to
@@ -62,91 +88,64 @@
 # `:one_loop` has complex frequencies, and |Σ_anom|/2ε exceeds one, so
 # `:one_loop_on_shell` there is a first-order formula outside its range.
 #
-# No scheme dresses the internal lines by default: Ref. [5], Sec. IV.C notes
-# that self-consistent dressing gaps the Goldstone modes. A `SpinWaveTheory`
-# whose Gaussian state carries a correction does so, with a counterterm.
+# No scheme dresses the internal lines, since self-consistent dressing gaps the
+# Goldstone modes [5, Sec. IV.C]; a corrected vacuum does so with a counterterm.
 
 """
     corrected_intensities(swt::SpinWaveTheory, qpts, scheme; energies, η, kernel=nothing, kT=0,
                           bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
 
-Dynamical spin structure factor at temperature ``T = 0``, including one-loop
-spin-wave corrections, i.e., relative order ``1/s`` in dipole mode. Magnon
-energies are shifted by the mean fields and the cubic self-energy, magnons that
-can decay into two magnons are broadened, and the response includes the
-two-magnon continuum.
+Dynamical spin structure factor with corrections beyond the linear spin wave
+level. The type of approximation depends on `scheme`:
 
-The Green function is evaluated at ``ω + iη``, so `η` both regulates the loop
-integrals and broadens the result into Lorentzians. Choose it small compared to
-the linewidths of interest, but no smaller: the wavevector grid of the loop
-integrals grows as `1/η` in each dispersing dimension. An optional `kernel`,
-e.g. for instrumental resolution, is applied to the result. Only `kT = 0` is
-currently supported.
+- `:one_loop` is the recommended starting point and keeps every leading
+  correction at one-loop order. It corrects magnon dispersions, allows for
+  general line shapes with possible decay, and includes intensity from the
+  two-magnon continuum.
+- `:two_magnon_ladder` additionally lets magnon pairs interact
+  non-perturbatively. Use it for two-magnon bound states and resonances in
+  gapped magnets, well below the three-magnon continuum, but not near a
+  Goldstone mode.
 
-`bz` specifies a relative tolerance or an explicit grid for integration; see
-[`BZIntegration`](@ref). The static mean fields are summed on the grid of the
-loop integrals, which keeps Goldstone modes exactly gapless.
+Two additional options are included for historical comparison:
+
+- `:one_loop_on_shell` replaces each magnon by a single Lorentzian with
+  corrected energy and width, and adds the bare two-magnon continuum.
+- `:one_loop_projected` applies the Dyson equation with projection to particle
+  space.
+
+Keyword arguments are as in [`intensities`](@ref), but an intrinsic broadening
+`η` is required and only `kT = 0` is currently supported. The parameter `η` also
+acts as a regulator for loop integrals over the Brillouin zone. These integrals
+are evaluated by discrete grid summation. Explicit grid dimensions `bz = (n1,
+n2, n3)` may be provided. Otherwise, a scalar `bz` sets the grid density, with
+two-magnon energies stepping by about `η / bz` between neighboring points. The
+cost therefore grows as ``η^{-D}`` for ``D`` dispersing dimensions. See
+[`BZIntegration`](@ref) for details.
+
+Where corrections are large, the resummed propagator can become unstable,
+signaling that perturbation theory has broken down at that wavevector. This is
+most common in low dimensions near a Goldstone wavevector. If Sunny detects an
+unstable wavevector, it sets some of its low-energy pixels to `NaN`; use
+`mark_breakdown=false` to keep the raw data.
 
 The bosons are expanded about the vacuum of `swt`, by default the harmonic
-vacuum of LSWT; see [`to_hartree_fock_corrected_vacuum`](@ref). A vacuum from
-[`to_self_consistent_vacuum`](@ref) is used on the grid on which it was solved.
-Its correction to the quadratic Hamiltonian is subtracted as a counterterm, so
-that the result differs from the ``1/s`` expansion only at the order neglected.
-A correction that was added to pin a Goldstone mode is therefore removed again;
-for the spectrum of the corrected quadratic Hamiltonian itself, use
-[`intensities`](@ref).
+vacuum of LSWT; see [`to_hartree_fock_corrected_vacuum`](@ref). Its correction
+to the quadratic Hamiltonian, including any [`GoldstonePin`](@ref), is
+subtracted as a counterterm; for the spectrum of the corrected quadratic
+Hamiltonian itself, use [`intensities`](@ref).
 
-The `scheme` selects how the one-loop self-energy is resummed:
-
-- `:one_loop` is the recommended starting point. It is the complete one-loop
-  response, including the interference between one- and two-magnon channels. It
-  keeps Goldstone modes gapless and satisfies the sum rules at order ``1/s``.
-- `:two_magnon_ladder` additionally lets the two magnons of each pair interact,
-  to all orders. Use it for two-magnon bound states and resonances in gapped
-  magnets. This scheme neglects mixing with states of three or more magnons, so
-  it is most accurate for features that lie well below the three-magnon
-  continuum. Ladder resummation is unreliable near a Goldstone mode, where it
-  can bind pairs of soft magnons spuriously.
-- `:one_loop_on_shell` replaces each magnon by a single Lorentzian, with the
-  energy and width corrected at order ``1/s`` but the intensity of linear spin
-  wave theory, and adds the bare two-magnon continuum. Use it to read off
-  renormalized dispersions and decay rates.
-- `:one_loop_projected` keeps only the particle block of the self-energy and
-  neglects the interference between one- and two-magnon channels. The spectrum
-  is then positive by construction, but near a Goldstone mode the intensity is
-  overestimated. Use it mainly to compare with historical calculations.
-
-A large one-loop correction can make the resummed propagator unstable, signaling
-that perturbation theory has broken down at that wavevector. This is most common
-in low dimensions, near a Goldstone wavevector of a state with cubic magnon
-vertices. With `:one_loop` and `:two_magnon_ladder`, Sunny marks these
-wavevectors by setting the intensity within `±η` of ``ω = 0`` to `NaN`; use
-`mark_breakdown=false` to keep the raw data. The other two schemes cannot detect
-a breakdown, but are no more reliable there.
-
-The returned data is the structure factor at ``T = 0``, as for
-[`intensities`](@ref). This is ``\\mathcal{S}(𝐪, ω) = θ(ω) χ''(𝐪, ω)``, where
-the spectral function ``χ''(𝐪, ω) = -\\mathrm{Im}\\, χ(𝐪, ω + iη)/π`` of the
-retarded response ``χ`` is odd, and ``θ(0) = 1/2``. Intensities vanish at ``ω <
-0``. At ``ω > 0`` they include the Lorentzian tails of the negative-frequency
-poles, which cancel the high-frequency tail of a Goldstone mode. The `kernel` is
-applied after the thermal factor, so `energies` should be uniformly spaced, and
-extend a kernel width beyond the range of interest.
-
-Set `threaded=true` to parallelize over `qpts`, and `verbose=true` to print a
-progress bar and diagnostics.
+Set `verbose=true` to print a progress bar and diagnostics.
 
 !!! tip "Tradeoffs between the schemes"
 
-    Every scheme starts from the one-loop self-energy in the Dyson–Beliaev
-    equations [1, 2]. They differ in details of how the self-energy is resummed.
-
-    `:one_loop` works in the full particle–hole (Nambu) space and keeps every
-    term at order ``1/s``. Its guarantees, namely gapless Goldstone modes at
-    all frequencies, conservation of total spin, and the frequency sum rule,
-    rest on cancellations between the normal and anomalous self-energies, and
-    between the one- and two-magnon channels. The individual channels need not
-    be positive; their sum is, wherever the resummed propagator is stable.
+    `:one_loop` solves the Dyson–Beliaev equations [1, 2] in the full
+    particle–hole (Nambu) space, keeping every term at order ``1/s``. Its
+    guarantees, namely gapless Goldstone modes at all frequencies, conservation
+    of total spin, and the frequency sum rule, rest on cancellations between the
+    normal and anomalous self-energies, and between the one- and two-magnon
+    channels. The individual channels need not be positive; their sum is,
+    wherever the resummed propagator is stable.
 
     `:two_magnon_ladder` goes beyond one-loop order, in the spirit of the
     truncated Hilbert space exact diagonalization of Ref. [7], but in the full
@@ -219,16 +218,11 @@ end
 # Workhorse of `corrected_intensities`, returning the three terms of S
 # separately as (energy × wavevector) matrices: `transverse` from w'Gw, `cross`
 # from the terms linear in K_md, and `direct` from the rest. Also returns
-# `disp`, the harmonic energies; `breakdown`, a mask over wavevectors at which a
-# `:one_loop` pole has moved onto the imaginary axis; for `:one_loop_on_shell`,
-# `bands`, the energies, half widths and intensities of the poles; and if
-# `spectral=true` then `specfunc`, the particle block of the magnon spectral
-# matrix (G' - G)/2πi.
-#
-# The bosons are expanded about the Gaussian state of `swt`, harmonic by
-# default. Its quasi-particles are the internal lines of the loops and the basis
-# of the Dyson equation, its mean fields are contractions in it, and `disp`
-# reports its energies.
+# `disp`, the energies of the vacuum; `breakdown`, a mask over wavevectors at
+# which the resummed model is unstable; for `:one_loop_on_shell`, `bands`, the
+# energies, half widths and intensities of the poles; and if `spectral=true`
+# then `specfunc`, the particle block of the magnon spectral matrix (G' -
+# G)/2πi.
 function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
                             bz=nothing, threaded=false, verbose=false, spectral=false)
     scheme in (:one_loop, :two_magnon_ladder, :one_loop_projected, :one_loop_on_shell) ||
@@ -271,10 +265,12 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
     bands = scheme != :one_loop_on_shell ? nothing :
         (; disp = zeros(L, length(qpts.qs)), widths = zeros(L, length(qpts.qs)),
            data = zeros(eltype(measure), L, length(qpts.qs)))
-    # Not a `BitVector`, whose threaded writes would race within each 64-bit chunk
+    # Not a `BitVector`, whose threaded writes would race within each 64-bit
+    # chunk
     breakdown = fill(false, length(qpts.qs))
 
-    # Nambu indices of the magnon legs, and the rows of K for the direct amplitudes
+    # Nambu indices of the magnon legs, and the rows of K for the direct
+    # amplitudes
     p = 1:2L
     d = 2L .+ (1:Nobs)
     Ĩ = Diagonal([ones(L); -ones(L)])
@@ -312,16 +308,13 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
             isnothing(specfunc) || (view(specfunc, :, :, iω, iq) .= ((G' - G) / (2π*im))[1:L, 1:L])
         end
 
-        # The resummed model is stable when its static magnon matrix M is
-        # positive semidefinite, and breaks down for some mode at this 𝐪 when
-        # it is not, not necessarily for the observed one, whose weight in S
-        # may be small. An indefinite M need not have complex frequencies, so
-        # the inertia is checked rather than the frequencies. That is done in
-        # the boson basis, where M is congruent to T⁻†MT⁻¹: there the
-        # Goldstone zero mode stays at roundoff, whereas the 1/√ε columns of
-        # T near it amplify noise to a size set by `regularization`. The other
-        # schemes have no anomalous self-energy in their propagator, so their
-        # frequencies are always real.
+        # Stability of the static magnon matrix M, see the head of this file. An
+        # indefinite M need not have complex frequencies, so the inertia is
+        # checked rather than the frequencies. That is done in the boson basis,
+        # where M is congruent to T⁻†MT⁻¹: there the Goldstone zero mode stays
+        # at roundoff, whereas the 1/√ε columns of T near it amplify noise to a
+        # size set by `regularization`. The other schemes have no anomalous
+        # self-energy in their propagator, so their frequencies are always real.
         if scheme in (:one_loop, :two_magnon_ladder)
             M = E + Σ + dyson_model(se, scheme, [im*η]).K[p, p, 1]
             H = Ĩ * se.T * Ĩ * ((M + M') / 2) * Ĩ * se.T' * Ĩ
@@ -388,11 +381,8 @@ function dyson_model(se::SelfEnergy, scheme, zs)
     L = length(ε) ÷ 2
     p = 1:2L
     if scheme == :two_magnon_ladder
-        # The bath of `:one_loop` made interacting, see `ladder_transform`. Its
-        # change to the magnon block at ω = 0 is cancelled by a static
-        # counterterm, which pins the stability matrix of the magnons, and with
-        # it every Goldstone mode, to that of `:one_loop`, while keeping the
-        # model Hermitian.
+        # The bath of `:one_loop` made interacting, with the counterterm δK0;
+        # see `ladder_transform` and the head of this file
         (; K, δK0, stable) = ladder_transform(se, zs)
         return (; Σ=Σstat - δK0, K, poles=nothing, stable)
     end
@@ -402,10 +392,9 @@ function dyson_model(se::SelfEnergy, scheme, zs)
     scheme == :one_loop && return (; Σ=Σstat, K=Kdec+Ksrc, poles=nothing, stable=true)
 
     if scheme == :one_loop_projected
-        # The rotating-wave truncation, see the head of this file. The masks
-        # keep decay on the particle legs and source on the hole legs. Each
-        # non-resonant channel enters at real frequency in the van Vleck form
-        # ½[K(ε_m) + K(ε_m′)], as in `on_shell_form`.
+        # The rotating-wave truncation, see the head of this file: decay on the
+        # particle legs, source on the hole legs, each non-resonant channel
+        # frozen in the van Vleck form.
         Kdec[L+1:2L, :, :] .= 0
         Kdec[:, L+1:2L, :] .= 0
         Ksrc[1:L, :, :] .= 0

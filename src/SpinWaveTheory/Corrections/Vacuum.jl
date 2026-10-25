@@ -22,37 +22,15 @@
 # ---- The vacuum ----
 
 # The Gaussian state about which the 1/s corrections expand the bosons is the
-# `vacuum` of the `SpinWaveTheory`, the vacuum of the LSWT quadratic Hamiltonian
-# plus its correction, a list of quadratic boson monomials such as the
-# mean-field corrections return. Its quasi-particles are the internal lines of
-# every loop, and the mean fields are contractions in it. Without a correction
-# this is the 1/s expansion proper. For the self-consistent correction, see
-# `to_self_consistent_vacuum`.
-#
-# A correction resums some class of higher-order terms. Since the full
-# Hamiltonian does not depend on this choice, the correction is subtracted again
-# as a counterterm in the static self-energy, so the bare propagator of the Dyson
-# equation remains that of LSWT and results differ from the 1/s expansion only
-# at the order neglected. A theory about another vacuum is `swt_with_vacuum`.
-
-# The wavevector loop shared by every frequency-dependent momentum integral of
-# this module. Calls `f(𝐩, w, T1, T2, ε1, ε2)` once per wavevector 𝐩 of
-# `grid`, where T1 = T(𝐩) and T2 = T(𝐪-𝐩) diagonalize the vacuum at the two
-# magnon lines being paired, ε1, ε2 are the signed energies that `bogoliubov!`
-# returns with them, and `w` is the multiplicity by which the contribution is to
-# be scaled. All of the arrays are overwritten on each iteration, so `f` must
-# consume them before returning.
-function foreach_magnon_pair(f, swt::SpinWaveTheory, q_supercell, grid::LoopGrid)
-    L = nbands(swt)
-    H = zeros(ComplexF64, 2L, 2L)
-    # Both magnon lines are live at once, so each gets its own workspace
-    (ws1, ws2) = (BogoliubovWorkspace(L), BogoliubovWorkspace(L))
-    for (p, w) in zip(grid.ps, grid.wts)
-        ε1 = excitations_supercell!(ws1, H, swt, p)
-        ε2 = excitations_supercell!(ws2, H, swt, q_supercell - p)
-        f(p, w, ws1.T, ws2.T, ε1, ε2)
-    end
-end
+# `vacuum` of the `SpinWaveTheory`: the vacuum of the LSWT quadratic Hamiltonian
+# plus its `correction`, a list of quadratic monomials such as the mean-field
+# corrections return. Its quasi-particles are the internal lines of every loop
+# and the basis of the Dyson equation, and the mean fields are contractions in
+# it. Without a correction this is the 1/s expansion proper. A correction
+# resums some class of higher-order terms; since the full Hamiltonian does not
+# depend on that choice, it is subtracted again as a counterterm in the static
+# self-energy, so results differ from the 1/s expansion only at the order
+# neglected. A theory about another vacuum is `swt_with_vacuum`.
 
 # ---- Contractions ----
 
@@ -62,11 +40,9 @@ end
 #
 #     conj⟨O_a(𝐫) O_{a′}(𝐫+Δ)⟩ = ⟨O_{ā′}(𝐫) O_{ā}(𝐫-Δ)⟩,
 #
-# and keeping only one representative of each such pair is what makes a
-# mean-field Hamiltonian exactly Hermitian, rather than Hermitian only to within
-# the accuracy of the momentum-space integration. The cell offset is labeled by
-# integers, which are exactly comparable, unlike the floating point `Vec3` used
-# elsewhere.
+# and keeping only one representative of each such pair makes a mean-field
+# Hamiltonian exactly Hermitian, not just to within the quadrature error. Cell
+# offsets are labeled by integers, which compare exactly.
 function correlation_key(a, a′, Δ::Vec3, L)
     Δ′ = round.(Int, Tuple(Δ))
     @assert Vec3(Δ′) ≈ Δ
@@ -79,8 +55,7 @@ end
 # the labels needed to contract the given monomials, and callable as `g(a, a′,
 # Δ)` in either convention of `correlation_key`. A displacement leaves connected
 # correlations unchanged, so only the quadratic Hamiltonian matters here. The
-# `noise` is that of the quadrature, against which identities that hold only for
-# exact integrals are asserted.
+# `noise` is that of the quadrature; see `quadrature_noise`.
 struct Contractions
     L      :: Int
     index  :: Dict{Tuple{Int, Int, NTuple{3, Int}}, Int}
@@ -103,15 +78,12 @@ Contractions(g::Contractions, values) = Contractions(g.L, g.index, values, g.noi
 #     ⟨x_𝐪[a] x_{-𝐪}[a′]⟩ = Σ_{n ≤ L} T_𝐪[a,n] conj(T_𝐪[ā′,n]),
 #
 # where the identity x_{-𝐪}[ā′] = x_𝐪[a′]† avoids a second diagonalization at
-# -𝐪. That matters because `bogoliubov!` fixes the phase of each band
-# independently, so only expressions built from a single T are gauge invariant.
-# Averaging over the Brillouin zone with the phase exp(-2πi 𝐪⋅Δ) gives the
-# real-space result.
+# -𝐪 (see the phase convention in Corrections.jl). Averaging over the zone with
+# the phase exp(-2πi 𝐪⋅Δ) gives the real-space result.
 #
-# All requested labels share one quadrature, so that consumers of a common state
-# pay for a single pass over the zone. On the loop grid of the cubic
-# self-energy, a Ward identity relates these averages to that integrand point by
-# point, which keeps each Goldstone mode exactly gapless, grid by grid.
+# All requested labels share one quadrature, a single pass over the zone. On the
+# loop grid of the cubic self-energy, these averages satisfy the Ward identity
+# against that integrand point by point; see `BZIntegration`.
 function contractions(swt::SpinWaveTheory, terms, tol)
     L = nbands(swt)
     index = Dict{Tuple{Int, Int, NTuple{3, Int}}, Int}()
@@ -238,11 +210,8 @@ wick_expectation(terms, g, w; nfactors=1) = sum(t -> t.c, wick_reduce(terms, g, 
 
 # Coefficients ℓ[a] of a one-boson operator Σ_a ℓ[a] Σ_𝐫 O_a(𝐫), given as
 # monomials. Cell offsets drop out, the operator being summed over all cells.
-# Hermiticity of the operator, ℓ[ā] = conj(ℓ[a]), is asserted to within `noise`:
-# it holds only for exact correlations, so the tolerance is set by the accuracy
-# of their momentum integrals, whereas an error in a contraction would appear at
-# O(1). The tolerance is absolute as well as relative, because symmetry can make
-# ℓ vanish identically, leaving only integration noise.
+# Hermiticity of the operator, ℓ[ā] = conj(ℓ[a]), is asserted to within `noise`,
+# absolute as well as relative because symmetry can make ℓ vanish identically.
 function nambu_vector(terms::Vector{BosonMonomial{1}}, L, noise)
     ℓ = zeros(ComplexF64, 2L)
     for (; c, as) in terms

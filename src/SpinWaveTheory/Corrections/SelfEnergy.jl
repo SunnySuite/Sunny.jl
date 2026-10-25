@@ -3,7 +3,6 @@
 # mean-field decoupling of H₄ in StaticCorrections.jl and must be included
 # alongside it, but unlike those corrections it is frequency dependent and
 # complex, its imaginary part describing decay into the two-magnon continuum.
-# Conventions are collected in Corrections.jl.
 #
 # The end of this file assembles the full one-loop self-energy: `OneLoop` holds
 # what is common to all 𝐪, and `SelfEnergy` the static and cubic parts at one 𝐪,
@@ -56,22 +55,21 @@ full Nambu matrix of the static and cubic self-energy, see [`SelfEnergy`](@ref).
 In `:dipole` and `:dipole_uncorrected` modes the self-energy vanishes
 identically for a collinear magnetic structure. That is special to those modes,
 and does not carry over to `:SUN`, where a single-ion level may decay into two
-magnons of different flavors even when every dipole is parallel. Unlike the
-smooth integrands elsewhere in this module, this one is singular wherever a
-magnon is degenerate with a pair of magnons, so it is regularized by a small
-positive broadening `η`, and both must be converged together: `η` must exceed
-the grid spacing of the energies being integrated, while remaining small
-compared to the linewidths themselves. The default grid is chosen accordingly.
-`bz` specifies a relative tolerance or an explicit grid for integration; see
-[`BZIntegration`](@ref).
+magnons of different flavors even when every dipole is parallel.
 
-The real part converges much more readily than the imaginary one, being a
-principal value. Its static part is taken at real ``ω = 0``, where it cancels
-the mean fields at a Goldstone mode exactly, and only its frequency dependence
-is regularized by `η`, so that a soft band does not shift with `η`. Taking `η`
-below the energy grid spacing makes the imaginary part far too small, because
-the sampled wavevectors then miss the resonant surface entirely. A width that
-halves when `η` does is such an artifact.
+The integrand is singular wherever a magnon is degenerate with a pair of
+magnons, so it is regularized by a small positive broadening `η`, which must be
+small compared to the linewidths but exceed the spacing of the pair energies on
+the loop grid. Below that spacing the sampled wavevectors miss the resonant
+surface and the imaginary part comes out far too small; a width that halves when
+`η` does is such an artifact. The real part, a principal value, converges much
+more readily, and only its frequency dependence is regularized by `η`, so that a
+soft band does not shift with `η`.
+
+The loop integral is summed on a uniform grid in the Brillouin zone. An explicit
+grid `bz = (n1, n2, n3)` may be provided. Otherwise, a scalar `bz` sets the grid
+density, with two-magnon energies stepping by about `η / bz` between neighboring
+points. See [`BZIntegration`](@ref) for details.
 
 Because only the diagonal part of the self-energy is returned, the result is
 unreliable where two bands are degenerate.
@@ -119,22 +117,13 @@ end
 # carrying 𝐤-𝐩, with `w` the multiplicity `foreach_magnon_pair` supplies,
 # averaged by the caller over the loop wavevectors of `grid`. Here `u[m] = U[a,
 # b, nambu_conj(m, L)]` is the external leg of band m, for m up to `M`, and `x`
-# is the pair energy. Both consumers below share this scaffolding, the external
-# leg being delicate.
+# is the pair energy.
 #
-# That leg is independent of the loop wavevector. Indexing its slot by
-# `nambu_conj(m, L)` asks for the operator adjoint to the mode m that the Dyson
-# equation propagates, and an independent `bogoliubov!` at -k supplies that only
-# up to a phase per band, nothing tying the eigenvectors of one call to those of
-# another. Use instead the exact Nambu symmetry P H(k)ᵗ P = H(-k), where P is
-# the index swap a ↦ nambu_conj(a, L), which follows from H22(k) = H11(-k)ᵗ and
-# H12(k) = H12(-k)ᵗ. That makes T3 = P conj(T(k)) P para-unitary and a
-# diagonalizer of H(-k), and its column `nambu_conj(m, L)` is by construction
-# the adjoint of column m of T(k). A phase left free here would rescale the
-# off-diagonal elements of Σ̂ relative to the mean fields and to the observable
-# corrections, which are expressed in the columns of T(k) themselves;
-# degenerate bands fare worse still, two calls being free to choose different
-# bases within a degenerate block.
+# The slot `nambu_conj(m, L)` of the external leg must be the operator adjoint
+# to the mode m that the Dyson equation propagates, in the phase of T(k) that
+# the mean fields and observables use. Per the phase convention of
+# Corrections.jl it is therefore T3 = P conj(T(k)) P, para-unitary and a
+# diagonalizer of H(-k), rather than a second diagonalization at -k.
 function foreach_cubic_line(f, swt::SpinWaveTheory, terms3, k, grid::LoopGrid, M)
     L = nbands(swt)
     U = zeros(ComplexF64, 2L, 2L, 2L)
@@ -164,10 +153,10 @@ end
 
 # Nambu self-energy Σ̂(z) of the cubic vertex at wavevector `k` and each of the
 # complex frequencies `zs`, as a `2L×2L×length(zs)` array. It is the Cauchy
-# transform of the binned measures of `pair_measures`, oriented there to contract
-# as w' G w and so related to Σ̂ by the metric and a transpose. The bins are
-# sparse, so a width far below η costs nothing, and makes the binning error
-# O((Δ/η)²) negligible.
+# transform of the binned measures of `pair_measures`, oriented there to
+# contract as w' G w and so related to Σ̂ by the metric and a transpose. The
+# bins are sparse, so a width far below η costs nothing and makes the binning
+# error negligible.
 function cubic_self_energy_at(swt::SpinWaveTheory, terms3, k, zs, grid::LoopGrid, η)
     L = nbands(swt)
     τ₃ = Diagonal([ones(L); -ones(L)])
@@ -176,10 +165,10 @@ function cubic_self_energy_at(swt::SpinWaveTheory, terms3, k, zs, grid::LoopGrid
     return stack(τ₃ * transpose(view(K, :, :, iz)) for iz in eachindex(zs))
 end
 
-# Binned measures of the auxiliary model of Corrections.jl, one per channel. The
-# bath of pairs (𝐩, 𝐤-𝐩) of quasi-particles a, b has energy x = ε_a(𝐩) + ε_b(𝐤-𝐩).
-# Each pair contributes the mass ±y y† at x, weighted by its multiplicity on the
-# loop grid, with
+# Binned measures of the auxiliary model of CorrectedIntensities.jl, one per
+# channel. The bath of pairs (𝐩, 𝐤-𝐩) of quasi-particles a, b has energy x =
+# ε_a(𝐩) + ε_b(𝐤-𝐩). Each pair contributes the mass ±y y† at x, weighted by
+# its multiplicity on the loop grid, with
 #
 #     y = [√18 u; β; R A],
 #
@@ -206,7 +195,8 @@ function pair_measures(swt::SpinWaveTheory, terms3, k, grid::LoopGrid; bin_width
     iΔ = [findfirst(==(Δ), Δs) for (_, _, Δ) in labels]
     phases = zeros(ComplexF64, length(Δs))
 
-    # A batch of pairs in each channel: energies x, weights c, and columns y and A
+    # A batch of pairs in each channel: energies x, weights c, and columns y and
+    # A
     Z = zeros(ComplexF64, dim, 2batch)
     (decay, source) = map(1:2) do _
         (; ρ=PairMeasure(bin_width, dim), n=Ref(0), xs=zeros(batch), cs=zeros(batch),
@@ -277,17 +267,13 @@ end
 #
 # The ladder does not respect Adler's theorem for a broken continuous symmetry:
 # the off-shell quartic vertex lacks the Adler zero, so in two dimensions it
-# binds soft pairs below ω = 0 at the Goldstone wavevectors. If the cubic vertex
-# vanishes, the Ward identities give V = -[X, W] + V_reg, with X the free pair
-# energy and W a finite-rank rotation built from the angles conjugate to the
-# broken generators. Using the bath X + V_reg, with legs and observables rotated
-# by e^{-W}, restores the Adler zero and agrees with the bare ladder to the
-# order kept. This was tested and discarded. It jumps under an infinitesimal
-# cubic vertex or symmetry-breaking anisotropy, and away from exact symmetry it
-# can destabilize the ladder rather than correct it.
+# binds soft pairs below ω = 0 at the Goldstone wavevectors. Restoring the zero
+# by a Ward rotation of the bath, V = -[X, W] + V_reg, was tested and discarded:
+# it jumps under an infinitesimal cubic vertex or anisotropy, and away from
+# exact symmetry can destabilize the ladder rather than correct it.
 
-# Channels of the pair interaction of `terms4` at wavevector `q_supercell`: their
-# labels, the scaled transformation `R` that takes the amplitudes A of the
+# Channels of the pair interaction of `terms4` at wavevector `q_supercell`:
+# their labels, the scaled transformation `R` that takes the amplitudes A of the
 # labeled channels to the rows of y, and the signature `σ`.
 function pair_channels(terms4::Vector{BosonMonomial{4}}, q_supercell, L)
     index = Dict{Tuple{Int, Int, Vec3}, Int}()
@@ -318,23 +304,20 @@ end
 """
     OneLoop(swt::SpinWaveTheory; energies=nothing, η, bz=nothing)
 
-The one-loop expansion about the Gaussian state of `swt`, with everything that is common to all
-wavevectors: the mean-field, tadpole and anisotropy corrections to the quadratic
-Hamiltonian, the corrections to the observables, and the resolution of the loop
-integrals. Keywords are as in [`corrected_intensities`](@ref). The self-energy
-at a wavevector is then [`SelfEnergy`](@ref).
-
-Every mean field is a contraction in that state, taken on the loop grid of the
-cubic self-energy, so that the Ward identity of each Goldstone mode cancels
-static and dynamic shifts exactly, grid by grid, rather than to within the error
-of two unrelated quadratures.
+The one-loop expansion about the Gaussian state of `swt`, with everything that
+is common to all wavevectors: the mean-field, tadpole and anisotropy corrections
+to the quadratic Hamiltonian, the corrections to the observables, and the
+resolution of the loop integrals. Keywords are as in
+[`corrected_intensities`](@ref). The self-energy at a wavevector is then
+[`SelfEnergy`](@ref). The mean fields are taken on the loop grid, so that static
+and dynamic shifts cancel exactly at each Goldstone mode.
 """
 struct OneLoop
     swt       :: SpinWaveTheory
     η         :: Float64
     loop_grid :: NTuple{3, Int}
-    # Binning error is O((Δ/η)²), so Δ/η = 0.1 contributes of order 0.01, the
-    # accuracy of the default grid. Given evenly spaced `energies`, the width
+    # Δ/η = 0.1 gives a binning error of order 0.01, below the grid error of a
+    # 2D magnet with a Goldstone mode. Given evenly spaced `energies`, the width
     # is reduced to divide their step, so that the Cauchy transform onto them is
     # a convolution.
     bin_width :: Float64
@@ -493,10 +476,7 @@ end
 # Hermitian up to its absorptive part. The on-shell poles of
 # `:one_loop_on_shell` diagonalize its particle and hole blocks.
 #
-# The dispersive part of K is taken at ω = 0 on the real axis, where it cancels
-# Σstat at a Goldstone mode, plus its change from ω = 0 to the shell, which is
-# regularized by η; see `static_shift`. At ε + iη directly, the 1/ε parts of K
-# would not cancel, and soft bands would shift with η.
+# The dispersive part of K is moved to the real axis by `static_shift`.
 function on_shell_form(Σ::SelfEnergy)
     (; ε, η) = Σ
     L = length(ε) ÷ 2
@@ -507,8 +487,9 @@ function on_shell_form(Σ::SelfEnergy)
 end
 
 # Correction to a transform K taken at ω + iη, given its values `Kη` at iη and
-# `K0` at 0, that moves its static part to the real axis: the regularization
-# then enters only the change of K from ω = 0, which keeps the cancellation
-# against the static mean fields exact at a Goldstone mode. Only the Hermitian
-# part moves, since the absorptive part of K at ω ≈ 0 has no static counterpart.
+# `K0` at 0, that moves its static part to the real axis, so that η enters only
+# the change of K from ω = 0. Otherwise the 1/ε parts of K would not cancel the
+# static mean fields at a Goldstone mode, and soft bands would shift with η.
+# Only the Hermitian part moves, since the absorptive part of K at ω ≈ 0 has no
+# static counterpart.
 static_shift(Kη, K0) = hermitianpart(K0 - Kη)

@@ -7,48 +7,63 @@
 """
     bz :: BZIntegration
 
-Spin wave corrections functions accept a keyword argument `bz` that determines a
-method for integrating over the magnetic Brillouin zone. If `bz` is a tuple
-`(n1, n2, n3)`, then it defines the size of a uniform integration grid. If `bz`
-is a number, then it specifies a relative accuracy target. The default
-`bz=nothing` will imply a relative accuracy of `bz=0.01`, except when the grid
-is required to match that used in constructing a self-consistent vacuum.
+The keyword `bz` of the spin wave correction functions specifies the integration
+over the magnetic Brillouin zone.
 
-Adaptive quadrature is used by default for static corrections, e.g.
-[`boson_density`](@ref), and converges quickly because of the smooth integrands.
-Frequency-dependent calculations, e.g. [`corrected_intensities`](@ref), always
-require a uniform grid. It will be autoselected from the accuracy target and the
-``η``-regularization. A fixed grid, shared between static and loop calculations,
-is a prerequisite for exact satisfaction of the Ward identity, as needed to keep
-Goldstone modes gapless.
+- A tuple `bz = (n1, n2, n3)` selects a uniform grid of these dimensions.
+- For frequency-dependent calculations, e.g. [`corrected_intensities`](@ref), a
+  number `bz` selects a uniform grid that resolves the broadening `η`. Along
+  each reciprocal axis, the number of points is `bz` times ``2W/η``, where ``W``
+  is the largest energy range of a single magnon band along that axis; see
+  [`auto_bzgrid`](@ref). A pair of magnons spans at most ``2W``, so the default
+  `bz = 1` samples it in steps of ``η`` on average. Doubling `bz` doubles the
+  points per axis, which costs 4× in two dimensions and 8× in three.
+- Static corrections, e.g. [`boson_density`](@ref), default to adaptive cubature
+  with customizable relative tolerance `tol`. This choice is appropriate for
+  smooth integrands.
+
+For frequency-dependent calculations, spectral features that are smooth on the
+scale `η` converge exponentially fast in the grid density. The slowest
+convergence comes from Goldstone modes. On an internal magnon line their
+amplitude diverges as ``ε^{-1/2}``, so that the error falls only as `1/bz` in
+two dimensions, and as `1/bz²` in three. In two dimensions it is about 1–2% at
+the default. Off-scale intensity near a soft mode converges more slowly still.
+
+A vacuum from [`to_self_consistent_vacuum`](@ref) records the grid on which it
+was solved, which every calculation about it then uses. In general, a uniform
+grid shared between static and frequency-dependent calculations is required for
+the Ward identity to hold exactly, as needed to keep Goldstone modes gapless.
 """
 const BZIntegration = Union{Nothing, Real, NTuple{3, Integer}}
 
-# The quadrature of the static corrections selected by the keyword `bz`, as
-# documented at `BZIntegration`: a relative accuracy for adaptive cubature, or
-# grid dimensions
-function static_bz(swt, bz)
-    bz = check_bz(@something bz swt.vacuum.grid 0.01)
-    check_grid(swt, bz)
-    return bz
+# The quadrature of the static corrections: the grid of `bz` or of the vacuum,
+# or else adaptive cubature to the relative tolerance `tol`
+function static_bz(swt, bz; tol)
+    bz isa Real && error("A number `bz` sets the loop grid relative to η. For the relative tolerance of a \
+                          static correction, use the keyword `tol`.")
+    quad = @something check_bz(bz) swt.vacuum.grid tol
+    check_grid(swt, quad)
+    return quad
 end
 
-# The dimensions of the loop grid of the frequency-dependent corrections
-# selected by the keyword `bz`, as documented at `BZIntegration`
+# The dimensions of the loop grid selected by `bz`
 function loop_bz(swt, bz; η)
-    bz = check_bz(@something bz swt.vacuum.grid 0.01)
-    dims = bz isa Real ? auto_bzgrid(swt; η, tol=bz) : bz
+    bz = @something check_bz(bz) swt.vacuum.grid 1.0
+    dims = bz isa Real ? auto_bzgrid(swt; η, bz) : bz
     check_grid(swt, dims)
     return dims
 end
 
 # Grid dimensions are normalized to `Int`
-check_bz(tol::Real) = tol
+check_bz(::Nothing) = nothing
+check_bz(bz::Real) = 0 < bz < Inf ? bz : error("Numeric `bz` must be positive and finite, got $bz.")
 check_bz(dims::NTuple{3, Integer}) = Int.(dims)
-check_bz(bz) = error("Expected `bz` to be a relative accuracy or grid dimensions (n1, n2, n3), got $bz.")
+check_bz(bz) = error("Expected `bz` to be grid dimensions (n1, n2, n3) or a number, got $bz.")
 
 # Scale of the error that the quadrature leaves in an identity that holds only
-# for exact integrals, against which such identities are asserted.
+# for exact integrals, e.g. Hermiticity of a mean field. Such identities are
+# asserted against it: a mistake in a Wick decoupling would instead appear at
+# O(1).
 quadrature_noise(tol::Real) = max(tol, 1e-8)
 quadrature_noise(::NTuple{3, Int}) = 1e-3
 
@@ -65,7 +80,7 @@ function bz_average(f, dims::NTuple{3, Int})
     return sum(f, ps) / length(ps)
 end
 
-# The same by adaptive cubature to the relative accuracy `tol`. HCubature stops
+# The same by adaptive cubature to the relative tolerance `tol`. HCubature stops
 # once `err ≤ max(atol, rtol * norm(val))`. Setting `atol` equal to `tol`
 # measures the accuracy against max(norm(val), 1), so that averages vanishing by
 # symmetry converge at once. The averages taken here, correlations and energies
@@ -74,8 +89,8 @@ function bz_average(f, tol::Real)
     return first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=tol))
 end
 
-# A self-consistent vacuum was solved on a grid, which every use of it
-# must share
+# A self-consistent vacuum was solved on a grid, which every use of it must
+# share so that the counterterm cancels its mean field exactly
 function check_grid(swt, bz)
     (; grid) = swt.vacuum
     isnothing(grid) || grid == bz ||
@@ -128,31 +143,52 @@ function loop_wavevectors(dims, q_supercell=zero(Vec3))
     return LoopGrid(ps, wts, prod(dims))
 end
 
-"""
-    auto_bzgrid(swt::SpinWaveTheory; η, tol)
+# The loop over `grid` shared by every frequency-dependent integral. Calls `f(𝐩,
+# w, T1, T2, ε1, ε2)` once per wavevector 𝐩 of `grid`, where T1 = T(𝐩) and T2 =
+# T(𝐪-𝐩) diagonalize the vacuum at the two magnon lines being paired, ε1, ε2 are
+# the signed energies that `bogoliubov!` returns with them, and `w` is the
+# multiplicity by which the contribution is to be scaled. All of the arrays are
+# overwritten on each iteration, so `f` must consume them before returning.
+function foreach_magnon_pair(f, swt::SpinWaveTheory, q_supercell, grid::LoopGrid)
+    L = nbands(swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    # Both magnon lines are live at once, so each gets its own workspace
+    (ws1, ws2) = (BogoliubovWorkspace(L), BogoliubovWorkspace(L))
+    for (p, w) in zip(grid.ps, grid.wts)
+        ε1 = excitations_supercell!(ws1, H, swt, p)
+        ε2 = excitations_supercell!(ws2, H, swt, q_supercell - p)
+        f(p, w, ws1.T, ws2.T, ε1, ε2)
+    end
+end
 
-Dimensions `(n1, n2, n3)` of the grid on which loop integrals with regulator
-`η`, e.g. those of [`corrected_intensities`](@ref), reach a relative accuracy of
-about `tol`. It resolves `η` along each direction in which the magnons of `swt`
-disperse, and the number of points grows as ``1/(η √tol)`` along each.
 """
-function auto_bzgrid(swt; η, tol)
+    auto_bzgrid(swt::SpinWaveTheory; η, bz=1)
+
+Dimensions `(n1, n2, n3)` of the uniform grid that a number `bz` selects for
+frequency-dependent calculations with broadening `η`; see
+[`BZIntegration`](@ref). Along each reciprocal axis of the magnetic cell, let
+``W`` be the largest energy range of a single band of `swt` on a line parallel
+to that axis, estimated on an ``8×8×8`` grid. The number of points is `bz`
+times ``2W/η``, rounded up and at least 4, or a single point if this product is
+below one.
+"""
+function auto_bzgrid(swt; η, bz=1)
     # Every frequency-dependent integrand here is a function of the pair energy
-    # x(𝐤) = ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so the grid must resolve x
-    # to within η. The number of points along a direction therefore goes as the
-    # range x sweeps there divided by η, estimated below by the range each band
-    # sweeps along a line, doubled for the two magnons; a non-dispersing
-    # direction needs no grid.
+    # x(𝐤) = ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so the grid must resolve
+    # x to within η. The range x sweeps along a direction is estimated below by
+    # the range each band sweeps along a line, doubled for the two magnons; a
+    # non-dispersing direction needs no grid.
     #
-    # The dependence on `tol` and the prefactor are calibrated rather than
-    # derived, convergence being algebraic because the dispersion is
-    # non-analytic at the Goldstone wavevectors. Measured on the
-    # triangular-lattice antiferromagnet, the error in the integrated weight
-    # falls as n^-1.6 with a factor-of-two scatter, since how closely the grid
-    # approaches a near-singular point depends on n arithmetically. The
-    # prefactor carries margin accordingly. The cost grows as 1/√tol per
-    # dimension, so a tenfold tighter tolerance is a tenfold longer calculation
-    # in two dimensions.
+    # The convergence argument is in the docstring of `BZIntegration`. A smooth
+    # integrand converges as exp(-2πη/δx) in the step δx of x, about 2e-3 at δx
+    # = η; a soft internal line, ∝ 1/|𝐩|, as h^(D-1) in the step h. Against
+    # fine grids at the same η, with a Gaussian kernel of FWHM 2η and away from
+    # ω < 3η, the median error per 𝐪 on a grid 1.25× finer per axis than bz = 1
+    # measured 0.5–1.9% on four 2D magnets with Goldstone modes (triangular,
+    # umbrella, canted square), so about 0.6–2.4% at bz = 1, but only 2e-6 to
+    # 2e-5 on two gapped square-lattice magnets and a 3D canted cubic one.
+    # Against that finer grid, bz = 1 changed the six figures of
+    # examples/extra/SWT_Corrections by 0.1–1.2% in median, and ran 2–4× faster.
     ncoarse = 8
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
@@ -164,16 +200,20 @@ function auto_bzgrid(swt; η, tol)
     end
 
     return ntuple(3) do d
-        r = maximum(maximum(ε; dims=d+1) - minimum(ε; dims=d+1))
-        # The denominator is 0.8η at the default tolerance, and shrinks as √tol
-        2r < η ? 1 : max(4, ceil(Int, 2r / (8η * √tol)))
+        n = 2bz * maximum(maximum(ε; dims=d+1) - minimum(ε; dims=d+1)) / η
+        n < 1 ? 1 : max(4, ceil(Int, n))
     end
 end
 
-# Matrix-valued measure over a bath energy x of either sign, binned as described
-# above: bin j is centered at jΔ. Each channel gets its own measure. Bins are
-# Hermitian, so each stores only its upper triangle, packed column by column
-# (the BLAS "packed" layout), and is read with `bin_entry`.
+# Matrix-valued measure over a bath energy x of either sign. A loop integrand
+# depends on frequency only through x, so its masses y y†, summed over the loop
+# grid, are accumulated into bins of x and the Cauchy transform is applied
+# afterwards. Bin j is centered at jΔ. Linear splitting between neighbouring
+# bins keeps each measure semidefinite and preserves its zeroth and first
+# moments; the error in the transform at Im z = η is O((Δ/η)²). Each channel
+# gets its own measure. Bins are Hermitian, so each stores only its upper
+# triangle, packed column by column (the BLAS "packed" layout), read with
+# `bin_entry`.
 struct PairMeasure
     Δ::Float64
     dim::Int
@@ -243,7 +283,8 @@ function cauchy_transform(ρs, zs)
 end
 
 # Whether the FFT pays for itself. The explicit sum costs nbins × nz per entry,
-# the FFT (m + 2) N log N, at a similar cost per operation (measured on Apple M5).
+# the FFT (m + 2) N log N, at a similar cost per operation (measured on Apple
+# M5).
 function use_fft(ρ::PairMeasure, zs)
     zs isa AbstractRange && length(zs) > 1 || return false
     # A range of complex numbers may store its step in extended precision
