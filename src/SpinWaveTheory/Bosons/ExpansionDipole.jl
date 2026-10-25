@@ -75,18 +75,19 @@
 
 
 # Monomials of the term of K bosons of the Hamiltonian in the dipole modes,
-# beyond LSWT if `beyond_lswt`. For K ≥ 3, which LSWT does not contain, that is
-# the whole term, kept at leading order; for K ≤ 2 it is the sub-leading part
-# only, the O(1/s) correction to LSWT. Without `beyond_lswt` the K = 2 term is
-# the LSWT Hamiltonian itself, which `QuadraticTable` compiles.
+# about the structure whose local frames are `frames`, beyond LSWT if
+# `beyond_lswt`. For K ≥ 3, which LSWT does not contain, that is the whole term,
+# kept at leading order; for K ≤ 2 it is the sub-leading part only, the O(1/s)
+# correction to LSWT. Without `beyond_lswt` the K = 2 term is the LSWT
+# Hamiltonian itself, which `QuadraticTable` compiles. For `twist`, see
+# `local_interactions`.
 #
 # Some cubic words survive only away from a classical energy minimum. The cubic
 # part of a transverse component, multiplying the classical Sᶻ of its partner or
 # the Zeeman field, sums over the bonds of a site to its transverse effective
 # field, which vanishes at a minimum exactly as H₁ does. These are retained
 # because tadpole relaxation moves the structure off that minimum.
-function monomials_dipole(sys::System, data::SWTDataDipole, ::Val{K}; beyond_lswt) where K
-    (; local_rotations, sqrtS, interactions) = data
+function hamiltonian_monomials(sys::System, frames::Vector{Mat3}, ::Val{K}; beyond_lswt=false, twist=nothing) where K
     L = nsites(sys)
     rcs = sys.mode == :dipole
 
@@ -95,7 +96,7 @@ function monomials_dipole(sys::System, data::SWTDataDipole, ::Val{K}; beyond_lsw
     # kept static, as in `append_products!`.
     counts = ntuple(p -> Val{p-1}(), Val{K+1}())
     function words(cs, i)
-        (lead, sub) = stevens_words(cs, √2 * sqrtS[i], rcs)
+        (lead, sub) = stevens_words(cs, √(2sys.κs[i]), rcs)
         return (map(v -> local_word_monomials(lead, i, L, v), counts),
                 map(v -> local_word_monomials(sub, i, L, v), counts))
     end
@@ -121,10 +122,11 @@ function monomials_dipole(sys::System, data::SWTDataDipole, ::Val{K}; beyond_lsw
         keep_sub && append!(terms, As[K+1])
     end
 
-    for (i, int) in enumerate(interactions)
-        B = local_rotations[i]' * (sys.gs[i]' * sys.extfield[i])
+    for i in 1:L
+        int = local_interactions(sys, frames, i; twist)
+        B = frames[i]' * (sys.gs[i]' * sys.extfield[i])
         add_local!(leading_only(words(spin_component_coefs(B), i)))
-        iszero(int.onsite) || add_local!(words(stevens_ranks(data.stevens_coefs[i]), i))
+        iszero(int.onsite) || add_local!(words(stevens_ranks(int.onsite), i))
 
         for coupling in int.pair
             (; isculled, bond) = coupling
@@ -150,25 +152,18 @@ function monomials_dipole(sys::System, data::SWTDataDipole, ::Val{K}; beyond_lsw
 
     # Merged because the cubic list is contracted once per loop wavevector, the
     # innermost loop of the whole calculation, and because the quartic list is
-    # Wick decoupled term by term. The LSWT Hamiltonian is merged instead by
-    # `QuadraticTable`, which `SpinWaveTheory` builds on every construction.
-    return beyond_lswt ? merge_monomials(terms) : terms
+    # Wick decoupled term by term
+    return merge_monomials(terms)
 end
-
-monomials_dipole(swt::SpinWaveTheory, k::Val; beyond_lswt=true) =
-    monomials_dipole(swt.sys, swt.data::SWTDataDipole, k; beyond_lswt)
 
 # Monomials of the sub-leading part of the term of K ≤ 2 bosons, the O(1/s)
 # correction to what LSWT treats at leading order. K = 1 enters through
 # `tadpole_correction`, K = 2 through `anisotropy_correction`, and K = 0 is
-# the correction to the classical energy. Empty in mode :SUN, where an onsite
-# coupling is not a Stevens polynomial to be re-expanded but a matrix that
-# `monomials_SUN` promotes exactly, leaving no remainder at any boson number.
-# See ExpansionSUN.jl.
+# the correction to the classical energy. Empty in mode :SUN; see
+# ExpansionSUN.jl.
 function lswt_correction_monomials(swt::SpinWaveTheory, k::Val{K}) where K
     @assert K <= 2
-    swt.sys.mode == :SUN && return BosonMonomial{K}[]
-    return monomials_dipole(swt, k)
+    return hamiltonian_monomials(swt.sys, swt.frames, k; beyond_lswt=true)
 end
 
 """
@@ -197,17 +192,12 @@ function anisotropy_correction(swt::SpinWaveTheory)
               δE = δE / nsites(uncontracted_system(swt.sys)))
 end
 
-# Monomials of H₂, the LSWT Hamiltonian, which `QuadraticTable` compiles for
-# `dynamical_matrix!`, and of H₃ and H₄, cached in `swt` and not to be mutated.
-# Mode :SUN expands in 1/M rather than 1/s and is handled by ExpansionSUN.jl,
-# which shares everything below the monomial representation itself.
-quadratic_monomials(sys::System, data) =
-    sys.mode == :SUN ? monomials_SUN(sys, data, Val{2}()) : monomials_dipole(sys, data, Val{2}(); beyond_lswt=false)
+# Monomials of H₃ and H₄, cached in `swt` and not to be mutated
 cubic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :cubic) do
-    swt.sys.mode == :SUN ? monomials_SUN(swt, Val{3}()) : monomials_dipole(swt, Val{3}())
+    hamiltonian_monomials(swt.sys, swt.frames, Val{3}(); beyond_lswt=true)
 end
 quartic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :quartic) do
-    swt.sys.mode == :SUN ? monomials_SUN(swt, Val{4}()) : monomials_dipole(swt, Val{4}())
+    hamiltonian_monomials(swt.sys, swt.frames, Val{4}(); beyond_lswt=true)
 end
 
 # True when the cubic vertex is numerically zero, so that everything it

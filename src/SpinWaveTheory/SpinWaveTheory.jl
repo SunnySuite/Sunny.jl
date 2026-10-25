@@ -3,24 +3,6 @@
 # SpinWaveTheorySpiral.
 abstract type AbstractSpinWaveTheory end
 
-struct SWTDataDipole
-    local_rotations       :: Vector{Mat3}             # Rotations from global to quantization frame
-    # Observables rotated to local frame (nobs × nsites), each a spin component
-    # 𝐎⋅𝐒 or, for a measure of general observables, a Stevens expansion
-    observables           :: Union{Array{Vec3, 2}, Array{StevensExpansion, 2}}
-    stevens_coefs         :: Vector{StevensExpansion} # Rotated onsite coupling as Steven expansion
-    sqrtS                 :: Vector{Float64}          # Square root of spin magnitudes
-    interactions          :: Vector{Interactions}     # Pair couplings rotated to local frames
-end
-
-
-struct SWTDataSUN
-    local_unitaries  :: Vector{Matrix{ComplexF64}}    # Transformations from global to quantization frame
-    observables      :: Array{HermitianC64, 3}        # Rotated observables (nobs × nsites × nparts)
-    spin_ops         :: Array{HermitianC64, 2}        # Spin dipoles in local frame (3 × bare sites)
-    interactions     :: Vector{Interactions}          # Couplings in local frames, Zeeman in onsite
-end
-
 # A correction to the quadratic Hamiltonian, as boson monomials, which defines a
 # Gaussian state other than the harmonic vacuum. A correction that was solved
 # self-consistently records its `grid`, on which every 1/s correction expanded
@@ -33,18 +15,19 @@ end
 
 GaussianState() = GaussianState(BosonMonomial{2}[], nothing, (;))
 
-# The monomials of H₃ and H₄, built on first use. They depend on the structure
-# and couplings but not on the Gaussian state, so every state of one theory
-# shares them. Only the 1/s corrections need them, and building them costs
-# several times more than the rest of `SpinWaveTheory`. Consumers must not
-# mutate the lists returned.
+# The monomials of H₂, from which the LSWT table is compiled, and of H₃ and H₄,
+# built on first use. They depend on the structure and couplings but not on the
+# Gaussian state, so every state of one theory shares them. Only the 1/s
+# corrections need H₃ and H₄, and building them costs several times more than
+# the rest of `SpinWaveTheory`. Consumers must not mutate the lists returned.
 mutable struct MonomialCache
-    const lock :: ReentrantLock
-    cubic      :: Union{Nothing, Vector{BosonMonomial{3}}}
-    quartic    :: Union{Nothing, Vector{BosonMonomial{4}}}
+    const lock      :: ReentrantLock
+    const quadratic :: Vector{BosonMonomial{2}}
+    cubic           :: Union{Nothing, Vector{BosonMonomial{3}}}
+    quartic         :: Union{Nothing, Vector{BosonMonomial{4}}}
 end
 
-MonomialCache() = MonomialCache(ReentrantLock(), nothing, nothing)
+MonomialCache(quadratic) = MonomialCache(ReentrantLock(), quadratic, nothing, nothing)
 
 # The field `name` of `cache`, built by `f` if it is not yet present
 function cached!(f, cache::MonomialCache, name::Symbol)
@@ -81,7 +64,10 @@ the state as the vacuum about which the bosons are expanded.
 """
 struct SpinWaveTheory <: AbstractSpinWaveTheory
     sys            :: System
-    data           :: Union{SWTDataDipole, SWTDataSUN}
+    # Rotation (dipole modes) or unitary (mode :SUN) of each site from the
+    # global frame to the local one, in which the ordered state is along ẑ or
+    # is the last basis state, respectively
+    frames         :: Union{Vector{Mat3}, Vector{Matrix{ComplexF64}}}
     measure        :: MeasureSpec
     regularization :: Float64
     classical_energy :: Float64
@@ -110,29 +96,25 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     # bands are indexed by the sites of the whole system, and the wavevectors
     # by the reciprocal lattice of its magnetic cell; see `to_supercell_rlu`.
     sys = clone_system(sys)
-    classical_energy = energy_per_site(sys)
-
-    # Rotate local operators to quantization axis
-    data = swt_data(sys, measure)
-
-    return SpinWaveTheory(sys, data, measure, regularization, classical_energy)
+    return SpinWaveTheory(sys, local_frames(sys), measure, regularization, energy_per_site(sys))
 end
 
-# The harmonic theory of the structure in `sys`, given its local `data`
-function SpinWaveTheory(sys::System, data, measure, regularization, classical_energy)
-    table = QuadraticTable(quadratic_monomials(sys, data), nbands(sys))
-    coefs = observable_coefficients(sys, data, measure)
-    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, GaussianState(), table, table,
-                          MonomialCache(), coefs)
+# The harmonic theory of the structure in `sys`, given its local `frames`
+function SpinWaveTheory(sys::System, frames, measure, regularization, classical_energy)
+    terms2 = hamiltonian_monomials(sys, frames, Val{2}())
+    table = QuadraticTable(terms2, nbands(sys))
+    coefs = observable_coefficients(sys, frames, measure)
+    return SpinWaveTheory(sys, frames, measure, regularization, classical_energy, GaussianState(), table, table,
+                          MonomialCache(terms2), coefs)
 end
 
 # The same theory about the Gaussian state `state`. Everything but the quadratic
 # table is shared.
 function SpinWaveTheory(swt::SpinWaveTheory, state::GaussianState)
-    (; sys, data, measure, regularization, classical_energy, bare_table, monomials, observable_coefs) = swt
+    (; sys, frames, measure, regularization, classical_energy, bare_table, monomials, observable_coefs) = swt
     table = isempty(state.correction) ? bare_table :
-        QuadraticTable([quadratic_monomials(sys, data); state.correction], nbands(swt))
-    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, state, table, bare_table,
+        QuadraticTable([monomials.quadratic; state.correction], nbands(swt))
+    return SpinWaveTheory(sys, frames, measure, regularization, classical_energy, state, table, bare_table,
                           monomials, observable_coefs)
 end
 
@@ -222,168 +204,94 @@ function mul_dynamical_matrix!(swt, y, x, qs_supercell; phases=zeros(ComplexF64,
 end
 
 
-# Prepare local operators, observables, and couplings for spin wave calculation
-# by rotating into the local reference frame as defined by the ground state. The
-# couplings of `sys` itself are left in the global frame.
-function swt_data(sys::System{N}, @nospecialize measure) where N
-    # Calculate transformation matrices into local reference frames
-    Na = nsites(sys)
-    nparts = num_parts_per_unit(measure)
-    Nobs = num_observables(measure)
-    flat_ops = reshape(measure.observables::Array{HermitianC64, 6}, Nobs, Na, nparts)
-
-    # Preallocate buffers for local unitaries and observables. Spin dipoles are
-    # stored per bare site of the uncontracted system.
-    usys = uncontracted_system(sys)
-    local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
-    observables = Array{HermitianC64}(undef, Nobs, Na, nparts)
-    spin_ops = fill(Hermitian(zeros(ComplexF64, N, N)), 3, nsites(usys))
-
-    for i in 1:Na
-        # Create unitary that rotates [0, ..., 0, 1] into ground state direction
-        # Z that defines quantization axis
-        Z = sys.coherents[i]
-
-        U = if iszero(Z)
-            # Set all operators on a vacant site to zero
-            zeros(ComplexF64, N, N)
-        else
-            # Build unitary U satisfying U e_N ∝ Z.
-            hcat(nullspace(Z'), Z)
-        end
-        local_unitaries[i] = U
-
-        # Rotate observables into local reference frames
-        for p in 1:nparts, μ in 1:Nobs
-            observables[μ, i, p] = Hermitian(U' * flat_ops[μ, i, p] * U)
-        end
-
-        # Store spin dipoles of each bare site in the local frame
-        for (bi, _) in bare_indices_and_cells(sys, i)
-            S = spin_ops_embedded(sys, to_atom(eachsite(usys)[bi]))
-            for α in 1:3
-                spin_ops[α, bi] = Hermitian(U' * S[α] * U)
-            end
-        end
+# The local frame of each site, in which the ordered state is the last basis
+# state. A vacant site gets a zero frame, which zeroes every operator rotated
+# into it.
+function local_frames(sys::System{N}) where N
+    return map(vec(sys.coherents)) do Z
+        # Unitary U satisfying U e_N ∝ Z
+        iszero(Z) ? zeros(ComplexF64, N, N) : hcat(nullspace(Z'), Z)
     end
-
-    interactions = map(1:Na) do i
-        Ui = local_unitaries[i]
-        int = interactions_at(sys, i)
-
-        # Rotate onsite coupling, with the Zeeman coupling of each bare site
-        onsite = int.onsite
-        for (bi, _) in bare_indices_and_cells(sys, i)
-            S = spin_ops_embedded(sys, to_atom(eachsite(usys)[bi]))
-            onsite += (usys.extfield[bi]' * usys.gs[bi]) * S
-        end
-        onsite = Hermitian(Ui' * onsite * Ui)
-
-        # Convert each pair coupling to a compressed tensor decomposed form and
-        # rotate it into the local reference frames of both sites.
-        pair_new = PairCoupling[]
-        for pc in int.pair
-            (; bond) = pc
-            (j, _) = bond_target(sys, i, bond)
-
-            N1, N2 = sys.Ns[i], sys.Ns[j]
-            Uj = local_unitaries[j]
-            data_rotated = map(pair_coupling_tensor_data(pc, N1, N2)) do (A, B)
-                (Hermitian(Ui'*A*Ui), Hermitian(Uj'*B*Uj))
-            end
-
-            gen1 = spin_matrices_of_dim(; N=N1)
-            gen2 = spin_matrices_of_dim(; N=N2)
-            general_rotated = TensorDecomposition(gen1, gen2, data_rotated)
-
-            push!(pair_new, PairCoupling(bond, 0.0, 0.0, 0.0, general_rotated))
-        end
-        Interactions(onsite, pair_new)
-    end
-
-    return SWTDataSUN(local_unitaries, observables, spin_ops, interactions)
 end
 
-
-# The local `frames` may instead be given, e.g. to continue a family of frames
-# smoothly, as `relax_frames` does. Column 3 of each must be the direction of
-# its dipole.
-function swt_data(sys::System{0}, @nospecialize measure; frames=nothing)
-    Na = nsites(sys)
-    Nobs = num_observables(measure)
-
-    # Operators for rotating vectors into local frame
-    Rs = !isnothing(frames) ? frames : map(1:Na) do i
-        # Defines quantization axis.
-        n = sys.dipoles[i]
-
-        R = if iszero(n)
-            # Set all operators on a vacant site to zero
-            zero(Mat3)
-        else
-            # Build rotation R satisfying R z ∝ n.
-            rotation_between_vectors([0, 0, 1], n)
-        end
-
+# In the dipole modes, the rotation R of site i satisfies R ẑ ∝ 𝐒ᵢ.
+function local_frames(sys::System{0})
+    return map(enumerate(vec(sys.dipoles))) do (i, n)
+        iszero(n) && return zero(Mat3)
         # Rotation about the quantization axis is a U(1) gauge symmetry. The
-        # angle θ below, for each atom, is arbitrary. We include this rotation
-        # as an extra check of correctness.
+        # angle θ, distinct for each site, is arbitrary, and is included as an
+        # extra check of correctness.
         θ = 0.1 * i
-        return R * axis_angle_to_matrix([0, 0, 1], θ)
+        return rotation_between_vectors([0, 0, 1], n) * axis_angle_to_matrix([0, 0, 1], θ)
     end
+end
 
-    # Operators for rotating Stevens quadrupoles into local frame
-    Vs = map(Rs) do R
-        iszero(R) ? zero(Mat5) : Mat5(operator_for_stevens_rotation(2, R))
-    end
-
-    # Observable is semantically a 1x3 row vector but stored in transpose
-    # (column) form. To achieve effective right-multiplication by R, we should
-    # in practice left-multiply column vector by R'. A Stevens expansion rotates
-    # as the onsite coupling does.
-    num_parts_per_unit(measure) == 1 || error("Distinct parts unsupported in dipole-mode.")
-    obs = reshape(measure.observables, Nobs, Na)
-    obs_localized = if obs isa Array{Vec3}
-        [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
-    else
-        [iszero(Rs[i]) ? obs[μ, i] * 0.0 : rotate_operator(obs[μ, i], Rs[i]) for μ in 1:Nobs, i in 1:Na]
-    end
-
-    # Precompute transformed exchange matrices, per site. The onsite coupling
-    # is kept in the global frame, its rotated form being `stevens_coefs`.
-    interactions = map(1:Na) do i
-        int = interactions_at(sys, i)
-        pair = map(int.pair) do pc
-            (; bond, scalar, bilin, biquad, general) = pc
-            (j, _) = bond_target(sys, i, bond)
-
-            if !iszero(bilin)  # Leave zero if already zero
-                J = Mat3(bilin*I)
-                bilin = Rs[i]' * J * Rs[j]
-            end
-
-            if !iszero(biquad)
-                J = biquad
-                J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
-                biquad = Vs[i]' * J * Vs[j]
-            end
-
-            @assert isempty(general.data)
-
-            PairCoupling(bond, scalar, bilin, biquad, general)
+# The interactions of site i rotated into the local `frames`, including the
+# onsite coupling, which in the dipole modes remains a Stevens expansion. Bond
+# i → j, winding n magnetic cells, couples to the spin of j rotated by
+# `twist(n)`, which `SpinWaveTheorySpiral` uses to pass to the co-rotating
+# frame.
+function local_interactions(sys::System{0}, frames::Vector{Mat3}, i; twist=nothing)
+    R = frames[i]
+    int = interactions_at(sys, i)
+    onsite = iszero(R) ? empty_anisotropy(sys.mode, 0) : rotate_operator(int.onsite, R)
+    V(R) = iszero(R) ? zero(Mat5) : Mat5(operator_for_stevens_rotation(2, R))
+    pair = map(int.pair) do pc
+        (; bond, scalar, bilin, biquad, general) = pc
+        @assert isempty(general.data)
+        (j, n) = bond_target(sys, i, bond)
+        if !iszero(bilin)
+            Rj = isnothing(twist) ? frames[j] : twist(n) * frames[j]
+            bilin = R' * Mat3(bilin*I) * Rj
         end
-        Interactions(int.onsite, pair)
+        if !iszero(biquad)
+            biquad = V(R)' * Mat5(biquad isa Number ? biquad * diagm(scalar_biquad_metric) : biquad) * V(frames[j])
+        end
+        PairCoupling(bond, scalar, bilin, biquad, general)
     end
+    return Interactions(onsite, pair)
+end
 
-    # Rotated Stevens expansion
-    cs = map(1:Na, Rs) do i, R
-        iszero(R) ? empty_anisotropy(sys.mode, 0) : rotate_operator(interactions_at(sys, i).onsite, R)
+# In mode :SUN every pair coupling is decomposed into tensor products A ⊗ B,
+# and the onsite coupling absorbs the Zeeman term of each bare site of the unit.
+function local_interactions(sys::System, frames::Vector{Matrix{ComplexF64}}, i)
+    U = frames[i]
+    int = interactions_at(sys, i)
+    usys = uncontracted_system(sys)
+    onsite = int.onsite
+    for (bi, _) in bare_indices_and_cells(sys, i)
+        onsite += (usys.extfield[bi]' * usys.gs[bi]) * bare_spin_ops(sys, bi)
     end
+    pair = map(int.pair) do pc
+        (j, _) = bond_target(sys, i, pc.bond)
+        (Ni, Nj) = (sys.Ns[i], sys.Ns[j])
+        Uj = frames[j]
+        data = [(Hermitian(U'*A*U), Hermitian(Uj'*B*Uj)) for (A, B) in pair_coupling_tensor_data(pc, Ni, Nj)]
+        general = TensorDecomposition(spin_matrices_of_dim(; N=Ni), spin_matrices_of_dim(; N=Nj), data)
+        PairCoupling(pc.bond, 0.0, 0.0, 0.0, general)
+    end
+    return Interactions(Hermitian(U' * onsite * U), pair)
+end
 
-    # Square root of spin magnitudes
-    sqrtS = sqrt.(vec(sys.κs))
+# Spin matrices of bare site `bi` of the uncontracted system, embedded in its
+# unit, and the same in the local frame U of that unit
+bare_spin_ops(sys::System, bi) = spin_ops_embedded(sys, to_atom(eachsite(uncontracted_system(sys))[bi]))
+local_spin_ops(sys::System, U, bi) = map(S -> Hermitian(U' * S * U), bare_spin_ops(sys, bi))
 
-    return SWTDataDipole(Rs, obs_localized, cs, sqrtS, interactions)
+# Part p of observable μ at site i, in the local frame. In the dipole modes, a
+# spin component 𝐎⋅𝐒 is stored as the column 𝐎, so that rotating 𝐒 into the
+# local frame left-multiplies 𝐎 by R'. A Stevens expansion rotates as the
+# onsite coupling does.
+function local_observable(sys::System, frames, measure::MeasureSpec, μ, i; part=1)
+    O = reshape(measure.observables, num_observables(measure), nsites(sys), :)[μ, i, part]
+    R = frames[i]
+    return if O isa Vec3
+        R' * O
+    elseif O isa StevensExpansion
+        iszero(R) ? O * 0.0 : rotate_operator(O, R)
+    else
+        Hermitian(R' * O * R)
+    end
 end
 
 # Fourier prefactor for observable μ acting on site i of `sys`, with optional
@@ -400,10 +308,10 @@ end
 # phase or form factor that `observable_prefactor` supplies. These are the
 # amplitudes of LSWT, the leading order of the words of
 # `observable_monomials`.
-function observable_coefficients(sys::System, data, measure::MeasureSpec)
+function observable_coefficients(sys::System, frames, measure::MeasureSpec)
     C = zeros(ComplexF64, 2nbands(sys), num_observables(measure), num_parts_per_unit(measure))
     for p in axes(C, 3), μ in axes(C, 2), i in 1:nsites(sys)
-        for (; c, as) in observable_monomials(sys, data, μ, i, Val{1}(); part=p, beyond_tree=false)
+        for (; c, as) in observable_monomials(sys, frames, measure, μ, i, Val{1}(); part=p, beyond_tree=false)
             C[as[1], μ, p] += c
         end
     end
