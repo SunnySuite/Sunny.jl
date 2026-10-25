@@ -188,11 +188,9 @@ end
 function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
                             dyson=:nambu, threaded=false, verbose=false, spectral=false,
                             vacuum=MagnonVacuum(swt))
-    check_corrections_supported(swt)
-    vacuum.swt === swt || error("Vacuum must be built on the same `SpinWaveTheory`")
-    η > 0 || error("Regulator `η` must be positive.")
     dyson in (:nambu, :particle, :on_shell) ||
         error("Unknown `dyson=:$dyson`; use :nambu, :particle or :on_shell.")
+    ol = OneLoop(swt; η, tol, loop_grid, vacuum)
 
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
@@ -204,10 +202,6 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     issorted(energies) || error("energies must be sorted")
     qpts = convert(AbstractQPoints, qpts)
 
-    loop_grid = @something loop_grid auto_loop_grid(vacuum, η, tol)
-    # Binning error is O((Δ/η)²), so Δ/η = √tol contributes of order `tol`
-    bin_width = η * min(1/2, √tol)
-
     if length(energies) > 1
         dω = (energies[end] - energies[begin]) / (length(energies) - 1)
         if dω > (η/2) * (1 + 1e-8)
@@ -216,8 +210,6 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
                      of η/2 or less adds little cost."""
         end
     end
-
-    statics = static_corrections(vacuum, loop_grid)
 
     chans = (; transverse = zeros(eltype(measure), length(energies), length(qpts.qs)),
                cross = zeros(eltype(measure), length(energies), length(qpts.qs)),
@@ -241,17 +233,16 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         corr = zeros(ComplexF64, num_correlations(measure))
         q = qpts.qs[iq]
         q_global = cryst.recipvecs * q
-        ol = one_loop(vacuum, statics, q; loop_grid, bin_width)
-        (; ε, w) = ol
+        se = SelfEnergy(ol, q)
+        (; ε, w) = se
         view(disp, :, iq) .= view(ε, 1:L)
         E = Diagonal(abs.(ε))
 
-        # After `energies` come a frequency just above ω = 0, for the
-        # stability check, and the signed harmonic energies of all 2L Nambu
-        # legs, for the on-shell poles
+        # After `energies` comes a frequency just above ω = 0, for the
+        # stability check
         nω = length(energies)
-        zs = [energies; 0; ε] .+ im*η
-        (; Σ, K, poles) = dyson_model(ol, dyson, zs, η)
+        zs = [energies; 0] .+ im*η
+        (; Σ, K, poles) = dyson_model(se, dyson, zs)
 
         # Contracts an Nobs×Nobs χ through the measure, taking S = (χ' - χ)/2πi
         function accum_channel!(accum, iω, χ)
@@ -298,7 +289,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         end
 
         if verbose
-            Kdec = cauchy_transform((ol.decay,), ε .+ im*η)
+            Kdec = cauchy_transform((se.decay,), ε .+ im*η)
             view(linewidths, :, iq) .= [-imag(Kdec[n, n, n]) for n in 1:L]
         end
     end
@@ -306,7 +297,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     if verbose
         println("""
             corrected_intensities with tol = $tol
-              loop grid       $(join(loop_grid, "×")) = $(prod(loop_grid)) points""")
+              loop grid       $(join(ol.loop_grid, "×")) = $(prod(ol.loop_grid)) points""")
     end
 
     t0 = time()
@@ -321,7 +312,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         Γs = sort!(filter(isfinite, vec(linewidths)))
         report = isempty(Γs) ? "none" :
             "median $(r2(Γs[cld(end, 2)])), 90th pct $(r2(Γs[ceil(Int, 0.9end)])), against η = $(r2(η))"
-        println("  elapsed         $(r2(elapsed)) s on $nthreads \
+        println("  elapsed         $(round(elapsed; digits=1)) s on $nthreads \
                  thread$(nthreads == 1 ? "" : "s"), $(r2(per_q)) ms per 𝐪")
         println("  on-shell -Im Σ  $report")
         dyson == :nambu && println("  breakdown       $(count(breakdown)) of $(length(qpts.qs)) wavevectors (NaN near ω = 0)")
@@ -330,69 +321,12 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     return (; cryst, qpts, energies, chans..., specfunc, disp, breakdown, bands)
 end
 
-# Everything of the one-loop expansion about `vac` that is common to all 𝐪: the
-# cubic monomials, the static correction `terms2` to the quadratic Hamiltonian,
-# and the corrections `δc` to the observables. Every mean field is a contraction
-# in `vac`, taken in one pass on the loop grid that the
-# cubic self-energy uses at the magnetic zone centre. The Ward identity of each
-# Goldstone mode then cancels the static and the dynamic shifts exactly, grid by
-# grid, rather than to within the error of two unrelated quadratures.
-function static_corrections(vac::MagnonVacuum, loop_grid)
-    (; swt) = vac
-    # A negligible cubic vertex is dropped outright, e.g. collinear order in
-    # dipole mode, so that everything it generates is exactly zero
-    terms3 = cubic_monomials(swt)
-    cubic_vertex_vanishes(swt, terms3) && empty!(terms3)
-
-    terms4 = quartic_monomials(swt)
-    g = contractions(vac, Iterators.flatten((terms3, terms4, observable_cubic_monomials(swt))), BZQuadrature(; grid=loop_grid))
-    tad = isempty(terms3) ? nothing : tadpole(vac, terms3, g)
-    terms2 = [mean_field(terms4, g).terms2
-              isnothing(tad) ? BosonMonomial{2}[] : tad.terms2
-              anisotropy_correction(swt).terms2]
-    δc = observable_corrections(swt, isnothing(tad) ? nothing : tad.w, g)
-    return (; terms3, terms2, δc)
-end
-
-# The one-loop expansion at the wavevector `q` in RLU of the original cell: the
-# signed energies `ε` of the vacuum and its Bogoliubov matrix `T`, the static
-# self-energy `Σstat` in the quasi-particle basis, counterterm included, the
-# observable amplitudes `w` in the same basis, and the binned `decay` and
-# `source` measures of the two-magnon bath. Everything a Dyson scheme needs.
-function one_loop(vac::MagnonVacuum, statics, q; loop_grid, bin_width)
-    (; swt) = vac
-    (; sys) = swt
-    L = nbands(swt)
-    q_reshaped = to_reshaped_rlu(sys, q)
-    q_global = orig_crystal(sys).recipvecs * q
-
-    ws = BogoliubovWorkspace(L)
-    ε = copy(vacuum_bogoliubov!(ws, zeros(ComplexF64, 2L, 2L), vac, q_reshaped))
-    T = ws.T
-
-    δH = zeros(ComplexF64, 2L, 2L)
-    accum_quadratic!(δH, statics.terms2, q_reshaped)
-    accum_counterterm!(δH, vac, q_reshaped)
-    Σstat = T' * δH * T
-
-    u = zeros(ComplexF64, 2L, num_observables(swt.measure))
-    set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
-    accum_observable_corrections!(u, swt, q_reshaped, q_global, statics.δc)
-    w = T' * u
-
-    grid = loop_wavevectors(loop_grid, q_reshaped)
-    words2 = observable_pair_monomials(swt, q_reshaped, q_global)
-    (; decay, source) = pair_measures(vac, statics.terms3, q_reshaped, grid; bin_width, words2)
-    return (; ε, T, Σstat, w, decay, source)
-end
-
 # The quadratic model of magnons and bath that the `dyson` scheme propagates,
-# given the one-loop expansion `ol`: a static Nambu matrix `Σ` and the bath
-# transform `K` at each of the frequencies `zs`, of which the trailing 2L must
-# be the signed energies of the legs, displaced by iη. `:on_shell` also returns
-# its `poles`. See the discussion at the head of this file.
-function dyson_model(ol, dyson, zs, η)
-    (; ε, Σstat, decay, source) = ol
+# given the one-loop self-energy `se`: a static Nambu matrix `Σ` and the bath
+# transform `K` at each of the frequencies `zs`. `:on_shell` also returns its
+# `poles`. See the discussion at the head of this file.
+function dyson_model(se::SelfEnergy, dyson, zs)
+    (; ε, η, Σstat, decay, source) = se
     L = length(ε) ÷ 2
     p = 1:2L
     Kdec = cauchy_transform((decay,), zs)
@@ -418,10 +352,8 @@ function dyson_model(ol, dyson, zs, η)
     end
 
     @assert dyson == :on_shell
-    # The Dyson equation of `:nambu`, linearized at each pole. Each element of
-    # the self-energy Σstat + K is frozen on the shell of its two legs,
-    # ½[K_mn(ε_m) + K_mn(ε_n)], which reduces to K_nn(ε_n) on the diagonal and
-    # keeps the frozen matrix Hermitian up to its absorptive part. The anomalous
+    # The Dyson equation of `:nambu`, linearized at each pole, with the
+    # self-energy frozen on shell as in `on_shell_form`. The anomalous
     # blocks couple poles at ±ε, a gap of 2ε, so they first shift a pole at
     # second order and are dropped. Each of the particle and hole blocks is
     # diagonalized in its Hermitian part, which mixes bands only at first order
@@ -435,9 +367,7 @@ function dyson_model(ol, dyson, zs, η)
     # construction. Reading the width at the shifted energy rather than at the
     # harmonic one puts the threshold of the continuum where the pole sits.
     K = Kdec + Ksrc
-    nω = length(zs) - 2L
-    Kon = [(K[m, n, nω+m] + K[m, n, nω+n]) / 2 for m in p, n in p]
-    M = Diagonal(abs.(ε)) + Σstat + Kon
+    M = on_shell_form(se)
     (λp, Up) = eigen(Hermitian((M[1:L, 1:L] + M[1:L, 1:L]') / 2))
     (λh, Uh) = eigen(Hermitian((M[L+1:2L, L+1:2L] + M[L+1:2L, L+1:2L]') / 2))
     Kp = cauchy_transform((decay,), λp .+ im*η)
