@@ -1060,6 +1060,9 @@ end
     # mismatch is the discretization error of the self-energy, falling off like
     # 1/nk.
     swt = SpinWaveTheory(canted_square(1, 3); measure=nothing)
+    # Without a measure the one-loop pieces still build, and intensities refuse
+    @test size(Sunny.OneLoop(swt; η=0.1, bz=(4, 4, 1)).δc) == (2Sunny.nbands(swt), 0)
+    @test_throws "No observables" Sunny.corrected_intensities(swt, [[0, 0, 0]]; energies=0:0.1:1, η=0.1)
     for bz in ((8, 8, 1), (16, 16, 1))
         t2 = [Sunny.hartree_fock_correction(swt; bz).terms2
               Sunny.tadpole_correction(swt; bz).terms2]
