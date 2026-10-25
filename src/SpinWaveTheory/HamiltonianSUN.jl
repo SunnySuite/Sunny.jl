@@ -61,7 +61,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # Onsite and pair couplings, and for an entangled system the bilinear
     # exchange between units, all compiled into one table
     H .= 0
-    accum_lower!(H, swt.quadratic_table::QuadraticTable, q_reshaped)
+    accum_lower!(H, swt.quadratic_table, q_reshaped)
     hermitian_from_lower!(H)
 
     # Long-range dipole-dipole interactions. In case of an entangled system,
@@ -134,7 +134,7 @@ function multiply_by_hamiltonian_SUN!(y::AbstractMatrix{ComplexF64}, x::Abstract
     L = nbands(swt)
     @assert size(x) == size(y) == (length(qs_reshaped), 2L)
     y .= 0
-    accum_mul!(y, x, swt.quadratic_table::QuadraticTable, qs_reshaped, phases)
+    accum_mul!(y, x, swt.quadratic_table, qs_reshaped, phases)
 
     if !isnothing(sys.ewald)
         error("Ewald not supported")

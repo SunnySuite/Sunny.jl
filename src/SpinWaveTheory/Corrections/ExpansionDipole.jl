@@ -274,6 +274,83 @@ function anisotropy_correction(swt::SpinWaveTheory)
               δE = δE / nsites(uncontracted_system(swt.sys)))
 end
 
+# Monomials of H₂, the LSWT Hamiltonian in the dipole modes, which
+# `QuadraticTable` compiles for `swt_hamiltonian_dipole!`. Each term is the
+# leading order of a bond or site, the sub-leading corrections being those of
+# `anisotropy_correction`. A bilinear exchange in the local frames contributes
+#
+#     Q b†_i b_j + P b_i b_j + h.c. - J_zz (s_j b†_i b_i + s_i b†_j b_j),
+#
+# with Q and P as given by `pm_coefficient`, and a biquadratic exchange the
+# analogous terms of its quadrupolar matrix. A word with both bosons on one site,
+# such as A₂ b†b†/2, enters twice in the Nambu matrix, hence its factor 1/2.
+function quadratic_monomials_dipole(sys::System, data::SWTDataDipole)
+    (; local_rotations, stevens_coefs, sqrtS) = data
+    L = natoms(sys.crystal)
+
+    terms = BosonMonomial{2}[]
+    add!(c, as, ns) = iszero(c) || push!(terms, BosonMonomial(ComplexF64(c), as, ns))
+    o = zero(Vec3)
+
+    for (i, int) in enumerate(sys.interactions_union)
+        # Zeeman term, suppressed on a vacant site by its null local frame
+        B = sys.gs[1, 1, 1, i]' * sys.extfield[1, 1, 1, i]
+        add!(-dot(B, local_rotations[i][:, 3]), (L+i, i), (o, o))
+
+        # Single-ion anisotropy
+        (; c2, c4, c6) = stevens_coefs[i]
+        s = sqrtS[i]^2
+        A1 = -6s*c2[3] - 80*s^3*c4[5] - 336*s^5*c6[7]
+        A2 = 2s*(c2[1]+im*c2[5]) + 12s^3*(c4[3]+im*c4[7]) + 32s^5*(c6[5]+im*c6[9])
+        add!(A1, (L+i, i), (o, o))
+        add!(A2/2, (L+i, L+i), (o, o))
+        add!(conj(A2)/2, (i, i), (o, o))
+
+        for coupling in int.pair
+            (; isculled, bond) = coupling
+            isculled && break
+            @assert i == bond.i
+            j = bond.j
+            n = Vec3(bond.n)
+            si = sqrtS[i]^2
+            sj = sqrtS[j]^2
+            sij = sqrtS[i] * sqrtS[j]
+
+            # Hopping Q and pairing P between the two sites, and their adjoints
+            function add_bond!(Q, P)
+                add!(Q, (L+i, j), (o, n))
+                add!(conj(Q), (L+j, i), (n, o))
+                add!(P, (i, j), (o, n))
+                add!(conj(P), (L+i, L+j), (o, n))
+            end
+
+            if !iszero(coupling.bilin)
+                J = coupling.bilin
+                add_bond!(0.5 * sij * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1])),
+                          0.5 * sij * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1])))
+                add!(-sj * J[3, 3], (L+i, i), (o, o))
+                add!(-si * J[3, 3], (L+j, j), (n, n))
+            end
+
+            if !iszero(coupling.biquad)
+                K = coupling.biquad
+                Sj2Si = sj^2 * si
+                Si2Sj = si^2 * sj
+                add_bond!(0.5 * sij^3 * ( K[4, 4]+K[2, 2] - im*(-K[4, 2]+K[2, 4])),
+                          0.5 * sij^3 * (-K[4, 4]+K[2, 2] - im*( K[4, 2]+K[2, 4])))
+                add!(-12 * Sj2Si * K[3, 3], (L+i, i), (o, o))
+                add!(-12 * Si2Sj * K[3, 3], (L+j, j), (n, n))
+                add!(2 * Sj2Si * (K[1, 3] - im*K[5, 3]), (i, i), (o, o))
+                add!(2 * Sj2Si * (K[1, 3] + im*K[5, 3]), (L+i, L+i), (o, o))
+                add!(2 * Si2Sj * (K[3, 1] - im*K[3, 5]), (j, j), (n, n))
+                add!(2 * Si2Sj * (K[3, 1] + im*K[3, 5]), (L+j, L+j), (n, n))
+            end
+        end
+    end
+
+    return terms
+end
+
 # Monomials of H₃ and H₄, the three- and four-boson terms. Mode :SUN expands in
 # 1/M rather than 1/s and is handled by ExpansionSUN.jl, which shares everything
 # below the monomial representation itself.
