@@ -76,6 +76,13 @@ end
     @test k[1:2] ≈ [0.5, 0.5]
     @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
 
+    # The k-gradient on a reshaped cell
+    using FiniteDiff: finite_difference_gradient
+    sys_r = reshape_supercell(sys, [1 1 0; -1 1 0; 0 0 1])
+    k0 = [0.13, 0.27, 0.31]
+    _, dEdk = Sunny.spiral_energy_and_gradient_aux!(nothing, sys_r; k=k0, axis)
+    @test dEdk ≈ finite_difference_gradient(k -> spiral_energy(sys_r; k, axis), k0)
+
     # Luttinger Tisza exchange gives almost the right energy but: (1) The
     # "constant shift" associated with the anisotropy needs to be included,
     # and (2) It does not account for canting, which is a q=0 contribution
