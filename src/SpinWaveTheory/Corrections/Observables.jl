@@ -1,5 +1,6 @@
-# Corrections of relative order 1/s to the observables whose correlations
-# `intensities` measures. Conventions are collected in Corrections.jl.
+# Boson monomials of the observables whose correlations `intensities` measures,
+# and of the spin components, as the 1/s corrections consume them. Conventions
+# are collected in Corrections.jl.
 #
 # In a local frame where the classical dipole points along ẑ, an observable
 # Â_i = 𝐎 ⋅ 𝐒_i splits into a transverse part and a longitudinal one,
@@ -38,7 +39,7 @@
 #
 # using σ² = 2s. The displaced description is used here because every other part of
 # the calculation is performed at the classical energy minimum, where LSWT is well
-# defined; see Tadpole.jl.
+# defined; see the tadpole in StaticCorrections.jl.
 #
 # The first of these corrections supplies the entire O(1/s) deficit in the static
 # transverse weight, and hence in the quantum sum rule; the second is invisible to
@@ -63,9 +64,9 @@
 # the LSWT amplitude that `set_swt_observable_vectors!` builds.
 #
 # In mode :SUN an observable is a matrix on the same footing as a term of the
-# Hamiltonian, so its words are those of `local_words`. In the dipole modes the
+# Hamiltonian, so its words are those of `local_monomials`. In the dipole modes the
 # expansion above gives the two families directly.
-function observable_words(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
+function observable_monomials(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
     (; sys, data) = swt
     L = nbands(swt)
     o = zero(Vec3)
@@ -73,7 +74,7 @@ function observable_words(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
     if sys.mode == :SUN
         @assert num_parts_per_unit(swt.measure) == 1  # Entangled units are rejected
         A = (data::SWTDataSUN).observables[μ, i, 1]
-        return local_words(A, i, o, Val{K}(), nflavors(swt), L)
+        return local_monomials(A, i, o, Val{K}(), nflavors(swt), L)
     end
 
     @assert sys.mode in (:dipole, :dipole_uncorrected)
@@ -93,28 +94,33 @@ function observable_words(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
 end
 
 # Every K-boson word of observable μ, over the sites of the magnetic cell.
-observable_words(swt::SpinWaveTheory, μ, ::Val{K}) where K =
-    reduce(vcat, observable_words(swt, μ, i, Val{K}()) for i in 1:nsites(swt.sys))
+observable_monomials(swt::SpinWaveTheory, μ, ::Val{K}) where K =
+    reduce(vcat, observable_monomials(swt, μ, i, Val{K}()) for i in 1:nsites(swt.sys))
+
+# The cubic monomials of every observable, which are what a correction to the
+# one-magnon amplitude contracts
+observable_cubic_monomials(swt::SpinWaveTheory) =
+    reduce(vcat, (observable_monomials(swt, μ, Val{3}()) for μ in 1:num_observables(swt.measure)); init=BosonMonomial{3}[])
 
 # Monomials of `K` bosons in the expansion of the spin component α of site i, in
-# the local frame. Unlike `observable_words`, which describes what `measure`
+# the local frame. Unlike `observable_monomials`, which describes what `measure`
 # reads out and so only needs the words that create a magnon, this is the full
 # expansion of 𝐒 itself, whose expectation value `corrected_magnetic_moments`
 # takes. The words of K = 0, 1, 2 are respectively the classical dipole, the
 # tadpole tilt, and the zero-point depletion.
 #
 # In mode :SUN the spin components are matrices on the same footing as a term of
-# the Hamiltonian, so their words are those of `local_words`. In the dipole
-# modes the Holstein-Primakoff expansion of Vertices.jl gives the words
+# the Hamiltonian, so their words are those of `local_monomials`. In the dipole
+# modes the Holstein-Primakoff expansion of ExpansionDipole.jl gives the words
 # directly, ⟨𝐒⟩ = R (σ Re v, σ Im v, s - ⟨b†b⟩) in a local frame whose ẑ is the
 # classical dipole.
-function spin_words(swt::SpinWaveTheory, α, i, ::Val{K}) where K
+function spin_monomials(swt::SpinWaveTheory, α, i, ::Val{K}) where K
     (; sys, data) = swt
     L = nbands(swt)
     o = zero(Vec3)
 
     if sys.mode == :SUN
-        return local_words((data::SWTDataSUN).spin_ops[α, i], i, o, Val{K}(), nflavors(swt), L)
+        return local_monomials((data::SWTDataSUN).spin_ops[α, i], i, o, Val{K}(), nflavors(swt), L)
     end
 
     @assert sys.mode in (:dipole, :dipole_uncorrected)
@@ -140,61 +146,34 @@ end
 # that of creating a pair, whereas `observable_prefactor` describes the observable
 # as `set_swt_observable_vectors!` applies it, to the amplitude for the adjoint
 # process.
-function observable_pair_words(swt::SpinWaveTheory, q_reshaped, q_global)
+function observable_pair_monomials(swt::SpinWaveTheory, q_reshaped, q_global)
     (; sys, measure) = swt
     return map(1:num_observables(measure)) do μ
         [BosonMonomial(conj(observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)) * c, as, ns)
-         for i in 1:nsites(sys) for (; c, as, ns) in observable_words(swt, μ, i, Val{2}())]
+         for i in 1:nsites(sys) for (; c, as, ns) in observable_monomials(swt, μ, i, Val{2}())]
     end
 end
 
-"""
-    observable_corrections(swt::SpinWaveTheory; v=nothing, tol, maxevals)
-
-Correction of relative order ``1/s`` to the amplitude for a magnon to be created
-by each observable. Two effects contribute at this order: the cubic term of the
-Holstein-Primakoff expansion of the transverse spin components, and the tilt of
-the ordered structure by zero-point fluctuations. The latter requires the boson
-displacement `v` of [`tadpole_correction`](@ref), and is omitted if `v` is
-`nothing`. Returns the coefficients `δc[a, μ]` of the one-boson operators, labeled
-as in [`accum_observable_corrections!`](@ref), which is what applies them.
-
-The onsite correlations are integrated over the Brillouin zone by adaptive
-cubature. At least one of `tol` (a relative accuracy target) or `maxevals` (a
-budget of integrand evaluations) is required to control it.
-"""
-function observable_corrections(swt::SpinWaveTheory; v=nothing, tol=nothing, maxevals=nothing, grid=nothing)
-    isnothing(tol) && isnothing(maxevals) && isnothing(grid) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
-    check_corrections_supported(swt)
-
-    L = nbands(swt)
-    Nobs = num_observables(swt.measure)
-    words2 = [observable_words(swt, μ, Val{2}()) for μ in 1:Nobs]
-    words3 = [observable_words(swt, μ, Val{3}()) for μ in 1:Nobs]
-
-    # Contracting two legs of the cubic word is the same operation that generates
-    # the tadpole, so `tadpole_vector` performs it. The contracted pair acts on the
-    # same site as the surviving operator, so only onsite correlations are needed
-    # and no wavevector dependence survives.
-    ckeys = correlation_keys(L, reduce(vcat, words3))
-    gs = nambu_correlations(swt, ckeys, BosonMonomial{2}[]; tol, maxevals, grid)
-    g = correlation_lookup(ckeys, gs, L)
-    noise = max(@something(tol, 1e-3), 1e-8)
-
-    # Nambu packing of the displacement, as `tadpole_correction` forms it
-    w = isnothing(v) ? zeros(ComplexF64, 2L) : [v; conj(v)]
-
-    δc = zeros(ComplexF64, 2L, Nobs)
-    for μ in 1:Nobs
-        view(δc, :, μ) .= tadpole_vector(words3[μ], g, L, noise)
-        # The tilt, as the displacement of one leg of the longitudinal word.
-        for (; c, as) in words2[μ]
-            δc[as[1], μ] += c * w[as[2]]
-            δc[as[2], μ] += c * w[as[1]]
-        end
-    end
-
-    return δc
+# Amplitude for the even part of an observable to create the pair of magnons (𝐩
+# a, 𝐪-𝐩 b) directly, given that part as the `BosonMonomial{2}` list that
+# `observable_pair_monomials` builds, already carrying its Fourier phase. Only the
+# even part of an observable contributes here,
+# the odd one changing the boson number by one. The two terms symmetrize over
+# which line takes which slot of the word, and the 1/√2 is the norm of the
+# symmetrized two-boson state. No phase accompanies the slots because an
+# observable is onsite, so both of them carry the same cell offset.
+#
+# Both lines are expressed in the Bogoliubov matrices at +𝐩 and +(𝐪-𝐩), which
+# `foreach_magnon_pair` supplies and the cubic vertex shares. An equivalent form
+# in T(-𝐩) and T(𝐩-𝐪) follows from the Nambu symmetry of SelfEnergy.jl, but
+# would come from independent diagonalizations, whose free per-band phase the
+# interference cannot tolerate. The sign of the word, that of Sᶻ = s - b†b in
+# dipole mode, cancels in the |β|² of the direct channel but is the whole sign
+# of the interference.
+function pair_amplitude(words, T1, T2, a, b)
+    return sum(words; init=zero(ComplexF64)) do (; c, as)
+        c * (T1[as[2], a]*T2[as[1], b] + T1[as[1], a]*T2[as[2], b])
+    end / √2
 end
 
 """

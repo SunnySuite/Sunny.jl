@@ -27,17 +27,7 @@
 using Sunny, LinearAlgebra, Printf, Statistics, Serialization
 using CairoMakie
 CairoMakie.activate!(type="png")
-
-# Threading this calculation is pointless with the OpenBLAS that Julia ships. Its
-# small-matrix calls do not merely fail to scale, they anti-scale: called from 18
-# threads, `bogoliubov!` slows by a factor of 30 and a 36×6×6 `gemm` by a factor of 22,
-# so the per-𝐪 cost grows in proportion to the number of threads and total throughput
-# saturates at two cores' worth. It is contention inside the library, not in our code,
-# and `BLAS.set_num_threads(1)` does not touch it. Apple's Accelerate is reentrant:
-# scaling goes 0.6× → 12.6× for `bogoliubov!` and 2.3× → 11.6× for `vertex!`, at the
-# price of a slightly slower serial eigensolve. On a machine with 18 threads that is a
-# factor of four on the whole transverse calculation.
-Sys.isapple() && @eval using AppleAccelerate
+load_blas_for_threading()
 
 const DIR = @__DIR__
 # Momentum integrals for the mean fields. These are the values that `tol = 0.01` puts
