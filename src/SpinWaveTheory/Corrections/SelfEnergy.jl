@@ -91,14 +91,17 @@ to the mean-field corrections of [`hartree_fock_correction`](@ref) and
 part is the half-width of the magnon peak, arising from decay into the
 two-magnon continuum, which [`corrected_intensities`](@ref) resolves.
 
-The self-energy vanishes identically for a collinear magnetic structure. It is
-otherwise given by an integral over the magnetic Brillouin zone, which is
-performed on a uniform `grid` of the given dimensions. Unlike the smooth
-integrands elsewhere in this module, this one is singular wherever a magnon is
-degenerate with a pair of magnons, so it is regularized by a small positive
-broadening `η`, and both parameters must be converged together: `η` must exceed
-the grid spacing of the energies being integrated, while remaining small
-compared to the linewidths themselves.
+In `:dipole` and `:dipole_uncorrected` modes the self-energy vanishes
+identically for a collinear magnetic structure. That is special to those modes,
+and does not carry over to `:SUN`, where a single-ion level may decay into two
+magnons of different flavors even when every dipole is parallel. It is otherwise
+given by an integral over the magnetic Brillouin zone, which is performed on a
+uniform `grid` of the given dimensions. Unlike the smooth integrands elsewhere
+in this module, this one is singular wherever a magnon is degenerate with a pair
+of magnons, so it is regularized by a small positive broadening `η`, and both
+parameters must be converged together: `η` must exceed the grid spacing of the
+energies being integrated, while remaining small compared to the linewidths
+themselves.
 
 The real part converges much more readily than the imaginary one, being a
 principal value. Taking `η` below the energy grid spacing makes the imaginary
@@ -228,16 +231,16 @@ end
 # (b-1)*bin_width, and returns the frozen source shift; `pair_self_energy!` below turns
 # the two into the self-energy at a set of frequencies.
 #
-# Supplying `pref`, the longitudinal observable prefactors of
-# `pair_amplitude_prefactors!`, appends Nobs rows and columns carrying the amplitude for
-# the same pair to be created directly by the observable, so that the blocks of `ρ` are
-# the self-energy, the two-magnon continuum, and their interference. Only the decay
-# channel contributes to them: a pair of real magnons is what the observable can create,
-# and the source channel is frozen into a static shift.
-function accum_pair_measure!(ρ, swt::SpinWaveTheory, terms3, k, grid::LoopGrid; source_freqs, bin_width, pref=nothing)
+# Supplying `words2`, the even observable words of `observable_pair_words`, appends Nobs
+# rows and columns carrying the amplitude for the same pair to be created directly by the
+# observable, so that the blocks of `ρ` are the self-energy, the two-magnon continuum,
+# and their interference. Only the decay channel contributes to them: a pair of real
+# magnons is what the observable can create, and the source channel is frozen into a
+# static shift.
+function accum_pair_measure!(ρ, swt::SpinWaveTheory, terms3, k, grid::LoopGrid; source_freqs, bin_width, words2=nothing)
     L = nbands(swt)
     # Rows of the blocked measure: the decay amplitude, and optionally the direct one
-    Nobs = isnothing(pref) ? 0 : size(pref, 1)
+    Nobs = isnothing(words2) ? 0 : length(words2)
     y = zeros(ComplexF64, L + Nobs)
     Σsrc = zeros(ComplexF64, L, L)
 
@@ -255,7 +258,7 @@ function accum_pair_measure!(ρ, swt::SpinWaveTheory, terms3, k, grid::LoopGrid;
             y[m] = √18 * u[m]
         end
         for ν in 1:Nobs
-            y[L+ν] = pair_amplitude(pref, T1, T2, a, b, ν, L)
+            y[L+ν] = pair_amplitude(words2[ν], T1, T2, a, b)
         end
         (bin, f) = bin_index!(ρ, x, bin_width, () -> zeros(ComplexF64, L + Nobs, L + Nobs))
         for (bb, ww) in ((bin, w * (1 - f)), (bin + 1, w * f))
