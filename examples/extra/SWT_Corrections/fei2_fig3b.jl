@@ -1,8 +1,8 @@
 # Reproduce the GNLSW panels of Fig. 3a,b of Bai et al., Nat. Commun. 14, 4199
 # (2023) (https://arxiv.org/abs/2107.05694). Calculates the dynamical structure
-# factor of FeI₂ in fields of 3 T and 4 T along ``c``, including ``1/s``
-# corrections. At 4 T, magnon decay broadens the tops of the E4 and E6 bands
-# near H = -1/2 and -3/2.
+# factor of FeI₂ in fields of 3 T and 4 T along c, including 1/s corrections. At
+# 4 T, magnon decay broadens the tops of the E4 and E6 bands near H = -1/2 and
+# -3/2.
 #
 # The reference calculation kept only cubic vertices. Sunny also includes the
 # quartic (Hartree-Fock) shifts, which raise the bands by less than 0.1 meV.
@@ -20,7 +20,7 @@ latvecs = lattice_vectors(4.05012, 4.05012, 6.75214, 90, 90, 120)
 cryst = Crystal(latvecs, [[0, 0, 0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]; types=["Fe", "I", "I"])
 cryst = subcrystal(cryst, "Fe")
 
-sys = System(cryst, [1 => Moment(; s=1, g=4.0)], :SUN; seed=2)
+sys = System(cryst, [1 => Moment(s=1, g=4.0)], :SUN)
 J1pm, J1pmpm, J1zpm, J1zz = -0.236, -0.161, -0.261, -0.236
 set_exchange!(sys, [J1pm+J1pmpm 0 0; 0 J1pm-J1pmpm J1zpm; 0 J1zpm J1zz], Bond(1, 1, [1, 0, 0]))
 for (Jpm, Jzz, d) in [(0.026, 0.113, [1, 2, 0]), (0.166, 0.211, [2, 0, 0]), (0.037, -0.036, [0, 0, 1]),
