@@ -39,10 +39,10 @@
 # |ε_{𝐤-𝐩}[b]| becomes small as the internal pair energy vanishes, as it does at the
 # ordering wavevector of an antiferromagnet, and resummation then turns the anti-damping
 # into a spurious pole pushed up from negative frequency. This is a defect of the truncation
-# rather than of the numerics; the remedy of Mourigal et al. (arXiv:1306.1231), implemented
-# by the `source_freqs` argument below, is to freeze the source channel at its on-shell
-# frequency so that it acts as a static Hermitian shift. That discards only the channel's
-# ω-slope, an O(1/s) contribution to the quasiparticle residue.
+# rather than of the numerics; the remedy of Mourigal et al. (arXiv:1306.1231), implemented by
+# `accum_frozen_source!` below, is to freeze the source channel at its on-shell frequency so
+# that it acts as a static Hermitian shift. That discards only the channel's ω-slope, an
+# O(1/s) contribution to the quasiparticle residue.
 
 """
     cubic_self_energy(swt::SpinWaveTheory, qpts, energies; η, grid)
@@ -183,50 +183,32 @@ function accum_frozen_source!(Σsrc, source_freqs, u, x, L)
     end
 end
 
-# Accumulates into `Σ[:, :, iω]` the Nambu self-energy at wavevector `k` and
-# frequency `ωs[iω]`, averaged over the wavevectors `ps` of the loop integral. `Σ`
-# is `2L×2L×length(ωs)`.
-#
-# Supplying `source_freqs` freezes the source channel, for the reasons given above, and
-# `Σ` must then be `L×L×length(ωs)`: only the particle block is computed, that being the
-# only block the Dyson equation of CorrectedIntensities.jl solves, and a quarter of the
-# work. `accum_pair_measure!` below is the same integral evaluated by binning, which is
-# what the resummation of CorrectedIntensities.jl uses.
-function accum_cubic_self_energy!(Σ, swt::SpinWaveTheory, terms3, k, ωs, ps, η; source_freqs=nothing)
+# Accumulates into `Σ[:, :, iω]`, of size `2L×2L×length(ωs)`, the Nambu self-energy at
+# wavevector `k` and frequency `ωs[iω]`, averaged over the wavevectors `ps` of the loop
+# integral. Both channels are kept live; the frozen-source variant that the resummation
+# of CorrectedIntensities.jl needs is `accum_pair_measure!` below, which evaluates the
+# same integral by binning.
+function accum_cubic_self_energy!(Σ, swt::SpinWaveTheory, terms3, k, ωs, ps, η)
     L = nbands(swt)
-    # Rows and columns of Σ̂ to accumulate: the particle block alone, or all of them
-    M = isnothing(source_freqs) ? 2L : L
-    @assert size(Σ) == (M, M, length(ωs))
-    R = zeros(ComplexF64, M, M)
-    Σsrc = zeros(ComplexF64, L, L)
+    @assert size(Σ) == (2L, 2L, length(ωs))
+    R = zeros(ComplexF64, 2L, 2L)
 
-    foreach_cubic_line(swt, terms3, k, ps, M) do a, b, u, x, _T1, _T2
-        if a > L && !isnothing(source_freqs)
-            accum_frozen_source!(Σsrc, source_freqs, u, x, L)
-        else
-            # The numerator is one rank-one matrix for all frequencies
-            for m′ in 1:M, m in 1:M
-                R[m, m′] = (a > L ? -18 : 18) * (m > L ? -1 : 1) * conj(u[m]) * u[m′]
-            end
-            for (iω, ω) in enumerate(ωs)
-                # Retarded frequencies lie just above the real axis, in both channels;
-                # the source channel resonates only for ω < 0.
-                c = 1 / (ω - x + im*η)
-                for m′ in 1:M, m in 1:M
-                    Σ[m, m′, iω] += c * R[m, m′]
-                end
+    foreach_cubic_line(swt, terms3, k, ps, 2L) do a, _b, u, x, _T1, _T2
+        # The numerator is one rank-one matrix for all frequencies
+        for m′ in 1:2L, m in 1:2L
+            R[m, m′] = (a > L ? -18 : 18) * (m > L ? -1 : 1) * conj(u[m]) * u[m′]
+        end
+        for (iω, ω) in enumerate(ωs)
+            # Retarded frequencies lie just above the real axis, in both channels;
+            # the source channel resonates only for ω < 0.
+            c = 1 / (ω - x + im*η)
+            for m′ in 1:2L, m in 1:2L
+                Σ[m, m′, iω] += c * R[m, m′]
             end
         end
     end
 
-    Σ ./= length(ps)
-    if !isnothing(source_freqs)
-        Σsrc ./= length(ps)
-        for iω in axes(Σ, 3)
-            view(Σ, :, :, iω) .+= Σsrc
-        end
-    end
-    return Σ
+    return Σ ./= length(ps)
 end
 
 # The same loop integral as above, evaluated by binning the decay measure in the pair
@@ -265,10 +247,7 @@ function accum_pair_measure!(ρ, swt::SpinWaveTheory, terms3, k, ps; source_freq
         for ν in 1:Nobs
             y[L+ν] = pair_amplitude(pref, T1, T2, a, b, ν, L)
         end
-        (bin, f) = bin_index(x, bin_width)
-        while length(ρ) < bin + 1
-            push!(ρ, zeros(ComplexF64, L + Nobs, L + Nobs))
-        end
+        (bin, f) = bin_index!(ρ, x, bin_width, () -> zeros(ComplexF64, L + Nobs, L + Nobs))
         for (bb, ww) in ((bin, 1 - f), (bin + 1, f))
             for m′ in eachindex(y), m in eachindex(y)
                 ρ[bb][m, m′] += ww * y[m] * conj(y[m′])
