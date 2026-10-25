@@ -154,14 +154,16 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     #
     #   hartree_fock_correction(swt; maxiters=100, damping=0.5, tol, ...)
 
-    # Everything the cubic vertex generates — the self-energy, its interference with
-    # the direct pair amplitude, and the tadpole — vanishes with it, as happens for a
-    # collinear structure. Discarding a negligible vertex outright, rather than
-    # carrying its round-off, is what lets every consumer below skip that work:
-    # `vertex!` is never called, so the magnon-magnon and interference blocks of the
-    # pair measure come out exactly zero, leaving only the direct two-magnon
-    # amplitude, which the observables supply and which is always live. Verified to
-    # leave `transverse` and `direct` bit-identical. See `cubic_vertex_vanishes`.
+    # Everything the cubic vertex generates — the self-energy, its interference
+    # with the direct pair amplitude, and the tadpole — vanishes with it, as
+    # happens for a collinear structure in a dipole mode but not in :SUN; see
+    # `cubic_vertex_vanishes`. Discarding a negligible vertex outright, rather
+    # than carrying its round-off, is what lets every consumer below skip that
+    # work: `vertex!` is never called, so the magnon-magnon and interference
+    # blocks of the pair measure come out exactly zero, leaving only the direct
+    # two-magnon amplitude, which the observables supply and which is always
+    # live. Verified to leave `transverse` and `direct` bit-identical. See
+    # `cubic_vertex_vanishes`.
     terms3 = cubic_monomials(swt)
     cubic = !cubic_vertex_vanishes(swt, terms3)
     cubic || empty!(terms3)
@@ -196,7 +198,6 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         δH = zeros(ComplexF64, 2L, 2L)
         u = zeros(ComplexF64, 2L, Nobs)
         Σ3 = zeros(ComplexF64, L, L, length(energies))
-        pref = zeros(ComplexF64, Nobs, L)
         corr = zeros(ComplexF64, num_correlations(measure))
 
         q = qpts.qs[iq]
@@ -218,9 +219,9 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         grid = loop_wavevectors(loop_grid, q_reshaped)
         # One pass over the loop wavevectors serves the self-energy and both parts of
         # the pair amplitude, which must share Bogoliubov matrices; see Corrections.jl.
-        pair_amplitude_prefactors!(pref, swt, q_reshaped, q_global)
+        words2 = observable_pair_words(swt, q_reshaped, q_global)
         ρ = Matrix{ComplexF64}[]
-        Σsrc = accum_pair_measure!(ρ, swt, terms3, q_reshaped, grid; source_freqs=onshell, bin_width, pref)
+        Σsrc = accum_pair_measure!(ρ, swt, terms3, q_reshaped, grid; source_freqs=onshell, bin_width, words2)
         cubic && pair_self_energy!(Σ3, ρ, Σsrc, energies .+ im*η, bin_width)
 
         # Conjugated amplitudes conj(ũ) = T† u, including the 1/s correction to the
@@ -291,8 +292,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     if verbose
         println("""
             corrected_intensities with tol = $tol
-              loop grid       $(join(loop_grid, "×")) = $(prod(loop_grid)) wavevectors
-              bin width       $(round(bin_width; sigdigits=2))""")
+              loop grid       $(join(loop_grid, "×")) = $(prod(loop_grid)) points""")
     end
 
     t0 = time()

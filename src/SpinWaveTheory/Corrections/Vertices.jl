@@ -256,12 +256,18 @@ function anisotropy_words(swt::SpinWaveTheory, i::Int)
 end
 
 # Monomials of the onsite anisotropies containing exactly K bosons, beyond what
-# LSWT already accounts for. K = 3 and 4 complete the cubic and quartic vertices,
-# while K = 1 and 2 correct terms that LSWT treats at leading order and enter
-# through `tadpole_correction` and `anisotropy_correction` respectively.
+# LSWT already accounts for. K = 3 and 4 complete the cubic and quartic
+# vertices, while K = 1 and 2 correct terms that LSWT treats at leading order
+# and enter through `tadpole_correction` and `anisotropy_correction`
+# respectively.
+#
+# Empty in mode :SUN, where an onsite coupling is not a Stevens polynomial to be
+# re-expanded but a matrix that `sun_monomials` promotes exactly, leaving no
+# remainder at any boson number. See VerticesSUN.jl.
 function anisotropy_monomials(swt::SpinWaveTheory, ::Val{K}) where K
     L = nbands(swt)
     terms = BosonMonomial{K}[]
+    swt.sys.mode == :SUN && return terms
     ns = ntuple(_ -> zero(Vec3), Val{K}())
 
     for i in 1:L
@@ -296,15 +302,28 @@ In mode `:dipole` the renormalization of Stevens coefficients derived in
 [arXiv:2304.03874](https://arxiv.org/abs/2304.03874) already makes the classical
 energy and the diagonal part of the quadratic Hamiltonian exact. There `δE`
 vanishes and `terms2` is purely anomalous, i.e. of the form ``b†b†`` and ``bb``.
+
+Both parts vanish in mode `:SUN`, where an onsite coupling enters the boson
+Hamiltonian exactly and LSWT is already expanding an operator rather than a
+classical energy function.
 """
 function anisotropy_correction(swt::SpinWaveTheory)
     check_corrections_supported(swt)
     δE = sum(1:nbands(swt); init=0.0) do i
-        iszero(swt.sys.interactions_union[i].onsite) ? 0.0 : real(anisotropy_words(swt, i)[(0, 0)])
+        (swt.sys.mode == :SUN || iszero(swt.sys.interactions_union[i].onsite)) ? 0.0 :
+            real(anisotropy_words(swt, i)[(0, 0)])
     end
     return (; terms2 = anisotropy_monomials(swt, Val{2}()),
               δE = δE / nsites(uncontracted_system(swt.sys)))
 end
+
+# Monomials of H₃ and H₄, the three- and four-boson terms. Mode :SUN expands in
+# 1/M rather than 1/s and is handled by VerticesSUN.jl, which shares everything
+# below the monomial representation itself.
+cubic_monomials(swt::SpinWaveTheory) =
+    swt.sys.mode == :SUN ? sun_monomials(swt, Val{3}()) : cubic_monomials_dipole(swt)
+quartic_monomials(swt::SpinWaveTheory) =
+    swt.sys.mode == :SUN ? sun_monomials(swt, Val{4}()) : quartic_monomials_dipole(swt)
 
 # Monomials of H₃, the three-boson term. A cubic term arises either as the
 # product of a transverse component on one site of a bond with the fluctuating
@@ -314,7 +333,7 @@ end
 # ±1, so the source vertex ⟨3 magnons|H₃|0⟩ appears only after the Bogoliubov
 # transformation mixes b with b†. An onsite anisotropy contributes as well, and
 # does produce ±3 monomials directly.
-function cubic_monomials(swt::SpinWaveTheory)
+function cubic_monomials_dipole(swt::SpinWaveTheory)
     (; sys, data) = swt
     (; local_rotations, sqrtS) = data
     L = nbands(swt)
@@ -377,15 +396,22 @@ function cubic_monomials(swt::SpinWaveTheory)
     return merge_monomials([terms; anisotropy_monomials(swt, Val{3}())])
 end
 
-# True when the cubic vertex is numerically zero, so that everything it generates —
-# the self-energy, the tadpole, and their interference with the direct pair amplitude
-# — vanishes and need not be computed. The usual cause is a collinear structure,
-# where the monomials cancel on merging rather than being absent: a two-sublattice
-# antiferromagnet has 26 monomials whose coefficients sum to O(1e-11), so the test
-# must be on magnitude and not on `isempty`. The scale is the quadratic Hamiltonian,
-# which makes it dimensionless; measured ratios are 9e-13 for that antiferromagnet
-# against 0.046 once a field cants it and 0.083 for the triangular-lattice 120°
+# True when the cubic vertex is numerically zero, so that everything it
+# generates — the self-energy, the tadpole, and their interference with the
+# direct pair amplitude — vanishes and need not be computed. The usual cause is
+# a collinear structure in a dipole mode, where the monomials cancel on merging
+# rather than being absent: a two-sublattice antiferromagnet has 26 monomials
+# whose coefficients sum to O(1e-11), so the test must be on magnitude and not
+# on `isempty`. The scale is the quadratic Hamiltonian, which makes it
+# dimensionless; measured ratios are 9e-13 for that antiferromagnet against
+# 0.046 once a field cants it and 0.083 for the triangular-lattice 120°
 # structure, so the threshold sits in a ten-order gap.
+#
+# Collinearity buys nothing in mode :SUN, and the same easy-axis Néel state
+# gives 0.0497 there: the cancellation is between the two transverse components
+# of a dipole, and the flavor-changing words that promote a single-ion level
+# have no such partner. So this is a test of the assembled vertex rather than of
+# the structure, and returns what it finds in either mode.
 function cubic_vertex_vanishes(swt::SpinWaveTheory, terms3)
     isempty(terms3) && return true
     L = nbands(swt)
@@ -394,13 +420,13 @@ function cubic_vertex_vanishes(swt::SpinWaveTheory, terms3)
     return maximum(abs(t.c) for t in terms3) < 1e-8 * norm(H)
 end
 
-# Monomials of H₄, the four-boson term, which is smaller than H₂ by s^(-1). Since
-# Sᶻ is exact and the transverse components have no four-boson part, only two
-# families survive: the product of the longitudinal fluctuations on the two sites
-# of a bond, and the product of a linear transverse component on one site with
-# the cubic part of a transverse component on the other. A Zeeman coupling, being
-# linear in 𝐒, contributes nothing here, but an onsite anisotropy does.
-function quartic_monomials(swt::SpinWaveTheory)
+# Monomials of H₄, the four-boson term, which is smaller than H₂ by s^(-1).
+# Since Sᶻ is exact and the transverse components have no four-boson part, only
+# two families survive: the product of the longitudinal fluctuations on the two
+# sites of a bond, and the product of a linear transverse component on one site
+# with the cubic part of a transverse component on the other. A Zeeman coupling,
+# being linear in 𝐒, contributes nothing here, but an onsite anisotropy does.
+function quartic_monomials_dipole(swt::SpinWaveTheory)
     (; sys, data) = swt
     (; sqrtS) = data
     L = nbands(swt)
