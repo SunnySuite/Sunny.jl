@@ -1352,37 +1352,16 @@ end
         @test iszero(chans.cross) && !iszero(chans.direct)
     end
 
-    # The Ward rotation of the `:ladder` bath. Without it, the off-shell quartic
-    # vertex of the Néel state binds soft pairs below ω = 0 once the loop grid
-    # reaches 64², at 𝐪 = 0 and at the ordering wavevector alike, and does so on
-    # every finer grid. Rotated, the bath stays stable. The rotation is exact to
-    # first order, so that it changes the two-magnon spectrum only beyond the
-    # order kept: by 3% at s = 1/2 and by 2e-4 at s = 4, which goes as s^-2.4.
-    # Dropping the rotation of the observables instead leaves a change 13 times
-    # larger at s = 4, of the order kept.
+    # The bare ladder lacks the Adler zero of a Goldstone mode, so on a fine
+    # enough grid (56² or more) it binds soft pairs below ω = 0 at 𝐪 = 0 and at
+    # the ordering wavevector of the Néel state. Check that a breakdown is
+    # detected at these wavevectors, but not at their neighbors.
     let
-        without_ward(ol) = Sunny.OneLoop((f == :ward ? nothing : getfield(ol, f) for f in fieldnames(Sunny.OneLoop))...)
         sys = canted_square(1/2, 0)
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
-        ol = Sunny.OneLoop(swt; η=0.1, grid=Sunny.BZGrid(64, 64, 1))
-        @test ol.ward.pairs == [(1, 1), (1, 2), (2, 2)]
-        stable(ol, q) = Sunny.ladder_transform(Sunny.SelfEnergy(ol, q; ladder=true), [1.0im]).stable
-        for q in ([0, 0, 0], [1/2, 1/2, 0])
-            @test stable(ol, q) && !stable(without_ward(ol), q)
-        end
-
-        energies = range(0, 6, 61)
-        q = [0.2, 0.1, 0]
-        change = map((1/2, 4)) do s
-            sys = canted_square(s, 0)
-            swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
-            ol = Sunny.OneLoop(swt; energies, η=0.2s, grid=Sunny.BZGrid(16, 16, 1))
-            direct(ol) = Sunny.dyson_model(Sunny.SelfEnergy(ol, q; ladder=true), :ladder, energies .+ im*ol.η).K[end, end, :]
-            (dw, db) = imag.(direct.((ol, without_ward(ol))))
-            sum(abs, dw - db) / sum(abs, db)
-        end
-        @test 0.01 < change[1] < 0.05
-        @test change[2] < 3e-4
+        qs = [[0, 0, 0], [1/2, 1/2, 0], [0.05, 0, 0], [1/2, 0.45, 0]]
+        chans = Sunny.corrected_channels(swt, qs; energies=[1.0], η=0.1, dyson=:ladder, grid=Sunny.BZGrid(64, 64, 1))
+        @test chans.breakdown == [true, true, false, false]
     end
 
     # Weights of the three channels into which the quantum sum rule decomposes,
