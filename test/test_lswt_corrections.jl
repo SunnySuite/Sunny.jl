@@ -1386,6 +1386,12 @@ end
         qs = [[0, 0, 0], [1/2, 1/2, 0], [0.05, 0, 0], [1/2, 0.45, 0]]
         chans = Sunny.corrected_channels(swt, qs; energies=[1.0], η=0.1, dyson=:ladder, grid=Sunny.BZGrid(64, 64, 1))
         @test chans.breakdown == [true, true, false, false]
+
+        # A breakdown is marked by NaN in every component of a measure that
+        # returns a vector
+        swt = SpinWaveTheory(sys; measure=ssf_custom((q, ssf) -> diag(ssf), sys))
+        res = Sunny.corrected_intensities(swt, qs[1:1]; energies=[-0.05, 0.05], η=0.1, dyson=:ladder, grid=Sunny.BZGrid(64, 64, 1))
+        @test all(x -> all(isnan, x), res.data)
     end
 
     # Weights of the three channels into which the quantum sum rule decomposes,
