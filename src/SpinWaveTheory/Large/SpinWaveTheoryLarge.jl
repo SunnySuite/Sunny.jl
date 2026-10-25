@@ -186,7 +186,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
         ms = sort!(filter(>(0), vec(niters)))
         println("  elapsed         $(number_to_simple_string(elapsed; digits=2)) s on $nthreads \
                  thread$(nthreads == 1 ? "" : "s"), $per_q ms per 𝐪")
-        isempty(ms) || println("  Lanczos steps   median $(ms[cld(end, 2)]), max $(ms[end]) (maxiters = $maxiters)")
+        isempty(ms) || println("  Lanczos steps   median $(ms[cld(end, 2)]), max $(ms[end]), total $(sum(ms))")
     end
     return data
 end
