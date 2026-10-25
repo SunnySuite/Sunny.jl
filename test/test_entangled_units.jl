@@ -465,10 +465,9 @@ end
     sdisp = sort(dispersion(SpinWaveTheory(essys; measure=nothing), qs); dims=1)
     @test isapprox(sdisp, golden; atol=1e-6)
 
-    # The matrix-free product, used by KPM, does not yet support dipole-dipole
-    swt = SpinWaveTheory(edsys; measure=nothing)
-    x = zeros(ComplexF64, 1, 2Sunny.nbands(swt))
-    @test_throws "Ewald not supported" Sunny.mul_dynamical_matrix(swt, x, [Sunny.Vec3(0.1, 0, 0)])
+    # The matrix-free product of SpinWaveTheoryLarge does not yet support
+    # dipole-dipole interactions
+    @test_throws "Dipole-dipole interactions are not yet supported" SpinWaveTheoryLarge(edsys; measure=nothing, tol=0.1)
 end
 
 @testitem "Model parameters for entangled units" begin

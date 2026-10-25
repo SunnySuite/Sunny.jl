@@ -132,6 +132,13 @@ end
     res3 = intensities(swt3, [q]; energies, kernel)
     res4 = intensities(swt2, [q]; energies, kernel)
     @test res3.data ≈ res4.data
+
+    # Intrinsic broadening includes the poles at negative energy, which describe
+    # the opposite wavevector, as for the supercell
+    energies = range(-3, 6, 30)
+    res3 = intensities(swt3, [q]; energies, η=0.1, kT=0.5)
+    res4 = intensities(swt2, [q]; energies, η=0.1, kT=0.5)
+    @test res3.data ≈ res4.data
 end
 
 

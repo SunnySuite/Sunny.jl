@@ -22,6 +22,28 @@
   results; use [`SpinWaveTheory`](@ref) on a commensurate supercell instead.
 * Fix spin wave theory with dipole-dipole interactions and unequal spin
   magnitudes.
+* For [`SpinWaveTheory`](@ref) and [`SpinWaveTheorySpiral`](@ref),
+  [`intensities`](@ref) accepts an optional intrinsic broadening `η`. Each
+  excitation then has a Lorentzian line shape in the dynamical susceptibility at
+  complex energy ``ω + iη``, at energies of either sign, before the thermal
+  factor and any instrumental `kernel`, which becomes optional. A small `η`
+  removes the dependence of intensities near Goldstone modes on the
+  `regularization` of zero modes.
+* At `kT > 0`, [`intensities`](@ref) and [`intensities_static`](@ref) for
+  [`SpinWaveTheory`](@ref) now include the anti-Stokes intensity at negative
+  energy, which was previously missing.
+* [`SpinWaveTheoryLarge`](@ref) replaces `SpinWaveTheoryKPM`, and uses block
+  Lanczos to evaluate the dynamical susceptibility at complex energy ``ω + iη``.
+  Intensities require the intrinsic broadening `η`, and accept an optional
+  `kernel`, which must be analytic, e.g., [`gaussian`](@ref) or
+  [`lorentzian`](@ref). They include both signs of energy, with detailed
+  balance. Iteration continues until the relative tolerance `tol`, by default
+  `1e-2`, is met, with an optional cap `maxiters`. An unstable magnetic
+  structure raises an error. Intensities are several times faster, and support
+  `threaded=true`. Dipole-dipole interactions, previously unsupported in
+  matrix-free products, now raise an error at construction. The deprecated
+  `SpinWaveTheoryKPM` remains available, with `η` set to a tenth of the kernel
+  width, and `niters` as a cap on iterations.
 
 ## v0.9.2
 (Jul 13, 2026)
@@ -133,7 +155,7 @@ This release brings significant support for model fitting ([#471](@ref)).
 * Add missing 3D support for [`q_space_grid`](@ref) ([#457](@ref)).
 * If user-provided lattice vectors do not match crystallographic conventions,
   suggest the use of [`standardize`](@ref) ([#461](@ref)).
-* Improve robustness of [`SpinWaveTheoryKPM`](@ref) ([#462](@ref)).
+* Improve robustness of `SpinWaveTheoryKPM` ([#462](@ref)).
 
 ## v0.7.8
 (Jul 1, 2025)
@@ -161,7 +183,7 @@ This release brings significant support for model fitting ([#471](@ref)).
 * Extend [`powder_average`](@ref) to support static intensities.
 * Vacancies defined by [`set_vacancy_at!`](@ref) are supported in linear spin
   wave theory. Empty sites are modeled using bosons that do not excite.
-* The default implementation of [`SpinWaveTheoryKPM`](@ref) now uses Lanczos for
+* The default implementation of `SpinWaveTheoryKPM` now uses Lanczos for
   higher accuracy.
 * Fix correctness of [`suggest_magnetic_supercell`](@ref) when multiple
   wavevectors are provided.
@@ -207,7 +229,7 @@ This release brings significant support for model fitting ([#471](@ref)).
 
 * Fix error in `print_symmetry_table` for slightly-distorted crystal cells
   ([#317](@ref)).
-* Stabilize [`SpinWaveTheoryKPM`](@ref). It now automatically selects the
+* Stabilize `SpinWaveTheoryKPM`. It now automatically selects the
   polynomial order according to an error tolerance.
 * Rename mode `:dipole_large_S` to `:dipole_uncorrected` to emphasize that
   corrections are missing.

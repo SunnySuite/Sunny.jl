@@ -1079,7 +1079,7 @@ end
     # The on-shell bands take the cancelling static part at real ω = 0, so a
     # soft band does not move with η, even at ε ≈ η. At ε + iη it moved by 25%.
     let sys = canted_square(1/2, 1), swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-        soft(η) = minimum(Sunny.corrected_intensities_bands(swt, [[0.005, 0.005, 0]]; η, bz=(24, 24, 1)).disp)
+        soft(η) = minimum(Sunny.corrected_channels(swt, [[0.005, 0.005, 0]]; energies=Float64[], η, dyson=:on_shell, bz=(24, 24, 1)).bands.disp)
         @test soft(0.05) ≈ soft(0.02) rtol=1e-3
     end
 
@@ -1294,7 +1294,7 @@ end
     # grid by grid and needs no converged integral.
     #
     # The rotated side is evaluated at -𝐪 and negative frequency, which the
-    # retarded response relates to +𝐪 by S(𝐪, ω) = -S(-𝐪, -ω). The structure is
+    # retarded response relates to +𝐪 by χ''(𝐪, ω) = -χ''(-𝐪, -ω). The structure is
     # non-reciprocal, S(𝐪, ω) and S(-𝐪, ω) differing by 50%, so this also pins
     # the hole block of the Dyson equation to the energies and eigenvectors of
     # -𝐪 rather than to mirror images of those at 𝐪. Taking the bare hole
@@ -1309,10 +1309,13 @@ end
     @test maximum(abs, Σ3 - Diagonal(diag(Σ3))) > 0.2 * maximum(abs, diag(Σ3))
     energies = range(0.2, 2.0, 25)
     for dyson in (:nambu, :ladder, :particle, :on_shell)
-        data = Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, dyson, bz=(4, 4, 1)).data
-        mirror = Sunny.corrected_intensities(swts[2], -qs3; energies=-reverse(energies), η=0.15,
-                                             dyson, bz=(4, 4, 1)).data
+        spectral(swt, qs, energies) = let c = Sunny.corrected_channels(swt, qs; energies, η=0.15, dyson, bz=(4, 4, 1))
+            c.transverse + c.cross + c.direct
+        end
+        data = spectral(swts[1], qs3, energies)
+        mirror = spectral(swts[2], -qs3, -reverse(energies))
         @test data ≈ -reverse(mirror; dims=1) rtol=1e-6
+        @test Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, dyson, bz=(4, 4, 1)).data ≈ data
     end
 
     # ---- Quantum sum rule on the square lattice ----

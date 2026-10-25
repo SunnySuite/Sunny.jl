@@ -122,3 +122,21 @@ end
 #   modify_exchange_with_truncated_dipole_dipole!
 # * energy_ϵ argument in SpinWaveTheory
 # * setting argument in Crystal
+
+# The former interface, in which `intensities` takes only an instrumental
+# kernel. A fixed number of iterations `niters` becomes a cap.
+struct SpinWaveTheoryKPM
+    swt_large :: SpinWaveTheoryLarge
+end
+
+function SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol=nothing, niters=nothing, method=nothing, niters_bounds=nothing)
+    @warn "`SpinWaveTheoryKPM` is deprecated. Use `SpinWaveTheoryLarge`, for which `intensities` requires an \
+           intrinsic broadening `η`."
+    tol = @something tol 1e-2
+    return SpinWaveTheoryKPM(SpinWaveTheoryLarge(sys; measure, regularization, tol=min(tol, 0.5), maxiters=niters))
+end
+
+function intensities(swt::SpinWaveTheoryKPM, qpts; energies, kernel, kT=0.0, verbose=false)
+    η = 0.1 * kernel_width_at_zero(kernel)
+    return intensities(swt.swt_large, qpts; energies, η, kernel, kT)
+end

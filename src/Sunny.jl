@@ -4,7 +4,6 @@ using LinearAlgebra
 
 import ChainRulesCore as CRC
 import DynamicPolynomials as DP
-import ElasticArrays: ElasticArray
 import FFTW
 import FiniteDiff
 import HCubature: hcubature
@@ -129,10 +128,10 @@ include("Spiral/SpiralEnergy.jl")
 include("Spiral/SpinWaveTheorySpiral.jl")
 export minimize_spiral_energy!, spiral_energy, spiral_energy_per_site, SpinWaveTheorySpiral
 
-include("KPM/Lanczos.jl")
-include("KPM/Chebyshev.jl")
-include("KPM/SpinWaveTheoryKPM.jl")
-export SpinWaveTheoryKPM
+include("SpinWaveTheory/Large/SparseDynamicalMatrix.jl")
+include("SpinWaveTheory/Large/Lanczos.jl")
+include("SpinWaveTheory/Large/SpinWaveTheoryLarge.jl")
+export SpinWaveTheoryLarge, SpinWaveTheoryKPM
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")

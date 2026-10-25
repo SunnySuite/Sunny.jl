@@ -128,7 +128,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
 
         # Apply classical-to-quantum correspondence factor for finite kT
         if !isnothing(kT)
-            # Equivalent to abs(ω/kT) * thermal_prefactor(ω; kT)
+            # Equivalent to abs(ω/kT * thermal_factor(ω; kT))
             c2q = [iszero(ω) ? 1 : abs((ω/kT) / (1 - exp(-ω/kT))) for ω in ωs]
             for i in axes(intensities, 2)
                 intensities[:, i] .*= c2q

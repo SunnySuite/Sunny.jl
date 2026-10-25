@@ -375,11 +375,10 @@ systems constructed with `mode = :SUN`, Sunny automatically switches to a
 multi-flavor boson variant of spin wave theory, which captures more single-ion
 physics. Use [`SpinWaveTheorySpiral`](@ref) to study generalized spiral phases,
 which allow for an incommensurate propagation wavevector. The module
-[`SpinWaveTheoryKPM`](@ref) uses [iterated matrix-vector
-multiplication](https://arxiv.org/abs/2312.0834) to achieve linear-scaling cost
-in the magnetic cell size. It can be useful for studying systems with large
-magnetic cells include systems with long-wavelength structures, or systems with
-quenched chemical disorder.
+[`SpinWaveTheoryLarge`](@ref) uses iterated matrix-vector multiplication to
+achieve linear-scaling cost in the magnetic cell size. It can be useful for
+studying systems with large magnetic cells, including systems with
+long-wavelength structures, or systems with quenched chemical disorder.
 
 
 ## Calculations with classical spin dynamics

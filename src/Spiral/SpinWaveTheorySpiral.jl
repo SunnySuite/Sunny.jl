@@ -122,15 +122,12 @@ function check_dipole_observables(sys::System, measure::MeasureSpec)
         error("General measurements not supported for spiral calculation")
 end
 
-"""
-    intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=false)
+underlying_system(sswt::SpinWaveTheorySpiral) = sswt.swt.sys
 
-Like [`intensities_bands`](@ref) for [`SpinWaveTheory`](@ref), but returning
-``3L`` bands, the modes at ``𝐪`` and ``𝐪 ± 𝐤`` of the spiral. If ``2𝐤`` or
-``𝐤`` is a reciprocal lattice vector, the branches that coincide repeat their
-energies and share their intensity equally.
-"""
-function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=false)
+# All 6L poles of χ''(q, ω), 2L from each of the three branches, with their
+# residues, as (pole × wavevector) matrices. In descending order of energy, the
+# 3L poles at positive energy come first.
+function susceptibility_poles(sswt::SpinWaveTheorySpiral, qpts; threaded)
     (; swt, k_supercell, axis) = sswt
     (; sys, measure) = swt
     num_observables(measure) == 0 && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
@@ -148,8 +145,9 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
     P = spiral_projectors(axis)
     classes = spiral_classes(k_supercell)
 
-    disp = zeros(Float64, 3L, Nq)
-    data = zeros(eltype(measure), 3L, Nq)
+    # All 2L poles of each of the three branches, at energies of either sign
+    disp = zeros(Float64, 6L, Nq)
+    data = zeros(eltype(measure), 6L, Nq)
 
     newbuf() = (
         ws = BogoliubovWorkspace(L),
@@ -165,18 +163,19 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
         for class in classes
             energies = excitations!(ws, H, sswt, q; branch=first(class)+2)
             Pc = sum(P[s+2] for s in class)
-            for band in 1:L
+            for band in 1:2L
                 A = Pc * CVec{3}(ntuple(μ -> dot(view(u, :, μ), view(ws.T, :, band)), 3))
                 corr = map(((μ, ν),) -> A[μ] * conj(A[ν]) / Ncells, measure.corr_pairs)
-                val = thermal_prefactor(energies[band]; kT) * measure.combiner(q_global, corr) / length(class)
+                # The residue of χ'' is odd under ω → -ω
+                val = sign(energies[band]) * measure.combiner(q_global, corr) / length(class)
                 for s in class
-                    disp[band + (s+1)*L, iq] = energies[band]
-                    data[band + (s+1)*L, iq] = val
+                    disp[band + (s+1)*2L, iq] = energies[band]
+                    data[band + (s+1)*2L, iq] = val
                 end
             end
         end
 
-        # Dispersion in descending order
+        # Dispersion in descending order, so that the 3L positive poles come first
         perm = sortperm(view(disp, :, iq); rev=true)
         view(disp, :, iq) .= disp[perm, iq]
         view(data, :, iq) .= data[perm, iq]
@@ -184,7 +183,5 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
 
     foreach_chunked(calc_iq!, newbuf, 1:Nq; threaded, warn_blas=true)
 
-    disp_reshaped = reshape(disp, 3L, size(qpts.qs)...)
-    data_reshaped = reshape(data, 3L, size(qpts.qs)...)
-    return BandIntensities(cryst, qpts, disp_reshaped, data_reshaped)
+    return (disp, data)
 end
