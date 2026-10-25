@@ -87,6 +87,7 @@ function broaden!(data::AbstractArray{Ret}, bands::BandIntensities{Ret}; energie
     nω = length(ωs)
     nq = size(bands.qpts.qs)
     (nω, nq...) == size(data) || error("Argument data must have size ($nω×$(sizestr(bands.qpts)))")
+    isnothing(bands.widths) || error("Broadening of bands with intrinsic widths is not yet supported.")
 
     cutoff = 1e-12 * Statistics.quantile(norm.(vec(bands.data)), 0.95)
 
