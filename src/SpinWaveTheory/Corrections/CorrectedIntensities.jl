@@ -118,8 +118,9 @@ Sunny uses the retarded response, i.e., includes the tails of the
 negative-frequency poles. These cancel the high-frequency Lorentzian tail of a
 Goldstone mode.
 
-With `:nambu`, a large one-loop correction can push a magnon pole past ``ω = 0``
-and onto the imaginary axis. This condition signals that the perturbative
+With `:nambu`, a large one-loop correction can make the resummed propagator
+unstable: its static magnon Hamiltonian is no longer positive, and a pole may
+move onto the imaginary axis. This condition signals that the perturbative
 expansion has broken down at that wavevector. Sunny marks these points by
 setting all intensity within `±η` of ``ω = 0`` to `NaN`. Use
 `mark_breakdown=false` to keep the raw data. Note that a different Dyson
@@ -298,16 +299,21 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, dyson=:namb
             isnothing(specfunc) || (view(specfunc, :, :, iω, iq) .= ((G' - G) / (2π*im))[1:L, 1:L])
         end
 
-        # A pole pushed through ω = 0 collides with its mirror, and the pair
-        # moves onto the imaginary axis: a mode frequency of Ĩ·M at ω = 0 has
-        # an imaginary part. This is a breakdown of the one-loop resummation
-        # for some mode at this 𝐪, not necessarily for the observed one; its
-        # weight in S may be small. The other schemes have no anomalous
-        # self-energy in their propagator, so their frequencies are always
-        # real. The check is made just above ω = 0.
+        # The resummed model is stable when its static magnon matrix M is
+        # positive semidefinite, and breaks down for some mode at this 𝐪 when
+        # it is not, not necessarily for the observed one, whose weight in S
+        # may be small. An indefinite M need not have complex frequencies, so
+        # the inertia is checked rather than the frequencies. That is done in
+        # the boson basis, where M is congruent to T⁻†MT⁻¹: there the
+        # Goldstone zero mode stays at roundoff, whereas the 1/√ε columns of
+        # T near it amplify noise to a size set by `regularization`. The other
+        # schemes have no anomalous self-energy in their propagator, so their
+        # frequencies are always real.
         if dyson in (:nambu, :ladder)
             M = E + Σ + dyson_model(se, dyson, [im*η]).K[p, p, 1]
-            breakdown[iq] = !stable || any(z -> abs(imag(z)) > 1e-8 * opnorm(M), eigvals(Ĩ * (M + M') / 2))
+            H = Ĩ * se.T * Ĩ * ((M + M') / 2) * Ĩ * se.T' * Ĩ
+            λ = eigvals(Hermitian((H + H') / 2))
+            breakdown[iq] = !stable || first(λ) < -1e-6 * maximum(abs, λ)
         end
 
         if dyson == :on_shell
