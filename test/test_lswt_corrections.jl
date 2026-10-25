@@ -1076,6 +1076,12 @@ end
     rs = map(nk -> (δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=0.005, bz=(nk, nk, 1))[2])) / δ, (16, 32))
     @test rs[1] ≈ 2 * rs[2] rtol=0.01
     @test rs[2] < 0.02
+    # The on-shell bands take the cancelling static part at real ω = 0, so a
+    # soft band does not move with η, even at ε ≈ η. At ε + iη it moved by 25%.
+    let sys = canted_square(1/2, 1), swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
+        soft(η) = minimum(Sunny.corrected_intensities_bands(swt, [[0.005, 0.005, 0]]; η, bz=(24, 24, 1)).disp)
+        @test soft(0.05) ≈ soft(0.02) rtol=1e-3
+    end
 
     # The second symmetry is broken only by an onsite anisotropy. Every term
     # below is invariant under rotation about ẑ, so the in-plane moment of this
@@ -1635,7 +1641,8 @@ end
     # `:on_shell` moved there, by its change of definition. On the square
     # lattice every scheme moved by about 1%, the error of the mean fields on an
     # 8×8 grid; that is the price of summing them where the self-energy is
-    # summed, and it is small against η.
+    # summed, and it is small against η. `:on_shell` on the cluster was
+    # re-pinned again, by 3e-6, when its static part moved to ω = 0.
     # Each `dyson` scheme is pinned, as (sum, maximum) of the intensities.
     function pinned(swt, qs, energies, η, dims, dyson)
         res = Sunny.corrected_intensities(swt, qs; energies, η, dyson, bz=dims)
@@ -1648,7 +1655,7 @@ end
         # wavevector integrates the self-energy exactly
         refs = (; nambu = [134.7520268640052, 8.380503835798784],
                   particle = [134.14976386847886, 8.359567327789398],
-                  on_shell = [134.03630092383594, 8.305517136160697])
+                  on_shell = [134.0359610999244, 8.305436289136901])
         for (dyson, ref) in pairs(refs)
             @test pinned(swt, [[0.21, -0.33, 0.12], [0.5, 0, 0]], range(0.1, 6.0, 120), 0.1, (1, 1, 1), dyson) ≈ ref rtol=1e-6
         end
