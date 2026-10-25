@@ -842,6 +842,13 @@ end
         @test E(1) ≈ Sunny.gaussian_energy_per_site(sc) atol=1e-14
         @test E(0) ≈ Sunny.corrected_energy_per_site(swt; bz=grid) - Sunny.hartree_fock_correction(swt; bz=grid).δE atol=1e-12
         @test E(1) < E(0)
+        # The self-consistent mean field gaps the Goldstone mode at the ordering
+        # wavevector, and a pin restores the harmonic one, which only the
+        # regularization gaps
+        gap(sw) = minimum(dispersion(sw, [[0, 0, 0]]))
+        pinned = Sunny.self_consistent(swt; grid, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
+        @test gap(sc) > 0.1
+        @test gap(pinned) ≈ gap(swt) rtol=0.1
     end
     # A field along the moments shifts the magnons by ±B without changing the
     # Bogoliubov transformation. It leaves the Néel state energetically
