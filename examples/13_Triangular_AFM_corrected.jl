@@ -25,12 +25,12 @@ minimize_energy!(sys)
 plot_spins(sys; ndims=2)
 
 # Calculate spin-wave intensities with loop corrections at order ``1/s`` using
-# `corrected_intensities` (an experimental feature). The option
-# `dyson=:particle` applies the particle-sector Dyson equation as in Eq. (12) of
-# Mourigal et al. Sunny's default, `dyson=:nambu`, would instead apply the Dyson
-# equation in the full particle-hole space, which may be more accurate. The
-# regulator ``η > 0`` defines an effective energy resolution. Numerical costs
-# grow as ``η^{-D}`` in the effective model dimension ``D``.
+# `corrected_intensities` (an experimental feature). Following Eq. (12) of
+# Mourigal et al., the `:one_loop_projected` scheme applies the Dyson equation
+# using projection to the particle sector. Sunny also provides a `:one_loop`
+# scheme, which yields a more complete result at one-loop order. The regulator
+# ``η > 0`` defines an effective energy resolution. Numerical costs grow as
+# ``η^{-D}`` in the effective model dimension ``D``.
 
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
 qpts = [[2/3, -1/3, 0], [0, 0, 0], [1/2, 0, 0], [1/6, 1/6, 0], [0, 1/4, 0]]
@@ -38,7 +38,8 @@ labels=["K", "Γ", "M", "Y₁", "Y"]
 path = q_space_path(cryst, qpts, 200; labels)
 η = 0.03s
 energies = 0:(η/2):ωmax
-res = Sunny.corrected_intensities(swt, path; energies, η, dyson=:particle, threaded=true, verbose=true)
+res = Sunny.corrected_intensities(swt, path; energies, η, scheme=:one_loop_projected,
+                                  threaded=true, verbose=true)
 ;#hide
 
 # The intensities can be compared with Fig. 4 of Mourigal et al. (corrected in
