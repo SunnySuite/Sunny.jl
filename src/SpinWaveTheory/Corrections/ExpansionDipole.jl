@@ -285,14 +285,14 @@ end
 # analogous terms of its quadrupolar matrix. A word with both bosons on one site,
 # such as A₂ b†b†/2, enters twice in the Nambu matrix, hence its factor 1/2.
 function quadratic_monomials_dipole(sys::System, data::SWTDataDipole)
-    (; local_rotations, stevens_coefs, sqrtS) = data
+    (; local_rotations, stevens_coefs, sqrtS, interactions) = data
     L = natoms(sys.crystal)
 
     terms = BosonMonomial{2}[]
     add!(c, as, ns) = iszero(c) || push!(terms, BosonMonomial(ComplexF64(c), as, ns))
     o = zero(Vec3)
 
-    for (i, int) in enumerate(sys.interactions_union)
+    for (i, int) in enumerate(interactions)
         # Zeeman term, suppressed on a vacant site by its null local frame
         B = sys.gs[1, 1, 1, i]' * sys.extfield[1, 1, 1, i]
         add!(-dot(B, local_rotations[i][:, 3]), (L+i, i), (o, o))
@@ -369,14 +369,14 @@ quartic_monomials(swt::SpinWaveTheory) =
 # does produce ±3 monomials directly.
 function cubic_monomials_dipole(swt::SpinWaveTheory)
     (; sys, data) = swt
-    (; local_rotations, sqrtS) = data
+    (; local_rotations, sqrtS, interactions) = data
     L = nbands(swt)
 
     terms = BosonMonomial{3}[]
     add!(c, as, ns) = iszero(c) || push!(terms, BosonMonomial(ComplexF64(c), as, ns))
     o = zero(Vec3)
 
-    for (i, int) in enumerate(sys.interactions_union)
+    for (i, int) in enumerate(interactions)
         # The Zeeman coupling is +𝐁⋅𝐒, as implied by the quadratic Hamiltonian.
         # Its transverse part survives at a classical minimum, where exchange
         # rather than the local frame cancels it, and enters through the cubic
@@ -462,14 +462,14 @@ end
 # being linear in 𝐒, contributes nothing here, but an onsite anisotropy does.
 function quartic_monomials_dipole(swt::SpinWaveTheory)
     (; sys, data) = swt
-    (; sqrtS) = data
+    (; sqrtS, interactions) = data
     L = nbands(swt)
 
     terms = BosonMonomial{4}[]
     add!(c, as, ns) = iszero(c) || push!(terms, BosonMonomial(ComplexF64(c), as, ns))
     o = zero(Vec3)
 
-    for (i, int) in enumerate(sys.interactions_union)
+    for (i, int) in enumerate(interactions)
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break

@@ -533,7 +533,7 @@ end
 @testitem "Vacant sites" begin
     # A vacant site must decouple from the spin wave calculation entirely: it
     # contributes only null bands, and the surviving sites behave as though it
-    # were absent. `swt_data!` achieves this by zeroing the local frame, which is
+    # were absent. `swt_data` achieves this by zeroing the local frame, which is
     # load bearing for the Zeeman term alone -- the anisotropy and exchange terms
     # are already suppressed by the vanishing spin magnitude.
     cryst = Crystal(lattice_vectors(1, 1.3, 1.7, 90, 90, 90), [[0, 0, 0]])

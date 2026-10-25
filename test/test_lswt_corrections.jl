@@ -198,7 +198,7 @@
         # expansion uses and with the same Zeeman convention (+𝐁⋅𝐒). The
         # anisotropy is rotated by hand, so this is independent of the
         # implementation, which instead works from the Stevens coefficients that
-        # `swt_data!` stored.
+        # `swt_data` stored.
         Rs = swt.data.local_rotations
         Hex = spzeros(ComplexF64, dim, dim)
         for i in 1:3
@@ -273,9 +273,8 @@
         sys0 = sun_cluster()
         sys0.coherents .= sysM.coherents
         swt = SpinWaveTheory(sys0; measure=nothing, regularization=0)
-        # `swt.sys` is the private clone that `swt_data!` rotated into local
-        # frames and absorbed the Zeeman term into; that, not `sys0`, is what
-        # `sun_monomials` reads.
+        # The couplings that `swt_data` rotated into local frames and absorbed
+        # the Zeeman term into are what `sun_monomials` reads.
         sys = swt.sys
         Nf = Sunny.nflavors(swt)
         N = Nf + 1
@@ -283,7 +282,7 @@
         prom(A, i) = sum(A[m, n] * E(m, n, i) for m in 1:N, n in 1:N if !iszero(A[m, n]))
 
         Hex = spzeros(ComplexF64, dim, dim)
-        for (i, int) in enumerate(sys.interactions_union)
+        for (i, int) in enumerate(swt.data.interactions)
             iszero(int.onsite) || (Hex .+= prom(Matrix(int.onsite), i))
             for c in int.pair
                 c.isculled && continue
@@ -918,7 +917,7 @@ end
     # diagonalization has certified above.
     #
     # Only gauge-invariant output may be compared. `bogoliubov!` fixes the phase
-    # of each band independently, and the dipole `swt_data!` puts a deliberate
+    # of each band independently, and the dipole `swt_data` puts a deliberate
     # rotation into each local frame, so the vertex tensors, the Bogoliubov
     # matrices and the dynamical matrices themselves all differ between the two
     # modes by phases.
