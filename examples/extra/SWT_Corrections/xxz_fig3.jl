@@ -1,10 +1,10 @@
 # Reproduce Fig. 3a of Maksimov, Zhitomirsky and Chernyshev, PRB 94, 140407(R)
 # (2016) (https://arxiv.org/abs/1607.08238). Calculates the dynamical structure
 # factor of the easy-plane XXZ triangular-lattice antiferromagnet in an
-# out-of-plane field, including ``1/s`` corrections.
+# out-of-plane field, including 1/s corrections.
 #
 # The reference calculation omitted interference between transverse and
-# longitudinal channels. Sunny includes this additional ``1/s`` correction term,
+# longitudinal channels. Sunny includes this additional 1/s correction term,
 # which is found to redistribute the two-magnon continuum.
 
 using Sunny, LinearAlgebra, Printf
@@ -16,7 +16,7 @@ cryst = Crystal(lattice_vectors(1, 1, 10, 90, 90, 120), [[0, 0, 0]])
 Δ = 0.9
 hfrac = 0.2
 
-sys = System(cryst, [1 => Moment(; s=1/2, g=1)], :dipole)
+sys = System(cryst, [1 => Moment(s=1/2, g=1)], :dipole)
 set_exchange!(sys, diagm([1.0, 1.0, Δ]), Bond(1, 1, [1, 0, 0]))
 Hs = 3 * (Δ + 1/2)
 set_field!(sys, [0, 0, -hfrac * Hs])
@@ -27,8 +27,8 @@ sys = reshape_supercell(sys, [2 -1 0; 1 1 0; 0 0 1])
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-# The ground state breaks chiral symmetry in one of two ways. Reflect in the
-# ``y`` plane as necessary to ensure a consistent chiral orientation.
+# The ground state breaks chiral symmetry in one of two ways. Reflect in the y
+# plane as necessary to ensure a consistent chiral orientation.
 
 if (sys.dipoles[1] × sys.dipoles[2])[3] < 0
     for site in eachsite(sys)
@@ -46,7 +46,7 @@ K = [2/3, -1/3, 0]
 path = q_space_path(cryst, [M, K′, Γ, K, M, Γ], 400;
                     labels=["M", "K′", "Γ", "K", "M", "Γ"])
 
-# Calculate intensities ``S^{αα}(𝐪, ω)`` to order 1/s. Enlarging the artificial
+# Calculate intensities Sᵅᵅ(𝐪, ω) to order 1/s. Enlarging the artificial
 # broadening η by 4× accelerates the calculation by 16×.
 
 η = 0.02 # vs. 0.005 used in Maksimov et al.
