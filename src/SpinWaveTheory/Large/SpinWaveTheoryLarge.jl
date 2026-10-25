@@ -1,23 +1,24 @@
 """
-    SpinWaveTheoryLarge(sys::System; measure, tol=1e-2, regularization=1e-8, maxiters=nothing)
+    SpinWaveTheoryLarge(sys::System; measure, tol=1e-2, regularization=1e-8, maxiters=1000)
 
-A variant of [`SpinWaveTheory`](@ref) that estimates [`intensities`](@ref) using
-iterated matrix-vector products. By avoiding direct matrix diagonalization, this
-method reduces computational cost from cubic to linear-scaling in the system
-size ``N``. Large system sizes can arise, e.g., for models of quenched disorder
-or models with nearly incommensurate ordering wavevectors.
+A variant of [`SpinWaveTheory`](@ref) optimized for calculations on large
+magnetic cells. This method avoids direct matrix diagonalization, and thereby
+reduces computational cost from cubic- to linear-scaling in the system size.
+Large supercells can be useful for modeling, e.g., quenched chemical disorder or
+magnetic states with long-wavelength modulations.
 
-At each wavevector, iteration continues until the intensities agree with their
-previous estimate to within the relative tolerance `tol`. The number of
-iterations scales like ``(Δϵ/w) \\log(1/\\mathrm{tol})``, where ``Δϵ``
-is the spectral bandwidth of excitations and ``w`` is the energy resolution of
-interest, and the cost of each scales like ``𝒪(N)``. An optional `maxiters`
-caps the iterations at each wavevector. Long-range dipole-dipole interactions
-are not yet supported.
+The [`intensities`](@ref) for each ``𝐪`` are estimated using the block Lanczos
+method [1]. This calculation terminates when the estimated intensities agree
+between iterations to within the relative tolerance `tol`. The required number
+of iterations scales like ``(Δϵ/w) \\log(1/\\mathrm{tol})``, where ``Δϵ`` is the
+spectral bandwidth of excitations and ``w`` is the relevant energy resolution. A
+lower bound on ``w`` is the regulator ``η`` passed to the `intensities`
+calculation. Exceeding `maxiters` iterations will throw an error, which prevents
+hangs when ``η`` is poorly chosen.
 
 !!! tip "Consider `SampledCorrelations` when calculating powder averages"
 
-    Spin wave theory requires an independent calculation for each ``𝐪`` point of
+    Spin wave theory performs an independent calculation for each ``𝐪`` point of
     interest. Consequently, it can be very slow to sample a 3D volume of
     ``𝐪``-space, e.g., as required for a [`powder_average`](@ref). A compelling
     alternative may be [`SampledCorrelations`](@ref). It uses real-time spin
@@ -26,10 +27,9 @@ are not yet supported.
     at the cost of: limited ``𝐪``-space resolution and stochastic error due to
     statistical sampling.
 
-The calculation uses the block Lanczos method [1] to approximate the resolvent
-of the dynamical matrix, which is near-optimal at a fixed number of iterations
-[2, 3]. It supersedes the Kernel Polynomial Method of Ref. [4], and the former
-`SpinWaveTheoryKPM`.
+Block Lanczos is near-optimal at a fixed number of iterations [2, 3]. It
+supersedes the Kernel Polynomial Method of Ref. [4], which Sunny had previously
+implemented in `SpinWaveTheoryKPM`.
 
 ## References
 
@@ -50,10 +50,9 @@ struct SpinWaveTheoryLarge
     tol :: Float64
     maxiters :: Int
 
-    function SpinWaveTheoryLarge(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8,
-                                 tol=1e-2, maxiters=nothing)
+    function SpinWaveTheoryLarge(sys::System; measure::Union{Nothing, MeasureSpec},
+                                 regularization=1e-8, tol=1e-2, maxiters=1000)
         0 < tol < 1 || error("Require 0 < tol < 1")
-        maxiters = @something maxiters typemax(Int)
         maxiters > 0 || error("Require maxiters > 0")
         swt = SpinWaveTheory(sys; measure, regularization)
         return new(swt, SparseDynamicalMatrix(swt), tol, maxiters)
@@ -66,20 +65,6 @@ function Base.show(io::IO, ::MIME"text/plain", swt_large::SpinWaveTheoryLarge)
     println(io, "  ", nsites(swt.sys), " sites")
 end
 
-"""
-    intensities(swt::SpinWaveTheoryLarge, qpts; energies, η, kernel=nothing, kT=0, threaded=false)
-
-Like [`intensities`](@ref) for [`SpinWaveTheory`](@ref), with the intrinsic
-broadening `η` required. The iterative method evaluates the susceptibility at
-``ω + iη`` directly, and cannot resolve energies finer than `η`. The optional
-`kernel` must be analytic, and its width may vary smoothly with energy.
-
-The accuracy is set by `tol` in [`SpinWaveTheoryLarge`](@ref), and the cost by
-the energy resolution, the larger of `η` and the kernel width, except near soft
-modes, where it is `η`. Set `threaded=true` to parallelize over wavevectors. As
-for `SpinWaveTheory`, an instability of the magnetic structure is an error, but
-here only one that couples to the measured observables is detected.
-"""
 function intensities(swt_large::SpinWaveTheoryLarge, qpts; energies, η=nothing, kernel=nothing, kT=0.0, threaded=false)
     qpts = convert(AbstractQPoints, qpts)
     data = zeros(eltype(swt_large.swt.measure), length(energies), size(qpts.qs)...)
@@ -89,7 +74,7 @@ end
 function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=nothing, kernel=nothing, kT=0.0, threaded=false)
     qpts = convert(AbstractQPoints, qpts)
     @assert size(data) == (length(energies), size(qpts.qs)...)
-    isnothing(η) && error("Keyword `η` is required, e.g., an intrinsic broadening small compared to the kernel width.")
+    isnothing(η) && error("Keyword `η` is required, e.g., a regulator small compared to the kernel width")
     η > 0 || error("Require η > 0")
     intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded)
     return Intensities(orig_crystal(swt_large.swt.sys), qpts, collect(Float64, energies), data)
@@ -132,7 +117,6 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     n = size(H, 1)
     Nobs = num_observables(measure)
     rb = RetardedBroadening(energies, η, kernel, kT)
-    unconverged = Threads.Atomic{Bool}(false)
 
     newbuf() = (
         u    = zeros(ComplexF64, n, Nobs),
@@ -157,11 +141,14 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
         mulS!(W, X) = mul_rows!(W, H, X, Hq)
 
         C = try
-            lanczos_correlations(mulS!, V, G, rb; η, tol, maxiters, unconverged)
+            lanczos_correlations(mulS!, V, G, rb; η, tol, maxiters)
         catch e
-            qstr = vec3_to_string(q)
-            e isa InstabilityError && throw(InstabilityError("Not an energy-minimum; wavevector q = $qstr unstable."))
-            rethrow()
+            e isa InstabilityError || rethrow()
+            throw(InstabilityError("Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable."))
+        end
+        if isnothing(C)
+            error("Exceeded maxiters = $maxiters at wavevector q = $(vec3_to_string(q)); \
+                   consider increasing η or maxiters")
         end
 
         # Indices of the pair correlations among the observables kept
@@ -177,17 +164,13 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     end
 
     foreach_chunked(calc_iq!, newbuf, CartesianIndices(qpts.qs); threaded)
-
-    if unconverged[]
-        @warn "Not converged within maxiters = $maxiters at some wavevectors. Increase `maxiters` or `η`."
-    end
-
     return data
 end
 
 # The pair correlations C[iω][a, b] of the observables whose starting block is V,
 # at each of the `energies`, by block Lanczos iteration to convergence
-function lanczos_correlations(mulS!, V, G, rb; η, tol, maxiters, unconverged)
+# Returns `nothing` if not converged within `maxiters`
+function lanczos_correlations(mulS!, V, G, rb; η, tol, maxiters)
     lz = BlockLanczos(mulS!, V)
 
     # The bandwidth b, from a short run, sets the steps that resolve an energy
@@ -202,17 +185,17 @@ function lanczos_correlations(mulS!, V, G, rb; η, tol, maxiters, unconverged)
     # the steps that resolve η, further steps change nothing.
     steps(w) = ceil(Int, b * log(1/tol) / 4w)
     m₀ = steps(max(rb.width/2, 2η))
-    m_max = min(maxiters, 2 * steps(η))
-    extend!(lz, clamp(m₀ - nsteps(lz), 0, m_max - nsteps(lz)))
+    m_max = 2 * steps(η)
+    extend!(lz, clamp(min(m₀, maxiters) - nsteps(lz), 0, m_max - nsteps(lz)))
     C = estimate()
     while !lz.exhausted && nsteps(lz) < m_max
-        extend!(lz, min(max(2, nsteps(lz) ÷ 2), m_max - nsteps(lz)))
+        nsteps(lz) >= maxiters && return nothing
+        extend!(lz, min(max(2, nsteps(lz) ÷ 2), m_max - nsteps(lz), maxiters - nsteps(lz)))
         C′ = estimate()
         converged = maximum(maximum(abs, x) for x in C′ - C) <= tol * maximum(maximum(abs, x) for x in C′)
         C = C′
         converged && return C
     end
-    nsteps(lz) >= maxiters && !lz.exhausted && (unconverged[] = true)
     return C
 end
 

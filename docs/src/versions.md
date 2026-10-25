@@ -3,6 +3,8 @@
 ## v0.10.0
 (In development)
 
+**Breaking changes** in this release.
+
 * Enhancements to simulations with entangled units. The new
   [`entangle_system`](@ref) function is officially supported, offers improved
   integration with other Sunny features, and in some cases runs significantly
@@ -15,43 +17,23 @@
   ([#507](@ref)).
 * One-dimensional paths supported in [`q_space_grid`](@ref). Labeling of plot
   axes in 1D and 2D is clarified ([#516](@ref)).
-* **Breaking**: [`SpinWaveTheorySpiral`](@ref) now requires that interactions
-  be invariant under rotations about the polarization axis, consistent with
-  [`spiral_energy`](@ref). Long-range dipole-dipole interactions are no longer
-  supported in spiral spin wave theory, which previously gave incorrect
-  results; use [`SpinWaveTheory`](@ref) on a commensurate supercell instead.
-* Fix spin wave theory with dipole-dipole interactions and unequal spin
-  magnitudes.
-* For [`SpinWaveTheory`](@ref) and [`SpinWaveTheorySpiral`](@ref),
-  [`intensities`](@ref) accepts an optional intrinsic broadening `η`. Each
-  excitation then has a Lorentzian line shape in the dynamical susceptibility at
-  complex energy ``ω + iη``, at energies of either sign, before the thermal
-  factor and any instrumental `kernel`, which becomes optional. A small `η`
-  removes the dependence of intensities near Goldstone modes on the
-  `regularization` of zero modes.
-* At `kT > 0`, [`intensities`](@ref) and [`intensities_static`](@ref) for
-  [`SpinWaveTheory`](@ref) now include the anti-Stokes intensity at negative
-  energy, which was previously missing.
+* [`SpinWaveTheorySpiral`](@ref) strictly enforces uniaxial symmetry of the
+  interactions; long-range dipole-dipole interactions now excluded.
 * [`SpinWaveTheoryLarge`](@ref) replaces `SpinWaveTheoryKPM`, and uses block
   Lanczos to evaluate the dynamical susceptibility at complex energy ``ω + iη``.
-  Intensities require the intrinsic broadening `η`, and accept an optional
-  `kernel`, which must be analytic, e.g., [`gaussian`](@ref) or
-  [`lorentzian`](@ref). They include both signs of energy, with detailed
-  balance. Iteration continues until the relative tolerance `tol`, by default
-  `1e-2`, is met, with an optional cap `maxiters`. An unstable magnetic
-  structure raises an error. Intensities are several times faster, and support
-  `threaded=true`. Dipole-dipole interactions, previously unsupported in
-  matrix-free products, now raise an error at construction. The deprecated
-  `SpinWaveTheoryKPM` remains available, with `η` set to a tenth of the kernel
-  width, and `niters` as a cap on iterations.
+  Convergence is faster and fully robust. The regulator `η` defines intrinsic
+  Lorentzian broadening, damps soft mode intensity, and bounds computational
+  cost. Dense spin wave calculators also accept `η` to damp soft mode intensity.
+* At `kT > 0`, [`intensities`](@ref) and [`intensities_static`](@ref) yield the
+  correct intensity at negative energies.
+* Fix spin wave theory with dipole-dipole interactions and unequal spin
+  magnitudes.
 
 ## v0.9.2
 (Jul 13, 2026)
 
 * Bug fixes and improvements to experimental entangled units feature
   ([#494](@ref)).
-
-* Bug fixes and improvements to entangled units ([#494](@ref)).
 
 ## v0.9.1
 (Apr 25, 2026)

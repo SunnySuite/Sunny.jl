@@ -45,7 +45,7 @@ path = q_space_grid(cryst, [1, 0, 0], range(0, 3, 180); offset=[0, 0, 1/2])
 η = 0.1
 energies = 0:0.02:3.5
 res1 = domain_average(cryst, path; rotations, weights) do path
-    intensities(swtA, path; energies, kernel=lorentzian(fwhm=2η))
+    intensities(swtA, path; energies, η)
 end
 res2 = domain_average(cryst, path; rotations, weights) do path
     Sunny.corrected_intensities(swtB, path; energies, η, threaded=true, verbose=true)

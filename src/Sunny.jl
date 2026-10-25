@@ -16,7 +16,7 @@ import Optim
 import Printf: Printf, @printf, @sprintf
 import ProgressMeter
 import Random: Random, randn!
-import SpecialFunctions: erf, erfc
+import SpecialFunctions: erf, erfc, digamma
 import Statistics
 import StaticArrays: SVector, SMatrix, SArray, SA, setindex
 
@@ -130,6 +130,7 @@ export minimize_spiral_energy!, spiral_energy, spiral_energy_per_site, SpinWaveT
 
 include("SpinWaveTheory/Large/SparseDynamicalMatrix.jl")
 include("SpinWaveTheory/Large/Lanczos.jl")
+include("SpinWaveTheory/Large/RetardedBroadening.jl")
 include("SpinWaveTheory/Large/SpinWaveTheoryLarge.jl")
 export SpinWaveTheoryLarge, SpinWaveTheoryKPM
 

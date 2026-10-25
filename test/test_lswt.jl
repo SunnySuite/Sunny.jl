@@ -365,9 +365,9 @@ end
     swt = SpinWaveTheory(sys_dip; measure=measure(sys_dip))
     ϵ = only(disp_dip)
     energies = ϵ .* [-1, 1]
-    res1 = intensities(swt, [q]; energies, η=0.02ϵ, kT=ϵ).data
+    res1 = intensities(swt, [q]; energies, η=ϵ, kT=ϵ).data
     res2 = intensities(SpinWaveTheoryLarge(sys_dip; measure=measure(sys_dip), tol=1e-8), [q];
-                       energies, η=0.02ϵ, kT=ϵ).data
+                       energies, η=ϵ, kT=ϵ).data
     @test all(isapprox.(res1, res2; rtol=1e-3))
 end
 
