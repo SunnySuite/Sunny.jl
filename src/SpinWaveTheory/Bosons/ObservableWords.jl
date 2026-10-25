@@ -31,9 +31,9 @@ function observable_monomials(sys::System, frames, measure, μ, i, ::Val{K}; par
     words = if O isa Vec3
         spin_component_words(O, √(2s))
     elseif sys.mode == :dipole
-        exact_stevens_words(stevens_ranks(O), s)
+        exact_stevens_words(O, s)
     else
-        (lead, sub) = stevens_words(stevens_ranks(O), √(2s), false)
+        (lead, sub) = stevens_words(O, √(2s), false)
         beyond_tree ? lead + sub : lead
     end
     return local_word_monomials(words, i, L, Val{K}())

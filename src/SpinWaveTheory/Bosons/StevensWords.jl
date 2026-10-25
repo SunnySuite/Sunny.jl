@@ -86,29 +86,32 @@ end
 const GRADED_SPINS = graded_spin_matrices(6)
 const GRADED_INV_RCS = map(inv, rcs_factors(monomial(2, 1/2)))
 
-# Holstein-Primakoff words of a single-site operator `𝒪`, a graded matrix over
-# boson numbers, as coefficients of the normal-ordered words (b†)^{d+j} bʲ keyed
-# by (d, j), for d + 2j ≤ 4. The word of n = d + 2j bosons is read off at the
-# single power x^p(n) of x = √(2s), which is how the truncation rule at the top
-# of this file is imposed.
-#
-# A single-site operator is block diagonal in the boson number up to a shift,
+# The normal-ordered words (b†)^{d+j} bʲ, keyed by (d, j), of at most four
+# bosons, and their numbers of bosons. A set of words is a vector over these.
+const WORD_KEYS = Tuple((d, j) for d in 0:4 for j in 0:div(4-d, 2))
+const WORD_NB = map(((d, j),) -> d + 2j, WORD_KEYS)
+const Words = SVector{length(WORD_KEYS), ComplexF64}
+
+word(w::Words, key) = w[findfirst(==(key), WORD_KEYS)]
+
+# Holstein-Primakoff words of a single-site operator `𝒪`, a matrix over boson
+# numbers 0, 1, 2, …, as coefficients of the normal-ordered words (b†)^{d+j} bʲ
+# ordered as `WORD_KEYS`. A single-site operator is block diagonal in the boson
+# number up to a shift,
 #
 #     𝒪 = g_0(n̂) + Σ_{d > 0} [(b†)^d g_d(n̂) + h.c.],   n̂ = b†b,
 #
 # and expanding each g_d in the Newton basis n̂(n̂-1)…(n̂-j+1) = (b†)ʲ bʲ gives the
 # words. The coefficients follow from finite differences of the matrix elements
-# of 𝒪, which are assembled over `Laurent` so that each word is obtained as a
-# series in 1/s rather than as a number. Sunny lists the eigenvalues of Sᶻ in
-# descending order, so the boson number of basis state m is m-1, and
-# ⟨m+d|(b†)^d|m⟩ = √((m+d)!/m!) relates 𝒪 to g_d.
-function local_words!(words, 𝒪, x, p)
+# of 𝒪, using ⟨m+d|(b†)^d|m⟩ = √((m+d)!/m!). Sunny lists the eigenvalues of Sᶻ
+# in descending order, so the boson number of basis state m is m-1. Over
+# `Laurent` elements, each word is obtained as a series in 1/s rather than as a
+# number.
+function newton_words(𝒪)
     g(d, m) = 𝒪[m+d+1, m+1] / √prod(m+1:m+d; init=1)
-    for d in 0:4, j in 0:div(4-d, 2)
-        W = sum(m -> (-1)^(j-m) * binomial(j, m) * g(d, m), 0:j) / factorial(j)
-        words[(d, j)] = get(words, (d, j), 0.0im) + coefficient(W, p(d + 2j)) * x^p(d + 2j)
-    end
-    return words
+    return SVector(map(WORD_KEYS) do (d, j)
+        sum(m -> (-1)^(j-m) * binomial(j, m) * g(d, m), 0:j) / factorial(j)
+    end)
 end
 
 # Monomials of exactly K bosons at site i among `words`: each word (b†)^{d+j} bʲ
@@ -127,25 +130,15 @@ function local_word_monomials(words, i, L, ::Val{K}) where K
     return terms
 end
 
-# The normal-ordered words (b†)^{d+j} bʲ, keyed by (d, j), of at most four
-# bosons, and their numbers of bosons. A set of words is a vector over these.
-const WORD_KEYS = Tuple((d, j) for d in 0:4 for j in 0:div(4-d, 2))
-const WORD_NB = map(((d, j),) -> d + 2j, WORD_KEYS)
-const Words = SVector{length(WORD_KEYS), ComplexF64}
-
-word(w::Words, key) = w[findfirst(==(key), WORD_KEYS)]
-
 # The words of each Stevens operator 𝒪_k^q, for k ≤ 6 and ordered as in
 # `stevens_matrices`, as a pair (lead, sub): the word of n bosons at its leading
 # power x^{2k-n}, and at the next, x^{2k-n-2}, each at x = 1. A word scales with
 # x as its power, so these depend on nothing, and are built once here.
 const STEVENS_WORDS = map(0:6) do k
     map(stevens_abstract_polynomials(; J=GRADED_SPINS, k)) do 𝒪
-        function words(p)
-            w = local_words!(Dict{Tuple{Int, Int}, ComplexF64}(), 𝒪, 1.0, p)
-            return Words(map(key -> w[key], WORD_KEYS))
-        end
-        (words(n -> 2k - n), words(n -> 2k - n - 2))
+        W = newton_words(𝒪)
+        (Words(map((w, n) -> coefficient(w, 2k - n), W, WORD_NB)),
+         Words(map((w, n) -> coefficient(w, 2k - n - 2), W, WORD_NB)))
     end
 end
 
@@ -154,17 +147,17 @@ end
 const RCS_SHIFT = map(k -> real(coefficient(GRADED_INV_RCS[k], -2)), 0:6)
 
 # The pair (lead, sub) of words, as in `STEVENS_WORDS`, of the local operator
-# Σ_kq c_kq 𝒪_k^q at a site of spin s, given x = √2s and an iterable `cs` of
-# pairs (k, c_k), with c_k the coefficients ordered as in `stevens_matrices`.
-# Where `rcs` holds, the stored c_k carry the renormalization λ_k of mode
-# :dipole, which the sub-leading words divide back out. A vacant site, x = 0, has
-# no bosons and so no words.
-function stevens_words(cs, x, rcs::Bool)
+# `O` at a site of spin s, given x = √(2s). Where `rcs` holds, the stored
+# coefficients carry the renormalization λ_k of mode :dipole, which the
+# sub-leading words divide back out. A vacant site, x = 0, has no bosons and so
+# no words.
+function stevens_words(O::StevensExpansion, x, rcs::Bool)
     iszero(x) && return (zero(Words), zero(Words))
-    # The orders of `cs` may hold coefficient vectors of different types, so
-    # they are visited by recursion rather than iteration, which stays static
-    return mapreduce(.+, cs) do (k, c)
+    # The coefficient vectors of the ranks differ in length, so they are visited
+    # by recursion over a tuple rather than by iteration, which stays static
+    return mapreduce(.+, stevens_ranks(O)) do (k, c)
         lead = sub = zero(Words)
+        iszero(c) && return (lead, sub)
         powers = map(n -> x^(2k - n), Words(WORD_NB))
         for (q, ckq) in enumerate(c)
             iszero(ckq) && continue
@@ -176,32 +169,29 @@ function stevens_words(cs, x, rcs::Bool)
     end
 end
 
-# The exact words of the local operator Σ_kq c_kq 𝒪_k^q at a site of spin s,
-# given as in `stevens_words`. Words of at most four bosons read only matrix
+# The exact words of the local operator `O` at a site of spin s. Words of at
+# most four bosons read only matrix
 # elements between the lowest seven boson states, which are closed-form at any
 # s, so no series is needed: for half-integer s these are the words of the
 # (2s+1)×(2s+1) matrix itself, and otherwise their continuation in s. An
 # observable never enters the Hamiltonian, so unlike a coupling it is not
 # truncated; see ObservableWords.jl.
-function exact_stevens_words(cs, s)
+function exact_stevens_words(O::StevensExpansion, s)
     iszero(s) && return zero(Words)
     off = [√complex(j * (2s + 1 - j)) / 2 for j in 1:6]
     J = (diagm(1 => off, -1 => off), diagm(1 => -im*off, -1 => im*off), diagm(ComplexF64[s - n for n in 0:6]))
-    𝒪 = sum(cs; init=zeros(ComplexF64, 7, 7)) do (k, c)
-        sum(((ckq, O),) -> ckq * O, zip(c, stevens_abstract_polynomials(; J, k)); init=zeros(ComplexF64, 7, 7))
+    𝒪 = sum(stevens_ranks(O); init=zeros(ComplexF64, 7, 7)) do (k, c)
+        sum(((ckq, P),) -> ckq * P, zip(c, stevens_abstract_polynomials(; J, k)); init=zeros(ComplexF64, 7, 7))
     end
-    g(d, m) = 𝒪[m+d+1, m+1] / √prod(m+1:m+d; init=1)
-    return Words(map(WORD_KEYS) do (d, j)
-        sum(m -> (-1)^(j-m) * binomial(j, m) * g(d, m), 0:j) / factorial(j)
-    end)
+    return Words(newton_words(𝒪))
 end
 
-# Stevens coefficients of the spin component 𝐫 ⋅ 𝐒, since (𝒪_1^1, 𝒪_1^0, 𝒪_1^-1) =
-# (Sˣ, Sᶻ, Sʸ), and the leading words of that component. Its sub-leading words of
-# at most two bosons vanish: Sᶻ = s - b†b is exact, as are the one-boson words
-# of S±.
-spin_component_coefs(r) = ((1, (r[1], r[3], r[2])),)
-spin_component_words(r, x) = first(stevens_words(spin_component_coefs(r), x, false))
+# The Stevens expansion of the spin component 𝐫 ⋅ 𝐒, since (𝒪_1^1, 𝒪_1^0,
+# 𝒪_1^-1) = (Sˣ, Sᶻ, Sʸ), and the leading words of that component. Its
+# sub-leading words of at most two bosons vanish: Sᶻ = s - b†b is exact, as are
+# the one-boson words of S±.
+spin_component(r) = stevens_expansion_of_single_rank((r[1], r[3], r[2]))
+spin_component_words(r, x) = first(stevens_words(spin_component(r), x, false))
 
-# The quadrupole 𝒪_2^q as Stevens coefficients, as in `stevens_words`
-quadrupole_coefs(q) = ((2, ntuple(p -> p == q ? 1.0 : 0.0, 5)),)
+# The Stevens expansion of the quadrupole 𝒪_2^q
+quadrupole(q) = stevens_expansion_of_single_rank(ntuple(p -> p == q ? 1.0 : 0.0, Val{5}()))

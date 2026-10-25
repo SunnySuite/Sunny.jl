@@ -3,7 +3,7 @@
 # mode, the renormalization factors (`rcs_factor`) are included in the
 # coefficients of an anisotropy. An anisotropy is time-reversal even, so has
 # only even ranks, but an observable may have any. `kmax` is the largest rank
-# present.
+# present, and negligible ranks are stored as exact zeros.
 struct StevensExpansion
     c0 :: SVector{1, Float64}
     c1 :: SVector{3, Float64}
@@ -13,20 +13,16 @@ struct StevensExpansion
     c5 :: SVector{11, Float64}
     c6 :: SVector{13, Float64}
     kmax :: Int
+
+    function StevensExpansion(c0, c1, c2, c3, c4, c5, c6)
+        cs = map(fieldtypes(StevensExpansion)[1:7], (c0, c1, c2, c3, c4, c5, c6)) do T, ck
+            ck = T(ck)
+            norm(ck) < 1e-12 ? zero(ck) : ck
+        end
+        kmax = maximum(map((k, ck) -> iszero(ck) ? 0 : k, (0, 1, 2, 3, 4, 5, 6), cs))
+        return new(cs..., kmax)
+    end
 end
-
-function StevensExpansion(cs::Tuple)
-    cs = map(ck -> norm(ck) < 1e-12 ? zero(ck) : ck, cs)
-    kmax = maximum(k -> iszero(cs[k+1]) ? 0 : k, 0:6)
-    return StevensExpansion(cs..., kmax)
-end
-
-# From coefficients indexed by rank, e.g. an `OffsetArray` over 0:6
-StevensExpansion(c) = StevensExpansion(ntuple(k -> SVector{2k-1, Float64}(c[k-1]), 7))
-
-# The coefficients of every rank, in order, and paired with their rank
-coefs_by_rank(s::StevensExpansion) = (s.c0, s.c1, s.c2, s.c3, s.c4, s.c5, s.c6)
-stevens_ranks(s::StevensExpansion) = tuple.(0:6, coefs_by_rank(s))
 
 struct TensorDecomposition
     # Generators of rotations for (Aᵢ, Bᵢ) respectively
