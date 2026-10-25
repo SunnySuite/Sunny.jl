@@ -95,18 +95,15 @@ function anisotropy_expansion(c)
 end
 
 
-# k-dependent renormalization of Stevens operators O[k,q] as derived in
-# https://arxiv.org/abs/2304.03874.
-function rcs_factors(s)
-    λ = [1,                                                                  # k=0
-         1,                                                                  # k=1
-         1 - (1/2)/s,                                                        # k=2
-         1 - (3/2)/s + (1/2)/s^2,                                            # k=3
-         1 - 3/s + (11/4)/s^2 - (3/4)/s^3,                                   # k=4
-         1 - 5/s + (35/4)/s^2 - (25/4)/s^3 + (3/2)/s^4,                      # k=5
-         1 - (15/2)/s + (85/4)/s^2 - (225/8)/s^3 + (137/8)/s^4 - (15/4)/s^5] # k=6
-    return OffsetArray(λ, 0:6)
-end
+# k-dependent renormalization λ_k = ∏_{j<k} (1 - j/2s) of Stevens operators
+# O[k,q] as derived in https://arxiv.org/abs/2304.03874. For example,
+# rcs_factors(s)[2] is 1 - 1/2s, which gives the renormalization factor for
+# quadrupolar anisotropy (k=2).
+rcs_factors(s) = OffsetArray([prod(j -> 1 - j/2s, 1:k-1; init=1.0) for k in 0:6], 0:6)
+
+# The coefficient a_k of the expansion λ_k = 1 - a_k/2s + O(1/s²), read off from
+# the product above. To the same order, 1/λ_k = 1 + a_k/2s.
+rcs_factor_first_order(k) = sum(1:k-1; init=0)
 
 function empty_anisotropy(mode, N)
     if mode in (:dipole, :dipole_uncorrected)

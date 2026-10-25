@@ -26,7 +26,6 @@ Base.:+(a::Laurent, b::Laurent) = Laurent(a.c + b.c)
 Base.:-(a::Laurent, b::Laurent) = Laurent(a.c - b.c)
 Base.:-(a::Laurent) = Laurent(-a.c)
 Base.:/(a::Laurent, z::Number) = Laurent(a.c / z)
-Base.:/(a::Laurent, b::Laurent) = a * inv(b)
 
 # Powers add, so the coefficient of xᵖ is the convolution Σ_q a_q b_{p-q}, summed
 # over the pairs of powers that both lie inside the retained window. Indices are
@@ -41,23 +40,6 @@ function Base.:*(a::Laurent, b::Laurent)
         return acc
     end
     return Laurent(SVector(ntuple(f, Val{NLAUR}())))
-end
-
-# Reciprocal. Factoring out the leading monomial leaves 1 + u with u carrying only
-# negative powers, so the geometric series Σ (-u)ᵐ for its inverse falls out of the
-# retained window after finitely many terms. Treating the highest retained power as
-# the leading one is what makes the result a descending series in 1/s, as wanted
-# here, rather than an ascending one.
-function Base.inv(a::Laurent)
-    p0 = something(findlast(!iszero, a.c), 0) - LAURENT_P0
-    -p0 in LAURENT_RANGE || error("Cannot invert a Laurent series of leading power $p0")
-    lead = monomial(-p0, inv(coefficient(a, p0)))
-    u = lead * a - one(Laurent)
-    r = one(Laurent)
-    for _ in 1:NLAUR
-        r = one(Laurent) - u * r
-    end
-    return lead * r
 end
 
 # Spin matrices in the basis of boson number n = s - m_z, running over 0:nmax.
@@ -79,12 +61,10 @@ function graded_spin_matrices(nmax::Int)
     return (Jx, Jy, Jz)
 end
 
-# Graded spin matrices, and the reciprocals of the `rcs_factors`
-# renormalizations. Only matrix elements between boson numbers ≤ 4 are ever
+# Graded spin matrices. Only matrix elements between boson numbers ≤ 4 are ever
 # read, and a Stevens operator of order k ≤ 6 shifts the boson number by at most
 # k while its diagonal factors reach one further, so seven states suffice.
 const GRADED_SPINS = graded_spin_matrices(6)
-const GRADED_INV_RCS = map(inv, rcs_factors(monomial(2, 1/2)))
 
 # The normal-ordered words (b†)^{d+j} bʲ, keyed by (d, j), of at most four
 # bosons, and their numbers of bosons. A set of words is a vector over these.
@@ -142,15 +122,12 @@ const STEVENS_WORDS = map(0:6) do k
     end
 end
 
-# The leading correction to 1/λ_k, i.e. 1/λ_k = 1 + RCS_SHIFT[k]/2s + O(1/s²),
-# for the renormalizations λ_k of `rcs_factors`.
-const RCS_SHIFT = map(k -> real(coefficient(GRADED_INV_RCS[k], -2)), 0:6)
-
 # The pair (lead, sub) of words, as in `STEVENS_WORDS`, of the local operator
 # `O` at a site of spin s, given x = √(2s). Where `rcs` holds, the stored
-# coefficients carry the renormalization λ_k of mode :dipole, which the
-# sub-leading words divide back out. A vacant site, x = 0, has no bosons and so
-# no words.
+# coefficients are those of the operator times the `rcs_factors` λ_k of mode
+# :dipole. The sub-leading words divide λ_k back out, to the order they keep:
+# 1/λ_k = 1 + a_k/x², with a_k from `rcs_factor_first_order`. A vacant site,
+# x = 0, has no bosons and so no words.
 function stevens_words(O::StevensExpansion, x, rcs::Bool)
     iszero(x) && return (zero(Words), zero(Words))
     # The coefficient vectors of the ranks differ in length, so they are visited
@@ -159,11 +136,12 @@ function stevens_words(O::StevensExpansion, x, rcs::Bool)
         lead = sub = zero(Words)
         iszero(c) && return (lead, sub)
         powers = map(n -> x^(2k - n), Words(WORD_NB))
+        a = rcs ? rcs_factor_first_order(k) : 0
         for (q, ckq) in enumerate(c)
             iszero(ckq) && continue
             (wl, ws) = STEVENS_WORDS[k+1][q]
             lead += ckq * wl .* powers
-            sub += ckq * (ws + rcs * RCS_SHIFT[k+1] * wl) .* powers / x^2
+            sub += ckq * (ws + a * wl) .* powers / x^2
         end
         (lead, sub)
     end
