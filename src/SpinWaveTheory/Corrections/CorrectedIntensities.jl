@@ -1,47 +1,41 @@
-# Dynamical structure factor at O(1/s), S = (χ' - χ)/2πi at z = ω + iη. Each
-# `dyson` scheme propagates the magnons with the 2L×2L Nambu resolvent G of a
-# quadratic model of magnons coupled to the binned two-magnon bath of
-# Corrections.jl. The schemes differ in that model, and in how much of its
-# response they assemble.
+# Dynamical structure factor at O(1/s), S = (χ' - χ)/2πi at z = ω + iη.
 #
-# `:nambu` is the full auxiliary model, exact at O(1/s). It assembles the whole
-# Schur complement of the model's resolvent onto the observables,
+# Each `dyson` scheme propagates the magnons with the 2L×2L Nambu resolvent G
+# of a quadratic model of magnons coupled to the binned two-magnon bath of
+# Corrections.jl. The schemes make three independent choices: which blocks of
+# the self-energy to keep, whether to invert the resolvent or take its
+# first-order poles, and how much of the model's response to assemble.
+#
+# `:nambu` keeps the whole model and assembles the Schur complement of its
+# resolvent onto the observables,
 #
 #     χ = w'Gw + K_dm G w + w'G K_md + K_dm G K_md + K_dd,
 #
-# which inherits the frequency sum rule and is positive at ω > 0, up to the O(η)
-# tails of the mirror poles, whenever the model is stable.
+# which inherits the frequency sum rule and is positive at ω > 0, up to the
+# O(η) tails of the mirror poles, whenever the model is stable. The other two
+# schemes assemble only the magnon term w'Gw and the bare continuum K_dd.
 #
-# The other two schemes keep the published assembly, the magnon term w'Gw plus
-# the bare continuum K_dd.
-#
-# `:particle` is the rotating-wave truncation of the auxiliary model, the
-# canonical treatment of Chernyshev and Zhitomirsky, PRB 79, 144416 (2009) and
-# RMP 85, 219 (2013). Each bath couples only to the legs it resonates with,
-# decay pairs to particles and source pairs to holes, and the anomalous blocks
-# of the self-energy are dropped, which the papers justify for the poles at
-# O(1/s) (PRB Sec. IV). Each block keeps its non-resonant channel frozen on
-# shell, as in PRB 88, 094407 (2013), which removes a spurious branch pushed up
-# from negative frequency near ±Q. The particle block is then exactly G₁₁ of
-# RMP Eq. (34), PRB Eq. (86), and the hole block its mirror G₁₁(-𝐪, -ω). The
-# dropped counter-rotating terms are suppressed by |Σ_anom|/(ω + ε), so they are
-# O(1/s) in the intensities and not small near a soft mode whose rotation
+# `:particle` is the rotating-wave truncation. Each bath couples only to the
+# legs it resonates with, decay pairs to particles and source pairs to holes,
+# and the anomalous blocks are dropped. Each block keeps its non-resonant
+# channel frozen at the mean on-shell energy of its two legs, as in PRB 88,
+# 094407 (2013), which removes a spurious branch pushed up from negative
+# frequency near ±Q. The particle block is then G₁₁ of RMP 85, 219, Eq. (34)
+# and PRB 79, 144416, Eq. (86), and the hole block its mirror G₁₁(-𝐪, -ω). The
+# dropped counter-rotating terms are suppressed by |Σ_anom|/(ω + ε), so they
+# are O(1/s) in the intensities and not small near a soft mode whose rotation
 # generator has a quadratic part (e.g. at ±K of the triangular lattice), where
 # the 1/ε divergences cancel only in the full Nambu inverse. There the scheme
 # overestimates the intensity at ω ≫ ε.
 #
-# `:on_shell` takes the first-order poles of the full Nambu Dyson equation of
-# `:nambu`, with no rotating-wave masking, so that each band becomes one complex
-# pole ε̃ - iΓ, as in RMP Eq. (35), PRB Eq. (55). The pole shift is the particle
-# block of Σstat + K evaluated on shell, the anomalous blocks entering only at
-# second order. By construction the poles have Γ ≥ 0 and positive residues,
-# the holes mirror the particles exactly, and a Goldstone mode stays gapless
-# because the mean fields share the loop grid. The pole has logarithmic
-# singularities where a band crosses a saddle point of the continuum (PRB Sec.
-# V).
-#
-# The scheme is controlled where the anomalous coupling is small against the
-# 2ε that separates a pole from its mirror. Near a Goldstone mode in two
+# `:on_shell` linearizes the full Nambu Dyson equation at each pole, as in RMP
+# Eq. (35) and PRB Eq. (55). The anomalous blocks couple poles at ±ε, a gap of
+# 2ε, and so first shift a pole at second order: the same poles follow from the
+# particle block alone. Each pole is a unit-weight Lorentzian; its residue,
+# which does change at first order, is deliberately not corrected, keeping the
+# scheme a statement about the dispersion. The details, including which channel
+# sets each width, are at `dyson_model`. The scheme is controlled where the
+# anomalous coupling is small against 2ε. Near a Goldstone mode in two
 # dimensions it is not: two soft internal lines feed a static bubble that
 # diverges like 1/δ at distance δ, in the stiff direction directly and in the
 # Goldstone direction through its O(δ) overlap with that one, so that the
@@ -50,72 +44,95 @@
 # complex frequencies, and |Σ_anom|/2ε exceeds one, so `:on_shell` there is a
 # first-order formula outside its range.
 #
-# No scheme dresses the internal lines: RMP Sec. IV.C notes that self-consistent
-# dressing gaps the Goldstone modes.
+# No scheme dresses the internal lines by default: RMP Sec. IV.C notes that
+# self-consistent dressing gaps the Goldstone modes. A `MagnonVacuum` with a
+# correction does so, with a counterterm.
 
 """
     corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, dyson=:nambu,
-                          mark_unstable=true, threaded=false, verbose=false)
+                          loop_grid=nothing, vacuum=MagnonVacuum(swt), mark_unstable=true,
+                          threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including one-loop
-spin-wave corrections, i.e., order ``1/s`` in dipole mode. Magnon energies are
-shifted by the mean fields and the cubic self-energy, magnons that can decay
-into two magnons are broadened, and the two-magnon continuum is included, both
-the part fed by decay and the part the observable creates directly.
+spin-wave corrections, i.e., relative order ``1/s`` in dipole mode. Magnon
+energies are shifted by the mean fields and the cubic self-energy, magnons that
+can decay into two magnons are broadened, and the response includes the
+two-magnon continuum.
 
-The Green function will be evaluated at ``ω + iη``. Choose the numerical
-regulator `η` small compared to the linewidths of interest, but no smaller: the
-wavevector grid of the loop integrals grows as `1/η` in each dispersing
-dimension. Instrumental resolution should be applied to the result afterwards.
+The Green function is evaluated at ``ω + iη``, so `η` both regulates the loop
+integrals and broadens the result into Lorentzians. Choose it small compared to
+the linewidths of interest, but no smaller: the wavevector grid of the loop
+integrals grows as `1/η` in each dispersing dimension. Apply instrumental
+resolution to the result afterwards.
 
-The accuracy target `tol` sets the wavevector grid of the loop integrals. The
-static mean fields are summed on the same grid, which keeps Goldstone modes
-exactly gapless, grid by grid.
+The accuracy target `tol` sets that grid, unless `loop_grid` is given
+explicitly. The static mean fields are summed on the same grid, which keeps
+Goldstone modes exactly gapless, grid by grid.
 
-The `dyson` option selects how the one-loop self-energy enters the Dyson
-equation for the magnon propagator.
+The `dyson` option selects how the one-loop self-energy is resummed:
 
 - `:nambu` (default) solves the Dyson equation in the full particle/hole (Nambu)
-  space. It includes all terms at order ``1/s``, preserves Goldstone modes at
-  all frequencies, and satisfies the frequency sum rule.
-- `:particle` drops the anomalous (particle/hole mixing) self-energy, following
-  Eq. (86) of [Chernyshev and Zhitomirsky, PRB **79**, 144416
-  (2009)](https://doi.org/10.1103/PhysRevB.79.144416). The magnon poles are
-  correct at order ``1/s``, but near some Goldstone modes it produces spurious
+  space and assembles the complete one-loop response, including the interference
+  between one- and two-magnon channels. It preserves Goldstone modes at all
+  frequencies and satisfies the frequency sum rule. The intensity is positive at
+  ``ω > 0`` wherever the resummed propagator is stable.
+- `:particle` keeps only the particle block of the self-energy, and collects the
+  magnon response plus the bare two-magnon continuum without interference. The
+  intensity is never negative at ``ω > 0``, and pole shifts are correct at order
+  ``1/s`` away from soft modes. Near a Goldstone mode it can put spurious
   intensity well above the magnon energy.
-- `:on_shell` takes the first-order poles of the `:nambu` Dyson equation, so
-  that each magnon becomes a Lorentzian of shifted energy and finite width, as
-  in Eq. (55) of the same reference. Peak energies have logarithmic
-  singularities where a magnon crosses a saddle point of the two-magnon
-  continuum.
+- `:on_shell` linearizes the `:nambu` Dyson equation at each magnon pole, so
+  that each magnon becomes one Lorentzian of shifted energy and nonnegative
+  width, with its harmonic intensity. Band energies and widths are correct at
+  order ``1/s``, band intensities are not. The continuum is added as in
+  `:particle`. Peak energies have logarithmic singularities where a magnon
+  crosses a saddle point of the two-magnon continuum.
 
-In the latter two schemes the intensity is the magnon term plus the bare
-two-magnon continuum. As a retarded response, the result of each scheme includes
-the tails of the negative-frequency poles, which cancel the Lorentzian tail of a
-Goldstone mode at high energy.
+Sunny uses the retarded response, i.e., includes the tails of the
+negative-frequency poles. These cancel the high-frequency Lorentzian tail of a
+Goldstone mode.
 
-With `:nambu`, a large one-loop correction can push a renormalized magnon pole
-through ``ω = 0`` onto the imaginary axis. Such a pole signals a breakdown of
-perturbation theory at the given wavevector ``𝐪``. In two dimensions this
-happens in a region around each Goldstone wavevector that shrinks like ``1/s``.
-Sunny marks these unstable poles by setting all intensity within `±η` of ``ω =
-0`` to `NaN`. Set `mark_unstable=false` to retain all raw intensity data. The
-other two schemes cannot have imaginary poles, and nothing is marked, but their
-poles are equally uncontrolled there.
+With `:nambu`, a large one-loop correction can push a magnon pole through ``ω =
+0`` onto the imaginary axis. This signals that the expansion has broken down at
+that wavevector; in two dimensions it happens in a region around each Goldstone
+wavevector that shrinks like ``1/s``. Sunny marks these points by setting all
+intensity within `±η` of ``ω = 0`` to `NaN`. Set `mark_unstable=false` to keep
+the raw data. Although schemes `:particle` and `:on_shell` cannot produce
+imaginary poles, they are also uncontrolled in the same regimes.
 
 Set `threaded=true` to parallelize over `qpts`, and `verbose=true` to print a
-progress bar and other diagnostics.
+progress bar and diagnostics.
 
-By default the bosons are expanded about linear spin wave theory, which is the
-``1/s`` expansion proper. A `vacuum` built as `MagnonVacuum(swt, correction)`
-instead expands about the quadratic Hamiltonian of LSWT plus `correction`, a
-function of the reshaped wavevector returning a Nambu matrix. Its
-quasi-particles become the internal lines of every loop, and its vacuum
-supplies the mean fields, as in self-consistent schemes. The correction is
-subtracted again as a counterterm, so the bare propagator remains that of LSWT
-and the result differs from the ``1/s`` expansion only at the order
-neglected. For example, `Sunny.replace_energies` renormalizes the internal
-lines while keeping their harmonic eigenvectors.
+!!! tip "Origins and accuracy of the schemes"
+
+    Interacting spin waves were treated diagrammatically by [Dyson, Phys. Rev.
+    **102**, 1217 (1956)](https://doi.org/10.1103/PhysRev.102.1217). The coupled
+    normal and anomalous Dyson equations of an interacting Bose system are due to
+    Beliaev, Sov. Phys. JETP **7**,
+    [289](https://jetp.ras.ru/cgi-bin/e/index/e/7/2/p289?a=list) and
+    [299](https://jetp.ras.ru/cgi-bin/e/index/e/7/2/p299?a=list) (1958). The
+    `:nambu` scheme solves these equations at full one-loop order.
+
+    In the harmonic quasiparticle basis, the anomalous self-energy couples a pole at
+    ``+ε`` to its mirror at ``-ε``, and so shifts an isolated pole only at second
+    order. This observation has historically motivated projection onto the particle
+    block [Chernyshev and Zhitomirsky, PRB **79**, 144416
+    (2009)](https://doi.org/10.1103/PhysRevB.79.144416) and [Zhitomirsky and
+    Chernyshev, RMP **85**, 219 (2013)](https://doi.org/10.1103/RevModPhys.85.219).
+    These prior works collected intensities from the renormalized magnons and the
+    bare two-magnon continuum independently. Neglecting interference between these
+    channels ensures a positive spectrum, but leaves the scheme incomplete at
+    one-loop order. Sunny's `:particle` scheme follows this Chernyshev and
+    Zhitomirsky recipe precisely.
+
+    The `:on_shell` poles are ``ε̃ - iΓ = ε + Σ(ε)``, as in Eq. (55) of the PRB.
+    Because the anomalous self-energy shifts an isolated pole only at second order,
+    the same poles follow from the full Nambu equation or from its variant with
+    particle block projection. Each width is read at the shifted energy, so that
+    decay begins at the renormalized two-magnon threshold. Near a Goldstone mode in
+    two dimensions, the anomalous coupling is not small against the ``2ε`` that
+    separates a pole from its mirror, and the linearized pole is outside its range
+    of validity.
 """
 function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
                                mark_unstable=true, dyson=:nambu, threaded=false, verbose=false,
@@ -128,19 +145,21 @@ function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01
 end
 
 """
-    corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, tol=0.01, threaded=false,
-                                verbose=false)
+    corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, tol=0.01, loop_grid=nothing,
+                                vacuum=MagnonVacuum(swt), threaded=false, verbose=false)
 
-Magnon bands at temperature ``T = 0`` with one-loop corrections, i.e., order
-``1/s`` in dipole mode, in the on-shell approximation. This is the
-`dyson=:on_shell` option of [`corrected_intensities`](@ref), keeping only
-the magnon poles. The two-magnon continuum is omitted.
+Magnon bands at temperature ``T = 0`` with one-loop corrections, i.e., relative
+order ``1/s`` in dipole mode, for fitting a measured dispersion. These are the
+poles of the `dyson=:on_shell` option of [`corrected_intensities`](@ref), which
+describes the scheme and its limits; the two-magnon continuum is omitted.
 
-Each band carries a shifted energy, its intensity, and a half width at half
-maximum in the field `widths`, arising from decay into the two-magnon continuum.
-Here `η` regularizes the loop integrals only, and does not broaden the result.
-The widths are nonnegative, and the bands of ``𝐪`` mirror the hole poles at
-``-𝐪`` exactly.
+Each band carries a shifted energy and a half width at half maximum in the
+field `widths`, arising from decay into the two-magnon continuum, both correct
+at order ``1/s``. The intensity of each band is that of linear spin wave
+theory, for the observables corrected at order ``1/s``; it omits the
+redistribution of weight at that order. Here `η` regularizes the loop
+integrals only, and does not broaden the result. The widths are nonnegative,
+and the bands of ``𝐪`` mirror the hole poles at ``-𝐪`` exactly.
 """
 function corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, tol=0.01, loop_grid=nothing,
                                      threaded=false, verbose=false, vacuum=MagnonVacuum(swt))
@@ -243,8 +262,8 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
             G = inv(zs[iω]*Ĩ - E - Σ - Kz[p, p])
             accum_channel!(chans.transverse, iω, w' * G * w)
             # The routes through the bath complete the resolvent of the full
-            # model. The reproduction schemes keep the published assembly
-            # without them.
+            # model. The other schemes assemble only the magnon term and the
+            # bare continuum.
             if dyson == :nambu
                 accum_channel!(chans.cross, iω, Kdm * G * w + w' * G * Kmd)
                 accum_channel!(chans.direct, iω, Kdd + Kdm * G * Kmd)
@@ -267,9 +286,9 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         end
 
         if dyson == :on_shell
-            amps = poles.U' * w[1:L, :]
             for n in 1:L
-                map!(((μ, ν),) -> conj(amps[n, μ]) * amps[n, ν] / Ncells, corr, measure.corr_pairs)
+                a = poles.U[:, n]' * w[1:L, :]
+                map!(((μ, ν),) -> conj(a[μ]) * a[ν] / Ncells, corr, measure.corr_pairs)
                 (bands.disp[n, iq], bands.widths[n, iq]) = (poles.λ[n], poles.Γ[n])
                 bands.data[n, iq] = measure.combiner(q_global, corr)
             end
@@ -396,25 +415,22 @@ function dyson_model(ol, dyson, zs, η)
     end
 
     @assert dyson == :on_shell
-    # First-order poles of the Nambu Dyson equation, from the full Nambu
-    # self-energy Σstat + K. Each element is evaluated on the shell of its two
-    # legs, ½[K_mn(ε_m) + K_mn(ε_n)], the second-order Schrieffer-Wolff form,
-    # which reduces to K_nn(ε_n) on the diagonal and keeps the frozen matrix
-    # Hermitian up to its absorptive part. The anomalous blocks couple poles at
-    # ±ε, a gap of 2ε, so they first shift a pole at second order and are
-    # dropped. Each of the particle and hole blocks is diagonalized in its
-    # Hermitian part, which mixes bands only at first order where they are
-    # nearly degenerate. The hole block at 𝐪 is the particle block at -𝐪 by the
-    # Nambu symmetry of K, so the hole poles are the exact mirror of the
-    # particle poles.
+    # The Dyson equation of `:nambu`, linearized at each pole. Each element of
+    # the self-energy Σstat + K is frozen on the shell of its two legs,
+    # ½[K_mn(ε_m) + K_mn(ε_n)], which reduces to K_nn(ε_n) on the diagonal and
+    # keeps the frozen matrix Hermitian up to its absorptive part. The anomalous
+    # blocks couple poles at ±ε, a gap of 2ε, so they first shift a pole at
+    # second order and are dropped. Each of the particle and hole blocks is
+    # diagonalized in its Hermitian part, which mixes bands only at first order
+    # where they are nearly degenerate. The hole block at 𝐪 is the particle
+    # block at -𝐪 by the Nambu symmetry of K, so the hole poles are the exact
+    # mirror of the particle poles.
     #
     # Each pole takes its width from the channel that resonates at its own
     # shifted energy: decay at λ > 0 for a particle, source at -λ for a hole.
     # That channel's measure is positive semidefinite, so Γ ≥ 0 by
-    # construction. The other channel cannot resonate there, and its absorptive
-    # part is a tail of the regulator only, so it is dropped. Reading the width
-    # at the shifted energy rather than at the harmonic one puts the threshold
-    # of the continuum where the pole actually sits.
+    # construction. Reading the width at the shifted energy rather than at the
+    # harmonic one puts the threshold of the continuum where the pole sits.
     K = Kdec + Ksrc
     nω = length(zs) - 2L
     Kon = [(K[m, n, nω+m] + K[m, n, nω+n]) / 2 for m in p, n in p]
@@ -426,7 +442,7 @@ function dyson_model(ol, dyson, zs, η)
     Γp = [-imag(dot(Up[:, n], view(Kp, 1:L, 1:L, n), Up[:, n])) for n in 1:L]
     Γh = [imag(dot(Uh[:, n], view(Kh, L+1:2L, L+1:2L, n), Uh[:, n])) for n in 1:L]
     # A frequency-independent Nambu matrix with exactly these poles, so that
-    # the magnons propagate as a sum of positive Lorentzians
+    # the magnons propagate as a sum of unit-weight Lorentzians
     Σ = cat(Up * Diagonal(λp - im*Γp) * Up', Uh * Diagonal(λh + im*Γh) * Uh'; dims=(1, 2)) - Diagonal(abs.(ε))
     K[p, p, :] .= 0
     return (; Σ, K, poles=(; λ=λp, Γ=Γp, U=Up))
