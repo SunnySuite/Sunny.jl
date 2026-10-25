@@ -217,6 +217,7 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     integrator.dt = dt
 
     measure = isnothing(measure) ? ssf_trace(sys) : measure
+    measure isa MeasureSpec{StevensExpansion} && error("SampledCorrelations in dipole mode measures only spin dipoles")
     validate_formfactors(measure)
 
     # Flatten the "bare" observable positions of the cell, in fractional
