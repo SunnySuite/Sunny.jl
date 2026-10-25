@@ -317,6 +317,19 @@ end
         res_SUN = intensities_bands(SpinWaveTheory(sys_SUN; measure=op_measure(sys_SUN, ops[μ:μ])), [q])
         @test only(res_dip.data) ≈ res_SUN.data[end-1]
     end
+
+    # Cross correlations between observables of different rank, e.g.
+    # dipole-octupole, which are complex in general
+    function cross_measure(sys, ops)
+        m = op_measure(sys, ops)
+        pairs = [(μ, ν) for μ in eachindex(ops) for ν in μ+1:length(ops)]
+        @assert length(pairs) == 15
+        return Sunny.MeasureSpec(m.observables, pairs, (q, corr) -> Sunny.SVector{15, ComplexF64}(corr), m.formfactors)
+    end
+    res_dip = intensities_bands(SpinWaveTheory(sys_dip; measure=cross_measure(sys_dip, ops)), [q])
+    res_SUN = intensities_bands(SpinWaveTheory(sys_SUN; measure=cross_measure(sys_SUN, ops)), [q])
+    @test only(res_dip.data) ≈ res_SUN.data[end-1]
+    @test maximum(abs ∘ imag, only(res_dip.data)) > 1e-3
 end
 
 
