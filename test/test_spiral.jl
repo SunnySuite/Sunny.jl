@@ -50,6 +50,14 @@
     E2 = energy_per_site(sys_large)
 
     @test E1 ≈ E2
+
+    # On a magnetic cell commensurate with k, the supercell RLU of k are
+    # integers only up to round-off
+    k = [0, 0, 1/5]
+    sys5 = repeat_periodically_as_spiral(sys, (1, 1, 5); k, axis)
+    enable_dipole_dipole!(sys5, 1.0)
+    @test Sunny.to_supercell_rlu(sys5, k)[3] != 1
+    @test spiral_energy_per_site(sys5; k, axis) ≈ energy_per_site(sys5)
 end
 
 
@@ -115,6 +123,15 @@ end
     @test res.data[1] + res.data[2] ≈ res2.data[2]
     @test res.disp[end] ≈ res2.disp[end]
     @test res.data[end] ≈ res2.data[end]
+
+    # The energy is independent of k₃. With k₃ = 0, k is half-integer, and the
+    # branches q ± k coincide. Compare broadened spectra.
+    swt3 = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys), k=[k[1], k[2], 0], axis)
+    energies = range(0, 6, 30)
+    kernel = gaussian(fwhm=0.3)
+    res3 = intensities(swt3, [q]; energies, kernel)
+    res4 = intensities(swt2, [q]; energies, kernel)
+    @test res3.data ≈ res4.data
 end
 
 

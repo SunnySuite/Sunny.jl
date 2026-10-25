@@ -20,7 +20,8 @@ end
 function spiral_classes(k_supercell)
     same(s, t) = norm((s - t) * k_supercell - round.((s - t) * k_supercell)) < 1e-8
     classes = Vector{Int}[]
-    for s in (-1, 0, 1)
+    # Visiting s = 0 first makes it the representative of its class
+    for s in (0, -1, 1)
         c = findfirst(c -> same(first(c), s), classes)
         isnothing(c) ? push!(classes, [s]) : push!(classes[c], s)
     end

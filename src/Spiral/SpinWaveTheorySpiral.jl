@@ -3,8 +3,9 @@
 
 Analogous to [`SpinWaveTheory`](@ref), but interprets the provided system as
 having a generalized spiral order. This order is described by a single
-propagation wavevector `k` (in reciprocal lattice units, RLU) an `axis` vector
-that is normal to the polarization plane (in global Cartesian coordinates).
+propagation wavevector `k` (in reciprocal lattice units, RLU) and an `axis`
+vector that is normal to the polarization plane (in global Cartesian
+coordinates).
 Typically the spin configuration in `sys` and the propagation wavevector `k`
 will be optimized using [`minimize_spiral_energy!`](@ref). In contrast, `axis`
 will typically be determined from symmetry considerations.
@@ -15,7 +16,8 @@ and [`intensities`](@ref).
 
 All interactions must be invariant under rotations about `axis`. This constraint
 excludes many forms of exchange anisotropy, as well as long-range dipole-dipole
-interactions.
+interactions. Similarly, the external field must be aligned with `axis`, and
+g-tensors must be invariant under rotations about it.
 
 The algorithm for this calculation was developed in [Toth and Lake, J. Phys.:
 Condens. Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069) and
@@ -24,6 +26,7 @@ implemented in the [SpinW code](https://spinw.org/).
 struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     swt :: SpinWaveTheory
     k :: Vec3              # Propagation wavevector
+    k_supercell :: Vec3    # The same in RLU of the magnetic cell
     axis :: Vec3           # Axis for polarization plane
     table :: QuadraticTable # Hamiltonian in the frame that co-rotates with the spiral
 
@@ -38,7 +41,8 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
         check_rotational_symmetry(sys; axis, θ=0.01)
 
         swt = SpinWaveTheory(sys; measure, regularization)
-        return new(swt, k, axis, spiral_table(swt, to_supercell_rlu(sys, k), axis))
+        k_supercell = to_supercell_rlu(sys, k)
+        return new(swt, k, k_supercell, axis, spiral_table(swt, k_supercell, axis))
     end
 end
 
@@ -46,8 +50,8 @@ end
 # i → j, winding n magnetic cells, couples the spin of j rotated by θ = 2π k⋅n
 # about the axis. Since every coupling is invariant under these rotations, the
 # result is translation invariant, and compiles into an ordinary quadratic
-# table. Mode q of the spiral is the mode q - k of the co-rotating frame, and
-# the three branches q, q ± k are the table at q - k, q and q + k.
+# table. Branch s ∈ (-1, 0, 1), at momentum transfer q + s k, is this table
+# evaluated at q + s k.
 function spiral_table(swt::SpinWaveTheory, k_supercell, axis)
     (; sys, data) = swt
     Rs = data.local_rotations
@@ -78,11 +82,10 @@ end
 ## Dispersion and intensities
 
 function dynamical_matrix!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_supercell; branch)
-    (; swt, k, table) = sswt
+    (; swt, k_supercell, table) = sswt
     L = nbands(swt)
     @assert size(H) == (2L, 2L)
     H .= 0
-    k_supercell = to_supercell_rlu(swt.sys, k)
     accum_lower!(H, table, q_supercell + (branch - 2) * k_supercell)
     hermitian_from_lower!(H)
     for i in 1:2L
@@ -90,23 +93,22 @@ function dynamical_matrix!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_
     end
 end
 
-function excitations!(T, H, sswt::SpinWaveTheorySpiral, q; branch)
-    q_supercell = to_supercell_rlu(sswt.swt.sys, q)
-    dynamical_matrix!(H, sswt, q_supercell; branch)
-
-    return try
-        bogoliubov!(T, H)
-    catch _
-        error("Instability at wavevector q = $q")
+# Bogoliubov transform of branch s at wavevector q, in the workspace `ws`
+function excitations!(ws::BogoliubovWorkspace, H, sswt::SpinWaveTheorySpiral, q; branch)
+    dynamical_matrix!(H, sswt, to_supercell_rlu(sswt.swt.sys, q); branch)
+    try
+        return bogoliubov!(ws, H)
+    catch err
+        err isa PosDefException || rethrow()
+        rethrow(InstabilityError("Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable."))
     end
 end
 
 function excitations(sswt::SpinWaveTheorySpiral, q; branch)
     L = nbands(sswt.swt)
-    H = zeros(ComplexF64, 2L, 2L)
-    T = zeros(ComplexF64, 2L, 2L)
-    energies = excitations!(T, H, sswt, q; branch)
-    return (energies, T)
+    ws = BogoliubovWorkspace(L)
+    energies = copy(excitations!(ws, zeros(ComplexF64, 2L, 2L), sswt, q; branch))
+    return (energies, ws.T)
 end
 
 
@@ -134,13 +136,15 @@ function check_dipole_observables(sys::System, measure::MeasureSpec)
 end
 
 """
-    intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0)
+    intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=false)
 
 Like [`intensities_bands`](@ref) for [`SpinWaveTheory`](@ref), but returning
-``3L`` bands, the modes at ``𝐪`` and ``𝐪 ± 𝐤`` of the spiral.
+``3L`` bands, the modes at ``𝐪`` and ``𝐪 ± 𝐤`` of the spiral. If ``2𝐤`` or
+``𝐤`` is a reciprocal lattice vector, the branches that coincide repeat their
+energies and share their intensity equally.
 """
 function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=false)
-    (; swt, k, axis) = sswt
+    (; swt, k_supercell, axis) = sswt
     (; sys, measure) = swt
     num_observables(measure) == 0 && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
     check_dipole_observables(sys, measure)
@@ -155,7 +159,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
     # the axis. Branches of one class describe the same modes, and their
     # amplitudes add coherently.
     P = spiral_projectors(axis)
-    classes = spiral_classes(to_supercell_rlu(sys, k))
+    classes = spiral_classes(k_supercell)
 
     disp = zeros(Float64, 3L, Nq)
     data = zeros(eltype(measure), 3L, Nq)
@@ -172,8 +176,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
         q_global = cryst.recipvecs * q
         observable_vectors!(u, swt, q_global)
         for class in classes
-            dynamical_matrix!(H, sswt, to_supercell_rlu(sys, q); branch=first(class)+2)
-            energies = bogoliubov!(ws, H)
+            energies = excitations!(ws, H, sswt, q; branch=first(class)+2)
             Pc = sum(P[s+2] for s in class)
             for band in 1:L
                 A = Pc * CVec{3}(ntuple(μ -> dot(view(u, :, μ), view(ws.T, :, band)), 3))

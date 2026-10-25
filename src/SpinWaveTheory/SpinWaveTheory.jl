@@ -50,7 +50,7 @@ Physically, this shift can be interpreted as application of an inhomogeneous
 field aligned with the magnetic ordering.
 
 A `SpinWaveTheory` may carry a Gaussian state other than the harmonic vacuum,
-e.g. one returned by [`Sunny.self_consistent`](@ref). Its quadratic Hamiltonian
+e.g. one returned by `Sunny.self_consistent`. Its quadratic Hamiltonian
 then includes the state's correction, which determines `dispersion`,
 `intensities`, and every other LSWT quantity, while the 1/s corrections treat
 the state as the vacuum about which the bosons are expanded.
@@ -115,7 +115,7 @@ end
 
 function nflavors(swt::SpinWaveTheory)
     (; sys) = swt
-    nflavors = sys.mode == :SUN ? sys.Ns[1]-1 : 1
+    return sys.mode == :SUN ? sys.Ns[1]-1 : 1
 end
 
 function nbands(swt::SpinWaveTheory)
@@ -172,7 +172,7 @@ end
 # `qs_supercell[q]`
 function mul_dynamical_matrix!(swt, y, x, qs_supercell; phases=zeros(ComplexF64, length(qs_supercell)))
     @assert size(x) == size(y) == (length(qs_supercell), 2nbands(swt))
-    isnothing(swt.sys.ewald) || error("Ewald not supported")
+    isnothing(uncontracted_system(swt.sys).ewald) || error("Ewald not supported")
     y .= 0
     accum_mul!(y, x, swt.quadratic_table, qs_supercell, phases)
     @. y += swt.regularization * x
@@ -186,7 +186,6 @@ end
 function swt_data(sys::System{N}, @nospecialize measure) where N
     # Calculate transformation matrices into local reference frames
     Na = nsites(sys)
-    Nb = nbaresites(sys)
     nparts = num_parts_per_unit(measure)
     Nobs = num_observables(measure)
     flat_ops = reshape(measure.observables::Array{HermitianC64, 6}, Nobs, Na, nparts)
