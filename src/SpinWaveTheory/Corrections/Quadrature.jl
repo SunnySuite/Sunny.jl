@@ -93,8 +93,8 @@ end
 # must share
 function check_grid(swt, bz::BZIntegration)
     (; grid) = swt.state
-    isnothing(grid) || grid == bz ||
-        error("The Gaussian state of `swt` was solved on the grid $(grid.dims), but `bz` selects another. Omit `bz` to use the state's grid.")
+    isnothing(grid) || BZGrid(grid) == bz ||
+        error("The Gaussian state of `swt` was solved on the grid $grid, but `bz` selects another. Omit `bz` to use the state's grid.")
 end
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an

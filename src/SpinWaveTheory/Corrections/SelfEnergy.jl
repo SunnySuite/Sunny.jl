@@ -341,6 +341,17 @@ struct OneLoop
     # and a pair, by `observable_corrections` and `observable_pair_corrections`
     δc        :: Matrix{ComplexF64}
     δpair     :: Matrix{Vector{BosonMonomial{2}}}
+    # Derived from the above, so that no wavevector rebuilds them: `terms2` and
+    # the counterterm compiled by `static_table`, and the two-boson words of
+    # each observable and site, with `δpair` included
+    static    :: QuadraticTable
+    words2    :: Matrix{Vector{BosonMonomial{2}}}
+
+    function OneLoop(swt, η, loop_grid, bin_width, terms3, terms4, terms2, δc, δpair)
+        static = static_table(swt, terms2)
+        words2 = map(vcat, observable_words2(swt), δpair)
+        return new(swt, η, loop_grid, bin_width, terms3, terms4, terms2, δc, δpair, static, words2)
+    end
 end
 
 function OneLoop(swt::SpinWaveTheory; energies=nothing, η, bz=nothing)
@@ -414,7 +425,7 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     ws = BogoliubovWorkspace(L)
     ε = copy(excitations_supercell!(ws, zeros(ComplexF64, 2L, 2L), swt, q_supercell))
     T = ws.T
-    Σstat = static_self_energy_matrix(swt, ol.terms2, q_supercell, T)
+    Σstat = static_self_energy_matrix(ol.static, q_supercell, T)
 
     u = zeros(ComplexF64, 2L, num_observables(swt.measure))
     observable_vectors!(u, swt, q_global)
@@ -422,7 +433,7 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     w = T' * u
 
     grid = loop_wavevectors(loop_grid, q_supercell)
-    words2 = observable_pair_monomials(swt, q_global; ol.δpair)
+    words2 = observable_pair_monomials(swt, q_global; ol.words2)
     chans = ladder ? pair_channels(ol.terms4, q_supercell, L) : nothing
     (; decay, source) = pair_measures(swt, ol.terms3, q_supercell, grid; bin_width, words2, chans)
     return SelfEnergy(ol.η, ε, T, Σstat, w, decay, source, ladder ? chans.σ : Float64[])

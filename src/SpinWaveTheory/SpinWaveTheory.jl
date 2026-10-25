@@ -5,11 +5,12 @@ abstract type AbstractSpinWaveTheory end
 
 # A correction to the quadratic Hamiltonian, as boson monomials, which defines a
 # Gaussian state other than the harmonic vacuum. A correction that was solved
-# self-consistently records its `grid`, on which every 1/s correction expanded
-# about it must be evaluated, and the outcome of the iteration in `info`.
+# self-consistently records the dimensions of its `grid`, on which every 1/s
+# correction expanded about it must be evaluated, and the outcome of the
+# iteration in `info`.
 struct GaussianState
     correction :: Vector{BosonMonomial{2}}
-    grid       :: Union{Nothing, BZGrid}
+    grid       :: Union{Nothing, NTuple{3, Int}}
     info       :: NamedTuple
 end
 
@@ -137,7 +138,7 @@ function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     (; correction, grid, info) = swt.state
     if !isempty(correction)
         println(io, "  Gaussian state: ", isempty(info) ? "user correction" : join(("$k = $v" for (k, v) in pairs(info)), ", "),
-                isnothing(grid) ? "" : ", grid $(grid.dims)")
+                isnothing(grid) ? "" : ", grid $grid")
     end
 end
 
@@ -171,13 +172,6 @@ function to_supercell_rlu(sys::System, q)
     return Vec3(sys.dims) .* (sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q))
 end
 
-function dynamical_matrix(swt::SpinWaveTheory, q_supercell)
-    L = nbands(swt)
-    H = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H, swt, q_supercell)
-    return Hermitian(H)
-end
-
 # The quadratic table, then the Ewald term, which is dense in q and so not
 # compiled, then a small constant shift for positive-definiteness
 function dynamical_matrix!(H, swt::SpinWaveTheory, q_supercell)
@@ -199,9 +193,11 @@ function dynamical_matrix!(H, swt::SpinWaveTheory, q_supercell)
     end
 end
 
-function mul_dynamical_matrix(swt, x, qs_supercell)
-    y = zero(x)
-    mul_dynamical_matrix!(swt, y, x, qs_supercell)
+function dynamical_matrix(swt::SpinWaveTheory, q_supercell)
+    L = nbands(swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    dynamical_matrix!(H, swt, q_supercell)
+    return Hermitian(H)
 end
 
 # Matrix-free y = H x at many wavevectors, where row q of x and y belongs to
@@ -213,6 +209,11 @@ function mul_dynamical_matrix!(swt, y, x, qs_supercell; phases=zeros(ComplexF64,
     accum_mul!(y, x, swt.quadratic_table, qs_supercell, phases)
     @. y += swt.regularization * x
     return y
+end
+
+function mul_dynamical_matrix(swt, x, qs_supercell)
+    y = zero(x)
+    mul_dynamical_matrix!(swt, y, x, qs_supercell)
 end
 
 
@@ -412,15 +413,11 @@ excitations!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q) =
 # energy minimum; for a corrected Gaussian state, the correction is to blame.
 function excitations_supercell!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_supercell)
     dynamical_matrix!(H, swt, q_supercell)
-    try
-        return bogoliubov!(ws, H)
-    catch err
-        err isa PosDefException || rethrow()
+    return bogoliubov_or_throw!(ws, H) do
         q = vec3_to_string(from_supercell_rlu(swt.sys, q_supercell))
-        rethrow(InstabilityError(isempty(swt.state.correction) ?
-            "Not an energy-minimum; wavevector q = $q unstable." :
+        isempty(swt.state.correction) ? "Not an energy-minimum; wavevector q = $q unstable." :
             "Quadratic Hamiltonian of the Gaussian state is not positive definite at wavevector q = $q. If \
-             quantum fluctuations stabilize the structure, see `Sunny.about_self_consistent_vacuum`."))
+             quantum fluctuations stabilize the structure, see `Sunny.about_self_consistent_vacuum`."
     end
 end
 
