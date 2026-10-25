@@ -66,9 +66,16 @@
 #
 # In mode :SUN an observable is a matrix on the same footing as a term of the
 # Hamiltonian, so its words are those of `local_monomials`. In the dipole modes it
-# is a spin component, whose words `spin_component_words` reads off the graded
-# expansion that the onsite anisotropy shares.
-function observable_monomials(sys::System, data, μ, i, ::Val{K}; part=1) where K
+# is a spin component, whose words of at most four bosons the truncated
+# expansion holds exactly, or a general polynomial in the spin. An observable
+# never enters the Hamiltonian, so the truncation rule that protects its
+# Goldstone modes does not apply, and the words of a polynomial are those of the
+# operator itself, `exact_stevens_words`, at the tree level and in the 1/s
+# corrections alike. In mode :dipole_uncorrected the operator is the limit s → ∞
+# of its Stevens polynomial, whose words are read off at their leading power,
+# and also at the next for the 1/s corrections. Either way the stored
+# coefficients are those of the operator, without `rcs_factors`.
+function observable_monomials(sys::System, data, μ, i, ::Val{K}; part=1, beyond_tree=true) where K
     L = nbands(sys)
     if sys.mode == :SUN
         A = (data::SWTDataSUN).observables[μ, i, part]
@@ -78,7 +85,15 @@ function observable_monomials(sys::System, data, μ, i, ::Val{K}; part=1) where 
     @assert sys.mode in (:dipole, :dipole_uncorrected)
     part == 1 || error("Distinct parts unsupported in dipole-mode.")
     (; sqrtS, observables) = data::SWTDataDipole
-    words = spin_component_words(observables[μ, i], √2 * sqrtS[i])
+    O = observables[μ, i]
+    words = if O isa Vec3
+        spin_component_words(O, √2 * sqrtS[i])
+    elseif sys.mode == :dipole
+        exact_stevens_words(stevens_ranks(O), sqrtS[i]^2)
+    else
+        (lead, sub) = stevens_words(stevens_ranks(O), √2 * sqrtS[i], false)
+        beyond_tree ? lead + sub : lead
+    end
     return local_word_monomials(words, i, L, Val{K}())
 end
 

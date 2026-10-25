@@ -131,7 +131,7 @@ end
 # Observables must be the spin dipoles, optionally with g applied. Their
 # decomposition by angular momentum about the axis then selects the branches.
 function check_dipole_observables(sys::System, measure::MeasureSpec)
-    any(apply_g -> vec(measure.observables) ≈ vec(all_dipole_observables(sys; apply_g)), (true, false)) ||
+    measure isa MeasureSpec{Vec3} && any(apply_g -> vec(measure.observables) ≈ vec(all_dipole_observables(sys; apply_g)), (true, false)) ||
         error("General measurements not supported for spiral calculation")
 end
 

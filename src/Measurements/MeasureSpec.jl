@@ -20,11 +20,12 @@ function test_combiner_linearity(combiner, corr_pairs)
     end
 end
 
-# Op is the type of a local observable operator. Either a Vec3 representing
-# `op⋅S` (:dipole mode) or a HermitianC64 representing the N×N matrix directly
-# (:SUN mode). The "parts" index and `offsets` field is needed for entangled
-# units.
-struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
+# Op is the type of a local observable operator. In the dipole modes, either a
+# Vec3 representing `op⋅S`, or a StevensExpansion for a general polynomial in S,
+# which only `SpinWaveTheory` accepts. In :SUN mode, a HermitianC64 representing
+# the N×N matrix directly. The "parts" index and `offsets` field is needed for
+# entangled units.
+struct MeasureSpec{Op <: Union{Vec3, StevensExpansion, HermitianC64}, F, Ret}
     observables :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × nunits × nparts)
     formfactors :: Array{FormFactor, 3}   # (nobs × nunits × nparts)
     offsets     :: Array{Vec3, 2}         # (nunits × nparts)
