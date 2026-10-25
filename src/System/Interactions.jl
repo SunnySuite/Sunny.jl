@@ -207,15 +207,12 @@ function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; demag=1/3)
         @warn "Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV, :angstrom)`."
         μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
     end
+    isnothing(sys.origin) || enable_dipole_dipole!(sys.origin, μ0_μB²; demag)
     if !is_entangled(sys)
         sys.ewald = Ewald(sys, μ0_μB², Mat3(demag * I))
     else
-        # For an entangled system, the magnetic moments live on `uncontracted`,
-        # and the couplings within each unit move into its onsite term
-        (; uncontracted, units) = get_entanglement(sys)
-        enable_dipole_dipole!(uncontracted, μ0_μB²; demag)
-        contract_ewald!(sys, uncontracted, units)
-        repopulate_couplings_from_params!(sys)
+        sys.ewald = EwaldDelegated(μ0_μB², Mat3(demag * I))
+        build_entangled_ewald!(sys)
     end
     return
 end

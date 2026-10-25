@@ -113,9 +113,12 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
 
     # Restore dipole-dipole interactions if present. This involves pre-computing
     # an interaction matrix that depends on `new_dims`.
-    if !isnothing(sys.ewald)
+    if sys.ewald isa Ewald
         (; μ0_μB², demag) = sys.ewald.cache
-        enable_dipole_dipole!(new_sys, μ0_μB²; demag)
+        new_sys.ewald = Ewald(new_sys, μ0_μB², demag)
+    else
+        @assert sys.ewald isa Union{Nothing, EwaldDelegated}
+        new_sys.ewald = sys.ewald
     end
 
     # If the system is entangled, then we also need to update its internal data.
