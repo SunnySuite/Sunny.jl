@@ -113,9 +113,9 @@ end
 #
 # The K = 2 term is the LSWT Hamiltonian itself, which `QuadraticTable`
 # compiles for `dynamical_matrix!`.
-sun_monomials(swt::SpinWaveTheory, k::Val, M=1) = sun_monomials(swt.sys, swt.data::SWTDataSUN, k, M)
+monomials_SUN(swt::SpinWaveTheory, k::Val, M=1) = monomials_SUN(swt.sys, swt.data::SWTDataSUN, k, M)
 
-function sun_monomials(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
+function monomials_SUN(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
     (; spin_ops, interactions) = data
     @assert allequal(sys.Ns)
     Nf = sys.Ns[1] - 1

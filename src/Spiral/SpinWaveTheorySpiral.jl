@@ -79,7 +79,7 @@ end
 
 ## Dispersion and intensities
 
-function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_supercell; branch)
+function dynamical_matrix!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_supercell; branch)
     (; swt, k, k_case, axis) = sswt
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
@@ -185,7 +185,7 @@ end
 
 function excitations!(T, H, sswt::SpinWaveTheorySpiral, q; branch)
     q_supercell = to_supercell_rlu(sswt.swt.sys, q)
-    swt_hamiltonian_dipole_spiral!(H, sswt, q_supercell; branch)
+    dynamical_matrix!(H, sswt, q_supercell; branch)
 
     return try
         bogoliubov!(T, H)

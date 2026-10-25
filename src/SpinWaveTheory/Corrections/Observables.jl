@@ -61,7 +61,7 @@
 # frame and without the Fourier phase or form factor that
 # `observable_prefactor` supplies. Only K = 2, the longitudinal word, and K = 3,
 # the leading correction to the transverse ones, are needed; the one-boson word is
-# the LSWT amplitude that `set_swt_observable_vectors!` builds.
+# the LSWT amplitude that `observable_vectors!` builds.
 #
 # In mode :SUN an observable is a matrix on the same footing as a term of the
 # Hamiltonian, so its words are those of `local_monomials`. In the dipole modes it
@@ -127,7 +127,7 @@ end
 # consumes them: one list per observable, carrying the Fourier phase and form
 # factor of its site. The prefactor is conjugated because the amplitude sought is
 # that of creating a pair, whereas `observable_prefactor` describes the observable
-# as `set_swt_observable_vectors!` applies it, to the amplitude for the adjoint
+# as `observable_vectors!` applies it, to the amplitude for the adjoint
 # process.
 function observable_pair_monomials(swt::SpinWaveTheory, q_global)
     (; sys, measure) = swt
@@ -163,7 +163,7 @@ end
     accum_observable_corrections!(u, swt::SpinWaveTheory, q_global, δc)
 
 Adds the coefficients `δc` of [`observable_corrections`](@ref) to the linearized
-observables `u` of `set_swt_observable_vectors!`, which stores the coefficient of
+observables `u` of `observable_vectors!`, which stores the coefficient of
 the boson operator labeled `a` in `u[ā, μ]`, where `ā = mod1(a+L, 2L)`.
 """
 function accum_observable_corrections!(u, swt::SpinWaveTheory, q_global, δc)

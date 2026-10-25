@@ -258,7 +258,7 @@ end
 # respectively.
 #
 # Empty in mode :SUN, where an onsite coupling is not a Stevens polynomial to be
-# re-expanded but a matrix that `sun_monomials` promotes exactly, leaving no
+# re-expanded but a matrix that `monomials_SUN` promotes exactly, leaving no
 # remainder at any boson number. See ExpansionSUN.jl.
 function anisotropy_monomials(swt::SpinWaveTheory, ::Val{K}) where K
     L = nbands(swt)
@@ -379,11 +379,11 @@ end
 # expands in 1/M rather than 1/s and is handled by ExpansionSUN.jl, which shares
 # everything below the monomial representation itself.
 quadratic_monomials(sys::System, data) =
-    sys.mode == :SUN ? sun_monomials(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
+    sys.mode == :SUN ? monomials_SUN(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
 cubic_monomials(swt::SpinWaveTheory) =
-    swt.sys.mode == :SUN ? sun_monomials(swt, Val{3}()) : cubic_monomials_dipole(swt)
+    swt.sys.mode == :SUN ? monomials_SUN(swt, Val{3}()) : cubic_monomials_dipole(swt)
 quartic_monomials(swt::SpinWaveTheory) =
-    swt.sys.mode == :SUN ? sun_monomials(swt, Val{4}()) : quartic_monomials_dipole(swt)
+    swt.sys.mode == :SUN ? monomials_SUN(swt, Val{4}()) : quartic_monomials_dipole(swt)
 
 # Monomials of H₃, the three-boson term. A cubic term arises either as the
 # product of a transverse component on one site of a bond with the fluctuating

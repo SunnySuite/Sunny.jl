@@ -553,7 +553,7 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     Σstat = static_self_energy_matrix(swt, ol.terms2, q_supercell, T)
 
     u = zeros(ComplexF64, 2L, num_observables(swt.measure))
-    set_swt_observable_vectors!(u, swt, q_global)
+    observable_vectors!(u, swt, q_global)
     accum_observable_corrections!(u, swt, q_global, ol.δc)
     w = T' * u
 
