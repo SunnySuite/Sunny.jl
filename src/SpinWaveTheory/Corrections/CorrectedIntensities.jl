@@ -87,10 +87,17 @@ The `dyson` option selects how the one-loop self-energy is resummed:
   resonances, as in the truncated Hilbert space exact diagonalization of [Zhang
   et al., arXiv:2508.21142](https://arxiv.org/abs/2508.21142), but in the full
   Nambu space. A static counterterm keeps the magnon dispersion at ``ω = 0``,
-  and so every Goldstone mode, exactly that of `:nambu`. The ladder is beyond
-  one-loop order. It is intended for gapped magnets: near a soft mode in two
-  dimensions, the bare quartic vertex binds pairs of soft magnons below ``ω =
-  0`` as the loop grid is refined, which is reported as a breakdown.
+  and so every Goldstone mode, exactly that of `:nambu`. In a gapped magnet
+  this counterterm removes a physical shift, so that the result departs
+  slightly from the exact ladder. The ladder is beyond one-loop order. Near a
+  Goldstone mode the off-shell quartic vertex lacks its Adler zero, and in two
+  dimensions it binds pairs of soft magnons below ``ω = 0`` as the loop grid is
+  refined. Where the cubic vertex vanishes, i.e. for collinear order in dipole
+  mode, the pair bath is rotated to restore the Adler zero, which keeps it
+  stable on any grid. Otherwise, including collinear order in `:SUN` mode, the
+  bare ladder is used. In two dimensions its instability is then reported as a
+  breakdown; in three, results near the Goldstone mode are sensitive to the loop
+  grid. Gapped magnets have no Adler zero to protect.
 - `:particle` keeps only the particle block of the self-energy, and collects the
   magnon response plus the bare two-magnon continuum without interference. The
   intensity is never negative at ``ω > 0``. Pole shifts are correct at order
