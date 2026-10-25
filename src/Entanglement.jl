@@ -347,16 +347,14 @@ end
 ################################################################################
 
 # The local (home-image) direct dipole tensors that are folded out of the Ewald
-# sum for an entangled system. For each intra-unit inter-part pair (i ≠ j) this
-# yields `(; ai, aj, Δ, Adir)` with `Δ` the crystal cell offset from atom `ai`
-# to `aj` and `Adir = (μ0_μB²/4π)(I − 3r̂r̂)/r³` for the global displacement `r`
-# between bare atoms.
+# sum for an entangled system. For each intra-unit inter-part pair this yields
+# `(; bond, A_loc)`, with `A_loc = (μ0_μB²/4π)(I − 3r̂r̂)/r³` for the global
+# displacement `r` along the bond between bare atoms.
 function intra_unit_dipole_terms(crystal, units, μ0_μB²)
     function term(pi, pj)
-        Δ = pj.Δcell - pi.Δcell
-        r = global_displacement(crystal, Bond(pi.atom, pj.atom, Δ))
-        Adir = μ0_μB² * point_dipole_tensor(r)
-        return (; ai=pi.atom, aj=pj.atom, Δ, Adir)
+        bond = Bond(pi.atom, pj.atom, pj.Δcell - pi.Δcell)
+        A_loc = μ0_μB² * point_dipole_tensor(global_displacement(crystal, bond))
+        return (; bond, A_loc)
     end
     return [term(pi, pj) for parts in units for pi in parts for pj in parts if pi.atom != pj.atom]
 end
@@ -379,27 +377,24 @@ function contract_ewald!(sys::System, uncontracted::System, units)
     # Continue only if Ewald is defined on the uncontracted system.
     isnothing(uncontracted.ewald) && return
 
-    (; gs, crystal, dims) = uncontracted
+    (; gs, crystal) = uncontracted
     (; A, FA, cache) = uncontracted.ewald :: Ewald
     @assert isempty(cache.excluded)
 
     # Exclude intra-unit couplings from the uncontracted interaction tensor
-    pairs = PairCoupling[]
-    for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(crystal, units, cache.μ0_μB²)
-        D = gs[1, 1, 1, ai]' * Adir * gs[1, 1, 1, aj]
-        push!(pairs, PairCoupling(Bond(ai, aj, Δ), 0.0, Mat3(D), 0.0, zero(TensorDecomposition)))
-        cell = CartesianIndex(Tuple(mod.(Δ, dims)) .+ 1)
-        push!(cache.excluded, (; cell, i=ai, j=aj, n=Vec3(fld.(Δ, dims)), Adir))
-    end
-    isempty(pairs) && return
+    append!(cache.excluded, intra_unit_dipole_terms(crystal, units, cache.μ0_μB²))
+    isempty(cache.excluded) && return
 
     # Rebuild A at q = 0 and its Fourier space representation
     A .= real.(ewald_interaction_tensor(cache, zero(Vec3)))
     Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...)
     FA .= FFTW.rfft(Ar, 3:5)
 
-    # Move the subtracted intra-unit couplings into the onsite operator of the
-    # entangled unit.
+    # Move the excluded couplings into the onsite operator of the entangled unit
+    pairs = map(cache.excluded) do (; bond, A_loc)
+        D = gs[1, 1, 1, bond.i]' * A_loc * gs[1, 1, 1, bond.j]
+        PairCoupling(bond, 0.0, Mat3(D), 0.0, zero(TensorDecomposition))
+    end
     bare = ModelParam(:IntraUnitDipole, 1.0, Tuple{Int, OnsiteCoupling}[], pairs)
     push!(sys.params, contract_model_param(bare, uncontracted.Ns, units))
     return
