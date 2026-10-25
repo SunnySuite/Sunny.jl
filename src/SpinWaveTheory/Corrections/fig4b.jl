@@ -45,7 +45,7 @@ for (i, s) in enumerate((1/2, 3/2))
     path = q_space_path(cryst, qpts, 400; labels)
     energies = 0:(η/4):(20s/3)
 
-    res = Sunny.intensities_corrected(swt, path; energies, η, tol=0.01, threaded=true, verbose=true)
+    res = Sunny.corrected_intensities(swt, path; energies, η, tol=0.01, threaded=true, verbose=true)
 
     plot_intensities!(fig[i, 1], res; colormap=:jet, colorrange=(0, s+3/2),
                         title=@sprintf("s = %.1f, η = %.3f J", s, η), axis=(; ylabel="ω / J"))
