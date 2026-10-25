@@ -11,10 +11,11 @@ The [`intensities`](@ref) for each ``𝐪`` are estimated using the block Lanczo
 method [1]. This calculation terminates when the estimated intensities agree
 between iterations to within the relative tolerance `tol`. The required number
 of iterations scales like ``(Δϵ/w) \\log(1/\\mathrm{tol})``, where ``Δϵ`` is the
-spectral bandwidth of excitations and ``w`` is the relevant energy resolution. A
-lower bound on ``w`` is the regulator ``η`` passed to the `intensities`
-calculation. Exceeding `maxiters` iterations will throw an error, which prevents
-hangs when ``η`` is poorly chosen.
+spectral bandwidth of excitations and ``w`` is the relevant energy resolution.
+Typically ``w`` is the `kernel` width for instrument resolution. Near soft
+modes, ``w`` becomes the larger of the spacing of low-energy excitations and the
+intrinsic broadening ``η``. Exceeding `maxiters` iterations will throw an error
+to prevent runaway calculations.
 
 !!! tip "Consider `SampledCorrelations` when calculating powder averages"
 
@@ -29,7 +30,7 @@ hangs when ``η`` is poorly chosen.
 
 Block Lanczos is near-optimal at a fixed number of iterations [2, 3]. It
 supersedes the Kernel Polynomial Method of Ref. [4], which Sunny had previously
-implemented in `SpinWaveTheoryKPM`.
+implemented as `SpinWaveTheoryKPM`.
 
 ## References
 
@@ -65,17 +66,25 @@ function Base.show(io::IO, ::MIME"text/plain", swt_large::SpinWaveTheoryLarge)
     println(io, "  ", nsites(swt.sys), " sites")
 end
 
-function intensities(swt_large::SpinWaveTheoryLarge, qpts; energies, η=nothing, kernel=nothing, kT=0.0, threaded=false)
+function intensities(swt_large::SpinWaveTheoryLarge, qpts; energies, η=0.0, kernel=nothing, kT=0.0, threaded=false)
     qpts = convert(AbstractQPoints, qpts)
     data = zeros(eltype(swt_large.swt.measure), length(energies), size(qpts.qs)...)
     return intensities!(data, swt_large, qpts; energies, η, kernel, kT, threaded)
 end
 
-function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=nothing, kernel=nothing, kT=0.0, threaded=false)
+function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=0.0, kernel=nothing, kT=0.0, threaded=false)
     qpts = convert(AbstractQPoints, qpts)
     @assert size(data) == (length(energies), size(qpts.qs)...)
-    isnothing(η) && error("Keyword `η` is required, e.g., a regulator small compared to the kernel width")
-    η > 0 || error("Require η > 0")
+    η >= 0 || error("Require η ≥ 0")
+    if iszero(η)
+        # The limit η → 0⁺, approximated by an η much smaller than the kernel
+        # width. Near ω = 0, the quadrature panels of the contour integral for
+        # kernel broadening shrink geometrically to the size η. A floor on η
+        # limits the FP64 roundoff error from cancellation in the retarded
+        # susceptibility χ(z) as z → 0.
+        isnothing(kernel) && error("Specify a `kernel`, a broadening `η`, or both.")
+        η = 1e-6 * minimum(ω -> kernel_fwhm(kernel, ω), energies)
+    end
     intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded)
     return Intensities(orig_crystal(swt_large.swt.sys), qpts, collect(Float64, energies), data)
 end
@@ -116,7 +125,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     Ncells = nsites(sys) / natoms(cryst)
     n = size(H, 1)
     Nobs = num_observables(measure)
-    rb = RetardedBroadening(energies, η, kernel, kT)
+    rb = RetardedBroadening(energies; η, kernel, kT)
 
     newbuf() = (
         u    = zeros(ComplexF64, n, Nobs),

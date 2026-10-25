@@ -104,20 +104,44 @@ function broaden_peaks!(data, disp, weights; energies, kernel, threaded)
     return data
 end
 
+# The structure factor ∫ K(ω′, ω) (1 + n_B(ω′)) χ''(ω′ + iη) dω′ of the poles
+# of χ'', i.e., an intrinsic Lorentzian line shape of half width η, followed by
+# the thermal factor, and then the kernel K for instrument resolution
 function broaden_poles(disp, residues; energies, kernel, η, kT, threaded)
     η >= 0 || error("Require η ≥ 0")
-    iszero(η) && isnothing(kernel) && error("Specify a `kernel`, a regulator `η`, or both.")
+    iszero(η) && isnothing(kernel) && error("Specify a `kernel`, a broadening `η`, or both.")
     issorted(energies) || error("Energies must be sorted")
     data = zeros(eltype(residues), length(energies), size(disp, 2))
-    if isnothing(kernel)
-        # Lorentzian line shape
+    if iszero(η)
+        weights = thermal_factor.(disp; kT) .* residues
+        broaden_peaks!(data, disp, weights; energies, kernel, threaded)
+    elseif isnothing(kernel)
         L(x) = (η/π) / (x^2 + η^2)
         lorentzian_times_thermal = NonstationaryBroadening((ε, ω) -> L(ω - ε) * thermal_factor_at(ω, ε, η; kT))
         broaden_peaks!(data, disp, residues; energies, kernel=lorentzian_times_thermal, threaded)
     else
-        # Line shape from kernel alone (η determines a pole reweighting)
-        weight(ε) = iszero(η) ? thermal_factor(ε; kT) : retarded_weight(ε; η, kT)
-        broaden_peaks!(data, disp, weight.(disp) .* residues; energies, kernel, threaded)
+        # Lorentzian times thermal factor, then the kernel, by the contour
+        # quadrature of SpinWaveTheoryLarge with χ(z) = Σ r/(z - ε). The result at
+        # energy ωᵢ is Σ r cᵢ(ε), with real coefficients cᵢ(ε) = -Im Σⱼ Wᵢⱼ/(zⱼ -
+        # ε) / π. The residues r may be complex, so the real and imaginary parts
+        # of 1/(zⱼ - ε) multiply r separately. Summing over poles at each node
+        # first makes the cost independent of the number of bands. The quadrature
+        # order and cutoff give a relative accuracy of about 1e-12.
+        (; zs, W, ranges) = RetardedBroadening(energies; η, kernel, kT, order=16, cutoff=1e-16)
+        (Wr, Wi) = (-real(W) / π, -imag(W) / π)
+        T = eltype(residues)
+        foreach_chunked(() -> (zeros(T, length(zs)), zeros(T, length(zs))), axes(disp, 2); threaded) do (χr, χi), iq
+            fill!(χr, zero(T))
+            fill!(χi, zero(T))
+            for (ε, r) in zip(view(disp, :, iq), view(residues, :, iq)), j in eachindex(zs)
+                g = 1 / (zs[j] - ε)
+                χr[j] += real(g) * r
+                χi[j] += imag(g) * r
+            end
+            for j in eachindex(zs), i in ranges[j]
+                data[i, iq] += Wr[i, j] * χi[j] + Wi[i, j] * χr[j]
+            end
+        end
     end
     return data
 end
@@ -129,16 +153,6 @@ function thermal_factor_at(ω, ε, η; kT)
     iszero(kT) && return ω > 0 ? 1.0 : iszero(ω) ? 0.5 : 0.0
     iszero(ω) && return 2kT * ε / (ε^2 + η^2)
     return thermal_factor(ω; kT)
-end
-
-# The weight ∫ (1 + n_B(ω)) L(ω - ε) dω of a pole at ε of either sign, broadened
-# into a Lorentzian L of half width η, with the principal value at ω = 0. With 1
-# + n_B(ω) = (1 + coth(ω/2kT))/2, the Matsubara sum for coth yields the digamma
-# function. As η → 0, this becomes the thermal factor at ε.
-function retarded_weight(ε; η, kT)
-    iszero(kT) && return 1/2 + atan(ε/η)/π
-    u = (η - im*ε) / (2π*kT)
-    return (1 + 2kT * real(1 / (ε + im*η)) - (2/π) * imag(digamma(1 + u))) / 2
 end
 
 # Like broaden for BandIntensities, but for intensities defined on a fixed
@@ -195,22 +209,22 @@ function broaden(res::Intensities; kernel::AbstractBroadening, energies=res.ener
 end
 
 
-# The full width at half maximum of ϵ ↦ kernel(ϵ, 0), the instrumental resolution
-# at zero energy transfer, found by bisection from its maximum, which is assumed
-# to be at ϵ = 0
-function kernel_width_at_zero(kernel)
-    peak = kernel(0.0, 0.0)
-    peak > 0 || error("Kernel must be positive at zero energy transfer")
+# The full width at half maximum of ϵ ↦ kernel(ϵ, ω), the instrumental
+# resolution at energy transfer ω, found by bisection from its maximum, which is
+# assumed to be at ϵ = ω
+function kernel_fwhm(kernel, ω)
+    peak = kernel(ω, ω)
+    peak > 0 || error("Kernel must be positive at zero energy offset")
     function half_width(sgn)
         hi = 1.0
-        while kernel(sgn * hi, 0.0) > peak / 2
+        while kernel(ω + sgn * hi, ω) > peak / 2
             hi *= 2
-            hi < 1e12 || error("Kernel width at zero energy transfer is unbounded")
+            hi < 1e12 || error("Kernel width is unbounded")
         end
         lo = 0.0
         for _ in 1:50
             mid = (lo + hi) / 2
-            kernel(sgn * mid, 0.0) > peak / 2 ? (lo = mid) : (hi = mid)
+            kernel(ω + sgn * mid, ω) > peak / 2 ? (lo = mid) : (hi = mid)
         end
         return (lo + hi) / 2
     end

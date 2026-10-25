@@ -40,8 +40,8 @@ path = q_space_path(cryst, qs, 150; labels)
 # Perform a traditional spin wave calculation. The spectrum shows sharp modes
 # associated with coherent excitations about the K-point ordering wavevector,
 # ``𝐪 = [1/3, 1/3, 0]``. The Gaussian `kernel` models instrumental resolution.
-# A small regulator `η` damps the divergent intensity of the Goldstone mode at
-# the K point.
+# A small intrinsic broadening `η` gives each mode a Lorentzian line shape, and
+# damps the divergent intensity of the Goldstone mode at the K point.
 
 η = 0.05
 kernel = gaussian(fwhm=0.4)
@@ -50,12 +50,12 @@ swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities(swt, path; energies, η, kernel)
 plot_intensities(res)
 
-# Use [`repeat_periodically`](@ref) to enlarge the system by a factor of 20 in
-# each dimension, for a total of 60×60 chemical cells. Use
+# Use [`repeat_periodically`](@ref) to enlarge the system by a factor of 10 in
+# each dimension, for a total of 30×30 chemical cells. Use
 # [`to_inhomogeneous`](@ref) to disable symmetry constraints and allow for the
 # addition of disordered interactions.
 
-sys_inhom = to_inhomogeneous(repeat_periodically(sys, (20, 20, 1)))
+sys_inhom = to_inhomogeneous(repeat_periodically(sys, (10, 10, 1)))
 
 # Iterate over all [`symmetry_equivalent_bonds`](@ref) for nearest neighbor
 # sites in the inhomogeneous system. Scale the AFM exchange by a noise factor
@@ -100,11 +100,10 @@ plot_intensities(res)
 # Add disorder to the ``z``-component of each magnetic moment ``g``-tensor. This
 # further broadens intensities, now across the entire path. Some intensity
 # modulation within the continuum is also apparent. This modulation is a
-# finite-size effect and would be mitigated by enlarging the system beyond 60×60
-# chemical cells.
+# finite-size effect and would be mitigated by further enlarging the system.
 
 for site in eachsite(sys_inhom)
-    noise = randn(sys_inhom.rng)/6
+    noise = randn(sys_inhom.rng)/8
     sys_inhom.gs[site] = [1 0 0; 0 1 0; 0 0 1+noise]
 end
 randomize_spins!(sys_inhom)

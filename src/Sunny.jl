@@ -16,7 +16,7 @@ import Optim
 import Printf: Printf, @printf, @sprintf
 import ProgressMeter
 import Random: Random, randn!
-import SpecialFunctions: erf, erfc, digamma
+import SpecialFunctions: erf, erfc
 import Statistics
 import StaticArrays: SVector, SMatrix, SArray, SA, setindex
 
