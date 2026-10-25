@@ -99,17 +99,18 @@ function EwaldTensorCache(cryst::Crystal, dims::NTuple{3,Int}, μ0_μB², demag:
         real_terms[cell, i, j] = terms
     end
 
-    return EwaldTensorCache(dims, cryst, μ0_μB², demag, σ², Tuple(mmax), kmax^2, Tuple(nmax), real_terms)
+    return EwaldTensorCache(dims, cryst, μ0_μB², demag, σ², Tuple(mmax), kmax^2, Tuple(nmax), real_terms, [])
 end
 
 # Calculate the Ewald interaction tensor A[cell, i, j] at the given wavevector q
 # in RLU of the supercell, which spans the `dims` cells. Here `cell` denotes a
-# cell offset shifted by (1,1,1) to suit Julia's 1-based indexing. The usual Ewald energy for a periodic system is
-# E = μᵢ Aᵢⱼ μⱼ / 2 at q=0. The generalization to nonzero q allows writing in
-# Fourier space E(q) = μᵢ(-q) Aᵢⱼ(-q) μⱼ(q) / 2, where μᵢ(q) is the Fourier
-# transform of μᵢ taken over the lattice of cells for atom i.
+# cell offset shifted by (1,1,1) to suit Julia's 1-based indexing. The usual
+# Ewald energy for a periodic system is E = μᵢ Aᵢⱼ μⱼ / 2 at q=0. The
+# generalization to nonzero q allows writing in Fourier space E(q) = μᵢ(-q)
+# Aᵢⱼ(-q) μⱼ(q) / 2, where μᵢ(q) is the Fourier transform of μᵢ taken over the
+# lattice of cells for atom i.
 function ewald_interaction_tensor(cache::EwaldTensorCache, q_supercell::Vec3)
-    (; dims, cryst, μ0_μB², demag, σ², mmax, kmax², nmax, real_terms) = cache
+    (; dims, cryst, μ0_μB², demag, σ², mmax, kmax², nmax, real_terms, excluded) = cache
     (; positions) = cryst
     na = natoms(cryst)
     recipvecs = cryst.recipvecs / diagm(Vec3(dims))
@@ -199,43 +200,41 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_supercell::Vec3)
         A[1, 1, 1, j, i] = A[1, 1, 1, i, j]'
     end
 
+    for (; cell, i, j, n, Adir) in excluded
+        A[cell, i, j] -= cis(2π * dot(q_supercell, n)) * Adir
+    end
+
     return A
+end
+
+# A cell tensor Ac[cell, a, b], viewed as a tensor between sites by linear site
+# index. The cells of sites i and j differ by Δ, which wraps by w magnetic
+# cells, so that entry [i, j] is that at cell Δ mod dims, with the phase of an
+# image displaced by -w.
+struct SitePairView{T}
+    Ac    :: Array{T, 5}
+    sites :: CartesianIndices{4, NTuple{4, Base.OneTo{Int}}}
+    q     :: Vec3
+end
+
+@inline function Base.getindex(v::SitePairView, i::Int, j::Int)
+    (; Ac, sites, q) = v
+    dims = size(sites)[1:3]
+    Δ = Tuple(to_cell(sites[j])) .- Tuple(to_cell(sites[i]))
+    cell = CartesianIndex(mod.(Δ, dims) .+ 1)
+    return cis(-2π * dot(q, Vec3(fld.(Δ, dims)))) * Ac[cell, to_atom(sites[i]), to_atom(sites[j])]
 end
 
 # Ewald interaction tensor between every pair of sites of `sys`, at a wavevector
 # in the RLU of its magnetic cell. Entry [i, j] couples site i to site j and all
-# of its periodic images, by linear site index. For an entangled system, the
-# sites are those of the uncontracted system, and the couplings within each
-# unit, which entanglement folds into the onsite term, are excluded.
+# of its periodic images. For an entangled system, the sites are those of the
+# uncontracted system.
 function ewald_site_tensor(sys::System, q_supercell)
     usys = uncontracted_system(sys)
     (; cache, A) = usys.ewald
-
-    # The tensor A[cell, a, b] of the crystal cell. Its value at q = 0 is
-    # stored, with the intra-unit couplings already excluded.
-    iszero(q_supercell) && return cell_to_site_tensor(A, usys, q_supercell)
-
-    Aq = ewald_interaction_tensor(cache, q_supercell)
-    if is_entangled(sys)
-        dims = usys.dims
-        for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, cache.μ0_μB²)
-            Aq[CartesianIndex(Tuple(mod.(Δ, dims)) .+ 1), ai, aj] -= cis(2π * dot(q_supercell, Vec3(fld.(Δ, dims)))) * Adir
-        end
-    end
-    return cell_to_site_tensor(Aq, usys, q_supercell)
-end
-
-# The tensor between sites of `sys` from that of its crystal cell. The cells of
-# sites i and j differ by Δ, which wraps by w magnetic cells, so that the entry
-# at cell Δ mod dims takes the phase of an image displaced by -w.
-function cell_to_site_tensor(Ac, sys::System, q_supercell)
-    (; dims) = sys
-    sites = eachsite(sys)
-    return [begin
-                Δ = Tuple(to_cell(sites[j])) .- Tuple(to_cell(sites[i]))
-                cell = CartesianIndex(mod.(Δ, dims) .+ 1)
-                cis(-2π * dot(q_supercell, Vec3(fld.(Δ, dims)))) * Ac[cell, to_atom(sites[i]), to_atom(sites[j])]
-            end for i in 1:nsites(sys), j in 1:nsites(sys)]
+    # The value at q = 0 is stored
+    Ac = iszero(q_supercell) ? A : ewald_interaction_tensor(cache, q_supercell)
+    return SitePairView(Ac, eachsite(usys), Vec3(q_supercell))
 end
 
 # The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known
