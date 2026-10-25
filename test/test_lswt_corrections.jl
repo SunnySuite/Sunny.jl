@@ -540,7 +540,7 @@ end
         swt = SpinWaveTheory(sys; measure=nothing)
         # Only the first 3 digits, for faster testing. At s = 1/2 the boson density
         # is the shortening of the dipole.
-        @test -Sunny.boson_density(swt; bz=1e-3)[1] ≈ δS_ref atol=1e-3
+        @test -Sunny.boson_density(swt; tol=1e-3)[1] ≈ δS_ref atol=1e-3
     end
 
 
@@ -577,7 +577,7 @@ end
         swt = SpinWaveTheory(sys; measure=nothing)
 
         @test norm(sys.dipoles[1]) ≈ d_ref atol=1e-6
-        @test Sunny.boson_density(swt; bz=1e-4)[1] ≈ n_ref atol=1e-5
+        @test Sunny.boson_density(swt; tol=1e-4)[1] ≈ n_ref atol=1e-5
     end
 end
 
@@ -721,8 +721,8 @@ end
         @test maximum(abs, [t.c for t in Sunny.cubic_monomials(swt)]; init=0.0) < 1e-12
         @test isempty(Sunny.quartic_monomials(swt))
         # Exactly zero at any tolerance, there being no term left to integrate
-        @test iszero(Sunny.hartree_fock_correction(swt; bz=0.1).δE)
-        @test iszero(Sunny.boson_density(swt; bz=0.1))
+        @test iszero(Sunny.hartree_fock_correction(swt; tol=0.1).δE)
+        @test iszero(Sunny.boson_density(swt; tol=0.1))
 
         # Mode :dipole keeps one band, and RCS makes it the exact gap to the
         # level one unit of magnetization down — *not* the smallest gap, which
@@ -793,7 +793,7 @@ end
     # comes out 1.4e-7 from its reference here, seven times inside the `atol`
     # asserted. Checks that instead compare two corrections computed from the
     # same quadrature, or extract a ratio from them, loosen it individually.
-    bz = 1e-4
+    tol = 1e-4
 
     # ---- Oguchi's Z_c, on a supercell and on a multi-atom basis ----
 
@@ -821,7 +821,7 @@ end
                                 (neel_honeycomb, 0.20984170, 0.01651258, (1/2,)))
         for s in ss
             swt = SpinWaveTheory(model(s); measure=nothing)
-            (; terms2, δE) = Sunny.hartree_fock_correction(swt; bz)
+            (; terms2, δE) = Sunny.hartree_fock_correction(swt; tol)
             Zc = dispersion(Sunny.swt_with_vacuum(swt; correction=terms2), qs) ./ dispersion(swt, qs)
             @test maximum(abs, Zc .- Zc[1]) < 1e-6
             @test 2s * (Zc[1] - 1) ≈ ζ atol=1e-6
@@ -841,8 +841,8 @@ end
     # last because the cubic monomials are proportional to a transverse
     # effective field that vanishes at a classical minimum.
     swt = SpinWaveTheory(canted_square(1/2, 0); measure=nothing)
-    @test Sunny.boson_density(swt; bz=1e-4)[1] ≈ 0.19656 atol=1e-5
-    @test norm(Sunny.corrected_magnetic_moments(swt; bz=1e-4)[1]) ≈ 0.303437 atol=1e-6
+    @test Sunny.boson_density(swt; tol=1e-4)[1] ≈ 0.19656 atol=1e-5
+    @test norm(Sunny.corrected_magnetic_moments(swt; tol=1e-4)[1]) ≈ 0.303437 atol=1e-6
     # Para-unitarity of the Bogoliubov transform: ⟨bᵢb†ᵢ⟩ - ⟨b†ᵢbᵢ⟩ = 1
     L = Sunny.nbands(swt)
     o = Sunny.Vec3(0, 0, 0)
@@ -904,7 +904,7 @@ end
         @test dispersion(Sunny.swt_with_vacuum(swt; correction=hfB.terms2), [[0.3, 0.1, 0]]) ≈ Zcs[1] atol=1e-7
     end
     # The tadpole vanishes term by term, at 1e-34, so `tol` is irrelevant to it
-    tad = Sunny.tadpole_correction(swt; bz=1e-3)
+    tad = Sunny.tadpole_correction(swt; tol=1e-3)
     @test all(t -> abs(t.c) < 1e-12, tad.terms2)
     @test abs(tad.δE) < 1e-12
     @test norm(tad.v) < 1e-12
@@ -916,7 +916,7 @@ end
     let
         sys = canted_square(1, 3)
         swt = SpinWaveTheory(sys; measure=nothing)
-        corrected = Sunny.corrected_magnetic_moments(swt; bz=1e-5)
+        corrected = Sunny.corrected_magnetic_moments(swt; tol=1e-5)
         @test size(corrected) == size(magnetic_moments(sys)) == (1, 1, 1, 2)
         @test vec(corrected) ≈ [[-0.8244219, 0, 0.3256618], [0.8244219, 0, 0.3256618]] atol=1e-6
     end
@@ -930,9 +930,9 @@ end
     let
         swt = SpinWaveTheory(canted_square(1, 3; mode=:SUN); measure=nothing)
         swt′ = SpinWaveTheory(canted_square(1, 3); measure=nothing)
-        @test Sunny.boson_density(swt; bz=1e-3) ≈ Sunny.boson_density(swt′; bz=1e-3) rtol=1e-5
-        @test Sunny.corrected_magnetic_moments(swt; bz=1e-3) ≈
-              Sunny.corrected_magnetic_moments(swt′; bz=1e-3) rtol=1e-5
+        @test Sunny.boson_density(swt; tol=1e-3) ≈ Sunny.boson_density(swt′; tol=1e-3) rtol=1e-5
+        @test Sunny.corrected_magnetic_moments(swt; tol=1e-3) ≈
+              Sunny.corrected_magnetic_moments(swt′; tol=1e-3) rtol=1e-5
     end
 
     # Thermodynamic consistency in :SUN mode, Σᵢ μᵢ = -∂E/∂𝐁 against the
@@ -947,11 +947,11 @@ end
         # Only the zero-point energy, since δμ below is likewise only the correction
         zp(B) = let sys = sun_cluster(; field=B)
             swt = SpinWaveTheory(sys; measure=nothing)
-            Sunny.corrected_energy_per_site(swt; bz=1e-6) - energy_per_site(sys)
+            Sunny.corrected_energy_per_site(swt; tol=1e-6) - energy_per_site(sys)
         end
         sys = sun_cluster()
         swt = SpinWaveTheory(sys; measure=nothing)
-        μs = Sunny.corrected_magnetic_moments(swt; bz=1e-5) - magnetic_moments(sys)
+        μs = Sunny.corrected_magnetic_moments(swt; tol=1e-5) - magnetic_moments(sys)
         δμ = sum(i -> μs[1, 1, 1, i] ⋅ n̂, 1:2) / 2
         # Differencing the energy is what limits this, not the quadrature
         @test δμ ≈ -(zp(cluster_B + 1e-4*n̂) - zp(cluster_B - 1e-4*n̂)) / 2e-4 atol=1e-8
@@ -979,16 +979,15 @@ end
     # still caught.
     let
         (s, B, tol) = (1/2, 0.6, 0.02)
-        bz = tol
         qs = [[0.23, 0.11, 0], [0.4, 0.3, 0]]
         rs = map((:dipole_uncorrected, :SUN)) do mode
             sys = canted_square(s, B; mode)
             swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-            hf = Sunny.hartree_fock_correction(swt; bz)
-            tad = Sunny.tadpole_correction(swt; bz)
+            hf = Sunny.hartree_fock_correction(swt; tol)
+            tad = Sunny.tadpole_correction(swt; tol)
             return (; ε = dispersion(swt, qs),
-                      E = Sunny.corrected_energy_per_site(swt; bz),
-                      n = Sunny.boson_density(swt; bz),
+                      E = Sunny.corrected_energy_per_site(swt; tol),
+                      n = Sunny.boson_density(swt; tol),
                       δE = [hf.δE, tad.δE],
                       εc = dispersion(Sunny.swt_with_vacuum(swt; correction=[hf.terms2; tad.terms2]), qs),
                       Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, bz=(8, 8, 1)),
@@ -1063,6 +1062,14 @@ end
     # Without a measure the one-loop pieces still build, and intensities refuse
     @test size(Sunny.OneLoop(swt; η=0.1, bz=(4, 4, 1)).δc) == (2Sunny.nbands(swt), 0)
     @test_throws "No observables" Sunny.corrected_intensities(swt, [[0, 0, 0]], :one_loop; energies=0:0.1:1, η=0.1)
+    # A number `bz` scales the automatic loop grid linearly, with the
+    # non-dispersing c axis left at one point and a floor of 4 elsewhere. For
+    # static corrections a number is rejected in favor of `tol`.
+    @test Sunny.auto_bzgrid(swt; η=0.1) == (57, 57, 1)
+    @test Sunny.auto_bzgrid(swt; η=0.1, bz=2) == (113, 113, 1)
+    @test Sunny.auto_bzgrid(swt; η=5.0) == (4, 4, 1)
+    @test_throws "must be positive" Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=0.1, bz=0)
+    @test_throws "use the keyword `tol`" Sunny.boson_density(swt; bz=1e-3)
     for bz in ((8, 8, 1), (16, 16, 1))
         t2 = [Sunny.hartree_fock_correction(swt; bz).terms2
               Sunny.tadpole_correction(swt; bz).terms2]
@@ -1070,8 +1077,8 @@ end
         @test δ > 1e3
         @test abs(δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=1e-8, bz)[2])) < 1e-8 * δ
     end
-    t2 = [Sunny.hartree_fock_correction(swt; bz=1e-4).terms2
-          Sunny.tadpole_correction(swt; bz=1e-4).terms2]
+    t2 = [Sunny.hartree_fock_correction(swt; tol=1e-4).terms2
+          Sunny.tadpole_correction(swt; tol=1e-4).terms2]
     δ = Sunny.static_self_energy(swt, [[0, 0, 0]], t2)[2]
     rs = map(nk -> (δ + real(Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=0.005, bz=(nk, nk, 1))[2])) / δ, (16, 32))
     @test rs[1] ≈ 2 * rs[2] rtol=0.01
@@ -1104,7 +1111,7 @@ end
         @test maximum(abs(t.c) for t in Sunny.cubic_monomials(sw)) < 1e-12
         @test maximum(abs(t.c) for t in Sunny.lswt_correction_monomials(sw, Val{1}()); init=0.0) < 1e-12
         ε = dispersion(sw, [[0, 0, 0]])[1]
-        mf = Sunny.hartree_fock_correction(sw; bz).terms2
+        mf = Sunny.hartree_fock_correction(sw; tol).terms2
         resid(t2) = Sunny.static_self_energy(sw, [[0, 0, 0]], t2)[1] * ε
         @test abs(resid([mf; Sunny.anisotropy_correction(sw).terms2])) < 1e-7 < abs(resid(mf))
     end
@@ -1128,7 +1135,7 @@ end
     # original one-site cell; the three-site cell folds 𝐪 together with 𝐪 ±
     # 𝐊, so each wavevector gates all three bands at once, and with them the
     # folding convention.
-    @test Sunny.corrected_energy_per_site(swt; bz=1e-4) ≈ -0.53881 atol=1e-4
+    @test Sunny.corrected_energy_per_site(swt; tol=1e-4) ≈ -0.53881 atol=1e-4
     q = [[1/2, 0, 0]]
     @test dispersion(swt, q)[:] ≈ [√2.5, √2.5, 1] atol=1e-6
     γ(q) = (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*(q[1] + q[2]))) / 3
@@ -1144,11 +1151,11 @@ end
     # zero-point fluctuations. Unlike the collinear case the cubic monomials are
     # individually nonzero, so their cancellation here tests their relative
     # phases.
-    tad = Sunny.tadpole_correction(swt; bz=1e-3)
+    tad = Sunny.tadpole_correction(swt; tol=1e-3)
     @test maximum(t -> abs(t.c), tad.terms2) < 1e-6
     @test abs(tad.δE) < 1e-12
 
-    terms2 = [Sunny.hartree_fock_correction(swt; bz=1e-3).terms2; tad.terms2]
+    terms2 = [Sunny.hartree_fock_correction(swt; tol=1e-3).terms2; tad.terms2]
     δ = Sunny.static_self_energy(swt, q, terms2)[:]
     Σs = map(nk -> Sunny.cubic_self_energy(swt, q; η=0.02, bz=(nk, nk, 1))[:], (24, 48))
 
@@ -1441,7 +1448,7 @@ end
         # correlations at distances below `nq`, leaving only the onsite ones
         # above.
         qs = vec([[(a - 0.5)/nq, (b - 0.5)/nq, 0] for a in 1:nq, b in 1:nq])
-        δc = Sunny.observable_corrections(swt; bz=tol)
+        δc = Sunny.observable_corrections(swt; tol)
         harm = sum(static_weights(swt, qs, nothing)) / length(qs)
         transverse = sum(static_weights(swt, qs, δc; drop=true)) / length(qs)
 
@@ -1705,13 +1712,13 @@ end
 
     # Every Nambu correlation, including the anomalous ones
     o = Sunny.Vec3(0, 0, 0)
-    bz = 1e-8
-    g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, (a, a′), (o, o)) for a in 1:2L for a′ in 1:2L], bz)
+    tol = 1e-8
+    g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, (a, a′), (o, o)) for a in 1:2L for a′ in 1:2L], tol)
     @test [g(a, a′, o) for a in 1:2L, a′ in 1:2L] ≈ [expect(bop(a)*bop(a′)) for a in 1:2L, a′ in 1:2L] atol=1e-7
 
     # One contraction of H₄ gives the mean-field form, two the constant
     terms4 = Sunny.quartic_monomials(swt)
-    g = Sunny.contractions(swt, terms4, bz)
+    g = Sunny.contractions(swt, terms4, tol)
     terms2 = Sunny.wick_reduce(terms4, g, nothing, Val{2}())
     δE = -Sunny.wick_expectation(terms4, g, nothing; nfactors=2)
     H4 = expand(bop, terms4, dim)
@@ -1733,7 +1740,7 @@ end
     # quadratic Q; a commutator of two linear operators is a c-number, so this
     # pins the three cubic pairings exactly rather than to integration accuracy.
     terms3 = Sunny.cubic_monomials(swt)
-    g = Sunny.contractions(swt, terms3, bz)
+    g = Sunny.contractions(swt, terms3, tol)
     ℓ = Sunny.nambu_vector(Sunny.wick_reduce(terms3, g, nothing, Val{1}()), L, 1e-6)
     H3raw = expand(bop, terms3, dim)
     H3mf = sum(a -> ℓ[a] * bop(a), 1:2L)
@@ -1998,7 +2005,7 @@ end
     using LinearAlgebra
     using .CorrectionModels: canted_square
 
-    bz = 1e-6
+    tol = 1e-6
 
     # ---- Two independent routes to the tadpole, canted ----
 
@@ -2027,20 +2034,20 @@ end
         B = 3s
         sys = canted_square(s, B)
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-        tad = Sunny.tadpole_correction(swt; bz=1e-6)
-        corrected = Sunny.corrected_magnetic_moments(swt; bz=1e-6)
+        tad = Sunny.tadpole_correction(swt; tol=1e-6)
+        corrected = Sunny.corrected_magnetic_moments(swt; tol=1e-6)
         δmz = sum(i -> (corrected[1, 1, 1, i] - magnetic_moments(sys)[1, 1, 1, i])[3], 1:2) / 2
         # Only the 1/s part of the energy, since `δmz` is likewise only the correction to
         # the magnetization; the classical -∂E/∂B would add the classical moment itself
         function zp(B′)
             sys′ = canted_square(s, B′)
             swt′ = SpinWaveTheory(sys′; measure=nothing)
-            return Sunny.corrected_energy_per_site(swt′; bz=1e-6) - energy_per_site(sys′)
+            return Sunny.corrected_energy_per_site(swt′; tol=1e-6) - energy_per_site(sys′)
         end
         δzp = -(zp(B + 1e-4) - zp(B - 1e-4)) / 2e-4
 
-        δc = Sunny.observable_corrections(swt; v=tad.v, bz=1e-4) -
-             Sunny.observable_corrections(swt; bz=1e-4)
+        δc = Sunny.observable_corrections(swt; v=tad.v, tol=1e-4) -
+             Sunny.observable_corrections(swt; tol=1e-4)
         (err, mag) = (0.0, 0.0)
         for i in 1:2
             σ = √(2swt.sys.κs[i])
@@ -2112,7 +2119,7 @@ end
     # pair of matrices can be compared.
     swt = SpinWaveTheory(canted_square(1, 3); measure=nothing)
     L = Sunny.nbands(swt)
-    terms2 = Sunny.hartree_fock_correction(swt; bz).terms2
+    terms2 = Sunny.hartree_fock_correction(swt; tol).terms2
     bar(m) = mod1(m + L, 2L)
     function mean_field_matrix(q)
         H = zeros(ComplexF64, 2L, 2L)
