@@ -163,7 +163,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
 
     # Add Zeeman term
     for i in 1:L
-        B = sys.extfield[1, 1, 1, i]' * sys.gs[1, 1, 1, i]
+        B = sys.extfield[i]' * sys.gs[i]
         B′ = - B * local_rotations[i][:, 3]
         H[i, i]     += B′
         H[i+L, i+L] += conj(B′)
@@ -302,7 +302,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
             Avec = zero(CVec{3})
             v = reshape(view(T, :, band, branch), Na, 2)
             for i in 1:Na
-                pref = observable_prefactor(measure, 1, i, q_reshaped, q_global, sys)
+                pref = observable_prefactor(measure, 1, i, q_global, sys)
                 R = local_rotations[i]
                 displacement = R * SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
                 Avec += conj(pref) * (sqrtS[i] / √2) * gs[i] * displacement
