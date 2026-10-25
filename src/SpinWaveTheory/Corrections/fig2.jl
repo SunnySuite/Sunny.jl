@@ -114,11 +114,12 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
               Sunny.anisotropy_correction(swt).terms2]
     δc = Sunny.observable_corrections(swt; v=tad.v, OPTS...)
     terms3 = Sunny.cubic_monomials(swt)
-    ps = Sunny.self_energy_grid((nk, nk, 1))
+    ps = Sunny.loop_grid((nk, nk, 1))
 
     Asel = zeros(nw, npath)      # spectral function of the branch belonging to 𝐪
     Aall = zeros(nw, npath)      # trace over the folded bands, for the artifact detector
     Strans = zeros(nw, npath)    # transverse structure factor
+    Slong = zeros(nw, npath)     # two-magnon continuum
     εref = [ε11(q, s) for q in qs]
     amin = fill(Inf, npath)      # least eigenvalue of A, which must be ≥ 0
 
@@ -139,7 +140,7 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
         Σstat = Diagonal([ones(L); -ones(L)]) * transpose(T' * δH * T)
         onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
         Sunny.accum_cubic_self_energy!(Σ3, swt, terms3, q_reshaped, energies .+ im*Γ, ps, 0.0;
-                                       source_freqs=onshell)
+                                       source_freqs=onshell, bin_width=Γ/16)
 
         Sunny.set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
         Sunny.accum_observable_corrections!(u, swt, q_reshaped, q_global, δc)
@@ -159,17 +160,10 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
             end
             Strans[iω, iq] = real(measure.combiner(q_global, corr))
         end
-    end
-    t_trans = time() - t0
 
-    # Left serial deliberately. The two-magnon cubature allocates a fresh
-    # length(energies) vector per integrand evaluation, some 150 MB per 𝐪, and threading
-    # it over 𝐪 comes out two to three times *slower*: the same 36 wavevectors take 0.8 s
-    # with the garbage collector disabled and 15 s with it, so at this allocation rate
-    # every thread spends its time waiting on stop-the-world collections. Reducing the
-    # allocation is a change to the integrand, not to the driver.
-    Slong = Sunny.intensities_two_magnon(swt, path; energies, kernel, OPTS...).data
-    t_long = time() - t0 - t_trans
+        Slong[:, iq] = Sunny.intensities_two_magnon(swt, [q]; energies, kernel, grid=(nk, nk, 1)).data
+    end
+    t_spec = time() - t0
 
     # Guard on the duplicated assembly: same loop grid, so agreement is to round-off
     dev = maximum([1 + npath ÷ 3, 1 + 2npath ÷ 3]) do iq
@@ -178,10 +172,10 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
         maximum(abs, vec(r.data) - mine) / maximum(abs, mine)
     end
 
-    say(@sprintf("  transverse %.0f s, continuum %.0f s, cross-check %.0f s; \
+    say(@sprintf("  spectra %.0f s, cross-check %.0f s; \
                   least eigenvalue of A %+.2e, peak A₁₁ %.2f (bound 1/πΓ = %.2f), \
                   assembly matches to %.1e",
-                 t_trans, t_long, time() - t0 - t_trans - t_long,
+                 t_spec, time() - t0 - t_spec,
                  minimum(amin), maximum(Asel), 1/(π*Γ), dev))
 
     data = (; s, fwhm, nk, npath, nw, energies, Asel, Aall, Strans, Slong, εref,

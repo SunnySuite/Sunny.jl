@@ -59,13 +59,16 @@ into which they decay. Added to this is the longitudinal two-magnon continuum of
 The `kernel` must be `lorentzian(; fwhm)`, representing instrumental resolution.
 It is applied by analytic continuation rather than by explicit convolution, so a
 magnon that cannot decay appears with the resolution width alone. It also
-regularizes the momentum-space integral of the self-energy, which is performed on
-a uniform `grid` of the given dimensions over the magnetic Brillouin zone. That
-grid must be fine enough to resolve `fwhm`; see [`cubic_self_energy`](@ref), and
-note that a linewidth is only meaningful once the grid is converged.
+regularizes the momentum-space integral of the self-energy.
+
+The two frequency-dependent corrections, the self-energy and the two-magnon
+continuum, are both integrated over the magnetic Brillouin zone on a uniform
+`grid` of the given dimensions. That grid must be fine enough to resolve `fwhm`;
+see [`cubic_self_energy`](@ref), and note that a linewidth is only meaningful
+once the grid is converged.
 
 A keyword argument `rtol`, `atol`, or `maxevals` is required to control the
-accuracy of the momentum-space integrals of the remaining corrections.
+accuracy of the momentum-space integrals of the remaining, static corrections.
 """
 function intensities_corrected(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, grid, opts...)
     any(in(keys(opts)), (:rtol, :atol, :maxevals)) || error("Must specify one of `rtol`, `atol`, or `maxevals` to control momentum-space integration.")
@@ -92,10 +95,10 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, kernel::Abst
               anisotropy_correction(swt).terms2]
     δc = observable_corrections(swt; v=tad.v, opts...)
     terms3 = cubic_monomials(swt)
-    ps = self_energy_grid(grid)
+    ps = loop_grid(grid)
 
     # The longitudinal channel, to which the transverse one is added below
-    ret = intensities_two_magnon(swt, qpts; energies, kernel, opts...).data
+    ret = intensities_two_magnon(swt, qpts; energies, kernel, grid).data
 
     Ĩ = Diagonal([ones(L); -ones(L)])
     T = zeros(ComplexF64, 2L, 2L)
@@ -117,7 +120,8 @@ function intensities_corrected(swt::SpinWaveTheory, qpts; energies, kernel::Abst
         # diagonal to the ω = ε_𝐪n of Mourigal et al.; the off-diagonal choice is an
         # ambiguity of relative order 1/s.
         onshell = [(ε[m] + ε[m′])/2 for m in 1:L, m′ in 1:L]
-        accum_cubic_self_energy!(fill!(Σ3, 0), swt, terms3, q_reshaped, energies .+ im*Γ, ps, 0.0; source_freqs=onshell)
+        # The bin width fwhm/32 is the one `intensities_two_magnon` also defaults to
+        accum_cubic_self_energy!(fill!(Σ3, 0), swt, terms3, q_reshaped, energies .+ im*Γ, ps, 0.0; source_freqs=onshell, bin_width=Γ/16)
 
         # Conjugated amplitudes conj(ũ) = T† u, including the 1/s correction to the
         # observables themselves. Their harmonic part, conj(ũ[n, μ]), is the
