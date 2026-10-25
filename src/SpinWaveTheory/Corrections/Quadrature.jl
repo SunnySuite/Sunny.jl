@@ -179,16 +179,11 @@ function auto_bzgrid(swt; η, bz=1)
     # the range each band sweeps along a line, doubled for the two magnons; a
     # non-dispersing direction needs no grid.
     #
-    # The convergence argument is in the docstring of `BZIntegration`. A smooth
-    # integrand converges as exp(-2πη/δx) in the step δx of x, about 2e-3 at δx
-    # = η; a soft internal line, ∝ 1/|𝐩|, as h^(D-1) in the step h. Against
-    # fine grids at the same η, with a Gaussian kernel of FWHM 2η and away from
-    # ω < 3η, the median error per 𝐪 on a grid 1.25× finer per axis than bz = 1
-    # measured 0.5–1.9% on four 2D magnets with Goldstone modes (triangular,
-    # umbrella, canted square), so about 0.6–2.4% at bz = 1, but only 2e-6 to
-    # 2e-5 on two gapped square-lattice magnets and a 3D canted cubic one.
-    # Against that finer grid, bz = 1 changed the six figures of
-    # examples/extra/SWT_Corrections by 0.1–1.2% in median, and ran 2–4× faster.
+    # The convergence argument is in the docstring of `BZIntegration`. Going
+    # beyond bz = 1 has negligible visual effect on the panels of
+    # examples/extra/SWT_Corrections. The worst cases are 2D magnets with
+    # Goldstone modes, already converged to within a few percent; gapped
+    # magnets are converged to about 1e-5.
     ncoarse = 8
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
