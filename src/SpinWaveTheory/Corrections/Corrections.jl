@@ -104,17 +104,6 @@ function corrections_unsupported_reason(swt::SpinWaveTheory)
 
     is_entangled(sys) && return "are not supported for entangled units"
     isnothing(sys.ewald) || return "do not yet support long-range dipole-dipole interactions"
-
-    # In :SUN mode every coupling, biquadratic included, has been decomposed into
-    # the tensor pairs that `monomials_SUN` expands, so there is nothing to reject.
-    if sys.mode != :SUN
-        for int in sys.interactions_union
-            for pc in int.pair
-                pc.isculled && break
-                iszero(pc.biquad) || return "do not yet support biquadratic exchange"
-            end
-        end
-    end
     return nothing
 end
 

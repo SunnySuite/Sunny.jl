@@ -67,7 +67,7 @@ function spiral_table(swt::SpinWaveTheory, k_supercell, axis)
         Interactions(int.onsite, pair)
     end
     rotating = SWTDataDipole(Rs, data.observables, data.stevens_coefs, data.sqrtS, interactions)
-    return QuadraticTable(quadratic_monomials_dipole(sys, rotating), nbands(swt))
+    return QuadraticTable(quadratic_monomials(sys, rotating), nbands(swt))
 end
 
 function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., s)
