@@ -75,28 +75,23 @@ function observable_pair_corrections(swt::SpinWaveTheory, g)
             for μ in 1:num_observables(swt.measure), i in 1:nsites(swt.sys)]
 end
 
-# Monomials of `K` bosons in the expansion of the spin component α of site i, in
-# the local frame. Unlike `observable_monomials`, which describes what `measure`
-# reads out and so only needs the words that create a magnon, this is the full
-# expansion of 𝐒 itself, whose expectation value `corrected_magnetic_moments`
-# takes. The words of K = 0, 1, 2 are respectively the classical dipole, the
-# tadpole tilt, and the zero-point depletion.
-#
+# The two-boson words of each observable μ and site i, as a matrix over (μ, i)
+observable_words2(swt::SpinWaveTheory) =
+    [observable_monomials(swt, μ, i, Val{2}()) for μ in 1:num_observables(swt.measure), i in 1:nsites(swt.sys)]
 
 # The even words of each observable at one wavevector, as [`pair_amplitude`](@ref)
 # consumes them: one list per observable, carrying the Fourier phase and form
-# factor of its site, together with the corrections `δpair` of
-# `observable_pair_corrections`, if given. The prefactor is conjugated because the
+# factor of its site. The words `words2[μ, i]` of observable μ at site i are by
+# default those of `observable_words2`, and may include the corrections of
+# `observable_pair_corrections`. The prefactor is conjugated because the
 # amplitude sought is that of creating a pair, whereas `observable_prefactor`
 # describes the observable as `observable_vectors!` applies it, to the amplitude
 # for the adjoint process.
-function observable_pair_monomials(swt::SpinWaveTheory, q_global; δpair=nothing)
+function observable_pair_monomials(swt::SpinWaveTheory, q_global; words2=observable_words2(swt))
     (; sys, measure) = swt
     return map(1:num_observables(measure)) do μ
         [BosonMonomial(conj(observable_prefactor(measure, μ, i, q_global, sys)) * c, as, ns)
-         for i in 1:nsites(sys)
-         for (; c, as, ns) in Iterators.flatten((observable_monomials(swt, μ, i, Val{2}()),
-                                                  isnothing(δpair) ? () : δpair[μ, i]))]
+         for i in 1:nsites(sys) for (; c, as, ns) in words2[μ, i]]
     end
 end
 

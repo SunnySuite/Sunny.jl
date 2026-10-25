@@ -43,10 +43,6 @@ swt_with_correction(swt::SpinWaveTheory, terms2) = swt_with_state(swt, GaussianS
 # The same theory about the harmonic vacuum, i.e. LSWT proper
 swt_harmonic(swt::SpinWaveTheory) = swt_with_state(swt, GaussianState())
 
-# Adds the counterterm of the vacuum, minus its correction, to the Nambu matrix δH
-accum_counterterm!(δH, swt::SpinWaveTheory, q_supercell) =
-    accum_quadratic!(δH, [BosonMonomial(-c, as, ns) for (; c, as, ns) in swt.state.correction], q_supercell)
-
 # The wavevector loop shared by every frequency-dependent momentum integral of
 # this module. Calls `f(𝐩, w, T1, T2, ε1, ε2)` once per wavevector 𝐩 of
 # `grid`, where T1 = T(𝐩) and T2 = T(𝐪-𝐩) diagonalize the vacuum at the two

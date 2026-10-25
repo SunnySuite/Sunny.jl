@@ -87,12 +87,7 @@ end
 # Bogoliubov transform of branch s at wavevector q, in the workspace `ws`
 function excitations!(ws::BogoliubovWorkspace, H, sswt::SpinWaveTheorySpiral, q; branch)
     dynamical_matrix!(H, sswt, to_supercell_rlu(sswt.swt.sys, q); branch)
-    try
-        return bogoliubov!(ws, H)
-    catch err
-        err isa PosDefException || rethrow()
-        rethrow(InstabilityError("Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable."))
-    end
+    return bogoliubov_or_throw!(() -> "Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable.", ws, H)
 end
 
 function excitations(sswt::SpinWaveTheorySpiral, q; branch)

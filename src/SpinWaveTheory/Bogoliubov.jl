@@ -96,6 +96,17 @@ function bogoliubov!(ws::BogoliubovWorkspace, H::Matrix{ComplexF64})
     return ε
 end
 
+# Like `bogoliubov!`, but a Hamiltonian that is not positive definite throws an
+# `InstabilityError` with the message `msg()`, built only on failure
+function bogoliubov_or_throw!(msg, ws::BogoliubovWorkspace, H::Matrix{ComplexF64})
+    try
+        return bogoliubov!(ws, H)
+    catch err
+        err isa PosDefException || rethrow()
+        rethrow(InstabilityError(msg()))
+    end
+end
+
 # Variant for callers outside a hot loop, which allocates a workspace per call. Unlike
 # the method above, the returned energies are freshly allocated, and so remain valid.
 function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
