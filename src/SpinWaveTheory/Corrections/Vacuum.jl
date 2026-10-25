@@ -44,8 +44,8 @@ with_correction(swt::SpinWaveTheory, terms2) = SpinWaveTheory(swt, GaussianState
 harmonic(swt::SpinWaveTheory) = with_correction(swt, BosonMonomial{2}[])
 
 # Adds the counterterm of the vacuum, minus its correction, to the Nambu matrix δH
-accum_counterterm!(δH, swt::SpinWaveTheory, q_reshaped) =
-    accum_quadratic!(δH, [BosonMonomial(-c, as, ns) for (; c, as, ns) in swt.state.correction], q_reshaped)
+accum_counterterm!(δH, swt::SpinWaveTheory, q_supercell) =
+    accum_quadratic!(δH, [BosonMonomial(-c, as, ns) for (; c, as, ns) in swt.state.correction], q_supercell)
 
 # The wavevector loop shared by every frequency-dependent momentum integral of
 # this module. Calls `f(𝐩, w, T1, T2, ε1, ε2)` once per wavevector 𝐩 of
@@ -54,14 +54,14 @@ accum_counterterm!(δH, swt::SpinWaveTheory, q_reshaped) =
 # returns with them, and `w` is the multiplicity by which the contribution is to
 # be scaled. All of the arrays are overwritten on each iteration, so `f` must
 # consume them before returning.
-function foreach_magnon_pair(f, swt::SpinWaveTheory, q_reshaped, grid::LoopGrid)
+function foreach_magnon_pair(f, swt::SpinWaveTheory, q_supercell, grid::LoopGrid)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     # Both magnon lines are live at once, so each gets its own workspace
     (ws1, ws2) = (BogoliubovWorkspace(L), BogoliubovWorkspace(L))
     for (p, w) in zip(grid.ps, grid.wts)
-        ε1 = excitations_reshaped!(ws1, H, swt, p)
-        ε2 = excitations_reshaped!(ws2, H, swt, q_reshaped - p)
+        ε1 = excitations_supercell!(ws1, H, swt, p)
+        ε2 = excitations_supercell!(ws2, H, swt, q_supercell - p)
         f(p, w, ws1.T, ws2.T, ε1, ε2)
     end
 end
@@ -137,15 +137,15 @@ function contractions(swt::SpinWaveTheory, terms, tol)
 
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
-    values = bz_average(tol) do q_reshaped
-        U = vacuum_modes!(ws, H, swt, q_reshaped)
-        return ComplexF64[cis(-2π * dot(q_reshaped, Vec3(Δ))) * dot(view(U, nambu_conj(a′, L), :), view(U, a, :))
+    values = bz_average(tol) do q_supercell
+        U = vacuum_modes!(ws, H, swt, q_supercell)
+        return ComplexF64[cis(-2π * dot(q_supercell, Vec3(Δ))) * dot(view(U, nambu_conj(a′, L), :), view(U, a, :))
                           for (a, a′, Δ) in keys]
     end
     return Contractions(L, index, values, noise)
 end
 
-# Columns U of the quasi-particle annihilators of the vacuum at `q_reshaped`,
+# Columns U of the quasi-particle annihilators of the vacuum at `q_supercell`,
 # normalized as U†ĨU = 1, which fix its correlations ⟨x x†⟩ = UU†. Normally
 # these are the particle columns of `bogoliubov!`. A quadratic Hamiltonian that
 # is not positive definite has no ground state, but if its frequencies are real
@@ -158,20 +158,20 @@ end
 # related by a symmetry of the quadratic Hamiltonian it is the vacuum of every
 # member. A complex frequency, or a mode of null para-norm, is a dynamical
 # instability, and no vacuum exists.
-function vacuum_modes!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_reshaped)
+function vacuum_modes!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_supercell)
     L = nbands(swt)
     try
-        excitations_reshaped!(ws, H, swt, q_reshaped)
+        excitations_supercell!(ws, H, swt, q_supercell)
         return view(ws.T, :, 1:L)
     catch err
         err isa InstabilityError || rethrow()
     end
-    dynamical_matrix!(H, swt, q_reshaped)
+    dynamical_matrix!(H, swt, q_supercell)
     Ĩ = Diagonal([ones(L); -ones(L)])
     (λ, V) = eigen(Ĩ * H; sortby=real)
     tol = sqrt(eps()) * opnorm(H, 1)
-    unstable() = InstabilityError("Quadratic Hamiltonian of the vacuum dynamically unstable at reshaped \
-                                   wavevector $(vec3_to_string(q_reshaped)). If quantum fluctuations \
+    unstable() = InstabilityError("Quadratic Hamiltonian of the vacuum dynamically unstable at supercell \
+                                   wavevector $(vec3_to_string(q_supercell)). If quantum fluctuations \
                                    stabilize the structure, see `Sunny.self_consistent`.")
     all(x -> abs(imag(x)) < tol, λ) || throw(unstable())
     # Within each cluster of degenerate frequencies, eigen returns an arbitrary

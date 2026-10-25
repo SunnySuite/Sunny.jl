@@ -95,7 +95,7 @@ function make_q_grid(sys, dq)
     end
 
     qα = [w ? (0 : dq : 1-dq) : [0] for w in wraps]
-    return vec([to_standard_rlu(sys, Vec3(q_reshaped)) for q_reshaped in Iterators.product(qα...)])
+    return vec([from_supercell_rlu(sys, Vec3(q_supercell)) for q_supercell in Iterators.product(qα...)])
 end
 
 # If all sites are symmetry-equivalent, then solve for a single Lagrange
@@ -299,7 +299,7 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
     data = map(qpts.qs) do q
         any(isnan, q) && return NaN * zero(eltype(measure))
 
-        q_reshaped = to_reshaped_rlu(sys, q)
+        q_supercell = to_supercell_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
         for i in 1:Na, μ in 1:Nobs
@@ -482,7 +482,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
 
             ### REPEAT FORWARD CALCULATION (no tape to avoid memory costs)
 
-            q_reshaped = to_reshaped_rlu(sys, q)
+            q_supercell = to_supercell_rlu(sys, q)
             q_global = cryst.recipvecs * q
 
             for i in 1:Na, μ in 1:Nobs
