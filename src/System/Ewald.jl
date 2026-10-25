@@ -200,8 +200,12 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_supercell::Vec3)
         A[1, 1, 1, j, i] = A[1, 1, 1, i, j]'
     end
 
-    for (; cell, i, j, n, Adir) in excluded
-        A[cell, i, j] -= cis(2π * dot(q_supercell, n)) * Adir
+    # The bond offset n wraps into the cell n mod dims, with a winding of
+    # fld(n, dims) magnetic cells
+    for (; bond, A_loc) in excluded
+        (; i, j, n) = bond
+        cell = CartesianIndex(Tuple(mod.(n, dims)) .+ 1)
+        A[cell, i, j] -= cis(2π * dot(q_supercell, Vec3(fld.(n, dims)))) * A_loc
     end
 
     return A

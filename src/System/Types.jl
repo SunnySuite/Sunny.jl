@@ -105,8 +105,8 @@ struct EwaldTensorCache
     real_terms  :: Array{Vector{Tuple{NTuple{3, Int}, Mat3}}, 5}  # [cell, i, j] -> (shift n, interaction)
 
     # Direct couplings to exclude, e.g. those within entangled units. Each
-    # removes Adir from entry [cell, i, j], for the image n magnetic cells away.
-    excluded    :: Vector{@NamedTuple{cell::CartesianIndex{3}, i::Int, j::Int, n::Vec3, Adir::Mat3}}
+    # removes the coupling A_loc along a bond between atoms of the crystal.
+    excluded    :: Vector{@NamedTuple{bond::Bond, A_loc::Mat3}}
 end
 
 struct Ewald
