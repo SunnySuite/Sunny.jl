@@ -92,18 +92,18 @@ function hamiltonian_monomials(sys::System, frames::Vector{Mat3}, ::Val{K}; beyo
     rcs = sys.mode == :dipole
 
     # The leading and sub-leading part, at each number of bosons, of the local
-    # operator with Stevens coefficients `cs` at site i. The number of bosons is
-    # kept static, as in `append_products!`.
+    # operator `O` at site i. The number of bosons is kept static, as in
+    # `append_products!`.
     counts = ntuple(p -> Val{p-1}(), Val{K+1}())
-    function words(cs, i)
-        (lead, sub) = stevens_words(cs, √(2sys.κs[i]), rcs)
+    function words(O, i)
+        (lead, sub) = stevens_words(O, √(2sys.κs[i]), rcs)
         return (map(v -> local_word_monomials(lead, i, L, v), counts),
                 map(v -> local_word_monomials(sub, i, L, v), counts))
     end
     leading_only(w) = (w[1], map(_ -> BosonMonomial{0}[], w[2]))
     axes = (Vec3(1, 0, 0), Vec3(0, 1, 0), Vec3(0, 0, 1))
-    spins = [map(r -> leading_only(words(spin_component_coefs(r), i)), axes) for i in 1:L]
-    quads = [ntuple(q -> words(quadrupole_coefs(q), i), 5) for i in 1:L]
+    spins = [map(r -> leading_only(words(spin_component(r), i)), axes) for i in 1:L]
+    quads = [ntuple(q -> words(quadrupole(q), i), 5) for i in 1:L]
 
     # The kept part of the term of K bosons of the product of factors (A, B), on
     # sites whose cells are offset by n, with coefficient c
@@ -125,8 +125,8 @@ function hamiltonian_monomials(sys::System, frames::Vector{Mat3}, ::Val{K}; beyo
     for i in 1:L
         int = local_interactions(sys, frames, i; twist)
         B = frames[i]' * (sys.gs[i]' * sys.extfield[i])
-        add_local!(leading_only(words(spin_component_coefs(B), i)))
-        iszero(int.onsite) || add_local!(words(stevens_ranks(int.onsite), i))
+        add_local!(leading_only(words(spin_component(B), i)))
+        iszero(int.onsite) || add_local!(words(int.onsite, i))
 
         for coupling in int.pair
             (; isculled, bond) = coupling
@@ -137,7 +137,7 @@ function hamiltonian_monomials(sys::System, frames::Vector{Mat3}, ::Val{K}; beyo
             if !iszero(J)
                 for a in 1:3
                     r = (J::Mat3)[a, :]
-                    iszero(r) || add_product!(1, spins[i][a], leading_only(words(spin_component_coefs(r), j)), n)
+                    iszero(r) || add_product!(1, spins[i][a], leading_only(words(spin_component(r), j)), n)
                 end
             end
             # Quadrupole p of site i times quadrupole q of site j
