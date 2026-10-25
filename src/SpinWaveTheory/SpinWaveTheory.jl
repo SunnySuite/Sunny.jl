@@ -366,10 +366,10 @@ end
 # The fields `sys` and `measure` of `SpinWaveTheory` are abstract, to limit
 # specialization, so they are passed through a function barrier. Otherwise each
 # observable would dispatch dynamically.
-set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_supercell, q_global) =
-    set_swt_observable_vectors!(u, swt, swt.sys, swt.measure, q_supercell, q_global)
+set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_global) =
+    set_swt_observable_vectors!(u, swt, swt.sys, swt.measure, q_global)
 
-function set_swt_observable_vectors!(u, swt::SpinWaveTheory, sys::System, measure::MeasureSpec, q_supercell, q_global)
+function set_swt_observable_vectors!(u, swt::SpinWaveTheory, sys::System, measure::MeasureSpec, q_global)
     (; data) = swt
     Na = nsites(sys)
     Nobs = num_observables(measure)

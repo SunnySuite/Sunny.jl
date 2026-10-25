@@ -1148,12 +1148,11 @@ end
         δu = zero(u)
         Ncells = Sunny.nsites(sys) / Sunny.natoms(cryst)
         return map(qs) do q
-            q_supercell = Sunny.to_supercell_rlu(sys, q)
             q_global = cryst.recipvecs * q
             Sunny.excitations!(T, H, swt, q)
-            Sunny.set_swt_observable_vectors!(u, swt, q_supercell, q_global)
+            Sunny.set_swt_observable_vectors!(u, swt, q_global)
             fill!(δu, 0)
-            isnothing(δc) || Sunny.accum_observable_corrections!(δu, swt, q_supercell, q_global, δc)
+            isnothing(δc) || Sunny.accum_observable_corrections!(δu, swt, q_global, δc)
             w = T' * (u + δu)
             δw = T' * δu
             corr = map(swt.measure.corr_pairs) do (μ, ν)
@@ -1639,8 +1638,8 @@ end
     q2m = [0.23, -0.41, 0.17]
     qr2 = Sunny.to_supercell_rlu(sys, q2m)
     qg2 = Sunny.orig_crystal(sys).recipvecs * q2m
-    Sunny.set_swt_observable_vectors!(u2, swt2m, qr2, qg2)
-    words2m = Sunny.observable_pair_monomials(swt2m, qr2, qg2)
+    Sunny.set_swt_observable_vectors!(u2, swt2m, qg2)
+    words2m = Sunny.observable_pair_monomials(swt2m, qg2)
 
     # Observable A_ν(q) as a linear form in the Nambu vector. The index swap is
     # forced, not chosen: `intensities_bands` forms Avec[μ] = dot(u[:,μ],
@@ -2042,7 +2041,7 @@ end
         for (iq, q) in enumerate(qs)
             q_supercell = Sunny.to_supercell_rlu(sys, Sunny.Vec3(q))
             q_global = Sunny.orig_crystal(sys).recipvecs * Sunny.Vec3(q)
-            words2 = Sunny.observable_pair_monomials(swt, q_supercell, q_global)
+            words2 = Sunny.observable_pair_monomials(swt, q_global)
             lg = Sunny.loop_wavevectors(grid, q_supercell)
             Sunny.foreach_magnon_pair(swt, q_supercell, lg) do _p, w, T1, T2, ε1, ε2
                 # Decay pairs at x > 0 and source pairs, of negative mass, at x < 0

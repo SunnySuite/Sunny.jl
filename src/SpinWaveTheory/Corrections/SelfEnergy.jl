@@ -553,12 +553,12 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     Σstat = static_self_energy_matrix(swt, ol.terms2, q_supercell, T)
 
     u = zeros(ComplexF64, 2L, num_observables(swt.measure))
-    set_swt_observable_vectors!(u, swt, q_supercell, q_global)
-    accum_observable_corrections!(u, swt, q_supercell, q_global, ol.δc)
+    set_swt_observable_vectors!(u, swt, q_global)
+    accum_observable_corrections!(u, swt, q_global, ol.δc)
     w = T' * u
 
     grid = loop_wavevectors(loop_grid, q_supercell)
-    words2 = observable_pair_monomials(swt, q_supercell, q_global)
+    words2 = observable_pair_monomials(swt, q_global)
     chans = ladder ? pair_channels(ol.terms4, q_supercell, L) : nothing
     ward = ladder ? ol.ward : nothing
     (; decay, source) = pair_measures(swt, ol.terms3, q_supercell, grid; bin_width, words2, chans, ward)

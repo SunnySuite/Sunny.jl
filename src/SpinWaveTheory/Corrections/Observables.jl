@@ -129,7 +129,7 @@ end
 # that of creating a pair, whereas `observable_prefactor` describes the observable
 # as `set_swt_observable_vectors!` applies it, to the amplitude for the adjoint
 # process.
-function observable_pair_monomials(swt::SpinWaveTheory, q_supercell, q_global)
+function observable_pair_monomials(swt::SpinWaveTheory, q_global)
     (; sys, measure) = swt
     return map(1:num_observables(measure)) do μ
         [BosonMonomial(conj(observable_prefactor(measure, μ, i, q_global, sys)) * c, as, ns)
@@ -160,13 +160,13 @@ function pair_amplitude(words, T1, T2, a, b)
 end
 
 """
-    accum_observable_corrections!(u, swt::SpinWaveTheory, q_supercell, q_global, δc)
+    accum_observable_corrections!(u, swt::SpinWaveTheory, q_global, δc)
 
 Adds the coefficients `δc` of [`observable_corrections`](@ref) to the linearized
 observables `u` of `set_swt_observable_vectors!`, which stores the coefficient of
 the boson operator labeled `a` in `u[ā, μ]`, where `ā = mod1(a+L, 2L)`.
 """
-function accum_observable_corrections!(u, swt::SpinWaveTheory, q_supercell, q_global, δc)
+function accum_observable_corrections!(u, swt::SpinWaveTheory, q_global, δc)
     (; sys, measure) = swt
     L = nbands(swt)
     Nf = nflavors(swt)
