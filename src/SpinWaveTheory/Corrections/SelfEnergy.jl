@@ -349,7 +349,7 @@ function OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid::BZGrid=auto_bz
     # A negligible cubic vertex is dropped outright, e.g. collinear order in
     # dipole mode, so that everything it generates is exactly zero
     terms3 = cubic_monomials(swt)
-    cubic_vertex_vanishes(swt, terms3) && empty!(terms3)
+    cubic_vertex_vanishes(swt, terms3) && (terms3 = BosonMonomial{3}[])
 
     terms4 = quartic_monomials(swt)
     g = contractions(swt, Iterators.flatten((terms3, terms4, observable_cubic_monomials(swt))), grid)
