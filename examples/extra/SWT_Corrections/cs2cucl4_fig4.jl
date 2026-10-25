@@ -60,7 +60,7 @@ end
 # resummation. It belongs to a folded band far from the principal mode, so the
 # flag is disabled here.
 
-corrected = peaks(Sunny.corrected_intensities(swt, path; energies, η, scheme=:one_loop,
+corrected = peaks(Sunny.corrected_intensities(swt, path, :one_loop; energies, η,
                                               mark_breakdown=false, threaded=true))
 
 fig = Figure()

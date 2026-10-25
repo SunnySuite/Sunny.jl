@@ -67,7 +67,7 @@
 # whose Gaussian state carries a correction does so, with a counterterm.
 
 """
-    corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, scheme, kernel=nothing, kT=0,
+    corrected_intensities(swt::SpinWaveTheory, qpts, scheme; energies, η, kernel=nothing, kT=0,
                           bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including one-loop
@@ -96,7 +96,7 @@ A correction that was added to pin a Goldstone mode is therefore removed again;
 for the spectrum of the corrected quadratic Hamiltonian itself, use
 [`intensities`](@ref).
 
-The required `scheme` selects how the one-loop self-energy is resummed:
+The `scheme` selects how the one-loop self-energy is resummed:
 
 - `:one_loop` is the recommended starting point. It is the complete one-loop
   response, including the interference between one- and two-magnon channels. It
@@ -199,12 +199,12 @@ progress bar and diagnostics.
    Rev. B **88**, 094407 (2013)](https://doi.org/10.1103/PhysRevB.88.094407).
 7. [Zhang et al. (2025) [arXiv:2508.21142]](https://arxiv.org/abs/2508.21142).
 """
-function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, scheme, kernel=nothing, kT=0,
+function corrected_intensities(swt::SpinWaveTheory, qpts, scheme; energies, η, kernel=nothing, kT=0,
                                bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
     num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     iszero(kT) || error("Corrected intensities at kT > 0 are not yet supported.")
     (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
-        corrected_channels(swt, qpts; energies, η, scheme, bz, threaded, verbose)
+        corrected_channels(swt, qpts, scheme; energies, η, bz, threaded, verbose)
     # The structure factor at T = 0 from the spectral function χ'', which is odd
     θ = [ω > 0 ? 1.0 : iszero(ω) ? 0.5 : 0.0 for ω in energies]
     data = reshape(θ .* (transverse + cross + direct), length(energies), size(qpts.qs)...)
@@ -229,10 +229,10 @@ end
 # default. Its quasi-particles are the internal lines of the loops and the basis
 # of the Dyson equation, its mean fields are contractions in it, and `disp`
 # reports its energies.
-function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, scheme,
+function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
                             bz=nothing, threaded=false, verbose=false, spectral=false)
     scheme in (:one_loop, :two_magnon_ladder, :one_loop_projected, :one_loop_on_shell) ||
-        error("Unknown `scheme=:$scheme`; use :one_loop, :two_magnon_ladder, :one_loop_projected or :one_loop_on_shell.")
+        error("Unknown scheme :$scheme; use :one_loop, :two_magnon_ladder, :one_loop_projected or :one_loop_on_shell.")
 
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
@@ -252,9 +252,10 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, scheme,
         dω > 0 && all(≈(dω), diff(energies)) || error("`energies` must be equally spaced.")
         zs = range(energies[begin] + im*η; step=dω, length=length(energies))
         if dω > (η/2) * (1 + 1e-8)
-            @warn """Requested `energies` are spaced by $(round(dω, sigdigits=2)) on \
-                     average, which will not resolve features of width η = $η. A spacing \
-                     of η/2 or less adds little cost."""
+            spacing = number_to_simple_string(dω; digits=2)
+            @warn """Requested `energies` are spaced by $spacing, which will not \
+                     resolve features of width η = $η. A spacing of η/2 or less \
+                     adds little cost."""
         end
     end
     ol = OneLoop(swt; energies, η, bz)
@@ -357,20 +358,18 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, scheme,
               loop grid       $(join(ol.loop_grid, "×")) = $(prod(ol.loop_grid)) points""")
     end
 
-    t0 = time()
     desc = verbose ? "  wavevectors     " : nothing
-    foreach_chunked((_, iq) -> calc_iq!(iq), Returns(nothing), eachindex(qpts.qs);
-                    threaded, warn_blas=true, desc)
-    elapsed = time() - t0
+    elapsed = @elapsed foreach_chunked((_, iq) -> calc_iq!(iq), Returns(nothing), eachindex(qpts.qs);
+                                       threaded, warn_blas=true, desc)
 
     if verbose
-        r2 = x -> round(x; sigdigits=2)
+        r2 = x -> number_to_simple_string(x; digits=2)
         nthreads = threaded ? min(Threads.nthreads(), length(qpts.qs)) : 1
         per_q = 1000 * elapsed / length(qpts.qs)
         Γs = sort!(filter(isfinite, vec(linewidths)))
         report = isempty(Γs) ? "none" :
             "median $(r2(Γs[cld(end, 2)])), 90th pct $(r2(Γs[ceil(Int, 0.9end)])), against η = $(r2(η))"
-        println("  elapsed         $(round(elapsed; digits=1)) s on $nthreads \
+        println("  elapsed         $(r2(elapsed)) s on $nthreads \
                  thread$(nthreads == 1 ? "" : "s"), $(r2(per_q)) ms per 𝐪")
         label = scheme == :two_magnon_ladder ? "on-shell Γ" : "on-shell -Im Σ"
         println("  $(rpad(label, 16))$report")

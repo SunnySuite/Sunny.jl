@@ -21,9 +21,9 @@
   interactions; long-range dipole-dipole interactions now excluded.
 * Spin wave [`intensities`](@ref) accept a width `η` for intrinsic Lorentzian
   broadening. This allows to damp intensities of soft modes.
-* [`SpinWaveTheoryLarge`](@ref) replaces `SpinWaveTheoryKPM`, and uses Lanczos
-  to evaluate the dynamical susceptibility. Convergence is faster and more
-  robust.
+* [`SpinWaveTheoryLarge`](@ref) replaces `SpinWaveTheoryKPM`, and now uses
+  Lanczos to evaluate the dynamical susceptibility. Convergence is faster and
+  more robust.
 * At `kT > 0`, [`intensities`](@ref) and [`intensities_static`](@ref) yield the
   correct intensity at negative energies.
 * Fix spin wave theory with dipole-dipole interactions and unequal spin

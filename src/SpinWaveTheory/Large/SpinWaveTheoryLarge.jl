@@ -15,7 +15,8 @@ spectral bandwidth of excitations and ``w`` is the relevant energy resolution.
 Typically ``w`` is the `kernel` width for instrument resolution. Near soft
 modes, ``w`` becomes the larger of the spacing of low-energy excitations and the
 intrinsic broadening ``η``. Exceeding `maxiters` iterations will throw an error
-to prevent runaway calculations.
+to prevent runaway calculations. Pass `verbose=true` to `intensities` to print a
+progress bar and the iteration statistics.
 
 !!! tip "Consider `SampledCorrelations` when calculating powder averages"
 
@@ -66,13 +67,13 @@ function Base.show(io::IO, ::MIME"text/plain", swt_large::SpinWaveTheoryLarge)
     println(io, "  ", nsites(swt.sys), " sites")
 end
 
-function intensities(swt_large::SpinWaveTheoryLarge, qpts; energies, η=0.0, kernel=nothing, kT=0.0, threaded=false)
+function intensities(swt_large::SpinWaveTheoryLarge, qpts; energies, η=0.0, kernel=nothing, kT=0.0, threaded=false, verbose=false)
     qpts = convert(AbstractQPoints, qpts)
     data = zeros(eltype(swt_large.swt.measure), length(energies), size(qpts.qs)...)
-    return intensities!(data, swt_large, qpts; energies, η, kernel, kT, threaded)
+    return intensities!(data, swt_large, qpts; energies, η, kernel, kT, threaded, verbose)
 end
 
-function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=0.0, kernel=nothing, kT=0.0, threaded=false)
+function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=0.0, kernel=nothing, kT=0.0, threaded=false, verbose=false)
     qpts = convert(AbstractQPoints, qpts)
     @assert size(data) == (length(energies), size(qpts.qs)...)
     η >= 0 || error("Require η ≥ 0")
@@ -85,7 +86,7 @@ function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=0
         isnothing(kernel) && error("Specify a `kernel`, a broadening `η`, or both.")
         η = 1e-6 * minimum(ω -> kernel_fwhm(kernel, ω), energies)
     end
-    intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded)
+    intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded, verbose)
     return Intensities(orig_crystal(swt_large.swt.sys), qpts, collect(Float64, energies), data)
 end
 
@@ -114,7 +115,7 @@ end
 #
 # 1. T. Chen, The Lanczos algorithm for matrix functions: a handbook for
 #    scientists (2024), Sec. 5.
-function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded)
+function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded, verbose)
     (; swt, H, tol, maxiters) = swt_large
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
@@ -126,6 +127,8 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     n = size(H, 1)
     Nobs = num_observables(measure)
     rb = RetardedBroadening(energies; η, kernel, kT)
+    # Lanczos steps per wavevector, for the `verbose` report
+    niters = zeros(Int, size(qpts.qs))
 
     newbuf() = (
         u    = zeros(ComplexF64, n, Nobs),
@@ -149,7 +152,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
         G = gram_rows(V, mul_Ĩ_rows!(similar(V), V))
         mulS!(W, X) = mul_rows!(W, H, X, Hq)
 
-        C = try
+        (C, niters[iq]) = try
             lanczos_correlations(mulS!, V, G, rb; η, tol, maxiters)
         catch e
             e isa InstabilityError || rethrow()
@@ -172,13 +175,26 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
         end
     end
 
-    foreach_chunked(calc_iq!, newbuf, CartesianIndices(qpts.qs); threaded)
+    verbose && println("SpinWaveTheoryLarge intensities\n  dimension       $n, $Nobs observables")
+    desc = verbose ? "  wavevectors     " : nothing
+    elapsed = @elapsed foreach_chunked(calc_iq!, newbuf, CartesianIndices(qpts.qs); threaded, desc)
+
+    if verbose
+        nthreads = threaded ? min(Threads.nthreads(), length(qpts.qs)) : 1
+        per_q = number_to_simple_string(1000 * elapsed / length(qpts.qs); digits=2)
+        # Wavevectors where all observables vanish take no steps
+        ms = sort!(filter(>(0), vec(niters)))
+        println("  elapsed         $(number_to_simple_string(elapsed; digits=2)) s on $nthreads \
+                 thread$(nthreads == 1 ? "" : "s"), $per_q ms per 𝐪")
+        isempty(ms) || println("  Lanczos steps   median $(ms[cld(end, 2)]), max $(ms[end]) (maxiters = $maxiters)")
+    end
     return data
 end
 
-# The pair correlations C[iω][a, b] of the observables whose starting block is V,
-# at each of the `energies`, by block Lanczos iteration to convergence
-# Returns `nothing` if not converged within `maxiters`
+# The pair correlations C[iω][a, b] of the observables whose starting block is
+# V, at each of the `energies`, by block Lanczos iteration to convergence, and
+# the number of steps taken. Returns `(nothing, maxiters)` if not converged
+# within `maxiters`
 function lanczos_correlations(mulS!, V, G, rb; η, tol, maxiters)
     lz = BlockLanczos(mulS!, V)
 
@@ -198,14 +214,14 @@ function lanczos_correlations(mulS!, V, G, rb; η, tol, maxiters)
     extend!(lz, clamp(min(m₀, maxiters) - nsteps(lz), 0, m_max - nsteps(lz)))
     C = estimate()
     while !lz.exhausted && nsteps(lz) < m_max
-        nsteps(lz) >= maxiters && return nothing
+        nsteps(lz) >= maxiters && return (nothing, maxiters)
         extend!(lz, min(max(2, nsteps(lz) ÷ 2), m_max - nsteps(lz), maxiters - nsteps(lz)))
         C′ = estimate()
         converged = maximum(maximum(abs, x) for x in C′ - C) <= tol * maximum(maximum(abs, x) for x in C′)
         C = C′
-        converged && return C
+        converged && return (C, nsteps(lz))
     end
-    return C
+    return (C, nsteps(lz))
 end
 
 # Correlations from the structure factor (1 + n_B(ω)) χ''(ω + iη), where χ'' =

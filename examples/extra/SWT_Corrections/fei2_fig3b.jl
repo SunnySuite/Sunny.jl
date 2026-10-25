@@ -46,7 +46,7 @@ res = map([3, 4]) do B
     randomize_spins!(sys)
     minimize_energy!(sys)
     swt = SpinWaveTheory(sys; measure)
-    Sunny.corrected_intensities(swt, path; energies, η, scheme=:one_loop,
+    Sunny.corrected_intensities(swt, path, :one_loop; energies, η,
                                 threaded=true, verbose=true)
 end
 

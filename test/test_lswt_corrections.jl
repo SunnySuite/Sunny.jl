@@ -992,8 +992,8 @@ end
                       δE = [hf.δE, tad.δE],
                       εc = dispersion(Sunny.swt_with_vacuum(swt; correction=[hf.terms2; tad.terms2]), qs),
                       Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, bz=(8, 8, 1)),
-                      I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61), η=0.1,
-                                                      scheme=:one_loop, bz=(26, 26, 1)).data)
+                      I = Sunny.corrected_intensities(swt, qs, :one_loop; energies=range(0, 3, 61), η=0.1,
+                                                      bz=(26, 26, 1)).data)
         end
         for k in keys(rs[1])
             @test maximum(abs, getfield(rs[1], k) .- getfield(rs[2], k)) < 1e-5
@@ -1062,7 +1062,7 @@ end
     swt = SpinWaveTheory(canted_square(1, 3); measure=nothing)
     # Without a measure the one-loop pieces still build, and intensities refuse
     @test size(Sunny.OneLoop(swt; η=0.1, bz=(4, 4, 1)).δc) == (2Sunny.nbands(swt), 0)
-    @test_throws "No observables" Sunny.corrected_intensities(swt, [[0, 0, 0]]; energies=0:0.1:1, η=0.1, scheme=:one_loop)
+    @test_throws "No observables" Sunny.corrected_intensities(swt, [[0, 0, 0]], :one_loop; energies=0:0.1:1, η=0.1)
     for bz in ((8, 8, 1), (16, 16, 1))
         t2 = [Sunny.hartree_fock_correction(swt; bz).terms2
               Sunny.tadpole_correction(swt; bz).terms2]
@@ -1079,7 +1079,8 @@ end
     # The on-shell bands take the cancelling static part at real ω = 0, so a
     # soft band does not move with η, even at ε ≈ η. At ε + iη it moved by 25%.
     let sys = canted_square(1/2, 1), swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-        soft(η) = minimum(Sunny.corrected_channels(swt, [[0.005, 0.005, 0]]; energies=Float64[], η, scheme=:one_loop_on_shell, bz=(24, 24, 1)).bands.disp)
+        soft(η) = minimum(Sunny.corrected_channels(swt, [[0.005, 0.005, 0]], :one_loop_on_shell;
+                                                   energies=Float64[], η, bz=(24, 24, 1)).bands.disp)
         @test soft(0.05) ≈ soft(0.02) rtol=1e-3
     end
 
@@ -1222,7 +1223,7 @@ end
     # the step is a fraction of η.
     η = 0.06
     energies = range(-20, 24, 1501)
-    chans = Sunny.corrected_channels(swt2, qs2; energies, η, scheme=:one_loop, bz)
+    chans = Sunny.corrected_channels(swt2, qs2, :one_loop; energies, η, bz)
     (; transverse) = chans
     pos = energies .> 0
     @test !any(chans.breakdown)
@@ -1239,7 +1240,7 @@ end
     let z = energies[800] + im*η, Σ = Sunny.SelfEnergy(Sunny.OneLoop(swt2; η, bz), qs2[1])
         Ĩ = Diagonal([ones(L); -ones(L)])
         G = inv(z * Ĩ - Diagonal(abs.(Σ.ε)) - Σ(z))
-        c = Sunny.corrected_channels(swt2, qs2[1:1]; energies=[real(z)], η, scheme=:one_loop, bz, spectral=true)
+        c = Sunny.corrected_channels(swt2, qs2[1:1], :one_loop; energies=[real(z)], η, bz, spectral=true)
         @test ((G' - G) / (2π*im))[1:L, 1:L] ≈ c.specfunc[:, :, 1, 1]
     end
 
@@ -1249,7 +1250,7 @@ end
     # amplitudes and metric, so it satisfies the commutator sum rule;
     # `:one_loop_on_shell` keeps a unit-weight Lorentzian per pole.
     for scheme in (:one_loop_projected, :one_loop_on_shell)
-        c = Sunny.corrected_channels(swt2, qs2; energies, η, scheme, bz, spectral=true)
+        c = Sunny.corrected_channels(swt2, qs2, scheme; energies, η, bz, spectral=true)
         @test all(≥(0), (c.transverse + c.cross + c.direct)[pos, :])
         if scheme == :one_loop_projected
             @test maximum(abs, vec(sum(c.transverse; dims=1)) * step(energies) - comms) < 2e-3 * maximum(refs)
@@ -1271,8 +1272,8 @@ end
     # each channel alone is free of. The window must reach below ω = 0, or a
     # pair at x ≈ 0 contributes just half of its Lorentzian.
     qs4 = vec([[i, j, 0] ./ 3 for i in 0:2, j in 0:2])
-    chans4 = Sunny.corrected_channels(swt2, qs4; energies=range(-4, 12, 161), η=0.3,
-                                      scheme=:one_loop, bz=(3, 3, 1))
+    chans4 = Sunny.corrected_channels(swt2, qs4, :one_loop; energies=range(-4, 12, 161), η=0.3,
+                                      bz=(3, 3, 1))
     @test abs(sum(chans4.cross)) < 1e-3 * sum(chans4.direct)
 
     # ---- Gauge invariance, where Σ̂ is genuinely off-diagonal ----
@@ -1309,13 +1310,13 @@ end
     @test maximum(abs, Σ3 - Diagonal(diag(Σ3))) > 0.2 * maximum(abs, diag(Σ3))
     energies = range(0.2, 2.0, 25)
     for scheme in (:one_loop, :two_magnon_ladder, :one_loop_projected, :one_loop_on_shell)
-        spectral(swt, qs, energies) = let c = Sunny.corrected_channels(swt, qs; energies, η=0.15, scheme, bz=(4, 4, 1))
+        spectral(swt, qs, energies) = let c = Sunny.corrected_channels(swt, qs, scheme; energies, η=0.15, bz=(4, 4, 1))
             c.transverse + c.cross + c.direct
         end
         data = spectral(swts[1], qs3, energies)
         mirror = spectral(swts[2], -qs3, -reverse(energies))
         @test data ≈ -reverse(mirror; dims=1) rtol=1e-6
-        @test Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, scheme, bz=(4, 4, 1)).data ≈ data
+        @test Sunny.corrected_intensities(swts[1], qs3, scheme; energies, η=0.15, bz=(4, 4, 1)).data ≈ data
     end
 
     # ---- Quantum sum rule on the square lattice ----
@@ -1338,7 +1339,7 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(0, 10, 101), 0.2)
-        chans = Sunny.corrected_channels(swt, qs; energies, η, scheme=:one_loop, bz=(4, 4, 1))
+        chans = Sunny.corrected_channels(swt, qs, :one_loop; energies, η, bz=(4, 4, 1))
         @test maximum(abs, chans.direct) < 1e-25
         kernel = lorentzian(fwhm=2η)
         mirror = reverse(intensities(swt, -qs; energies=-reverse(energies), kernel).data)
@@ -1352,7 +1353,7 @@ end
         o = Sunny.Vec3(0, 0, 0)
         L = Sunny.nbands(swt)
         shift = [Sunny.BosonMonomial(0.3+0im, (L+1, 1), (o, o))]
-        c = Sunny.corrected_channels(Sunny.swt_with_vacuum(swt; correction=shift), qs; energies, η, scheme=:one_loop, bz=(4, 4, 1))
+        c = Sunny.corrected_channels(Sunny.swt_with_vacuum(swt; correction=shift), qs, :one_loop; energies, η, bz=(4, 4, 1))
         @test c.transverse + c.cross + c.direct ≈ chans.transverse + chans.cross + chans.direct atol=1e-12
         @test c.disp ≈ chans.disp .+ 0.3
     end
@@ -1383,8 +1384,8 @@ end
         canted = SpinWaveTheory(square_afm(; field=[1.5, 0, 0]); measure=nothing)
         @test vertex_scale(canted) > 1e-2
 
-        chans = Sunny.corrected_channels(swt, [[0.3, 0.2, 0]]; energies=range(0, 12, 121),
-                                         η=0.2, scheme=:one_loop, bz=(8, 8, 1))
+        chans = Sunny.corrected_channels(swt, [[0.3, 0.2, 0]], :one_loop; energies=range(0, 12, 121),
+                                         η=0.2, bz=(8, 8, 1))
         @test iszero(chans.cross) && !iszero(chans.direct)
     end
 
@@ -1396,13 +1397,14 @@ end
         sys = canted_square(1/2, 0)
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
         qs = [[0, 0, 0], [1/2, 1/2, 0], [0.05, 0, 0], [1/2, 0.45, 0]]
-        chans = Sunny.corrected_channels(swt, qs; energies=[1.0], η=0.1, scheme=:two_magnon_ladder, bz=(64, 64, 1))
+        chans = Sunny.corrected_channels(swt, qs, :two_magnon_ladder; energies=[1.0], η=0.1, bz=(64, 64, 1))
         @test chans.breakdown == [true, true, false, false]
 
         # A breakdown is marked by NaN in every component of a measure that
         # returns a vector
         swt = SpinWaveTheory(sys; measure=ssf_custom((q, ssf) -> diag(ssf), sys))
-        res = Sunny.corrected_intensities(swt, qs[1:1]; energies=[-0.05, 0.05], η=0.1, scheme=:two_magnon_ladder, bz=(64, 64, 1))
+        res = Sunny.corrected_intensities(swt, qs[1:1], :two_magnon_ladder; energies=[-0.05, 0.05],
+                                          η=0.1, bz=(64, 64, 1))
         @test all(x -> all(isnan, x), res.data)
     end
 
@@ -1454,7 +1456,7 @@ end
         # chemical cell this average is the longitudinal weight per site.
         qs2 = vec([[(a - 0.5)/3, (b - 0.5)/3, 0] for a in 1:3, b in 1:3])
         energies = range(-2, 16, 181)
-        direct = Sunny.corrected_channels(swt, qs2; energies, η=0.2, scheme=:one_loop, bz=(12, 12, 1)).direct
+        direct = Sunny.corrected_channels(swt, qs2, :one_loop; energies, η=0.2, bz=(12, 12, 1)).direct
         longitudinal = sum(direct) * step(energies) / length(qs2)
 
         return (; harm, transverse, elastic, longitudinal,
@@ -1649,7 +1651,7 @@ end
     # ω = 0.
     # Each `scheme` is pinned, as (sum, maximum) of the intensities.
     function pinned(swt, qs, energies, η, dims, scheme)
-        res = Sunny.corrected_intensities(swt, qs; energies, η, scheme, bz=dims)
+        res = Sunny.corrected_intensities(swt, qs, scheme; energies, η, bz=dims)
         return [sum(res.data), maximum(res.data)]
     end
 
@@ -2204,8 +2206,8 @@ end
     @test maximum(abs, Σbin - Σloop) / maximum(abs, Σloop) < 1e-3
 
     # Reference for the bare two-magnon continuum K_dd, which is the whole
-    # `direct` channel under `scheme=:one_loop_on_shell`. The reference is the
-    # same sum over pairs of magnons, both channels, but broadening each pair
+    # `direct` channel under `:one_loop_on_shell`. The reference is the same sum
+    # over pairs of magnons, both channels, but broadening each pair
     # individually instead of binning its energy first, and contracting the
     # three observable amplitudes β by `contract` rather than through a
     # `measure`. The binning is therefore the only approximation separating the
@@ -2252,7 +2254,7 @@ end
         (η, grid) = (0.15, (8, 8, 1))
         qs = [[0.3, 0.2, 0], [1/6, 1/6, 0]]
         energies = range(0, 4, 61)
-        direct = Sunny.corrected_channels(swt5, qs; energies, η, scheme=:one_loop_on_shell, bz=grid).direct
+        direct = Sunny.corrected_channels(swt5, qs, :one_loop_on_shell; energies, η, bz=grid).direct
         ref = direct_unbinned(β -> imag(β[1] * conj(β[2])), swt5, qs, energies, η, grid)
         scale = maximum(abs, ref)
         @test scale > 1e-2   # the measure is not trivially zero
@@ -2272,8 +2274,7 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(-2, 16, 181), 0.2)
-        direct(grid) = Sunny.corrected_channels(swt, qs; energies, η, scheme=:one_loop_on_shell,
-                                                bz=grid).direct
+        direct(grid) = Sunny.corrected_channels(swt, qs, :one_loop_on_shell; energies, η, bz=grid).direct
         ref = direct((32, 32, 1))
         scale = maximum(abs, ref)
         @test 1e-3 < maximum(abs, direct((16, 16, 1)) - ref) / scale < 1e-2

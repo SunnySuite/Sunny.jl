@@ -538,20 +538,20 @@ function susceptibility_poles(swt::SpinWaveTheory, sys::System, measure::Measure
 end
 
 """
-    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
+    intensities!(data, swt::SpinWaveTheory, qpts; energies, η=0, kernel=nothing, kT=0, threaded=false)
     intensities!(data, sc::SampledCorrelations, qpts; energies, kernel=nothing, kT=0)
 
 Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
 """
-function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
-    res = intensities(swt, qpts; energies, kernel, η, kT, threaded)
+function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, η=0, kernel=nothing, kT=0, threaded=false)
+    res = intensities(swt, qpts; energies, η, kernel, kT, threaded)
     data .= res.data
     return Intensities(res.crystal, res.qpts, res.energies, data)
 end
 
 """
-    intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
+    intensities(swt::AbstractSpinWaveTheory, qpts; energies, η=0, kernel=nothing, kT=0, threaded=false)
     intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
 
 Calculates dynamical pair correlation intensities for a set of ``𝐪``-points in
@@ -570,14 +570,13 @@ The target is the dynamical structure factor ``π^{-1} (1 + n_B(ω)) χ''(𝐪, 
 iη)``. The thermal prefactor involves the Bose function ``n_B(ω) =
 1/(e^{ω/kT}-1)`` at temperature ``kT`` and energy transfer ``ω``. The symbol
 ``χ'' = (χ - χ^†)/2i`` denotes the anti-Hermitian part of the retarded
-susceptibility matrix ``χ``. A nonnegative regulator `η` provides the half width
-of Lorentzian broadening. For soft modes, this intrinsic broadening typically
-introduces cancellations across positive and negative frequencies that damp
-intensity.
+susceptibility matrix ``χ``.
 
-The `kernel` models the instrument resolution function, e.g., as a
-[`gaussian`](@ref). It is applied as a post-processing step. At least one of `η`
-or `kernel` must be specified.
+At least one of `η` or `kernel` is required. The intrinsic broadening `η > 0` is
+the half width of a Lorentzian line shape. For soft modes, it may damp intensity
+via cancellations between poles at positive and negative frequency. The `kernel`
+defines the instrument resolution function, e.g., as a [`gaussian`](@ref). It is
+applied as a post-processing step.
 
 If `threaded=true`, the calculation will be parallelized over ``𝐪``. Direct
 solvers then benefit strongly from an appropriate BLAS backend; see
@@ -591,10 +590,10 @@ factor. The special choice `kT = nothing` will suppress the classical-to-quantum
 correction factor, and yield statistics consistent with the classical Boltzmann
 distribution.
 """
-function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
+function intensities(swt::AbstractSpinWaveTheory, qpts; energies, η=0, kernel=nothing, kT=0, threaded=false)
     qpts = convert(AbstractQPoints, qpts)
     (disp, residues) = susceptibility_poles(swt, qpts; threaded)
-    data = broaden_poles(disp, residues; energies, kernel, η, kT, threaded)
+    data = broaden_poles(disp, residues; energies, η, kernel, kT, threaded)
     data = reshape(data, length(energies), size(qpts.qs)...)
     return Intensities(orig_crystal(underlying_system(swt)), qpts, collect(Float64, energies), data)
 end

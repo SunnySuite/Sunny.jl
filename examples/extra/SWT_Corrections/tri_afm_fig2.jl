@@ -37,7 +37,7 @@ path = q_space_path(cryst, qpts, 200; labels)
 η = 0.03s
 energies = 0:(η/2):ωmax
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-res = Sunny.corrected_channels(swt, path; energies, η, scheme=:one_loop_projected,
+res = Sunny.corrected_channels(swt, path, :one_loop_projected; energies, η,
                                threaded=true, verbose=true, spectral=true)
 
 # The three-site magnetic cell folds 𝐪 together with 𝐪 ± 𝐐, where 𝐐 is the
