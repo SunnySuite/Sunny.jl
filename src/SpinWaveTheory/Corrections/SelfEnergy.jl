@@ -90,7 +90,7 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, bz=nothing)
         # frequencies are built and only their diagonals are kept.
         k = to_supercell_rlu(swt.sys, q)
         ωs = excitations_supercell!(ws, H, swt, k)[1:L]
-        Σ = cubic_self_energy_at(swt, terms3, k, ωs .+ im*η, loop_wavevectors(grid.dims, k), η)
+        Σ = cubic_self_energy_at(swt, terms3, k, ωs .+ im*η, loop_wavevectors(grid, k), η)
         view(ret, :, iq) .= [Σ[n, n, n] for n in 1:L]
     end
 
@@ -107,7 +107,7 @@ function cubic_self_energy_matrix(swt::SpinWaveTheory, q, zs; η, bz=nothing)
     η > 0 || error("Broadening η must be positive")
     grid = loop_bz(swt, bz; η)
     k = to_supercell_rlu(swt.sys, q)
-    return cubic_self_energy_at(swt, cubic_monomials(swt), k, zs, loop_wavevectors(grid.dims, k), η)
+    return cubic_self_energy_at(swt, cubic_monomials(swt), k, zs, loop_wavevectors(grid, k), η)
 end
 
 # Calls `f(a, b, w, u, x, p, T1, T2)` for each pair of internal magnon lines
@@ -357,8 +357,7 @@ end
 function OneLoop(swt::SpinWaveTheory; energies=nothing, η, bz=nothing)
     check_corrections_supported(swt)
     η > 0 || error("Regulator `η` must be positive.")
-    grid = loop_bz(swt, bz; η)
-    loop_grid = grid.dims
+    loop_grid = loop_bz(swt, bz; η)
 
     # A negligible cubic vertex is dropped outright, e.g. collinear order in
     # dipole mode, so that everything it generates is exactly zero
@@ -367,7 +366,7 @@ function OneLoop(swt::SpinWaveTheory; energies=nothing, η, bz=nothing)
 
     terms4 = quartic_monomials(swt)
     g = contractions(swt, Iterators.flatten((terms3, terms4, all_observable_monomials(swt, Val{3}()),
-                                             all_observable_monomials(swt, Val{4}()))), grid)
+                                             all_observable_monomials(swt, Val{4}()))), loop_grid)
     tad = isempty(terms3) ? nothing : tadpole(swt, terms3, g)
     terms2 = [mean_field(terms4, g).terms2
               isnothing(tad) ? BosonMonomial{2}[] : tad.terms2

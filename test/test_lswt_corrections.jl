@@ -846,8 +846,7 @@ end
     # Para-unitarity of the Bogoliubov transform: ⟨bᵢb†ᵢ⟩ - ⟨b†ᵢbᵢ⟩ = 1
     L = Sunny.nbands(swt)
     o = Sunny.Vec3(0, 0, 0)
-    g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for as in ((L+1, 1), (1, L+1))],
-                           Sunny.BZAdaptive(1e-4))
+    g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for as in ((L+1, 1), (1, L+1))], 1e-4)
     @test g(1, L+1, o) - g(L+1, 1, o) ≈ 1 atol=1e-10
     @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, bz=(6, 6, 1))) < 1e-12
     grid32 = (32, 32, 1)
@@ -1419,7 +1418,7 @@ end
         # Onsite ⟨b†b⟩ and ⟨bb⟩, from which ⟨n̂²⟩ = ⟨n̂⟩² + ⟨n̂⟩(1+⟨n̂⟩) + |Δ|²
         o = Sunny.Vec3(0, 0, 0)
         g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, as, (o, o)) for i in 1:L for as in ((L+i, i), (i, i))],
-                               Sunny.BZAdaptive(tol))
+                               tol)
         ss = [swt.sys.κs[i] for i in 1:L]
         n = [real(g(L+i, i, o)) for i in 1:L]
         n2 = [n[i]^2 + n[i] * (1 + n[i]) + abs2(g(i, i, o)) for i in 1:L]
@@ -1690,7 +1689,7 @@ end
 
     # Every Nambu correlation, including the anomalous ones
     o = Sunny.Vec3(0, 0, 0)
-    bz = Sunny.BZAdaptive(1e-8)
+    bz = 1e-8
     g = Sunny.contractions(swt, [Sunny.BosonMonomial(1.0+0im, (a, a′), (o, o)) for a in 1:2L for a′ in 1:2L], bz)
     @test [g(a, a′, o) for a in 1:2L, a′ in 1:2L] ≈ [expect(bop(a)*bop(a′)) for a in 1:2L, a′ in 1:2L] atol=1e-7
 
