@@ -45,7 +45,7 @@ for (row, (; Δ, energies, colorrange)) in enumerate(panels)
     set_param!(sys, :Δ, Δ)
     measure = ssf_custom((q, ssf) -> real(ssf[3, 3]), sys; apply_g=false)
     swt = SpinWaveTheory(sys; measure)
-    swt_hf = Sunny.swt_with_correction(swt, Sunny.hartree_fock_correction(swt).terms2)
+    swt_hf = Sunny.about_hartree_fock_vacuum(swt)
     for (col, dyson) in enumerate((:nambu, :ladder))
         res = Sunny.corrected_intensities(swt_hf, path; energies, η, kernel, dyson, threaded=true, verbose=true)
         plot_intensities!(fig[row, col], res; colormap=:viridis, colorrange,
