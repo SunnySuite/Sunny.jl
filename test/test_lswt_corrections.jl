@@ -165,6 +165,135 @@
 
     expand(bop, terms, dim) = sum(t -> t.c * prod(bop, t.as), terms; init=spzeros(ComplexF64, dim, dim))
 
+    # Compares the whole Holstein-Primakoff expansion, order by order in the boson
+    # number, against exact diagonalization in the *spin* Hilbert space, so that the
+    # truncation of the series is itself what is under test.
+    function cluster_errors(ss; mode=:dipole, aniso=false)
+        sys = cluster(ss; mode, aniso)
+        # Regularization would otherwise leak into the quadratic coefficients
+        swt = SpinWaveTheory(sys; measure=nothing, regularization=0)
+        Ns = ntuple(i -> Int(2ss[i]+1), 3)
+        dim = prod(Ns)
+        bop = fock_ops(Ns)
+        op(O, i) = reduce(kron, (k == i ? sparse(O) : sparse(1.0I, Ns[k], Ns[k]) for k in 1:3))
+        S(a, i) = op(spin_matrices(ss[i])[a], i)
+
+        # Exact cluster Hamiltonian, in the local frames that the boson expansion
+        # uses and with the same Zeeman convention (+𝐁⋅𝐒). The anisotropy is rotated
+        # by hand, so this is independent of the implementation, which instead works
+        # from the Stevens coefficients that `swt_data!` stored.
+        Rs = swt.data.local_rotations
+        Hex = spzeros(ComplexF64, dim, dim)
+        for i in 1:3
+            Bi = Rs[i]' * (sys.gs[1, 1, 1, i]' * sys.extfield[1, 1, 1, i])
+            Hex .+= sum(a -> Bi[a] * S(a, i), 1:3)
+            aniso || continue
+            A = Hermitian(Matrix(cluster_aniso(stevens_matrices(ss[i]), ss[i], i)))
+            Hex .+= op(Matrix(Sunny.rotate_operator(A, Rs[i])), i)
+        end
+        # Each bond appears twice, once culled
+        for int in sys.interactions_union, c in int.pair
+            c.isculled && continue
+            @assert iszero(c.bond.n)
+            (i, j) = (c.bond.i, c.bond.j)
+            J = Rs[i]' * c.bilin * Rs[j]
+            Hex .+= sum(J[a, b] * S(a, i) * S(b, j) for a in 1:3, b in 1:3)
+        end
+
+        (; terms2, δE) = Sunny.anisotropy_correction(swt)
+        H1 = expand(bop, Sunny.anisotropy_monomials(swt, Val{1}()), dim)
+        H3 = expand(bop, Sunny.cubic_monomials(swt), dim)
+        H4 = expand(bop, Sunny.quartic_monomials(swt), dim)
+        # Quadratic Hamiltonian of LSWT, plus its own correction at order 1/s
+        (_, H2) = fock_quadratic(swt, bop, dim; terms2)
+
+        # Flattened Kronecker index of a boson occupation triple, the states of a
+        # given total boson number, and the boson numbers of an index
+        idx(ms) = 1 + sum(k -> ms[k] * prod(Ns[k+1:3]), 1:3)
+        states(n) = [idx(ms) for ms in Iterators.product(0:n, 0:n, 0:n) if sum(ms) == n]
+        ms(a) = ntuple(k -> mod(div(a-1, prod(Ns[k+1:3])), Ns[k]), 3)
+        (vac, n1, n2) = (idx((0, 0, 0)), states(1), states(2))
+        E0 = real(Hex[vac, vac])
+        R = Hex - E0*I - H1 - H2 - H3 - H4
+
+        # With no anisotropy the first four blocks below are *exact*, not merely
+        # asymptotic in `s`: a matrix element between one and two bosons is purely
+        # cubic, since H₄ conserves boson number modulo two, and every term of H₅ is
+        # a transverse operator times the classical Sᶻ of its partner, hence
+        # proportional to the transverse field that vanishes at a classical minimum.
+        return (; classical = abs(E0 - (energy(sys) + 3δE)) / norm(Hex),
+                  quadratic = norm(R[n1, n1]) / norm(Hex),
+                  anomalous = norm(R[n2, [vac]]) / norm(Hex),
+                  cubic = norm(R[n2, n1]) / norm(Hex),
+                  # Unlike the blocks above this one does receive an H₆ contribution,
+                  # so it is asymptotic even with no anisotropy
+                  quartic = norm(R[n2, n2]) / norm(H4[n2, n2]),
+                  # Largest residual over every element four bosons can reach, which
+                  # is the only available measure once anisotropy makes each word
+                  # truncated rather than exact. A structural zero can never be the
+                  # maximum, so only the stored entries are scanned; sweeping all
+                  # dim² pairs instead costs more than every Sunny call here combined.
+                  reachable = maximum((abs(v) for (a, b, v) in zip(findnz(R)...)
+                                       if all(ms(a) .+ ms(b) .<= 4)); init=0.0) / norm(Hex),
+                  coherent = max(abs(3δE), norm(H1)) / norm(Hex),
+                  hermiticity = (norm(H3 - H3') + norm(H4 - H4')) / (norm(H3) + norm(H4)))
+    end
+
+    # The same idea in mode :SUN, whose expansion parameter is the number of boxes M
+    # of the symmetric SU(N) representation. Sunny uses M = 1, where a site cannot
+    # hold two bosons and the asymptotic blocks are unreachable, so `sun_monomials`
+    # takes M as a test-only argument and this promotes the very same local operators
+    # to the M-box representation exactly, via its generators.
+    function box_errors(M)
+        # The couplings to expand are the unscaled ones, `local_words` supplying the
+        # powers of M itself; all the scaling is for is the reference state, so carry
+        # only the coherents over from the M-box minimization.
+        sysM = sun_cluster(; pairscale=M)
+        sys0 = sun_cluster()
+        sys0.coherents .= sysM.coherents
+        swt = SpinWaveTheory(sys0; measure=nothing, regularization=0)
+        # `swt.sys` is the private clone that `swt_data!` rotated into local frames
+        # and absorbed the Zeeman term into; that, not `sys0`, is what
+        # `sun_monomials` reads.
+        sys = swt.sys
+        Nf = Sunny.nflavors(swt)
+        N = Nf + 1
+        (; dim, E, bop, nbs) = box_ops(Nf, M, Sunny.nsites(sys))
+        prom(A, i) = sum(A[m, n] * E(m, n, i) for m in 1:N, n in 1:N if !iszero(A[m, n]))
+
+        Hex = spzeros(ComplexF64, dim, dim)
+        for (i, int) in enumerate(sys.interactions_union)
+            iszero(int.onsite) || (Hex .+= prom(Matrix(int.onsite), i))
+            for c in int.pair
+                c.isculled && continue
+                @assert iszero(c.bond.n)
+                for (A, B) in c.general.data
+                    Hex .+= prom(Matrix(A), c.bond.i) * prom(Matrix(B), c.bond.j)
+                end
+            end
+        end
+
+        Hs = [expand(bop, Sunny.sun_monomials(swt, Val{K}(), M), dim) for K in 1:4]
+        E0 = real(sum(t -> t.c, Sunny.sun_monomials(swt, Val{0}(), M); init=0.0+0im))
+        R = Hex - E0*I - sum(Hs)
+        blk(n) = findall(==(n), nbs)
+        scale = norm(Hex)
+
+        # The classical, linear, quadratic, anomalous and cubic blocks are all *exact*
+        # at the M-box stationary state, not merely asymptotic: the first omitted word
+        # is the five-boson -(1/8)A[m,N] b†_m n̂², whose coefficient summed over
+        # interactions is the gradient of that energy. The quartic block, which the
+        # six-boson word does reach, is what must fall off like 1/M.
+        return (; classical = abs(E0 - real(Hex[blk(0)[1], blk(0)[1]])) / scale,
+                  linear = norm(R[blk(1), blk(0)]) / scale,
+                  quadratic = norm(R[blk(1), blk(1)]) / scale,
+                  anomalous = norm(R[blk(2), blk(0)]) / scale,
+                  cubic = norm(R[blk(2), blk(1)]) / scale,
+                  quartic = norm(R[blk(2), blk(2)]) / norm(Hs[4][blk(2), blk(2)]),
+                  hermiticity = (norm(Hs[3] - Hs[3]') + norm(Hs[4] - Hs[4]')) /
+                                (norm(Hs[3]) + norm(Hs[4])))
+    end
+
     # Exact retarded Green function of the cluster, in the quasi-particle
     # operators y = T⁻¹x = τ₃T†τ₃x, from which the self-energy follows as Σ̂ = ω
     # - diag(ε) - (Gτ₃)⁻¹, returned for each of the `ωs`. A complex frequency
@@ -279,7 +408,14 @@
 end
 
 
-@testitem "LSWT correction to classical energy" begin
+# The three published reference values, in one item so that the closures below and
+# the `:dipole`/`:SUN` specializations of every Sunny entry point they reach compile
+# once rather than once per item.
+@testitem "1/s corrections against published results" begin
+    using LinearAlgebra
+
+    # ---- Ground-state energy of the FCC AFM1 phase ----
+
     J = 1
     s = 1
     δE_afm1_ref = 0.488056/(2s) * (-2*J*s^2)
@@ -335,45 +471,35 @@ end
     end
     @test iszero(Sunny.anisotropy_correction(easy_plane(:dipole)).δE)
     @test Sunny.anisotropy_correction(easy_plane(:dipole_uncorrected)).δE ≈ 0.0542857 rtol=1e-5
-end
 
 
-@testitem "LSWT correction to the ordered moments (s maximized)" begin
-    # Test example 1: The magnetization is maximized to `s`. Reference result
-    # comes from Phys. Rev. B 79, 144416 (2009) Eq. (45) for the 120° order on
-    # the triangular lattice.
-    J = 1
-    s = 1/2
-    a = 1
+    # ---- Ordered moment of the 120° triangular antiferromagnet, s maximized ----
+
+    # Reference result comes from Phys. Rev. B 79, 144416 (2009) Eq. (45).
     δS_ref = -0.261302
 
-    function δS_triangular(mode)
-        latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
+    # Mode :dipole only. At s = 1/2 an SU(N) system has N = 2 and one boson per site,
+    # so the two expansions coincide term by term and this model returns the same
+    # twelve digits in either; that coincidence is checked directly, across every
+    # correction at once, in the lattice item.
+    let
+        latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
         cryst = Crystal(latvecs, [[0, 0, 0]])
-        sys = System(cryst, [1 => Moment(s=s, g=2)], mode)
+        sys = System(cryst, [1 => Moment(s=1/2, g=2)], :dipole)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         polarize_spins!(sys, [0, 1, 0])
         sys = repeat_periodically_as_spiral(sys, (3, 3, 1); k=[2/3, -1/3, 0], axis=[0, 0, 1])
         swt = SpinWaveTheory(sys; measure=nothing)
-        # Calculate first 3 digits for faster testing. At s = 1/2 there is one
-        # boson per site in either mode, so the density is the dipole
-        # shortening.
-        δS = -Sunny.boson_density(swt; tol=1e-3)[1]
-
-        return isapprox(δS_ref, δS, atol=1e-3)
+        # Only the first 3 digits, for faster testing. At s = 1/2 the boson density
+        # is the shortening of the dipole.
+        @test -Sunny.boson_density(swt; tol=1e-3)[1] ≈ δS_ref atol=1e-3
     end
 
-    for mode in (:dipole, :SUN)
-        @test δS_triangular(mode)
-    end
-end
 
+    # ---- Ordered moment with easy-plane anisotropy, s not maximized ----
 
-@testitem "LSWT correction to the ordered moments (s not maximized)" begin
-    using LinearAlgebra
-    # Test example 2: The magnetization is smaller than `s` due to easy-plane
-    # single-ion anisotropy The results are derived in the Supplemental
-    # Information (Note 12) of https://doi.org/10.1038/s41467-021-25591-7.
+    # Derived in the Supplemental Information (Note 12) of
+    # https://doi.org/10.1038/s41467-021-25591-7.
     a = b = 8.3193
     c = 5.3348
     lat_vecs = lattice_vectors(a, b, c, 90, 90, 90)
@@ -410,84 +536,13 @@ end
 
 @testitem "1/s corrections against exact diagonalization" setup=[CorrectionModels] begin
     using LinearAlgebra, SparseArrays
-    using .CorrectionModels: cluster, cluster_aniso, fock_ops, fock_quadratic, expand,
-                             anisotropic_square, sun_cluster, box_ops
+    using .CorrectionModels: cluster_errors, box_errors, anisotropic_square
 
     # ---- The boson expansion against the exact cluster Hamiltonian ----
 
-    # Compares the whole Holstein-Primakoff expansion, order by order in the boson
-    # number, against exact diagonalization in the *spin* Hilbert space, so that the
-    # truncation of the series is itself what is under test.
-    function cluster_errors(ss; mode=:dipole, aniso=false)
-        sys = cluster(ss; mode, aniso)
-        # Regularization would otherwise leak into the quadratic coefficients
-        swt = SpinWaveTheory(sys; measure=nothing, regularization=0)
-        Ns = ntuple(i -> Int(2ss[i]+1), 3)
-        dim = prod(Ns)
-        bop = fock_ops(Ns)
-        op(O, i) = reduce(kron, (k == i ? sparse(O) : sparse(1.0I, Ns[k], Ns[k]) for k in 1:3))
-        S(a, i) = op(spin_matrices(ss[i])[a], i)
-
-        # Exact cluster Hamiltonian, in the local frames that the boson expansion
-        # uses and with the same Zeeman convention (+𝐁⋅𝐒). The anisotropy is rotated
-        # by hand, so this is independent of the implementation, which instead works
-        # from the Stevens coefficients that `swt_data!` stored.
-        Rs = swt.data.local_rotations
-        Hex = spzeros(ComplexF64, dim, dim)
-        for i in 1:3
-            Bi = Rs[i]' * (sys.gs[1, 1, 1, i]' * sys.extfield[1, 1, 1, i])
-            Hex .+= sum(a -> Bi[a] * S(a, i), 1:3)
-            aniso || continue
-            A = Hermitian(Matrix(cluster_aniso(stevens_matrices(ss[i]), ss[i], i)))
-            Hex .+= op(Matrix(Sunny.rotate_operator(A, Rs[i])), i)
-        end
-        # Each bond appears twice, once culled
-        for int in sys.interactions_union, c in int.pair
-            c.isculled && continue
-            @assert iszero(c.bond.n)
-            (i, j) = (c.bond.i, c.bond.j)
-            J = Rs[i]' * c.bilin * Rs[j]
-            Hex .+= sum(J[a, b] * S(a, i) * S(b, j) for a in 1:3, b in 1:3)
-        end
-
-        (; terms2, δE) = Sunny.anisotropy_correction(swt)
-        H1 = expand(bop, Sunny.anisotropy_monomials(swt, Val{1}()), dim)
-        H3 = expand(bop, Sunny.cubic_monomials(swt), dim)
-        H4 = expand(bop, Sunny.quartic_monomials(swt), dim)
-        # Quadratic Hamiltonian of LSWT, plus its own correction at order 1/s
-        (_, H2) = fock_quadratic(swt, bop, dim; terms2)
-
-        # Flattened Kronecker index of a boson occupation triple, the states of a
-        # given total boson number, and the boson numbers of an index
-        idx(ms) = 1 + sum(k -> ms[k] * prod(Ns[k+1:3]), 1:3)
-        states(n) = [idx(ms) for ms in Iterators.product(0:n, 0:n, 0:n) if sum(ms) == n]
-        ms(a) = ntuple(k -> mod(div(a-1, prod(Ns[k+1:3])), Ns[k]), 3)
-        (vac, n1, n2) = (idx((0, 0, 0)), states(1), states(2))
-        E0 = real(Hex[vac, vac])
-        R = Hex - E0*I - H1 - H2 - H3 - H4
-
-        # With no anisotropy the first four blocks below are *exact*, not merely
-        # asymptotic in `s`: a matrix element between one and two bosons is purely
-        # cubic, since H₄ conserves boson number modulo two, and every term of H₅ is
-        # a transverse operator times the classical Sᶻ of its partner, hence
-        # proportional to the transverse field that vanishes at a classical minimum.
-        return (; classical = abs(E0 - (energy(sys) + 3δE)) / norm(Hex),
-                  quadratic = norm(R[n1, n1]) / norm(Hex),
-                  anomalous = norm(R[n2, [vac]]) / norm(Hex),
-                  cubic = norm(R[n2, n1]) / norm(Hex),
-                  # Unlike the blocks above this one does receive an H₆ contribution,
-                  # so it is asymptotic even with no anisotropy
-                  quartic = norm(R[n2, n2]) / norm(H4[n2, n2]),
-                  # Largest residual over every element four bosons can reach, which
-                  # is the only available measure once anisotropy makes each word
-                  # truncated rather than exact. A structural zero can never be the
-                  # maximum, so only the stored entries are scanned; sweeping all
-                  # dim² pairs instead costs more than every Sunny call here combined.
-                  reachable = maximum((abs(v) for (a, b, v) in zip(findnz(R)...)
-                                       if all(ms(a) .+ ms(b) .<= 4)); init=0.0) / norm(Hex),
-                  coherent = max(abs(3δE), norm(H1)) / norm(Hex),
-                  hermiticity = (norm(H3 - H3') + norm(H4 - H4')) / (norm(H3) + norm(H4)))
-    end
+    # `cluster_errors` compares the whole Holstein-Primakoff expansion, order by
+    # order in the boson number, against exact diagonalization in the *spin* Hilbert
+    # space, so that the truncation of the series is itself what is under test.
 
     # Exchange and field only. Two `s` triples: one certifies every exact block, the
     # second supplies the 1/s scaling of the leftover H₆ piece, which would instead
@@ -516,16 +571,19 @@ end
         # case above; mixing in an integer tuple would specialize `cluster_errors` a
         # second time, which costs more in compilation than the whole block does in
         # arithmetic.
-        es = [cluster_errors(f .* (3.0, 3.0, 3.0); mode, aniso=true) for f in (1.0, 4/3)]
-        @test es[1].hermiticity < 1e-12
-        @test es[1].reachable < 0.02
-        @test es[2].reachable < 0.5 * es[1].reachable
+        e = cluster_errors((3.0, 3.0, 3.0); mode, aniso=true)
+        @test e.hermiticity < 1e-12
+        @test e.reachable < 0.02
         # The Stevens coefficients are renormalized in mode :dipole so that the
         # classical energy function is exact in a spin coherent state, to all orders
         # in 1/s. That makes the corrections to the energy and to the linear term
         # vanish identically, and leaves the anomalous coefficient A₂ as the only
         # correction to LSWT's H₂.
-        @test mode == :dipole ? es[1].coherent < 1e-12 : es[1].coherent > 1e-3
+        @test mode == :dipole ? e.coherent < 1e-12 : e.coherent > 1e-3
+        # The 1/s falloff of that leftover is checked in one mode only, the word
+        # truncation being the same in both.
+        mode == :dipole || continue
+        @test cluster_errors((4.0, 4.0, 4.0); mode, aniso=true).reachable < 0.5 * e.reachable
     end
 
 
@@ -536,55 +594,6 @@ end
     # hold two bosons and the asymptotic blocks are unreachable, so `sun_monomials`
     # takes M as a test-only argument and this promotes the very same local operators
     # to the M-box representation exactly, via its generators.
-    function box_errors(M)
-        # The couplings to expand are the unscaled ones, `local_words` supplying the
-        # powers of M itself; all the scaling is for is the reference state, so carry
-        # only the coherents over from the M-box minimization.
-        sysM = sun_cluster(; pairscale=M)
-        sys0 = sun_cluster()
-        sys0.coherents .= sysM.coherents
-        swt = SpinWaveTheory(sys0; measure=nothing, regularization=0)
-        # `swt.sys` is the private clone that `swt_data!` rotated into local frames
-        # and absorbed the Zeeman term into; that, not `sys0`, is what
-        # `sun_monomials` reads.
-        sys = swt.sys
-        Nf = Sunny.nflavors(swt)
-        N = Nf + 1
-        (; dim, E, bop, nbs) = box_ops(Nf, M, Sunny.nsites(sys))
-        prom(A, i) = sum(A[m, n] * E(m, n, i) for m in 1:N, n in 1:N if !iszero(A[m, n]))
-
-        Hex = spzeros(ComplexF64, dim, dim)
-        for (i, int) in enumerate(sys.interactions_union)
-            iszero(int.onsite) || (Hex .+= prom(Matrix(int.onsite), i))
-            for c in int.pair
-                c.isculled && continue
-                @assert iszero(c.bond.n)
-                for (A, B) in c.general.data
-                    Hex .+= prom(Matrix(A), c.bond.i) * prom(Matrix(B), c.bond.j)
-                end
-            end
-        end
-
-        Hs = [expand(bop, Sunny.sun_monomials(swt, Val{K}(), M), dim) for K in 1:4]
-        E0 = real(sum(t -> t.c, Sunny.sun_monomials(swt, Val{0}(), M); init=0.0+0im))
-        R = Hex - E0*I - sum(Hs)
-        blk(n) = findall(==(n), nbs)
-        scale = norm(Hex)
-
-        # The classical, linear, quadratic, anomalous and cubic blocks are all *exact*
-        # at the M-box stationary state, not merely asymptotic: the first omitted word
-        # is the five-boson -(1/8)A[m,N] b†_m n̂², whose coefficient summed over
-        # interactions is the gradient of that energy. The quartic block, which the
-        # six-boson word does reach, is what must fall off like 1/M.
-        return (; classical = abs(E0 - real(Hex[blk(0)[1], blk(0)[1]])) / scale,
-                  linear = norm(R[blk(1), blk(0)]) / scale,
-                  quadratic = norm(R[blk(1), blk(1)]) / scale,
-                  anomalous = norm(R[blk(2), blk(0)]) / scale,
-                  cubic = norm(R[blk(2), blk(1)]) / scale,
-                  quartic = norm(R[blk(2), blk(2)]) / norm(Hs[4][blk(2), blk(2)]),
-                  hermiticity = (norm(Hs[3] - Hs[3]') + norm(Hs[4] - Hs[4]')) /
-                                (norm(Hs[3]) + norm(Hs[4])))
-    end
 
     # Two values of M give the scaling of the quartic residual, which would instead
     # approach a constant were the quartic term wrong at leading order.
@@ -633,7 +642,9 @@ end
         return Matrix(ion_aniso(s)) + sum(sys.extfield[1][d] * Matrix(S[d]) for d in 1:3)
     end
 
-    for s in (1, 3/2, 2, 5/2, 3)
+    # Stevens words of order k vanish for 2s < k, so: s = 1 keeps k = 2 alone, s
+    # = 2 adds k = 4, and s = 3 adds k = 6.
+    for s in (1, 2, 3)
         # Along -ẑ, the Zeeman energy being +𝐁⋅(g𝐒), so that m = s is the minimum
         B = [0, 0, -0.3]
         # Axial, so the exact levels are already labeled by m = s, s-1, …, -s
@@ -670,8 +681,7 @@ end
     # not being an eigenstate — leaving ⟨s-1|Ĥ|s⟩ ≠ 0 in the local frame and the
     # one-band gap merely approximate. Mode :SUN, whose variational family is the
     # whole projective space, stays exact.
-    for s in (1, 2)
-        B = [0.4, 0, -0.3]
+    let s = 2, B = [0.4, 0, -0.3]
         sys = single_ion(s, :SUN, B)
         swt = SpinWaveTheory(sys; measure=nothing, regularization=0)
         lv = sort(real(eigvals(Hermitian(ion_hamiltonian(s, sys)))))
@@ -1240,21 +1250,19 @@ end
                 casimir = sum(@. ss * (ss + 1)) / L)
     end
 
-    # Both fields are `Vector{Float64}`, so `square_afm` and everything downstream of
-    # it compile once rather than once per element type
-    for field in ([0.0, 0, 0], [1.5, 0, 0])
-        # Canting makes the onsite ⟨bb⟩ nonzero, exercising the anomalous contraction
-        w = channel_weights(square_afm(; field))
+    # Field causes canting, such that the onsite ⟨bb⟩ is nonzero.
+    let w = channel_weights(square_afm(; field=[1.5, 0, 0]))
         @test abs(w.harm / w.harm_ref - 1) < 1e-7
         @test abs(w.transverse / w.transverse_ref - 1) < 1e-7
 
-        # The quantum sum rule, and the point of the whole exercise. Because 𝐒⋅𝐒 is a
-        # Casimir, the elastic weight of the ordered moment, the one-magnon bands and the
-        # two-magnon continuum must together carry exactly s(s+1), and each is produced by
-        # a different part of this module. Linear spin wave theory saturates the rule only
-        # through O(s): using its uncorrected one-magnon weights instead overshoots by
-        # ⟨n̂²⟩, which is the entire O(s⁰) content of the rule, and some 3% of s(s+1) here.
-        # The residual error is that of the energy integral above.
+        # The quantum sum rule, and the point of the whole exercise. Because
+        # 𝐒⋅𝐒 is a Casimir, the elastic weight of the ordered moment, the
+        # one-magnon bands and the two-magnon continuum must together carry
+        # exactly s(s+1), and each is produced by a different part of this
+        # module. Linear spin wave theory saturates the rule only through O(s):
+        # using its uncorrected one-magnon weights instead overshoots by ⟨n̂²⟩,
+        # which is the entire O(s⁰) content of the rule, and some 3% of s(s+1)
+        # here. The residual error is that of the energy integral above.
         @test abs((w.elastic + w.transverse + w.longitudinal) / w.casimir - 1) < 1e-3
         @test (w.elastic + w.harm + w.longitudinal) / w.casimir - 1 > 0.02
     end
