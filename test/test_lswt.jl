@@ -330,6 +330,35 @@ end
     res_SUN = intensities_bands(SpinWaveTheory(sys_SUN; measure=cross_measure(sys_SUN, ops)), [q])
     @test only(res_dip.data) ≈ res_SUN.data[end-1]
     @test maximum(abs ∘ imag, only(res_dip.data)) > 1e-3
+
+    # All correlations between the multipoles of ranks 1 and 2, as one block per
+    # pair of ranks. The dipole block, in the Stevens order (Sˣ, Sᶻ, Sʸ), is that
+    # of `ssf_custom`, the blocks agree with the cross correlations of
+    # `cross_measure` above, and the correlation matrix of a single band has rank
+    # one.
+    measure(sys) = Sunny.ssf_multipoles((q, C) -> C, sys; max_k=2)
+    Cs = only(intensities_bands(SpinWaveTheory(sys_dip; measure=measure(sys_dip)), [q]).data)
+    @test length(Cs) == 3
+    @test Cs ≈ intensities_bands(SpinWaveTheory(sys_SUN; measure=measure(sys_SUN)), [q]).data[end-1]
+    ssf = only(intensities_bands(SpinWaveTheory(sys_dip; measure=ssf_custom((q, ssf) -> ssf, sys_dip; apply_g=false)), [q]).data)
+    @test Cs[1] ≈ ssf[[1, 3, 2], [1, 3, 2]]
+    block = Sunny.extract_multipole_block
+    @test block(Cs, Val(1), Val(1))[-1, 0] ≈ ssf[2, 3]               # (Sʸ, Sᶻ)
+    @test block(Cs, Val(1), Val(2))[1, 2] ≈ only(res_dip.data)[2]    # pair (Sˣ, 𝒪₂₂) of `ops`
+    @test block(Cs, Val(2), Val(1)) == block(Cs, Val(1), Val(2))'
+
+    # A callback can contract the blocks to a scalar. It refers to the accessor
+    # directly, since a non-const global would defeat inference of its result.
+    measure_QQ = Sunny.ssf_multipoles(sys_dip; max_k=2) do q, C
+        B = Sunny.extract_multipole_block
+        real(B(C, Val(2), Val(2))[0, 0] + B(C, Val(2), Val(1))[1, -1])
+    end
+    @test eltype(measure_QQ) == Float64
+    QQ0 = only(intensities_bands(SpinWaveTheory(sys_dip; measure=measure_QQ), [q]).data)
+    @test QQ0 ≈ real(block(Cs, Val(2), Val(2))[0, 0] + block(Cs, Val(2), Val(1))[1, -1])
+    (DD, DQ, QQ) = Cs
+    C = [DD DQ; DQ' QQ]
+    @test svdvals(C)[2] < 1e-12 * opnorm(C)
 end
 
 

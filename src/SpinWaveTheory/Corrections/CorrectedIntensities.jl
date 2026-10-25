@@ -112,9 +112,16 @@ The `dyson` option selects how the one-loop self-energy is resummed:
   energies have logarithmic singularities where a magnon crosses a saddle point
   of the two-magnon continuum.
 
-Sunny uses the retarded response, i.e., includes the tails of the
-negative-frequency poles. These cancel the high-frequency Lorentzian tail of a
-Goldstone mode.
+The returned data is the spectral function ``-\\mathrm{Im}\\, χ(𝐪, ω + iη)/π``
+of the retarded response ``χ``, which at ``T = 0`` and ``ω > 0`` is the
+structure factor ``\\mathcal{S}(𝐪, ω)``. It is odd under ``(𝐪, ω) → (-𝐪, -ω)``,
+so at ``ω < 0`` it is the negative of the structure factor at ``(-𝐪, |ω|)``, not
+zero. Integrate over ``ω > 0`` only to obtain spectral weight; over a window
+symmetric about ``ω = 0`` the weight cancels. At ``ω > 0`` the data includes the
+Lorentzian tails of the negative-frequency poles, which cancel the
+high-frequency tail of a Goldstone mode. As a consequence, a `kernel` mixes the
+two signs within its width of ``ω = 0``, and intensities there depend on whether
+`energies` extends below zero.
 
 With `:nambu`, a large one-loop correction can make the resummed propagator
 unstable: its static magnon Hamiltonian is no longer positive, and a pole may
