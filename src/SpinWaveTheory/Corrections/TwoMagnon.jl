@@ -29,7 +29,7 @@ the `kernel`, putting that error well below the error of the `grid`.
 function intensities_two_magnon(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, grid, bin_width=nothing)
     check_corrections_supported(swt)
 
-    (; sys, measure, data) = swt
+    (; sys, measure) = swt
     num_observables(measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     energies = collect(Float64, energies)
     issorted(energies) || error("energies must be sorted")
@@ -48,15 +48,8 @@ function intensities_two_magnon(swt::SpinWaveTheory, qpts; energies, kernel::Abs
     Nobs = num_observables(measure)
     Ncorr = num_correlations(measure)
 
-    H = zeros(ComplexF64, 2L, 2L)
-    A = zeros(ComplexF64, 2L, 2L)
-    B = zeros(ComplexF64, 2L, 2L)
     Avec = zeros(ComplexF64, Nobs)
     corr = zeros(ComplexF64, Ncorr)
-
-    # Only the component of each observable along the local quantization axis
-    # couples to the two-magnon channel, because S^z = s - b†b while the
-    # transverse components are linear in b at leading order.
     pref = zeros(ComplexF64, Nobs, Na)
 
     # Masses of the binned pair-energy measure, ρs[iq][b] sitting at energy (b-1)*bin_width
@@ -66,34 +59,21 @@ function intensities_two_magnon(swt::SpinWaveTheory, qpts; energies, kernel::Abs
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
         ps = loop_wavevectors(grid, q_reshaped)
-        for μ in 1:Nobs, i in 1:Na
-            O = (data::SWTDataDipole).observables[μ, i]
-            pref[μ, i] = conj(observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)) * O[3]
-        end
+        pair_amplitude_prefactors!(pref, swt, q_reshaped, q_global)
         ρ = ρs[iq]
 
-        for k_reshaped in ps
-            # Columns L+1:2L of `A` create a quasi-particle at +k, and those of
-            # `B` create one at q-k. Their momenta sum to the momentum transfer.
-            dynamical_matrix!(H, swt, -k_reshaped)
-            εA = bogoliubov!(A, H)
-            dynamical_matrix!(H, swt, k_reshaped - q_reshaped)
-            εB = bogoliubov!(B, H)
-
+        foreach_magnon_pair(swt, q_reshaped, ps) do _, T1, T2, ε1, ε2
             for n₁ in 1:L, n₂ in 1:L
-                ϵ = -εA[L+n₁] - εB[L+n₂]
                 for μ in 1:Nobs
-                    Avec[μ] = sum(1:Na) do i
-                        # Symmetrized amplitude for creating the unordered pair
-                        pref[μ, i] * conj(A[L+i, L+n₁]*B[i, L+n₂] + A[i, L+n₁]*B[L+i, L+n₂])
-                    end
+                    Avec[μ] = pair_amplitude(pref, T1, T2, n₁, n₂, μ, L)
                 end
                 map!(corr, measure.corr_pairs) do (μ, ν)
-                    # The factor 1/2 avoids double counting pair (1, 2) as (2, 1)
-                    Avec[μ] * conj(Avec[ν]) / 2Ncells
+                    # The 1/2 that avoids double counting the pair (1, 2) as (2, 1) is
+                    # already carried by the 1/√2 of `pair_amplitude`
+                    Avec[μ] * conj(Avec[ν]) / Ncells
                 end
                 val = measure.combiner(q_global, corr) / length(ps)
-                (bin, f) = bin_index(ϵ, bin_width)
+                (bin, f) = bin_index(ε1[n₁] + ε2[n₂], bin_width)
                 while length(ρ) < bin + 1
                     push!(ρ, zero(eltype(measure)))
                 end

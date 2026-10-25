@@ -1,34 +1,12 @@
-# Reproduce Fig. 3(a) of Maksimov, Zhitomirsky and Chernyshev, PRB 94, 140407(R) (2016)
-# = arXiv:1607.08238: the dynamical structure factor 𝒮(𝐪, ω) of the easy-plane XXZ
-# triangular-lattice antiferromagnet in an out-of-plane field, including the corrections
-# of order 1/s, for s = 1/2, Δ = 0.9 and H = 0.2 Hs, along the path M-K′-Γ-K-M-Γ.
+# Reproduce Fig. 3(a) of Maksimov, Zhitomirsky and Chernyshev, PRB 94, 140407(R)
+# (2016) [arXiv:1607.08238]. Calculates the dynamical structure factor of the
+# easy-plane XXZ triangular-lattice antiferromagnet in an out-of-plane field,
+# including 1/s corrections.
 #
-#   julia --project=/tmp/fig2 -t auto -e 'include("<this directory>/xxz_fig3.jl"); xxz_fig3()'
-#
-# The Mourigal scripts in this directory (fig2.jl, fig4b.jl) cover the zero-field
-# Heisenberg triangular antiferromagnet, whose 120° spiral is coplanar. This model adds
-# exchange anisotropy and a field, and its ground state is the *umbrella*: the three
-# sublattices keep the 120° winding in the easy plane and cant uniformly out of it. The
-# umbrella carries a staggered scalar chirality 𝐒ᵢ·(𝐒ⱼ×𝐒ₖ), which breaks inversion, so
-# ε_𝐤 ≠ ε_{-𝐤} and the two classes of zone corner are no longer equivalent: the corners
-# in the class of the ordering wavevector (K) are pushed down by the field and the others
-# (K′) are pushed up. That asymmetry is what opens the decay channel K′ → K + K, and it
-# is the whole point of the paper. Being a single-𝐐 state it is still one that the cubic
-# vertex cannot connect across branches, so — like the spiral — it probes only the
-# diagonal of Σ̂; the off-diagonal elements need inequivalent sublattices.
-#
-# Conventions. The paper's Eq. (1) is H = J Σ_⟨ij⟩ (SˣSˣ + SʸSʸ + Δ SᶻSᶻ) − H Σ Sᶻ with
-# saturation field Hs = 6Js(Δ + 1/2), and its ordering wavevector is 𝐐 = (4π/3, 0), which
-# is [2/3, -1/3, 0] in hexagonal r.l.u. Sunny's Zeeman energy is +𝐁·(g𝐒), so with g = 1 a
-# field along -ẑ is what cants the moments toward +ẑ. Classical minimization gives the
-# canting angle sinθ = H/Hs, which `xxz_umbrella` imposes directly; `minimize_energy!`
-# from random spins confirms it is the global minimum (unlike the isotropic model in a
-# field, the easy-plane anisotropy leaves no classical degeneracy to fall into).
-#
-# The regulator η is the paper's artificial width δ = 0.005 J, half of the 2δ = 0.01 J
-# bar drawn in the inset of their Fig. 3(a). It is small, and the loop grid grows as 1/η
-# in each dispersing direction, so this is a 555×555 grid per wavevector — the dominant
-# cost, and the reason for `threaded=true`.
+# Sunny makes one small correction to the reference calculation: it retains
+# interference between transverse and longitudinal channels. For this model, the
+# correction removes a small fraction of the two-magnon weight, which itself is
+# small compared to the quasiparticle branch intensities.
 
 using Sunny, LinearAlgebra, Printf, Statistics
 using CairoMakie
@@ -91,7 +69,7 @@ function xxz_fig3(; s=1/2, Δ=0.9, hfrac=0.2, η=0.005, npath=400, tol=0.01, ωm
     # divergence at the ordering wavevector is allowed to saturate.
     plot_intensities!(fig[1, 1], res; colormap=:jet, colorrange=(0, cmax), axis=(; ylabel="ω / J"),
                       title=@sprintf("XXZ triangular AFM, s = %.1f, Δ = %.2f, H = %.1f Hs, 𝒮ᵗᵒᵗ(𝐪, ω) to order 1/s \
-                                      — cf. Maksimov et al., Fig. 3(a)", s, Δ, hfrac))
+                                      — cf. arXiv:1607.08238 Fig. 3(a)", s, Δ, hfrac))
     @printf("intensity: max %.1f, %.2f%% of pixels clipped at %.1f\n",
             maximum(res.data), 100mean(>(cmax), res.data), cmax)
 
