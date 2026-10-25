@@ -58,10 +58,10 @@ function QuadraticTable(terms, L)
     return QuadraticTable(offsets, ranges, rows, cols, vals)
 end
 
-# Adds the lower triangle of the table at `q_reshaped` to `H`
-function accum_lower!(H, t::QuadraticTable, q_reshaped)
+# Adds the lower triangle of the table at `q_supercell` to `H`
+function accum_lower!(H, t::QuadraticTable, q_supercell)
     for (n, rg) in zip(t.offsets, t.ranges)
-        φ = iszero(n) ? 1.0+0im : cis(2π * dot(q_reshaped, n))
+        φ = iszero(n) ? 1.0+0im : cis(2π * dot(q_supercell, n))
         @inbounds for e in rg
             H[t.rows[e], t.cols[e]] += φ * t.vals[e]
         end
@@ -80,9 +80,9 @@ end
 
 # Accumulates Y[q, :] += H(qs[q]) X[q, :], the matrix-free product, for each
 # row q of X and Y.
-function accum_mul!(Y, X, t::QuadraticTable, qs_reshaped, phases)
+function accum_mul!(Y, X, t::QuadraticTable, qs_supercell, phases)
     for (n, rg) in zip(t.offsets, t.ranges)
-        @. phases = cis(2π * dot(qs_reshaped, (n,)))
+        @. phases = cis(2π * dot(qs_supercell, (n,)))
         @inbounds for e in rg
             (r, c, v) = (t.rows[e], t.cols[e], t.vals[e])
             for q in axes(Y, 1)

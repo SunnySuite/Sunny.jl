@@ -99,9 +99,9 @@ function mul_Ĩ!(y, x)
     view(y, L+1:2L, :) .= .-view(x, L+1:2L, :)
 end
 
-function mul_A!(swt, y, x, qs_reshaped, γ)
+function mul_A!(swt, y, x, qs_supercell, γ)
     L = size(y, 1) ÷ 2
-    mul_dynamical_matrix!(swt, transpose(y), transpose(x), qs_reshaped)
+    mul_dynamical_matrix!(swt, transpose(y), transpose(x), qs_supercell)
     view(y, 1:L, :)    .*= +1/γ
     view(y, L+1:2L, :) .*= -1/γ
 end
@@ -141,13 +141,13 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
 
     for iq in CartesianIndices(qpts.qs)
         q = qpts.qs[iq]
-        q_reshaped = to_reshaped_rlu(sys, q)
+        q_supercell = to_supercell_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
+        set_swt_observable_vectors!(u, swt, q_supercell, q_global)
 
         # Find extreme eigenvalues and rescaling factor
-        lo, hi = eigbounds(swt, q_reshaped, niters_bounds)
+        lo, hi = eigbounds(swt, q_supercell, niters_bounds)
         γ = 1.1 * max(abs(lo), hi)
         Δϵ = hi - lo
 
@@ -169,7 +169,7 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
 
         # Perform Chebyshev recursion
 
-        q_repeated = fill(q_reshaped, Nobs)
+        q_repeated = fill(q_supercell, Nobs)
         mul_Ĩ!(α0, u)
         mul_A!(swt, α1, α0, q_repeated, γ)
         set_moments!(view(moments, :, 1), measure, u, α0)
@@ -234,10 +234,10 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
 
     for iq in CartesianIndices(qpts.qs)
         q = qpts.qs[iq]
-        q_reshaped = to_reshaped_rlu(sys, q)
+        q_supercell = to_supercell_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
+        set_swt_observable_vectors!(u, swt, q_supercell, q_global)
 
         # Perform Lanczos calculation
  
@@ -250,7 +250,7 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
 
         # w = D v
         function mulS!(w, v)
-            mul_dynamical_matrix!(swt, reshape(w, 1, :), reshape(v, 1, :), [q_reshaped])
+            mul_dynamical_matrix!(swt, reshape(w, 1, :), reshape(v, 1, :), [q_supercell])
             return w
         end
 

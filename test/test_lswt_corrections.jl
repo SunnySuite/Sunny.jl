@@ -1148,12 +1148,12 @@ end
         δu = zero(u)
         Ncells = Sunny.nsites(sys) / Sunny.natoms(cryst)
         return map(qs) do q
-            q_reshaped = Sunny.to_reshaped_rlu(sys, q)
+            q_supercell = Sunny.to_supercell_rlu(sys, q)
             q_global = cryst.recipvecs * q
             Sunny.excitations!(T, H, swt, q)
-            Sunny.set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
+            Sunny.set_swt_observable_vectors!(u, swt, q_supercell, q_global)
             fill!(δu, 0)
-            isnothing(δc) || Sunny.accum_observable_corrections!(δu, swt, q_reshaped, q_global, δc)
+            isnothing(δc) || Sunny.accum_observable_corrections!(δu, swt, q_supercell, q_global, δc)
             w = T' * (u + δu)
             δw = T' * δu
             corr = map(swt.measure.corr_pairs) do (μ, ν)
@@ -1637,7 +1637,7 @@ end
     Nobs = Sunny.num_observables(swt2m.measure)
     u2 = zeros(ComplexF64, 2L, Nobs)
     q2m = [0.23, -0.41, 0.17]
-    qr2 = Sunny.to_reshaped_rlu(sys, q2m)
+    qr2 = Sunny.to_supercell_rlu(sys, q2m)
     qg2 = Sunny.orig_crystal(sys).recipvecs * q2m
     Sunny.set_swt_observable_vectors!(u2, swt2m, qr2, qg2)
     words2m = Sunny.observable_pair_monomials(swt2m, qr2, qg2)
@@ -1983,7 +1983,7 @@ end
 
     # The loop grid must keep both internal lines, 𝐩 and 𝐪-𝐩, off the zone centre,
     # where the cubic vertex diverges. Offsetting by half a step does that only for 𝐩:
-    # 𝐪 = [0, 1/4, 0] is [1/4, 1/4, 0] in the reshaped cell, so at nk = 26 the
+    # 𝐪 = [0, 1/4, 0] is [1/4, 1/4, 0] in supercell RLU, so at nk = 26 the
     # reflected grid hits the zone centre exactly, and one point out of 26² then
     # dominates the integral. Nothing about this 𝐪 is singular, so grids on either side
     # of it must agree; a fixed half-step offset instead gave +1.07 - 0.23im for the
@@ -2008,7 +2008,7 @@ end
     # disagreed by 7% at every bin width.
     terms3 = Sunny.cubic_monomials(swt)
     ωs = range(-2, 2, 6) .+ im*0.06
-    k = Sunny.to_reshaped_rlu(sys, q[1])
+    k = Sunny.to_supercell_rlu(sys, q[1])
     grid = Sunny.loop_wavevectors((12, 12, 1), k)
     τ₃ = Diagonal([ones(L); -ones(L)])
     Σloop = let Σ = zeros(ComplexF64, 2L, 2L, length(ωs))
@@ -2040,11 +2040,11 @@ end
         Ncells = Sunny.nsites(sys) / Sunny.natoms(Sunny.orig_crystal(sys))
         ref = zeros(length(energies), length(qs))
         for (iq, q) in enumerate(qs)
-            q_reshaped = Sunny.to_reshaped_rlu(sys, Sunny.Vec3(q))
+            q_supercell = Sunny.to_supercell_rlu(sys, Sunny.Vec3(q))
             q_global = Sunny.orig_crystal(sys).recipvecs * Sunny.Vec3(q)
-            words2 = Sunny.observable_pair_monomials(swt, q_reshaped, q_global)
-            lg = Sunny.loop_wavevectors(grid, q_reshaped)
-            Sunny.foreach_magnon_pair(swt, q_reshaped, lg) do _p, w, T1, T2, ε1, ε2
+            words2 = Sunny.observable_pair_monomials(swt, q_supercell, q_global)
+            lg = Sunny.loop_wavevectors(grid, q_supercell)
+            Sunny.foreach_magnon_pair(swt, q_supercell, lg) do _p, w, T1, T2, ε1, ε2
                 # Decay pairs at x > 0 and source pairs, of negative mass, at x < 0
                 for b in 1:2L, a in 1:2L
                     (a > L) == (b > L) || continue

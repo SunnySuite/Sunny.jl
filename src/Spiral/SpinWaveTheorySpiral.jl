@@ -29,7 +29,7 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
             error("SpinWaveTheorySpiral requires :dipole or :dipole_uncorrected mode.")
         end
 
-        k_case = spiral_propagation_case(to_reshaped_rlu(sys, k))
+        k_case = spiral_propagation_case(to_supercell_rlu(sys, k))
         L = nsites(sys)
         buffers = [zeros(CMat3, L, L) for _ in 1:6]
         return new(SpinWaveTheory(sys; measure, regularization), k, k_case, normalize(axis), buffers)
@@ -51,7 +51,7 @@ end
 # Niraula and Xiaojian Bai developed and implemented the approprate
 # generalization in https://github.com/SunnySuite/Sunny.jl/pull/304.
 
-function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
+function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_supercell)
     (; sys) = swt
     (; gs) = sys
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
@@ -66,14 +66,14 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
             @assert i == bond.i
             j = bond.j
 
-            J = exp(-2π * im * dot(q_reshaped, bond.n)) * Mat3(bilin*I)
+            J = exp(-2π * im * dot(q_supercell, bond.n)) * Mat3(bilin*I)
             Jq[i, j] += J
             Jq[j, i] += J'
         end
     end
 
     if !isnothing(sys.ewald)
-        Aq = ewald_site_tensor(sys, -q_reshaped)
+        Aq = ewald_site_tensor(sys, -q_supercell)
         for i in 1:Na, j in 1:Na
             Jq[i, j] += gs[i]' * Aq[i, j] * gs[j]
         end
@@ -83,7 +83,7 @@ end
 
 ## Dispersion and intensities
 
-function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_reshaped; branch)
+function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_supercell; branch)
     (; swt, k, k_case, axis) = sswt
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
@@ -101,18 +101,18 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
     R1 = (I - im * nx - R2) / 2
     Rs = local_rotations
 
-    k_reshaped = to_reshaped_rlu(sys, k)
-    q_reshaped = q_reshaped + (branch - 2) .* k_reshaped
+    k_supercell = to_supercell_rlu(sys, k)
+    q_supercell = q_supercell + (branch - 2) .* k_supercell
 
     # Add pairwise bilinear term
 
     Jq, Jqmk, Jqpk, J0k, J0mk, J0pk = sswt.buffers
-    fourier_bilinear_interaction!(Jq,   swt, q_reshaped)
-    fourier_bilinear_interaction!(Jqmk, swt, q_reshaped .- k_reshaped)
-    fourier_bilinear_interaction!(Jqpk, swt, q_reshaped .+ k_reshaped)
+    fourier_bilinear_interaction!(Jq,   swt, q_supercell)
+    fourier_bilinear_interaction!(Jqmk, swt, q_supercell .- k_supercell)
+    fourier_bilinear_interaction!(Jqpk, swt, q_supercell .+ k_supercell)
     fourier_bilinear_interaction!(J0k,  swt, zero(Vec3))
-    fourier_bilinear_interaction!(J0mk, swt, -k_reshaped)
-    fourier_bilinear_interaction!(J0pk, swt, +k_reshaped)
+    fourier_bilinear_interaction!(J0mk, swt, -k_supercell)
+    fourier_bilinear_interaction!(J0pk, swt, +k_supercell)
 
     for i in 1:L, j in 1:L
         Jq1   = Jq[i, j]
@@ -186,8 +186,8 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
 end
 
 function excitations!(T, H, sswt::SpinWaveTheorySpiral, q; branch)
-    q_reshaped = to_reshaped_rlu(sswt.swt.sys, q)
-    swt_hamiltonian_dipole_spiral!(H, sswt, q_reshaped; branch)
+    q_supercell = to_supercell_rlu(sswt.swt.sys, q)
+    swt_hamiltonian_dipole_spiral!(H, sswt, q_supercell; branch)
 
     return try
         bogoliubov!(T, H)
@@ -287,7 +287,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
     gs = gs_as_scalar(sys, measure)
 
     for (iq, q) in enumerate(qpts.qs)
-        q_reshaped = to_reshaped_rlu(sys, q)
+        q_supercell = to_supercell_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
         for branch in 1:3   # (q-k, q, q+k) modes for propagation wavevector k

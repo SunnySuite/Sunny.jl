@@ -1,6 +1,6 @@
 # Adds the long-range dipole-dipole interaction to the dynamical matrix `H` in
 # dipole mode. Everything else is compiled into the quadratic table.
-function accum_ewald_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
+function accum_ewald_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_supercell::Vec3)
     (; sys, data) = swt
     (; local_rotations, sqrtS) = data
     (; gs) = sys
@@ -13,7 +13,7 @@ function accum_ewald_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resha
     Rs = local_rotations
 
     # Interaction matrices between sites at wavevector q and at zero
-    Aq = ewald_site_tensor(sys, q_reshaped)
+    Aq = ewald_site_tensor(sys, q_supercell)
     A0 = ewald_site_tensor(sys, zero(Vec3))
 
     # Loop over sublattice pairs

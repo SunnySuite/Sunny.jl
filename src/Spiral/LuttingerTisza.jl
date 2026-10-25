@@ -1,7 +1,7 @@
 function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
-    q_reshaped = to_reshaped_rlu(sys, q)
+    q_supercell = to_supercell_rlu(sys, q)
 
     Na = natoms(sys.crystal)
     Jq .= 0
@@ -16,14 +16,14 @@ function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
             @assert i == bond.i
             j = bond.j
 
-            J = exp(2π * im * dot(q_reshaped, bond.n)) * Mat3(bilin*I)
+            J = exp(2π * im * dot(q_supercell, bond.n)) * Mat3(bilin*I)
             view(Jq, :, i, :, j) .+= J
             view(Jq, :, j, :, i) .+= J'
         end
     end
 
     if !isnothing(sys.ewald)
-        Aq = ewald_site_tensor(sys, q_reshaped)
+        Aq = ewald_site_tensor(sys, q_supercell)
         for i in 1:Na, j in 1:Na
             view(Jq, :, i, :, j) .+= sys.gs[i]' * Aq[i, j] * sys.gs[j]
         end
@@ -47,7 +47,7 @@ end
 function fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
-    q_reshaped = to_reshaped_rlu(sys, q)
+    q_supercell = to_supercell_rlu(sys, q)
 
     Na = natoms(sys.crystal)
     Jq .= 0
@@ -63,7 +63,7 @@ function fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
 
         (; i, j, n) = bond
 
-        J = exp(2π * im * dot(q_reshaped, n)) * Mat3(bilin*I)
+        J = exp(2π * im * dot(q_supercell, n)) * Mat3(bilin*I)
         view(Jq, :, i, :, j) .+= J
         view(Jq, :, j, :, i) .+= J'
     end

@@ -53,7 +53,7 @@ end
 # SU(N) mode. Everything else is compiled into the quadratic table. For an
 # entangled system the Ewald data is that of its uncontracted system, coupling
 # the bare sites of each unit.
-function accum_ewald_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
+function accum_ewald_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_supercell::Vec3)
     (; sys, data) = swt
     (; spin_ops) = data
     N = sys.Ns[1]
@@ -69,7 +69,7 @@ function accum_ewald_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped
     (; gs) = usys
 
     # Interaction matrices between bare sites at wavevector q and at zero
-    Aq = ewald_site_tensor(sys, q_reshaped)
+    Aq = ewald_site_tensor(sys, q_supercell)
     A0 = ewald_site_tensor(sys, zero(Vec3))
 
     for i in 1:Na, j in 1:Na

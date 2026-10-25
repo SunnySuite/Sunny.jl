@@ -82,7 +82,7 @@ uniform_shift(c, L) = [BosonMonomial(complex(c), (L+a, a), (zero(Vec3), zero(Vec
 function constraint_terms(pin::GoldstonePin, swt, terms2)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H, with_correction(swt, terms2), to_reshaped_rlu(swt.sys, pin.q))
+    dynamical_matrix!(H, with_correction(swt, terms2), to_supercell_rlu(swt.sys, pin.q))
     μ = swt.regularization - eigmin(Hermitian(H))
     return (uniform_shift(μ, L), (; μ))
 end
@@ -389,8 +389,8 @@ function zero_point_energy(swt::SpinWaveTheory, bz)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
-    return bz_average(bz) do q_reshaped
-        dynamical_matrix!(H, swt, q_reshaped)
+    return bz_average(bz) do q_supercell
+        dynamical_matrix!(H, swt, q_supercell)
         trA = real(tr(view(H, 1:L, 1:L)))
         ωs = bogoliubov!(ws, H)
         return (sum(view(ωs, 1:L)) - trA) / 2Nsites
@@ -520,20 +520,20 @@ function static_self_energy(swt::SpinWaveTheory, qpts, terms2)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
     ret = stack(qpts.qs) do q
-        q_reshaped = to_reshaped_rlu(swt.sys, q)
-        excitations_reshaped!(ws, H, swt, q_reshaped)
+        q_supercell = to_supercell_rlu(swt.sys, q)
+        excitations_supercell!(ws, H, swt, q_supercell)
         # Writing the quadratic form as (1/2) y† Σ y in the quasi-particle
         # basis, the coefficient of α†_n α_n is the n-th diagonal element.
-        real.(diag(static_self_energy_matrix(swt, terms2, q_reshaped, ws.T)))[1:L]
+        real.(diag(static_self_energy_matrix(swt, terms2, q_supercell, ws.T)))[1:L]
     end
     return reshape(ret, L, size(qpts.qs)...)
 end
 
 # Nambu matrix of the static correction `terms2`, counterterm of the vacuum
-# included, in the quasi-particle basis `T` of the vacuum at `q_reshaped`
-function static_self_energy_matrix(swt::SpinWaveTheory, terms2, q_reshaped, T)
+# included, in the quasi-particle basis `T` of the vacuum at `q_supercell`
+function static_self_energy_matrix(swt::SpinWaveTheory, terms2, q_supercell, T)
     δH = zeros(ComplexF64, size(T))
-    accum_quadratic!(δH, terms2, q_reshaped)
-    accum_counterterm!(δH, swt, q_reshaped)
+    accum_quadratic!(δH, terms2, q_supercell)
+    accum_counterterm!(δH, swt, q_supercell)
     return T' * δH * T
 end

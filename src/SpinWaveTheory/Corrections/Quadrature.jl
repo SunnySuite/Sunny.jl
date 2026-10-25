@@ -46,12 +46,12 @@ quadrature_noise(bz::BZAdaptive) = max(bz.tol, 1e-8)
 quadrature_noise(::BZGrid) = 1e-3
 
 # Wavevectors of a uniform grid, offset by half a step to keep off the zone
-# centre, in reshaped RLU. The grid is closed under 𝐪 ↦ -𝐪, which keeps every
+# centre, in supercell RLU. The grid is closed under 𝐪 ↦ -𝐪, which keeps every
 # average of a Hermitian quantity Hermitian.
 grid_points(grid::BZGrid) = [Vec3((Tuple(c) .- 1/2) ./ grid.dims) for c in CartesianIndices(grid.dims)]
 
-# Average of `f(q_reshaped)`, which may be array valued, over the magnetic
-# Brillouin zone 𝐪 ∈ [0, 1)³ in reshaped RLU.
+# Average of `f(q_supercell)`, which may be array valued, over the magnetic
+# Brillouin zone 𝐪 ∈ [0, 1)³ in supercell RLU.
 function bz_average(f, grid::BZGrid)
     ps = grid_points(grid)
     return sum(f, ps) / length(ps)
@@ -112,12 +112,12 @@ struct LoopGrid
     npts::Int
 end
 
-function loop_wavevectors(dims, q_reshaped=zero(Vec3))
+function loop_wavevectors(dims, q_supercell=zero(Vec3))
     offsets = ntuple(3) do d
-        t = mod(dims[d] * q_reshaped[d], 1)
+        t = mod(dims[d] * q_supercell[d], 1)
         t < 1/2 ? (t + 1)/2 : t/2
     end
-    ms = ntuple(d -> round(Int, dims[d] * q_reshaped[d] - 2offsets[d]), 3)
+    ms = ntuple(d -> round(Int, dims[d] * q_supercell[d] - 2offsets[d]), 3)
     partner = c -> CartesianIndex(ntuple(d -> mod(ms[d] - c[d] + 1, dims[d]) + 1, 3))
 
     (ps, wts) = (Vec3[], Float64[])
@@ -165,7 +165,7 @@ function auto_bzgrid(swt; η, tol)
     ε = zeros(L, ncoarse, ncoarse, ncoarse)
     for i in 1:ncoarse, j in 1:ncoarse, k in 1:ncoarse
         q = Vec3((i - 1/2)/ncoarse, (j - 1/2)/ncoarse, (k - 1/2)/ncoarse)
-        view(ε, :, i, j, k) .= view(excitations_reshaped!(ws, H, swt, q), 1:L)
+        view(ε, :, i, j, k) .= view(excitations_supercell!(ws, H, swt, q), 1:L)
     end
 
     return BZGrid(ntuple(3) do d

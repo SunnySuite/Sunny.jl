@@ -103,19 +103,19 @@ function EwaldTensorCache(cryst::Crystal, dims::NTuple{3,Int}, μ0_μB², demag:
 end
 
 # Calculate the Ewald interaction tensor A[cell, i, j] at the given wavevector q
-# in "reshaped" RLU. Here `cell` denotes a cell offset shifted by (1,1,1) to
-# suit Julia's 1-based indexing. The usual Ewald energy for a periodic system is
+# in RLU of the supercell, which spans the `dims` cells. Here `cell` denotes a
+# cell offset shifted by (1,1,1) to suit Julia's 1-based indexing. The usual Ewald energy for a periodic system is
 # E = μᵢ Aᵢⱼ μⱼ / 2 at q=0. The generalization to nonzero q allows writing in
 # Fourier space E(q) = μᵢ(-q) Aᵢⱼ(-q) μⱼ(q) / 2, where μᵢ(q) is the Fourier
 # transform of μᵢ taken over the lattice of cells for atom i.
-function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
+function ewald_interaction_tensor(cache::EwaldTensorCache, q_supercell::Vec3)
     (; dims, cryst, μ0_μB², demag, σ², mmax, kmax², nmax, real_terms) = cache
     (; positions) = cryst
     na = natoms(cryst)
     recipvecs = cryst.recipvecs / diagm(Vec3(dims))
     V = abs(det(cryst.latvecs)) * prod(dims)
     self_energy = -Mat3(I) / (3(2π)^(3/2) * σ²^(3/2))
-    q0 = q_reshaped - round.(q_reshaped)
+    q0 = q_supercell - round.(q_supercell)
     A = zeros(CMat3, dims..., na, na)
 
     # The target tensor has the symmetry A(off, i, j) = A(-off, j, i)'. For the
@@ -181,7 +181,7 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
 
     # Assemble cached real_terms, applying q-dependent phase factors
     real_phases = ntuple(3) do a
-        [cis(2π * q_reshaped[a] * n) for n in OffsetArrays.centered(-nmax[a]:nmax[a])]
+        [cis(2π * q_supercell[a] * n) for n in OffsetArrays.centered(-nmax[a]:nmax[a])]
     end
     @inbounds for cell in CartesianIndices(dims), j in 1:na, i in 1:imax(cell, j)
         acc = A[cell, i, j] + demag_term
@@ -207,34 +207,34 @@ end
 # of its periodic images, by linear site index. For an entangled system, the
 # sites are those of the uncontracted system, and the couplings within each
 # unit, which entanglement folds into the onsite term, are excluded.
-function ewald_site_tensor(sys::System, q_reshaped)
+function ewald_site_tensor(sys::System, q_supercell)
     usys = uncontracted_system(sys)
     (; cache, A) = usys.ewald
 
     # The tensor A[cell, a, b] of the crystal cell. Its value at q = 0 is
     # stored, with the intra-unit couplings already excluded.
-    iszero(q_reshaped) && return cell_to_site_tensor(A, usys, q_reshaped)
+    iszero(q_supercell) && return cell_to_site_tensor(A, usys, q_supercell)
 
-    Aq = ewald_interaction_tensor(cache, q_reshaped)
+    Aq = ewald_interaction_tensor(cache, q_supercell)
     if is_entangled(sys)
         dims = usys.dims
         for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, cache.μ0_μB²)
-            Aq[CartesianIndex(Tuple(mod.(Δ, dims)) .+ 1), ai, aj] -= cis(2π * dot(q_reshaped, Vec3(fld.(Δ, dims)))) * Adir
+            Aq[CartesianIndex(Tuple(mod.(Δ, dims)) .+ 1), ai, aj] -= cis(2π * dot(q_supercell, Vec3(fld.(Δ, dims)))) * Adir
         end
     end
-    return cell_to_site_tensor(Aq, usys, q_reshaped)
+    return cell_to_site_tensor(Aq, usys, q_supercell)
 end
 
 # The tensor between sites of `sys` from that of its crystal cell. The cells of
 # sites i and j differ by Δ, which wraps by w magnetic cells, so that the entry
 # at cell Δ mod dims takes the phase of an image displaced by -w.
-function cell_to_site_tensor(Ac, sys::System, q_reshaped)
+function cell_to_site_tensor(Ac, sys::System, q_supercell)
     (; dims) = sys
     sites = eachsite(sys)
     return [begin
                 Δ = Tuple(to_cell(sites[j])) .- Tuple(to_cell(sites[i]))
                 cell = CartesianIndex(mod.(Δ, dims) .+ 1)
-                cis(-2π * dot(q_reshaped, Vec3(fld.(Δ, dims)))) * Ac[cell, to_atom(sites[i]), to_atom(sites[j])]
+                cis(-2π * dot(q_supercell, Vec3(fld.(Δ, dims)))) * Ac[cell, to_atom(sites[i]), to_atom(sites[j])]
             end for i in 1:nsites(sys), j in 1:nsites(sys)]
 end
 

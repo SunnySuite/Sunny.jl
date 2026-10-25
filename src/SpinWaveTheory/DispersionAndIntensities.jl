@@ -153,18 +153,18 @@ end
 # Allocation-free variant that stores the transformation in `ws.T`. The returned
 # energies alias `ws.ε`.
 excitations!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q) =
-    excitations_reshaped!(ws, H, swt, to_reshaped_rlu(swt.sys, q))
+    excitations_supercell!(ws, H, swt, to_supercell_rlu(swt.sys, q))
 
-# The same at a wavevector in reshaped RLU. A quadratic Hamiltonian that is not
+# The same at a wavevector in supercell RLU. A quadratic Hamiltonian that is not
 # positive definite has no vacuum. For LSWT that means the structure is not an
 # energy minimum; for a corrected Gaussian state, the correction is to blame.
-function excitations_reshaped!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_reshaped)
-    dynamical_matrix!(H, swt, q_reshaped)
+function excitations_supercell!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_supercell)
+    dynamical_matrix!(H, swt, q_supercell)
     try
         return bogoliubov!(ws, H)
     catch err
         err isa PosDefException || rethrow()
-        q = vec3_to_string(to_standard_rlu(swt.sys, q_reshaped))
+        q = vec3_to_string(from_supercell_rlu(swt.sys, q_supercell))
         rethrow(InstabilityError(isempty(swt.state.correction) ?
             "Not an energy-minimum; wavevector q = $q unstable." :
             "Quadratic Hamiltonian of the Gaussian state is not positive definite at wavevector q = $q. If \
@@ -252,12 +252,12 @@ function intensities_bands(swt::SpinWaveTheory, sys::System, measure::MeasureSpe
         (; ws, H, u, Avec, corr) = buf
         T = ws.T
         q = qpts.qs[iq]
-        q_reshaped = to_reshaped_rlu(sys, q)
+        q_supercell = to_supercell_rlu(sys, q)
         q_global = cryst.recipvecs * q
-        view(disp, :, iq) .= view(excitations_reshaped!(ws, H, swt, q_reshaped), 1:L)
+        view(disp, :, iq) .= view(excitations_supercell!(ws, H, swt, q_supercell), 1:L)
 
         # Linearized observables Â_μ(q) in Holstein-Primakoff bosons
-        set_swt_observable_vectors!(u, swt, sys, measure, q_reshaped, q_global)
+        set_swt_observable_vectors!(u, swt, sys, measure, q_supercell, q_global)
 
         # Fill `intensity` array
         for band in 1:L

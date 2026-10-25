@@ -81,7 +81,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
 
     # A clone protects against later mutation of `sys`. The quasi-particle
     # bands are indexed by the sites of the whole system, and the wavevectors
-    # by the reciprocal lattice of its magnetic cell; see `to_reshaped_rlu`.
+    # by the reciprocal lattice of its magnetic cell; see `to_supercell_rlu`.
     sys = clone_system(sys)
     classical_energy = energy_per_site(sys)
 
@@ -125,13 +125,13 @@ end
 
 
 # Wavevectors in RLU of the original crystal, `q`, and of the magnetic cell of
-# `sys`, `q_reshaped`. The magnetic cell spans `sys.dims` cells of
+# `sys`, `q_supercell`. The magnetic cell spans `sys.dims` cells of
 # `sys.crystal`, which may itself be a reshaped cell.
-function to_standard_rlu(sys::System, q_reshaped)
-    return orig_crystal(sys).recipvecs \ (sys.crystal.recipvecs * (q_reshaped ./ Vec3(sys.dims)))
+function from_supercell_rlu(sys::System, q_supercell)
+    return orig_crystal(sys).recipvecs \ (sys.crystal.recipvecs * (q_supercell ./ Vec3(sys.dims)))
 end
 
-function to_reshaped_rlu(sys::System, q)
+function to_supercell_rlu(sys::System, q)
     return Vec3(sys.dims) .* (sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q))
 end
 
@@ -150,24 +150,24 @@ end
 interactions_at(sys::System, i::Int) =
     is_homogeneous(sys) ? sys.interactions_union[to_atom(eachsite(sys)[i])] : sys.interactions_union[i]
 
-function dynamical_matrix(swt::SpinWaveTheory, q_reshaped)
+function dynamical_matrix(swt::SpinWaveTheory, q_supercell)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H, swt, q_reshaped)
+    dynamical_matrix!(H, swt, q_supercell)
     return Hermitian(H)
 end
 
 # The quadratic table, then the Ewald term, which is dense in q and so not
 # compiled, then a small constant shift for positive-definiteness
-function dynamical_matrix!(H, swt::SpinWaveTheory, q_reshaped)
+function dynamical_matrix!(H, swt::SpinWaveTheory, q_supercell)
     L = nbands(swt)
     @assert size(H) == (2L, 2L)
     H .= 0
-    accum_lower!(H, swt.quadratic_table, q_reshaped)
+    accum_lower!(H, swt.quadratic_table, q_supercell)
     hermitian_from_lower!(H)
 
     if !isnothing(uncontracted_system(swt.sys).ewald)
-        swt.sys.mode == :SUN ? accum_ewald_SUN!(H, swt, q_reshaped) : accum_ewald_dipole!(H, swt, q_reshaped)
+        swt.sys.mode == :SUN ? accum_ewald_SUN!(H, swt, q_supercell) : accum_ewald_dipole!(H, swt, q_supercell)
         # Hermitian up to round-off errors, then exactly
         @assert maxdiff(H, H') < 1e-12
         hermitianpart!(H)
@@ -178,18 +178,18 @@ function dynamical_matrix!(H, swt::SpinWaveTheory, q_reshaped)
     end
 end
 
-function mul_dynamical_matrix(swt, x, qs_reshaped)
+function mul_dynamical_matrix(swt, x, qs_supercell)
     y = zero(x)
-    mul_dynamical_matrix!(swt, y, x, qs_reshaped)
+    mul_dynamical_matrix!(swt, y, x, qs_supercell)
 end
 
 # Matrix-free y = H x at many wavevectors, where row q of x and y belongs to
-# `qs_reshaped[q]`
-function mul_dynamical_matrix!(swt, y, x, qs_reshaped; phases=zeros(ComplexF64, length(qs_reshaped)))
-    @assert size(x) == size(y) == (length(qs_reshaped), 2nbands(swt))
+# `qs_supercell[q]`
+function mul_dynamical_matrix!(swt, y, x, qs_supercell; phases=zeros(ComplexF64, length(qs_supercell)))
+    @assert size(x) == size(y) == (length(qs_supercell), 2nbands(swt))
     isnothing(swt.sys.ewald) || error("Ewald not supported")
     y .= 0
-    accum_mul!(y, x, swt.quadratic_table, qs_reshaped, phases)
+    accum_mul!(y, x, swt.quadratic_table, qs_supercell, phases)
     @. y += swt.regularization * x
     return y
 end
@@ -366,10 +366,10 @@ end
 # The fields `sys` and `measure` of `SpinWaveTheory` are abstract, to limit
 # specialization, so they are passed through a function barrier. Otherwise each
 # observable would dispatch dynamically.
-set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_global) =
-    set_swt_observable_vectors!(u, swt, swt.sys, swt.measure, q_reshaped, q_global)
+set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_supercell, q_global) =
+    set_swt_observable_vectors!(u, swt, swt.sys, swt.measure, q_supercell, q_global)
 
-function set_swt_observable_vectors!(u, swt::SpinWaveTheory, sys::System, measure::MeasureSpec, q_reshaped, q_global)
+function set_swt_observable_vectors!(u, swt::SpinWaveTheory, sys::System, measure::MeasureSpec, q_supercell, q_global)
     (; data) = swt
     Na = nsites(sys)
     Nobs = num_observables(measure)
