@@ -204,11 +204,11 @@ representation label ``λ`` in SU(N) mode. If the classical energy is ``J s²``,
 the correction appears at order ``J s``.
 
 The correction is the zero-point energy of the harmonic magnons, ``(1/2) Σ_n
-∫d³q ω(𝐪, n)`` over the first magnetic Brillouin zone, less the uniform ``𝐪 =
-0`` term that the Holstein-Primakoff normal ordering leaves behind, together
-with the constant that [`anisotropy_correction`](@ref) generates from an onsite
-coupling. The last of these vanishes identically in `:dipole` mode, where
-`rcs_factors` makes the classical energy exact.
+∫d³q ω(𝐪, n)`` over the first magnetic Brillouin zone, less the constant that
+the Holstein-Primakoff normal ordering leaves behind, together with the constant
+that [`anisotropy_correction`](@ref) generates from an onsite coupling. The last
+of these vanishes identically in `:dipole` mode, where `rcs_factors` makes the
+classical energy exact.
 
 Not included are the corrections of [`tadpole_correction`](@ref) and
 [`hartree_fock_correction`](@ref), which are smaller by a further power of
@@ -230,23 +230,23 @@ function corrected_energy_per_site(swt::SpinWaveTheory; tol=nothing, maxevals=no
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
 
-    # The uniform correction to the classical energy (trace of the (1,1)-block
-    # of the spin-wave Hamiltonian)
-    dynamical_matrix!(H, swt, zero(Vec3))
-    δE₁ = -real(tr(view(H, 1:L, 1:L))) / 2Nsites
-
-    # Zero-point energy, averaged over the magnetic Brillouin zone
-    δE₂ = bz_average(quad) do q_reshaped
+    # Zero-point energy, averaged over the magnetic Brillouin zone, less the
+    # normal-ordering constant: the zone average of the trace of the (1,1)-block
+    # of the spin-wave Hamiltonian. This trace is q-dependent wherever a bond
+    # joins a site to its own periodic image, e.g. a ferromagnet, so it cannot
+    # be taken at q = 0.
+    δE₁ = bz_average(quad) do q_reshaped
         dynamical_matrix!(H, swt, q_reshaped)
+        trA = real(tr(view(H, 1:L, 1:L)))
         ωs = bogoliubov!(ws, H)
-        return sum(view(ωs, 1:L)) / 2Nsites
+        return (sum(view(ωs, 1:L)) - trA) / 2Nsites
     end
 
     # Vanishes in :SUN mode, where an onsite coupling enters the boson
     # Hamiltonian exactly and there is nothing to add.
-    δE₃ = anisotropy_correction(swt).δE
+    δE₂ = anisotropy_correction(swt).δE
 
-    return swt.classical_energy + δE₁ + δE₂ + δE₃
+    return swt.classical_energy + δE₁ + δE₂
 end
 
 """

@@ -492,6 +492,16 @@ end
         @test correction(mode)
     end
 
+    # The fully polarized ferromagnet is an exact eigenstate, so the correction
+    # vanishes. Its bonds join each site to its own periodic image, making the
+    # normal-ordering constant q-dependent, so it must be averaged over the zone.
+    let sys = System(Sunny.square_crystal(; c=3), [1 => Moment(s=1/2, g=1)], :dipole)
+        set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
+        polarize_spins!(sys, [0, 0, 1])
+        swt = SpinWaveTheory(sys; measure=nothing)
+        @test Sunny.corrected_energy_per_site(swt; grid=(8, 8, 1)) ≈ energy_per_site(sys) atol=1e-12
+    end
+
     # The onsite coupling contributes a constant at this same order, which
     # `corrected_energy_per_site` now includes. It vanishes identically in
     # `:dipole` mode, where `rcs_factors` leaves the classical energy exact, so
