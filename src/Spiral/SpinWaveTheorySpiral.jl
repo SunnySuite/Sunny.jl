@@ -22,17 +22,25 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     k :: Vec3              # Propagation wavevector
     k_case :: Int          # Label (1, 2, 3) if (kᵢ ∈ ℕ, 2kᵢ ∈ ℕ, otherwise)
     axis :: Vec3           # Axis for polarization plane
-    buffers :: Vector{Array{CMat3, 2}}
+    J0s :: NTuple{3, Matrix{CMat3}}     # J at wavevectors 0, -k, +k, independent of q
+    buffers :: NTuple{3, Matrix{CMat3}} # J at wavevectors q, q-k, q+k
 
     function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
         if !(sys.mode in (:dipole, :dipole_uncorrected))
             error("SpinWaveTheorySpiral requires :dipole or :dipole_uncorrected mode.")
         end
 
-        k_case = spiral_propagation_case(to_supercell_rlu(sys, k))
+        swt = SpinWaveTheory(sys; measure, regularization)
+        k_supercell = to_supercell_rlu(sys, k)
+        k_case = spiral_propagation_case(k_supercell)
         L = nsites(sys)
-        buffers = [zeros(CMat3, L, L) for _ in 1:6]
-        return new(SpinWaveTheory(sys; measure, regularization), k, k_case, normalize(axis), buffers)
+        J0s = ntuple(3) do b
+            J = zeros(CMat3, L, L)
+            fourier_bilinear_interaction!(J, swt, (zero(Vec3), -k_supercell, k_supercell)[b])
+            J
+        end
+        buffers = ntuple(_ -> zeros(CMat3, L, L), 3)
+        return new(swt, k, k_case, normalize(axis), J0s, buffers)
     end
 end
 
@@ -102,13 +110,11 @@ function dynamical_matrix!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_
 
     # Add pairwise bilinear term
 
-    Jq, Jqmk, Jqpk, J0k, J0mk, J0pk = sswt.buffers
+    J0k, J0mk, J0pk = sswt.J0s
+    Jq, Jqmk, Jqpk = sswt.buffers
     fourier_bilinear_interaction!(Jq,   swt, q_supercell)
     fourier_bilinear_interaction!(Jqmk, swt, q_supercell .- k_supercell)
     fourier_bilinear_interaction!(Jqpk, swt, q_supercell .+ k_supercell)
-    fourier_bilinear_interaction!(J0k,  swt, zero(Vec3))
-    fourier_bilinear_interaction!(J0mk, swt, -k_supercell)
-    fourier_bilinear_interaction!(J0pk, swt, +k_supercell)
 
     for i in 1:L, j in 1:L
         Jq1   = Jq[i, j]
