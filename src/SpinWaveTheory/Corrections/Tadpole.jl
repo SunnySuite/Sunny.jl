@@ -53,15 +53,14 @@ end
 Computes the shift of the ordered magnetic structure caused by zero-point
 fluctuations, which appears at relative order ``1/s``. An example is the change
 in canting angle of an antiferromagnet in an applied field. Returns `(; terms2,
-δE, dipoles, v)`, where `terms2` is a correction to the quadratic Hamiltonian
-that can be passed to [`corrected_dispersion`](@ref), `δE` is a correction to
-the energy per site, `dipoles` are the corrected classical dipoles of the
-magnetic cell, and `v` is the underlying boson displacement, which
-[`observable_corrections`](@ref) needs. The `dipoles` are rotated but not
-shortened; [`corrected_magnetic_moments`](@ref) applies both corrections at
-once, and converts to ``μ = -g 𝐒``.
+δE, v)`, where `terms2` is a correction to the quadratic Hamiltonian that can be
+passed to [`corrected_dispersion`](@ref), `δE` is a correction to the energy per
+site, and `v` is the boson displacement that realizes the shift, which
+[`observable_corrections`](@ref) and [`corrected_magnetic_moments`](@ref) need.
+The latter reads the shifted structure off `v`, together with the zero-point
+depletion, and converts to ``μ = -g 𝐒``.
 
-Equivalently, `dipoles` minimizes the energy reported by
+The displaced structure is the one that minimizes the energy reported by
 [`corrected_energy_per_site`](@ref), i.e. the classical energy together with the
 zero-point energy of the magnons, and `δE` is the resulting gain. The correction
 is of the same size as the mean-field correction of
@@ -78,7 +77,7 @@ function tadpole_correction(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
     isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
     check_corrections_supported(swt)
 
-    (; sys, data) = swt
+    (; sys) = swt
     L = nbands(swt)
     terms3 = cubic_monomials(swt)
     ckeys = correlation_keys(L, terms3)
@@ -128,16 +127,5 @@ function tadpole_correction(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
     δE = sum(ℓ .* w) / 2
     @assert abs(imag(δE)) < noise * max(abs(δE), 1)
 
-    # In the local frame ⟨S⁺⟩ = σ ⟨b⟩ = σ v with σ = √(2s), so the moment tilts
-    # away from ẑ by (Sˣ, Sʸ) = σ (Re v, Im v), to leading order in 1/s. Omitted
-    # in mode :SUN, where the local state is not maximal weight and the
-    # correction to ⟨𝐒⟩ is not a rotation of it; see
-    # `corrected_magnetic_moments`.
-    dipoles = sys.mode == :SUN ? nothing : map(1:L) do i
-        s = (data::SWTDataDipole).sqrtS[i]^2
-        σ = √2 * data.sqrtS[i]
-        return s * data.local_rotations[i] * normalize(Vec3(σ*real(w[i]), σ*imag(w[i]), s))
-    end
-
-    return (; terms2 = merge_monomials(terms2), δE = real(δE) / nsites(uncontracted_system(sys)), dipoles, v = w[1:L])
+    return (; terms2 = merge_monomials(terms2), δE = real(δE) / nsites(uncontracted_system(sys)), v = w[1:L])
 end

@@ -76,11 +76,11 @@
     const sun_cryst = Crystal(lattice_vectors(1, 1.1, 1.2, 80, 90, 100),
                               [[0, 0, 0], [0.45, 0.05, 0.1]], 1)
 
-    function sun_cluster(; pairscale=1)
+    function sun_cluster(; pairscale=1, field=cluster_B)
         sys = System(sun_cryst, [i => Moment(s=1, g=1) for i in 1:2], :SUN)
         set_pair_coupling!(sys, (Si, Sj) -> pairscale * (Si'*cluster_Js[1]*Sj + 0.3*(Si'*Sj)^2),
                            Bond(1, 2, [0, 0, 0]))
-        set_field!(sys, cluster_B)
+        set_field!(sys, field)
         S = spin_matrices(1)
         for i in 1:2
             set_onsite_coupling!(sys, 0.35*S[3]^2 + 0.2*(S[1]^2 - S[2]^2), i)
@@ -715,7 +715,7 @@ end
 
 @testitem "1/s corrections on a lattice" setup=[CorrectionModels] begin
     using LinearAlgebra
-    using .CorrectionModels: canted_square, square_cryst
+    using .CorrectionModels: canted_square, square_cryst, sun_cluster, cluster_B
 
     # Default accuracy for the momentum integrals, enough for the checks below
     # that compare against a reference value: the tightest of them, Oguchi's ζ,
@@ -785,35 +785,54 @@ end
     tad = Sunny.tadpole_correction(swt; tol=1e-3)
     @test all(t -> abs(t.c) < 1e-12, tad.terms2)
     @test abs(tad.δE) < 1e-12
-    @test tad.dipoles ≈ [[1, 0, 0], [-1, 0, 0]] / 2
+    @test norm(tad.v) < 1e-12
 
-    # `corrected_magnetic_moments` both shortens each moment (|μ| = 1 → 0.886) and
-    # tilts it by the tadpole (0.42° away from the field here), and is shaped and
-    # signed like `magnetic_moments`, i.e. μ = -g𝐒 indexed by `Site`.
+    # `corrected_magnetic_moments` both depletes each moment (|μ| = 1 → 0.887)
+    # and tilts it by the tadpole (0.37° away from the field here), and is
+    # shaped and signed like `magnetic_moments`, i.e. μ = -g𝐒 indexed by
+    # `Site`.
     let
         sys = canted_square(1, 3)
         swt = SpinWaveTheory(sys; measure=nothing)
         corrected = Sunny.corrected_magnetic_moments(swt; tol=1e-5)
         @test size(corrected) == size(magnetic_moments(sys)) == (1, 1, 1, 2)
-        @test vec(corrected) ≈ [[-0.8240908, 0, 0.3264180], [0.8240908, 0, 0.3264180]] atol=1e-6
+        @test vec(corrected) ≈ [[-0.8244219, 0, 0.3256618], [0.8244219, 0, 0.3256618]] atol=1e-6
     end
 
     # Maximal-weight coherent states make this SU(N) system equivalent to the
-    # dipole one, so the boson densities agree despite counting N-1 bosons per
-    # site instead of one. The moments must refuse in :SUN mode, where the
-    # correction to ⟨𝐒⟩ is not purely radial.
-    #
-    # FIXME -- once `corrected_magnetic_moments` handles :SUN mode, assert the
-    # corrected moments here instead of the refusal, including the transverse
-    # part.
-    #
-    # A loose `tol` suffices because the two modes integrate the same function
-    # here, and error cancels in the comparison.
+    # dipole one, so both the boson densities and the corrected moments agree,
+    # despite the SU(N) calculation counting N-1 bosons per site instead of one
+    # and reading ⟨𝐒⟩ off a general N×N matrix rather than a Holstein-Primakoff
+    # series. A loose `tol` suffices because the two modes integrate the same
+    # function here, and error cancels in the comparison.
     let
         swt = SpinWaveTheory(canted_square(1, 3; mode=:SUN); measure=nothing)
         swt′ = SpinWaveTheory(canted_square(1, 3); measure=nothing)
         @test Sunny.boson_density(swt; tol=1e-3) ≈ Sunny.boson_density(swt′; tol=1e-3) rtol=1e-5
-        @test_throws ErrorException Sunny.corrected_magnetic_moments(swt; tol=1e-3)
+        @test Sunny.corrected_magnetic_moments(swt; tol=1e-3) ≈
+              Sunny.corrected_magnetic_moments(swt′; tol=1e-3) rtol=1e-5
+    end
+
+    # Thermodynamic consistency in :SUN mode, Σᵢ μᵢ = -∂E/∂𝐁 against the
+    # corrected energy of `corrected_energy_per_site`, on a system with no
+    # symmetry whose anisotropy holds it away from maximal weight. Only the 1/s
+    # parts are compared, both sides dropping their classical term. The tilt and
+    # the depletion enter μ at the same order, so this pins their combination;
+    # the depletion here is 4.6 times larger transverse to the dipole than along
+    # it, leaving no way to satisfy the identity by rescaling a dipole.
+    let
+        n̂ = normalize(cluster_B)
+        # Only the zero-point energy, since δμ below is likewise only the correction
+        zp(B) = let sys = sun_cluster(; field=B)
+            swt = SpinWaveTheory(sys; measure=nothing)
+            Sunny.corrected_energy_per_site(swt; tol=1e-6) - energy_per_site(sys)
+        end
+        sys = sun_cluster()
+        swt = SpinWaveTheory(sys; measure=nothing)
+        μs = Sunny.corrected_magnetic_moments(swt; tol=1e-5) - magnetic_moments(sys)
+        δμ = sum(i -> μs[1, 1, 1, i] ⋅ n̂, 1:2) / 2
+        # Differencing the energy is what limits this, not the quadrature
+        @test δμ ≈ -(zp(cluster_B + 1e-4*n̂) - zp(cluster_B - 1e-4*n̂)) / 2e-4 atol=1e-8
     end
 
     # ---- Modes :SUN and :dipole_uncorrected on the same s = 1/2 model ----
@@ -1576,17 +1595,16 @@ end
 
     # ---- Two independent routes to the tadpole, canted ----
 
-    # Thermodynamic consistency, and the observable correction, both on the canted
-    # structure and both of the form "two routes agree to leading order, so their
-    # difference falls off like 1/s".
+    # Thermodynamic consistency of the corrected moments, and the observable
+    # correction, both on the canted structure.
     #
     # The correction to the uniform magnetization can be read from
-    # `corrected_magnetic_moments`, which combines the tadpole tilt with the reduction of
-    # the moment magnitude, or obtained as ∂/∂B of the zero-point energy. Those routes
-    # share no machinery, and the second is s-independent. The tilt is norm-preserving,
-    # so composing it with the radial shortening is unambiguous; the alternative of
-    # subtracting δs along the original axis is a non-geodesic split that differs at
-    # 1.6% for s = 1, falling like 1/s.
+    # `corrected_magnetic_moments`, which sums the tadpole tilt and the boson
+    # depletion, or obtained as -∂/∂B of the zero-point energy. Those routes share
+    # no machinery, and the second is s-independent. The identity is exact at this
+    # order rather than asymptotic in 1/s, so the agreement below is limited only by
+    # the quadrature and by differencing the energy; both sides being the moment
+    # μ = -g𝐒 rather than the spin dipole is what makes it μ = -∂E/∂B.
     #
     # The tilt also corrects the amplitude for creating one magnon, at relative order
     # 1/s. Here `observable_corrections` displaces the boson as b → b + v within the
@@ -1596,25 +1614,21 @@ end
     # than the correction itself by one more power of the tilt. Since the local frames
     # make `v` complex, this is sensitive to the conjugations and to the Nambu labeling.
     function canted_routes(s)
-        # Differencing the zero-point energy loses accuracy, so 1e-5 is as tight as the
+        # Differencing the zero-point energy loses accuracy, so 1e-6 is as tight as the
         # magnetization can be read anyway; the tilt comparison is a ratio of two
         # corrections from the same quadrature, so it is looser still
         B = 3s
         sys = canted_square(s, B)
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-        tad = Sunny.tadpole_correction(swt; tol=1e-5)
-        # `corrected_magnetic_moments` applies the tilt and the shortening together, which
-        # is what makes it comparable to ∂/∂B below; either alone would be an incomplete
-        # 1/s. Both sides are the moment μ = -g𝐒, not the spin dipole, so that the
-        # comparison is the thermodynamic identity μ = -∂E/∂B.
-        corrected = Sunny.corrected_magnetic_moments(swt; tol=1e-5)
+        tad = Sunny.tadpole_correction(swt; tol=1e-6)
+        corrected = Sunny.corrected_magnetic_moments(swt; tol=1e-6)
         δmz = sum(i -> (corrected[1, 1, 1, i] - magnetic_moments(sys)[1, 1, 1, i])[3], 1:2) / 2
         # Only the 1/s part of the energy, since `δmz` is likewise only the correction to
         # the magnetization; the classical -∂E/∂B would add the classical moment itself
         function zp(B′)
             sys′ = canted_square(s, B′)
             swt′ = SpinWaveTheory(sys′; measure=nothing)
-            return Sunny.corrected_energy_per_site(swt′; tol=1e-5) - energy_per_site(sys′)
+            return Sunny.corrected_energy_per_site(swt′; tol=1e-6) - energy_per_site(sys′)
         end
         δzp = -(zp(B + 1e-4) - zp(B - 1e-4)) / 2e-4
 
@@ -1622,9 +1636,10 @@ end
              Sunny.observable_corrections(swt; tol=1e-4)
         (err, mag) = (0.0, 0.0)
         for i in 1:2
-            R = swt.data.local_rotations[i]
             σ = √2 * swt.data.sqrtS[i]
-            Rot = Sunny.rotation_between_vectors([0, 0, 1], R' * tad.dipoles[i])
+            # The tilted axis in the local frame, where LSWT's is ẑ
+            tilt = Sunny.Vec3(σ*real(tad.v[i]), σ*imag(tad.v[i]), swt.data.sqrtS[i]^2)
+            Rot = Sunny.rotation_between_vectors([0, 0, 1], tilt)
             for μ in 1:3
                 (O, O′) = (swt.data.observables[μ, i], Rot' * swt.data.observables[μ, i])
                 δcp = ((O′[1] - O[1]) - im*(O′[2] - O[2])) / 2
@@ -1637,9 +1652,11 @@ end
     end
     rs = map(canted_routes, (1, 2))
     # Sign flipped relative to the spin dipole, since μ = -g𝐒 with g = 1 here
-    @test rs[1][1] ≈ -0.0485824 atol=1e-6
-    @test rs[1][2] ≈ rs[2][2] atol=1e-8
-    @test rs[1][1] - rs[1][2] ≈ 2 * (rs[2][1] - rs[2][2]) rtol=0.03
+    @test rs[1][1] ≈ -0.0493385 atol=1e-6
+    @test rs[1][2] ≈ rs[2][2] atol=1e-7
+    for r in rs
+        @test r[1] ≈ r[2] atol=1e-7
+    end
     @test rs[1][3] < 0.005
     @test rs[1][3] / rs[2][3] ≈ 2 rtol=0.02
 
