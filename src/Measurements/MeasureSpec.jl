@@ -66,8 +66,9 @@ num_units_per_cell(measure::MeasureSpec) = size(measure.observables, 5)
 num_parts_per_unit(measure::MeasureSpec) = size(measure.observables, 6)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs)
 
-function empty_measurespec(sys)
-    observables = zeros(Vec3, 0, size(eachsite(sys))..., 1)
+function empty_measurespec(sys::System{N}) where N
+    Op = iszero(N) ? Vec3 : HermitianC64
+    observables = Array{Op, 6}(undef, 0, size(eachsite(sys))..., 1)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
     formfactors = zeros(FormFactor, 0, natoms(sys.crystal), 1)
