@@ -106,6 +106,8 @@ continuous symmetry. Each of `constraints`, e.g. [`GoldstonePin`](@ref), adds
 terms to the correction at every iterate, and the multipliers that fix them are
 reported in the `info` of the state.
 
+[`self_consistent_tadpole`](@ref) additionally relaxes the structure.
+
 Momentum integrals are discrete sums over the points of `grid`, a
 [`BZGrid`](@ref). The state records it, and every ``1/s`` correction about
 this state uses the same grid by default, so that the counterterm cancels the
@@ -182,6 +184,137 @@ function self_consistent(swt::SpinWaveTheory; grid::BZGrid, constraints=(), gues
         g = Contractions(g, x)
     end
     error("Self-consistent mean field not converged in $maxiters iterations")
+end
+
+"""
+    self_consistent_tadpole(swt::SpinWaveTheory; grid, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200, memory=5)
+
+Like [`self_consistent`](@ref), but additionally relaxes the structure: the
+dipoles are rotated until the energy of the state is stationary in their
+directions too, so that zero-point fluctuations shift e.g. the canting angle in
+a field, as [`tadpole_correction`](@ref) does at first order. The result is the
+stationary point of [`gaussian_energy_per_site`](@ref) jointly in the Gaussian
+state and the structure, so its derivatives obey the Hellmann-Feynman theorem,
+e.g. the magnetization is the expectation value of the moment in the state.
+Only mode `:dipole` is supported.
+
+The energy of a Gaussian state about a structure,
+
+    F(frames, g) = E_cl + (⟨H₂⟩ + ⟨H₄⟩) / N,
+
+with contractions g, is the functional that `self_consistent` makes stationary
+in g at fixed frames. Making it stationary in the frames as well, at fixed g,
+completes the variational principle: the joint stationary point is the one
+whose derivatives in any coupling, e.g. the field, are partial derivatives of F
+at fixed state and structure. Relaxing to the stationary point of E_cl + ⟨H₂⟩
+alone, which is the condition that H₁ cancel one contraction of H₃, would be
+the first-order tadpole of `tadpole_correction` iterated, and breaks that by
+the frame dependence of ⟨H₄⟩, about 1% in the magnetization of a canted
+antiferromagnet at s = 1/2. That dependence is the two-fold contraction of a
+five-boson term, which the truncated expansion has no other place for.
+
+The frames rather than the displacement of the bosons are what relax. A
+displacement is the first-order description of a rotation; at finite tilt it
+would leave the structure off a classical extremum, where the expansion
+carries H₁ and the vacuum of H₂ need not exist. Each relaxation step instead
+rotates every frame by a small angle about its own transverse axes, which
+continues the frames smoothly, so that the correction, written in local
+labels, remains a good guess for the next solve.
+
+A rotation of every frame by a symmetry of the Hamiltonian, e.g. about the
+field, leaves F invariant only together with the state. At fixed contractions
+the anomalous ones carry a phase in each local frame, which pins the azimuth,
+so the relaxation cannot drift along the symmetry, and a converged state
+rotated by it is again converged, with the same spectrum.
+"""
+function self_consistent_tadpole(swt::SpinWaveTheory; grid::BZGrid, constraints=(), guess=nothing, scf_tol=1e-8,
+                                 maxiters=200, memory=5)
+    swt.sys.mode == :dipole || error("Self-consistent tadpole requires mode :dipole")
+    frames = swt.data.local_rotations
+    for iter in 1:maxiters
+        sc = self_consistent(with_frames(swt, frames); grid, constraints, guess, scf_tol, maxiters, memory)
+        frames′ = relax_frames(sc, grid)
+        δ = maximum(norm(R[:, 3] - R′[:, 3]) for (R, R′) in zip(frames, frames′))
+        δ < 10scf_tol && return SpinWaveTheory(sc, GaussianState(sc.state.correction, grid,
+                                                       Base.merge(sc.state.info, (; tadpole_iter=iter))))
+        (frames, guess) = (frames′, sc)
+    end
+    error("Self-consistent tadpole not converged in $maxiters iterations")
+end
+
+# F of the comment above at `frames`, with contractions `g` of the labels of
+# `frame_labels`
+function frame_energy(swt::SpinWaveTheory, frames, g)
+    sw = with_frames(swt, frames)
+    E = wick_expectation(quadratic_monomials(sw.sys, sw.data), g, nothing) +
+        wick_expectation(quartic_monomials(sw), g, nothing; nfactors=2)
+    return sw.classical_energy + anisotropy_correction(sw).δE + real(E) / nsites(uncontracted_system(sw.sys))
+end
+
+# Every Nambu combination of the slot pairs of H₂ and H₄, as unit monomials. A
+# coefficient that vanishes in one frame need not vanish in another, e.g. the
+# anomalous terms of a collinear structure, so the labels must not depend on
+# which happen to be nonzero.
+function frame_labels(swt::SpinWaveTheory)
+    L = nbands(swt)
+    ret = BosonMonomial{2}[]
+    for (; as, ns) in Iterators.flatten((quadratic_monomials(swt.sys, swt.data), quartic_monomials(swt)))
+        for p in eachindex(as), q in p+1:lastindex(as)
+            (i, j) = (mod1(as[p], L), mod1(as[q], L))
+            for a in (i, L+i), b in (j, L+j)
+                push!(ret, BosonMonomial(1.0+0im, (a, b), (ns[p], ns[q])))
+            end
+        end
+    end
+    return ret
+end
+
+# The theory of `swt` about the structure whose dipoles point along column 3 of
+# the local `frames`, in the harmonic vacuum. The frames are taken as given,
+# rather than rebuilt from the dipoles, so that the labels of the bosons, and
+# with them the phases of the anomalous contractions, continue smoothly as
+# `relax_frames` tilts each frame. The structure need not be a classical energy
+# minimum.
+function with_frames(swt::SpinWaveTheory, frames::Vector{Mat3})
+    sys = clone_system(swt.sys)
+    for (i, site) in enumerate(eachsite(sys))
+        iszero(frames[i]) || set_dipole!(sys, frames[i][:, 3], site)
+    end
+    data = swt_data(sys, swt.measure; frames)
+    table = QuadraticTable(quadratic_monomials(sys, data), nbands(swt))
+    return SpinWaveTheory(sys, data, swt.measure, swt.regularization, energy_per_site(sys), GaussianState(), table, table)
+end
+
+# The local frames of `swt` rotated by angles θ[2i-1], θ[2i] about the two
+# transverse axes of frame i
+function rotate_frames(frames, θ)
+    return map(eachindex(frames)) do i
+        ω = frames[i] * Vec3(θ[2i-1], θ[2i], 0)
+        iszero(ω) ? frames[i] : axis_angle_to_matrix(ω / norm(ω), norm(ω)) * frames[i]
+    end
+end
+
+# Frames at which F is stationary for the contractions of the state of `sc`,
+# found by Newton's method from the frames of `sc`, with derivatives by finite
+# differences of step `h`. The F of a frozen state is smooth in the frames, and
+# its Hessian is computed once. The pseudo-inverse only guards against a
+# direction in which F is flat.
+function relax_frames(sc::SpinWaveTheory, grid; h=1e-4, maxiters=20, tol=1e-12)
+    g = contractions(sc, frame_labels(sc), grid)
+    frames = sc.data.local_rotations
+    n = 2length(frames)
+    e(k) = h * (1:n .== k)
+    F(θ) = frame_energy(sc, rotate_frames(frames, θ), g)
+    ∇F(θ) = [(F(θ + e(k)) - F(θ - e(k))) / 2h for k in 1:n]
+    ∇²F = Symmetric([(F(e(k) + e(l)) - F(e(k) - e(l)) - F(e(l) - e(k)) + F(-e(k) - e(l))) / 4h^2 for k in 1:n, l in 1:n])
+    H⁺ = pinv(∇²F; rtol=1e-6)
+    θ = zeros(n)
+    for _ in 1:maxiters
+        r = ∇F(θ)
+        norm(r) < tol && break
+        θ -= H⁺ * r
+    end
+    return rotate_frames(frames, θ)
 end
 
 # Tadpole correction. Zero-point fluctuations shift the ordered structure away

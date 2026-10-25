@@ -836,6 +836,13 @@ end
     # field the mean field only rescales H₂ and the two vacua coincide, so the
     # structure is canted.
     let grid = Sunny.BZGrid(16, 16, 1), swt = SpinWaveTheory(canted_square(1/2, 1.0); measure=nothing)
+        # `with_frames` at the frames already in `swt.data` must reproduce `swt`
+        # itself: those frames already carry its own gauge twist, so there is
+        # no hidden rotation left for the labels to pick up.
+        let swt2 = Sunny.with_frames(swt, swt.data.local_rotations)
+            @test dispersion(swt2, [[0.3, 0.1, 0]]) ≈ dispersion(swt, [[0.3, 0.1, 0]])
+            @test swt2.classical_energy ≈ swt.classical_energy
+        end
         sc = Sunny.self_consistent(swt; grid)
         E(λ) = Sunny.gaussian_energy_per_site(Sunny.with_correction(swt, [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.state.correction]); bz=grid)
         @test abs(E(1 + 1e-3) - E(1 - 1e-3)) / 2e-3 < 1e-6
@@ -849,6 +856,16 @@ end
         pinned = Sunny.self_consistent(swt; grid, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
         @test gap(sc) > 0.1
         @test gap(pinned) ≈ gap(swt) rtol=0.1
+        # Relaxing the structure as well lowers the energy further, and makes
+        # the state jointly stationary, so the magnetization is the expectation
+        # value of the spin, ∂E/∂B = ⟨Sᶻ⟩ for g = 1. At zero field the
+        # structure is collinear and does not move.
+        relaxed(B) = Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, B); measure=nothing); grid, scf_tol=1e-10)
+        st = relaxed(1.0)
+        Sz(sw) = sum((1/2 - n) * R[3, 3] for (n, R) in zip(Sunny.boson_density(sw), sw.data.local_rotations)) / 2
+        @test Sunny.gaussian_energy_per_site(st) < E(1)
+        @test (Sunny.gaussian_energy_per_site(relaxed(1.001)) - Sunny.gaussian_energy_per_site(relaxed(0.999))) / 0.002 ≈ Sz(st) atol=1e-7
+        @test Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, 0); measure=nothing); grid).data.local_rotations[1][3, 3] ≈ 0 atol=1e-12
     end
     # A field along the moments shifts the magnons by ±B without changing the
     # Bogoliubov transformation. It leaves the Néel state energetically
