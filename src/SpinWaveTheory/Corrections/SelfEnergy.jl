@@ -452,8 +452,8 @@ function ladder_transform(se::SelfEnergy, zs)
     # Workspaces of the solve (σ - Π_aa) X = Π_ay at each frequency
     (M, X) = (zeros(ComplexF64, nc, nc), zeros(ComplexF64, nc, length(y)))
     for ρ in (decay, source)
-        # The frequencies `zs`, then ω = 0 for the counterterm and stability
-        Π = cauchy_transform((ρ,), [zs; 0.0im])
+        # Keep `zs` a range, if given as one, so the transform can use the FFT
+        Π = cauchy_transform((ρ,), zs)
         for iz in eachindex(zs)
             P = view(Π, :, :, iz)
             @views @. M = -P[c, c]
@@ -463,7 +463,8 @@ function ladder_transform(se::SelfEnergy, zs)
             @views K[:, :, iz] .+= P[y, y]
             mul!(view(K, :, :, iz), view(P, y, c), X, true, true)
         end
-        P = Π[:, :, end]
+        # The transform at ω = 0, for the counterterm and stability
+        P = cauchy_transform((ρ,), [0.0im])[:, :, 1]
         D = Hermitian(Diagonal(σ) - P[c, c])
         all(isfinite, D) || error("Two-magnon continuum reaches ω = 0; the ladder requires a gap.")
         δK0 .+= P[1:2L, c] * (D \ P[c, 1:2L])
