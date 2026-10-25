@@ -3,18 +3,21 @@
 # SpinWaveTheorySpiral.
 abstract type AbstractSpinWaveTheory end
 
-# A correction to the quadratic Hamiltonian, as boson monomials, which defines a
-# Gaussian state other than the harmonic vacuum. A correction that was solved
-# self-consistently records the dimensions of its `grid`, on which every 1/s
-# correction expanded about it must be evaluated, and the outcome of the
-# iteration in `info`.
-struct GaussianState
+# The Gaussian state about which a SpinWaveTheory expands the bosons: the local
+# `frames` of the classical structure and a `correction` to the quadratic
+# Hamiltonian, written in the boson labels of those frames. The harmonic vacuum
+# of LSWT has no correction. A self-consistent vacuum records the dimensions of
+# its `grid`, on which every 1/s correction expanded about it must be
+# evaluated, and the outcome of the iteration in `info`.
+struct GaussianVacuum
+    # Rotation (dipole modes) or unitary (mode :SUN) of each site from the
+    # global frame to the local one, in which the ordered state is along ẑ or
+    # is the last basis state, respectively
+    frames     :: Union{Vector{Mat3}, Vector{Matrix{ComplexF64}}}
     correction :: Vector{BosonMonomial{2}}
     grid       :: Union{Nothing, NTuple{3, Int}}
     info       :: NamedTuple
 end
-
-GaussianState() = GaussianState(BosonMonomial{2}[], nothing, (;))
 
 # The monomials of H₂, from which the LSWT table is compiled, and of H₃ and H₄,
 # built on first use. They depend on the structure and couplings but not on the
@@ -57,28 +60,26 @@ matrix to avoid numerical issues with quasi-particle modes of vanishing energy.
 Physically, this shift can be interpreted as application of an inhomogeneous
 field aligned with the magnetic ordering.
 
-A `SpinWaveTheory` may carry a Gaussian state other than the harmonic vacuum,
-e.g. one returned by `Sunny.about_self_consistent_vacuum`. Its quadratic
-Hamiltonian then includes the state's correction, which determines `dispersion`,
-`intensities`, and every other LSWT quantity, while the 1/s corrections treat
-the state as the vacuum about which the bosons are expanded.
+A `SpinWaveTheory` may carry a Gaussian vacuum other than the harmonic one; see
+`Sunny.with_one_step_vacuum` and `Sunny.with_self_consistent_vacuum`. Its
+quadratic Hamiltonian then includes the vacuum's correction, which determines
+`dispersion`, `intensities`, and every other LSWT quantity, while the 1/s
+corrections expand the bosons about it.
 """
 struct SpinWaveTheory <: AbstractSpinWaveTheory
-    sys            :: System
-    # Rotation (dipole modes) or unitary (mode :SUN) of each site from the
-    # global frame to the local one, in which the ordered state is along ẑ or
-    # is the last basis state, respectively
-    frames         :: Union{Vector{Mat3}, Vector{Matrix{ComplexF64}}}
-    measure        :: MeasureSpec
-    regularization :: Float64
+    sys              :: System       # Private clone, immutable
+    measure          :: MeasureSpec
+    regularization   :: Float64
+    vacuum           :: GaussianVacuum
+
+    # Energy for `vacuum.frames`
     classical_energy :: Float64
-    # The Gaussian state about which the bosons are expanded
-    state          :: GaussianState
-    # The quadratic Hamiltonian of `state`, and of LSWT itself, Ewald excluded
-    quadratic_table :: QuadraticTable
-    bare_table      :: QuadraticTable
-    monomials       :: MonomialCache
-    # One-boson words of the observables; see `observable_coefficients`
+    # The quadratic Hamiltonian of `vacuum`, Ewald excluded
+    quadratic_table  :: QuadraticTable
+    bare_table       :: QuadraticTable
+    monomials        :: MonomialCache
+
+    # Observables encoded as one-boson words
     observable_coefs :: Array{ComplexF64, 3}
 end
 
@@ -93,51 +94,53 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
-    return swt_build(sys, measure, regularization)
-end
-
-# The theory of the structure in `sys` about the harmonic vacuum. By default the
-# local frames follow from the ordered state, as `local_frames` builds them.
-# They may instead be given, so that the boson labels, and with them the phases
-# of the anomalous contractions, continue smoothly as `relax_frames` tilts each
-# frame. The dipole of each site is then set along column 3 of its frame, and
-# the structure need not be a classical energy minimum.
-function swt_build(sys::System, measure, regularization; frames::Union{Nothing, Vector{Mat3}}=nothing)
     # A clone protects against later mutation of `sys`. The quasi-particle
     # bands are indexed by the sites of the whole system, and the wavevectors
     # by the reciprocal lattice of its magnetic cell; see `to_supercell_rlu`.
     sys = clone_system(sys)
-    if isnothing(frames)
-        frames = local_frames(sys)
-    else
-        for (i, site) in enumerate(eachsite(sys))
-            iszero(frames[i]) || set_dipole!(sys, frames[i][:, 3], site)
-        end
-    end
+    return swt_build(sys, local_frames(sys), energy_per_site(sys), measure, regularization)
+end
+
+# The theory of the model `sys` about the harmonic vacuum of the structure
+# `frames`, with classical energy per site `E`. Compiles everything that depends
+# on the structure.
+function swt_build(sys::System, frames, E, measure, regularization)
     terms2 = hamiltonian_monomials(sys, frames, Val{2}())
     table = QuadraticTable(terms2, nbands(sys))
     coefs = observable_coefficients(sys, frames, measure)
-    return SpinWaveTheory(sys, frames, measure, regularization, energy_per_site(sys), GaussianState(), table, table,
-                          MonomialCache(terms2), coefs)
+    vacuum = GaussianVacuum(frames, BosonMonomial{2}[], nothing, (;))
+    return SpinWaveTheory(sys, measure, regularization, vacuum, E, table, table, MonomialCache(terms2), coefs)
 end
 
-# The same theory about the Gaussian state `state`, replacing that of `swt`.
-# Everything but the quadratic table is shared.
-function swt_with_state(swt::SpinWaveTheory, state::GaussianState)
-    (; sys, frames, measure, regularization, classical_energy, bare_table, monomials, observable_coefs) = swt
-    table = isempty(state.correction) ? bare_table :
-        QuadraticTable([monomials.quadratic; state.correction], nbands(swt))
-    return SpinWaveTheory(sys, frames, measure, regularization, classical_energy, state, table, bare_table,
+# The same model about the vacuum with the given fields, in place of the vacuum
+# of `swt`. The frames default to those of `swt`, and the rest to the harmonic
+# vacuum, so that `swt_with_vacuum(swt)` is LSWT proper. Other frames, e.g.
+# relaxed ones, are expanded anew; their structure need not be a classical
+# energy minimum.
+function swt_with_vacuum(swt::SpinWaveTheory; frames=swt.vacuum.frames, correction=BosonMonomial{2}[],
+                         grid=nothing, info=(;))
+    (; sys, measure, regularization) = swt
+    vacuum = GaussianVacuum(frames, correction, grid, info)
+    if frames !== swt.vacuum.frames
+        tilted = clone_system(sys)
+        for (i, site) in enumerate(eachsite(tilted))
+            iszero(frames[i]) || set_dipole!(tilted, frames[i][:, 3], site)
+        end
+        swt = swt_build(sys, frames, energy_per_site(tilted), measure, regularization)
+    end
+    (; classical_energy, bare_table, monomials, observable_coefs) = swt
+    table = isempty(vacuum.correction) ? bare_table :
+        QuadraticTable([monomials.quadratic; vacuum.correction], nbands(swt))
+    return SpinWaveTheory(sys, measure, regularization, vacuum, classical_energy, table, bare_table,
                           monomials, observable_coefs)
 end
-
 
 function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     printstyled(io, "SpinWaveTheory ", mode_to_str(swt.sys), "\n"; bold=true, color=:underline)
     println(io, "  ", nsites(swt.sys), " sites")
-    (; correction, grid, info) = swt.state
+    (; correction, grid, info) = swt.vacuum
     if !isempty(correction)
-        println(io, "  Gaussian state: ", isempty(info) ? "user correction" : join(("$k = $v" for (k, v) in pairs(info)), ", "),
+        println(io, "  Gaussian vacuum: ", isempty(info) ? "user correction" : join(("$k = $v" for (k, v) in pairs(info)), ", "),
                 isnothing(grid) ? "" : ", grid $grid")
     end
 end
@@ -410,14 +413,14 @@ excitations!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q) =
 
 # The same at a wavevector in supercell RLU. A quadratic Hamiltonian that is not
 # positive definite has no vacuum. For LSWT that means the structure is not an
-# energy minimum; for a corrected Gaussian state, the correction is to blame.
+# energy minimum; for a corrected Gaussian vacuum, the correction is to blame.
 function excitations_supercell!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_supercell)
     dynamical_matrix!(H, swt, q_supercell)
     return bogoliubov_or_throw!(ws, H) do
         q = vec3_to_string(from_supercell_rlu(swt.sys, q_supercell))
-        isempty(swt.state.correction) ? "Not an energy-minimum; wavevector q = $q unstable." :
-            "Quadratic Hamiltonian of the Gaussian state is not positive definite at wavevector q = $q. If \
-             quantum fluctuations stabilize the structure, see `Sunny.about_self_consistent_vacuum`."
+        isempty(swt.vacuum.correction) ? "Not an energy-minimum; wavevector q = $q unstable." :
+            "Quadratic Hamiltonian of the Gaussian vacuum is not positive definite at wavevector q = $q. If \
+             quantum fluctuations stabilize the structure, see `Sunny.with_self_consistent_vacuum`."
     end
 end
 

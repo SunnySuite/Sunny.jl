@@ -204,7 +204,7 @@
         # expansion uses and with the same Zeeman convention (+𝐁⋅𝐒). The
         # anisotropy is rotated by hand, so this is independent of the
         # implementation, which instead rotates the Stevens coefficients.
-        Rs = swt.frames
+        Rs = swt.vacuum.frames
         Hex = spzeros(ComplexF64, dim, dim)
         for i in 1:3
             Bi = Rs[i]' * (sys.gs[1, 1, 1, i]' * sys.extfield[1, 1, 1, i])
@@ -300,7 +300,7 @@
 
         Hex = spzeros(ComplexF64, dim, dim)
         for i in 1:Sunny.nsites(sys)
-            int = Sunny.local_interactions(sys, swt.frames, i)
+            int = Sunny.local_interactions(sys, swt.vacuum.frames, i)
             iszero(int.onsite) || (Hex .+= prom(Matrix(int.onsite), i))
             for c in int.pair
                 c.isculled && continue
@@ -311,8 +311,8 @@
             end
         end
 
-        Hs = [expand(bop, Sunny.hamiltonian_monomials(sys, swt.frames, Val{K}(); M), dim) for K in 1:4]
-        E0 = real(sum(t -> t.c, Sunny.hamiltonian_monomials(sys, swt.frames, Val{0}(); M); init=0.0+0im))
+        Hs = [expand(bop, Sunny.hamiltonian_monomials(sys, swt.vacuum.frames, Val{K}(); M), dim) for K in 1:4]
+        E0 = real(sum(t -> t.c, Sunny.hamiltonian_monomials(sys, swt.vacuum.frames, Val{0}(); M); init=0.0+0im))
         R = Hex - E0*I - sum(Hs)
         blk(n) = findall(==(n), nbs)
         scale = norm(Hex)
@@ -822,7 +822,7 @@ end
         for s in ss
             swt = SpinWaveTheory(model(s); measure=nothing)
             (; terms2, δE) = Sunny.hartree_fock_correction(swt; bz)
-            Zc = dispersion(Sunny.swt_with_correction(swt, terms2), qs) ./ dispersion(swt, qs)
+            Zc = dispersion(Sunny.swt_with_vacuum(swt; correction=terms2), qs) ./ dispersion(swt, qs)
             @test maximum(abs, Zc .- Zc[1]) < 1e-6
             @test 2s * (Zc[1] - 1) ≈ ζ atol=1e-6
             @test δE ≈ δE₀ atol=1e-7
@@ -851,8 +851,8 @@ end
     @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, bz=(6, 6, 1))) < 1e-12
     grid32 = (32, 32, 1)
     Zcs = map((Sunny.hartree_fock_correction(swt; bz=grid32).terms2,
-               Sunny.about_self_consistent_vacuum(swt; bz=grid32, scf_tol=1e-7).state.correction)) do terms2
-        dispersion(Sunny.swt_with_correction(swt, terms2), [[0.3, 0.1, 0]])
+               Sunny.with_self_consistent_vacuum(swt; bz=grid32, scf_tol=1e-7).vacuum.correction)) do terms2
+        dispersion(Sunny.swt_with_vacuum(swt; correction=terms2), [[0.3, 0.1, 0]])
     end
     @test Zcs[1] ≈ Zcs[2] atol=1e-7
     # The energy of a Gaussian state is stationary in the self-consistent
@@ -861,15 +861,15 @@ end
     # field the mean field only rescales H₂ and the two vacua coincide, so the
     # structure is canted.
     let bz = (16, 16, 1), swt = SpinWaveTheory(canted_square(1/2, 1.0); measure=nothing)
-        # `swt_build` at the frames already in `swt` must reproduce `swt`
-        # itself: those frames already carry its own gauge twist, so there is
-        # no hidden rotation left for the labels to pick up.
-        let swt2 = Sunny.swt_build(swt.sys, swt.measure, swt.regularization; frames=swt.frames)
+        # Re-expanding about a copy of the frames already in `swt` must
+        # reproduce `swt` itself: those frames already carry its own gauge
+        # twist, so there is no hidden rotation left for the labels to pick up.
+        let swt2 = Sunny.swt_with_vacuum(swt; frames=copy(swt.vacuum.frames))
             @test dispersion(swt2, [[0.3, 0.1, 0]]) ≈ dispersion(swt, [[0.3, 0.1, 0]])
             @test swt2.classical_energy ≈ swt.classical_energy
         end
-        sc = Sunny.about_self_consistent_vacuum(swt; bz)
-        E(λ) = Sunny.gaussian_energy_per_site(Sunny.swt_with_correction(swt, [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.state.correction]); bz)
+        sc = Sunny.with_self_consistent_vacuum(swt; bz)
+        E(λ) = Sunny.gaussian_energy_per_site(Sunny.swt_with_vacuum(swt; correction=[Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.vacuum.correction]); bz)
         @test abs(E(1 + 1e-3) - E(1 - 1e-3)) / 2e-3 < 1e-6
         @test E(1) ≈ Sunny.gaussian_energy_per_site(sc) atol=1e-14
         @test E(0) ≈ Sunny.corrected_energy_per_site(swt; bz) - Sunny.hartree_fock_correction(swt; bz).δE atol=1e-12
@@ -878,19 +878,19 @@ end
         # wavevector, and a pin restores the harmonic one, which only the
         # regularization gaps
         gap(sw) = minimum(dispersion(sw, [[0, 0, 0]]))
-        pinned = Sunny.about_self_consistent_vacuum(swt; bz, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
+        pinned = Sunny.with_self_consistent_vacuum(swt; bz, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
         @test gap(sc) > 0.1
         @test gap(pinned) ≈ gap(swt) rtol=0.1
         # Relaxing the structure as well lowers the energy further, and makes
         # the state jointly stationary, so the magnetization is the expectation
         # value of the spin, ∂E/∂B = ⟨Sᶻ⟩ for g = 1. At zero field the
         # structure is collinear and does not move.
-        relaxed(B) = Sunny.about_self_consistent_vacuum(SpinWaveTheory(canted_square(1/2, B); measure=nothing); bz, tadpole=true, scf_tol=1e-10)
+        relaxed(B; scf_tol=1e-10) = Sunny.with_self_consistent_vacuum(SpinWaveTheory(canted_square(1/2, B); measure=nothing); bz, relax_structure=true, scf_tol)
         st = relaxed(1.0)
-        Sz(sw) = sum((1/2 - n) * R[3, 3] for (n, R) in zip(Sunny.boson_density(sw), sw.frames)) / 2
+        Sz(sw) = sum((1/2 - n) * R[3, 3] for (n, R) in zip(Sunny.boson_density(sw), sw.vacuum.frames)) / 2
         @test Sunny.gaussian_energy_per_site(st) < E(1)
         @test (Sunny.gaussian_energy_per_site(relaxed(1.001)) - Sunny.gaussian_energy_per_site(relaxed(0.999))) / 0.002 ≈ Sz(st) atol=1e-7
-        @test Sunny.about_self_consistent_vacuum(SpinWaveTheory(canted_square(1/2, 0); measure=nothing); bz, tadpole=true).frames[1][3, 3] ≈ 0 atol=1e-12
+        @test relaxed(0; scf_tol=1e-8).vacuum.frames[1][3, 3] ≈ 0 atol=1e-12
     end
     # A field along the moments shifts the magnons by ±B without changing the
     # Bogoliubov transformation. It leaves the Néel state energetically
@@ -901,7 +901,7 @@ end
         swtB = SpinWaveTheory(sysB; measure=nothing)
         @test_throws Sunny.InstabilityError dispersion(swtB, [[0.01, 0, 0]])
         hfB = Sunny.hartree_fock_correction(swtB; bz=grid32)
-        @test dispersion(Sunny.swt_with_correction(swt, hfB.terms2), [[0.3, 0.1, 0]]) ≈ Zcs[1] atol=1e-7
+        @test dispersion(Sunny.swt_with_vacuum(swt; correction=hfB.terms2), [[0.3, 0.1, 0]]) ≈ Zcs[1] atol=1e-7
     end
     # The tadpole vanishes term by term, at 1e-34, so `tol` is irrelevant to it
     tad = Sunny.tadpole_correction(swt; bz=1e-3)
@@ -990,7 +990,7 @@ end
                       E = Sunny.corrected_energy_per_site(swt; bz),
                       n = Sunny.boson_density(swt; bz),
                       δE = [hf.δE, tad.δE],
-                      εc = dispersion(Sunny.swt_with_correction(swt, [hf.terms2; tad.terms2]), qs),
+                      εc = dispersion(Sunny.swt_with_vacuum(swt; correction=[hf.terms2; tad.terms2]), qs),
                       Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, bz=(8, 8, 1)),
                       I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61),
                                                       η=0.1, bz=(26, 26, 1)).data)
@@ -1343,7 +1343,7 @@ end
         o = Sunny.Vec3(0, 0, 0)
         L = Sunny.nbands(swt)
         shift = [Sunny.BosonMonomial(0.3+0im, (L+1, 1), (o, o))]
-        c = Sunny.corrected_channels(Sunny.swt_with_correction(swt, shift), qs; energies, η, bz=(4, 4, 1))
+        c = Sunny.corrected_channels(Sunny.swt_with_vacuum(swt; correction=shift), qs; energies, η, bz=(4, 4, 1))
         @test c.transverse + c.cross + c.direct ≈ chans.transverse + chans.cross + chans.direct atol=1e-12
         @test c.disp ≈ chans.disp .+ 0.3
     end
@@ -2035,7 +2035,7 @@ end
             tilt = Sunny.Vec3(σ*real(tad.v[i]), σ*imag(tad.v[i]), swt.sys.κs[i])
             Rot = Sunny.rotation_between_vectors([0, 0, 1], tilt)
             for μ in 1:3
-                O = Sunny.local_observable(swt.sys, swt.frames, swt.measure, μ, i)
+                O = Sunny.local_observable(swt.sys, swt.vacuum.frames, swt.measure, μ, i)
                 O′ = Rot' * O
                 δcp = ((O′[1] - O[1]) - im*(O′[2] - O[2])) / 2
                 δcm = ((O′[1] - O[1]) + im*(O′[2] - O[2])) / 2
@@ -2075,7 +2075,7 @@ end
         return SpinWaveTheory(sys; measure=nothing)
     end
     swt = anisotropic_site([0.3, 0.5, 0.8])
-    Rloc = swt.frames[1]
+    Rloc = swt.vacuum.frames[1]
     δE₀(n) = Sunny.anisotropy_correction(anisotropic_site(n)).δE
     # Tilting n by t along a transverse axis of the local frame moves that component of
     # the dipole by s t, to first order
@@ -2122,19 +2122,19 @@ end
     # not depend on where the iteration starts. Both paths share the same
     # quadrature, so its accuracy is irrelevant here and a coarse grid keeps the
     # iterations cheap.
-    ress = map((nothing, Sunny.swt_with_correction(swt, terms2))) do guess
-        sc = Sunny.about_self_consistent_vacuum(swt; bz=(8, 8, 1), guess)
+    ress = map((swt, Sunny.swt_with_vacuum(swt; correction=terms2))) do start
+        sc = Sunny.with_self_consistent_vacuum(start; bz=(8, 8, 1))
         return (Sunny.gaussian_energy_per_site(sc), dispersion(sc, [[0.3, 0.1, 0]]))
     end
     @test ress[1][1] ≈ ress[2][1] atol=1e-8
     @test ress[1][2] ≈ ress[2][2] atol=1e-7
 
     # `static_self_energy` is the term linear in the correction of the shift
-    # that `dispersion(swt_with_correction(swt, terms2), q)` obtains by
+    # that `dispersion(swt_with_vacuum(swt; correction=terms2), q)` obtains by
     # rediagonalizing.
     scaled(λ) = [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in terms2]
     q = [[0.3, 0.1, 0]]
-    δdisp = (dispersion(Sunny.swt_with_correction(swt, scaled(1e-4)), q) - dispersion(Sunny.swt_with_correction(swt, scaled(-1e-4)), q)) / 2e-4
+    δdisp = (dispersion(Sunny.swt_with_vacuum(swt; correction=scaled(1e-4)), q) - dispersion(Sunny.swt_with_vacuum(swt; correction=scaled(-1e-4)), q)) / 2e-4
     @test δdisp ≈ Sunny.static_self_energy(swt, q, terms2) atol=1e-6
 end
 

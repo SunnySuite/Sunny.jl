@@ -22,26 +22,18 @@
 # ---- The vacuum ----
 
 # The Gaussian state about which the 1/s corrections expand the bosons is the
-# `state` of the `SpinWaveTheory`, the vacuum of the LSWT quadratic Hamiltonian
+# `vacuum` of the `SpinWaveTheory`, the vacuum of the LSWT quadratic Hamiltonian
 # plus its correction, a list of quadratic boson monomials such as the
 # mean-field corrections return. Its quasi-particles are the internal lines of
 # every loop, and the mean fields are contractions in it. Without a correction
 # this is the 1/s expansion proper. For the self-consistent correction, see
-# `about_self_consistent_vacuum`.
+# `with_self_consistent_vacuum`.
 #
 # A correction resums some class of higher-order terms. Since the full
 # Hamiltonian does not depend on this choice, the correction is subtracted again
 # as a counterterm in the static self-energy, so the bare propagator of the Dyson
 # equation remains that of LSWT and results differ from the 1/s expansion only
-# at the order neglected.
-
-# The same theory about the vacuum of the LSWT Hamiltonian plus `terms2`, which
-# replaces any correction that `swt` already carries. The result is not
-# self-consistent, so it records no grid.
-swt_with_correction(swt::SpinWaveTheory, terms2) = swt_with_state(swt, GaussianState(terms2, nothing, (;)))
-
-# The same theory about the harmonic vacuum, i.e. LSWT proper
-swt_harmonic(swt::SpinWaveTheory) = swt_with_state(swt, GaussianState())
+# at the order neglected. A theory about another vacuum is `swt_with_vacuum`.
 
 # The wavevector loop shared by every frequency-dependent momentum integral of
 # this module. Calls `f(𝐩, w, T1, T2, ε1, ε2)` once per wavevector 𝐩 of
@@ -168,7 +160,7 @@ function vacuum_modes!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_superc
     tol = sqrt(eps()) * opnorm(H, 1)
     unstable() = InstabilityError("Quadratic Hamiltonian of the vacuum dynamically unstable at supercell \
                                    wavevector $(vec3_to_string(q_supercell)). If quantum fluctuations \
-                                   stabilize the structure, see `Sunny.about_self_consistent_vacuum`.")
+                                   stabilize the structure, see `Sunny.with_self_consistent_vacuum`.")
     all(x -> abs(imag(x)) < tol, λ) || throw(unstable())
     # Within each cluster of degenerate frequencies, eigen returns an arbitrary
     # basis. The positive-norm part of an orthonormal basis of the cluster is a

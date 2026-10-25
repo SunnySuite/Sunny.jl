@@ -40,7 +40,8 @@ end
 # of J(q) give hopping and pairing between the sites, and Jᶻᶻ at q = 0, the
 # molecular field of the ordered moments, shifts each site by -sⱼ J₀ᶻᶻ.
 function accum_ewald_dipole!(H, swt, Aq, A0, q_supercell)
-    (; sys, frames) = swt
+    (; sys) = swt
+    (; frames) = swt.vacuum
     L = nbands(swt)
     H11 = view(H, 1:L, 1:L)
     H12 = view(H, 1:L, L+1:2L)
@@ -85,7 +86,8 @@ end
 # term on one unit times the mean on the other stays on one unit, and takes J
 # at q = 0. Linear terms on both units couple them, and take J at q.
 function accum_ewald_SUN!(H, swt, Aq, A0, q_supercell)
-    (; sys, frames) = swt
+    (; sys) = swt
+    (; frames) = swt.vacuum
     usys = uncontracted_system(sys)
     N = sys.Ns[1]
     Na = nsites(sys)
