@@ -796,7 +796,7 @@ end
         for s in ss
             swt = SpinWaveTheory(model(s); measure=nothing)
             (; terms2, δE) = Sunny.hartree_fock_correction(swt; bz)
-            Zc = Sunny.corrected_dispersion(swt, qs, terms2) ./ dispersion(swt, qs)
+            Zc = dispersion(Sunny.with_correction(swt, terms2), qs) ./ dispersion(swt, qs)
             @test maximum(abs, Zc .- Zc[1]) < 1e-6
             @test 2s * (Zc[1] - 1) ≈ ζ atol=1e-6
             @test δE ≈ δE₀ atol=1e-7
@@ -827,7 +827,7 @@ end
     grid32 = Sunny.BZGrid(32, 32, 1)
     Zcs = map((Sunny.hartree_fock_correction(swt; bz=grid32).terms2,
                Sunny.self_consistent(swt; grid=grid32, scf_tol=1e-7).state.correction)) do terms2
-        Sunny.corrected_dispersion(swt, [[0.3, 0.1, 0]], terms2)
+        dispersion(Sunny.with_correction(swt, terms2), [[0.3, 0.1, 0]])
     end
     @test Zcs[1] ≈ Zcs[2] atol=1e-7
     # The energy of a Gaussian state is stationary in the self-consistent
@@ -859,7 +859,7 @@ end
         swtB = SpinWaveTheory(sysB; measure=nothing)
         @test_throws Sunny.InstabilityError dispersion(swtB, [[0.01, 0, 0]])
         hfB = Sunny.hartree_fock_correction(swtB; bz=grid32)
-        @test Sunny.corrected_dispersion(swt, [[0.3, 0.1, 0]], hfB.terms2) ≈ Zcs[1] atol=1e-7
+        @test dispersion(Sunny.with_correction(swt, hfB.terms2), [[0.3, 0.1, 0]]) ≈ Zcs[1] atol=1e-7
     end
     # The tadpole vanishes term by term, at 1e-34, so `tol` is irrelevant to it
     tad = Sunny.tadpole_correction(swt; bz=Sunny.BZAdaptive(tol=1e-3))
@@ -948,7 +948,7 @@ end
                       E = Sunny.corrected_energy_per_site(swt; bz),
                       n = Sunny.boson_density(swt; bz),
                       δE = [hf.δE, tad.δE],
-                      εc = Sunny.corrected_dispersion(swt, qs, [hf.terms2; tad.terms2]),
+                      εc = dispersion(Sunny.with_correction(swt, [hf.terms2; tad.terms2]), qs),
                       Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, grid=Sunny.BZGrid(8, 8, 1)),
                       I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61),
                                                       η=0.1, grid=Sunny.BZGrid(26, 26, 1)).data)
@@ -1964,10 +1964,10 @@ end
     @test ress[1][2] ≈ ress[2][2] atol=1e-7
 
     # `static_self_energy` is the term linear in the correction of the shift that
-    # `corrected_dispersion` obtains by rediagonalizing.
+    # `dispersion(with_correction(swt, terms2), q)` obtains by rediagonalizing.
     scaled(λ) = [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in terms2]
     q = [[0.3, 0.1, 0]]
-    δdisp = (Sunny.corrected_dispersion(swt, q, scaled(1e-4)) - Sunny.corrected_dispersion(swt, q, scaled(-1e-4))) / 2e-4
+    δdisp = (dispersion(Sunny.with_correction(swt, scaled(1e-4)), q) - dispersion(Sunny.with_correction(swt, scaled(-1e-4)), q)) / 2e-4
     @test δdisp ≈ Sunny.static_self_energy(swt, q, terms2) atol=1e-6
 end
 

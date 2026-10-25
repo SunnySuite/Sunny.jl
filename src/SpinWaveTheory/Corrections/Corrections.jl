@@ -85,13 +85,13 @@
 # `BZAdaptive` for adaptive cubature. A state produced by `self_consistent`
 # records its grid, which subsequent calls use by default.
 #
-#     Vacuum       self_consistent
+#     Vacuum       self_consistent, GoldstonePin, with_correction
 #     Spectra      corrected_intensities, corrected_intensities_bands
 #     Statics      corrected_energy_per_site, gaussian_energy_per_site,
 #                  boson_density, corrected_magnetic_moments
 #     Pieces       hartree_fock_correction, tadpole_correction,
 #                  observable_corrections, anisotropy_correction,
-#                  static_self_energy, cubic_self_energy, corrected_dispersion
+#                  static_self_energy, cubic_self_energy
 #     Internals    OneLoop, SelfEnergy, corrected_channels
 
 # Why the 1/s corrections of this directory are unavailable for `swt`, or `nothing`

@@ -17,8 +17,9 @@ Decouples the four-boson term of the Holstein-Primakoff expansion into a
 mean-field correction to the quadratic (LSWT) Hamiltonian, with mean fields
 taken in the Gaussian state of `swt`, by default the LSWT ground state. The
 correction is smaller than the LSWT Hamiltonian by a factor of order ``1/s``.
-Returns `(; terms2, δE)`, where `terms2` can be passed to
-[`corrected_dispersion`](@ref) and `δE` is a correction to the energy per site.
+Returns `(; terms2, δE)`, where `terms2` is a correction to the quadratic
+Hamiltonian, e.g. for `Sunny.with_correction`, and `δE` is a correction to the
+energy per site.
 
 The LSWT Hamiltonian need not be positive definite. If its frequencies are real,
 as for a structure that quantum fluctuations select from a classically
@@ -210,7 +211,7 @@ Computes the shift of the ordered magnetic structure caused by zero-point
 fluctuations, which appears at relative order ``1/s``. An example is the change
 in canting angle of an antiferromagnet in an applied field. Returns `(; terms2,
 δE, v)`, where `terms2` is a correction to the quadratic Hamiltonian that can be
-passed to [`corrected_dispersion`](@ref), `δE` is a correction to the energy per
+passed to `Sunny.with_correction`, `δE` is a correction to the energy per
 site, and `v` is the boson displacement that realizes the shift, which
 [`observable_corrections`](@ref) and [`corrected_magnetic_moments`](@ref) need.
 The latter reads the shifted structure off `v`, together with the zero-point
@@ -501,9 +502,10 @@ including its counterterm, as returned by [`hartree_fock_correction`](@ref) or
 concatenated. The result has the same shape as [`dispersion`](@ref), to which it
 is to be added.
 
-Whereas [`corrected_dispersion`](@ref) rediagonalizes the corrected Hamiltonian,
-this function evaluates the correction to first order only. The two differ at
-relative order ``1/s²``, but only the latter can be combined with
+Whereas `dispersion(Sunny.with_correction(swt, terms2), qpts)` rediagonalizes
+the corrected Hamiltonian, this function evaluates the correction to first
+order only. The two differ at relative order ``1/s²``, but only the latter can
+be combined with
 [`cubic_self_energy`](@ref), which is likewise a first-order energy shift. It is
 also the appropriate choice when the structure supports a Goldstone mode: an
 ``O(1/s)`` correction to a Hamiltonian with a protected zero mode produces a gap
@@ -520,7 +522,7 @@ function static_self_energy(swt::SpinWaveTheory, qpts, terms2)
     ws = BogoliubovWorkspace(L)
     ret = stack(qpts.qs) do q
         q_reshaped = to_reshaped_rlu(swt.sys, q)
-        vacuum_bogoliubov!(ws, H, swt, q_reshaped)
+        excitations_reshaped!(ws, H, swt, q_reshaped)
         # Writing the quadratic form as (1/2) y† Σ y in the quasi-particle
         # basis, the coefficient of α†_n α_n is the n-th diagonal element.
         real.(diag(static_self_energy_matrix(swt, terms2, q_reshaped, ws.T)))[1:L]
@@ -535,27 +537,4 @@ function static_self_energy_matrix(swt::SpinWaveTheory, terms2, q_reshaped, T)
     accum_quadratic!(δH, terms2, q_reshaped)
     accum_counterterm!(δH, swt, q_reshaped)
     return T' * δH * T
-end
-
-"""
-    corrected_dispersion(swt::SpinWaveTheory, qpts, terms2)
-
-Excitation energies including a mean-field correction to the quadratic
-Hamiltonian, as returned by [`hartree_fock_correction`](@ref) or
-[`tadpole_correction`](@ref), added to that of the Gaussian state of `swt`.
-Corrections from multiple sources should be concatenated. Otherwise like
-[`dispersion`](@ref). See
-[`static_self_energy`](@ref) for the alternative of applying the correction to
-first order only.
-"""
-function corrected_dispersion(swt::SpinWaveTheory, qpts, terms2)
-    L = nbands(swt)
-    qpts = convert(AbstractQPoints, qpts)
-    sw = with_correction(swt, terms2)
-    H = zeros(ComplexF64, 2L, 2L)
-    ws = BogoliubovWorkspace(L)
-    disp = stack(qpts.qs) do q
-        vacuum_bogoliubov!(ws, H, sw, to_reshaped_rlu(swt.sys, q))[1:L]
-    end
-    return reshape(disp, L, size(qpts.qs)...)
 end
