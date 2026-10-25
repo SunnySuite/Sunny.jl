@@ -1462,64 +1462,141 @@ end
         @test (w.elastic + w.harm + w.longitudinal) / w.casimir - 1 > 0.02
     end
 
-    # An observable that creates no single magnon, here the quadrupole 𝒪₂²
-    # about a moment along ẑ, which changes Sᶻ by two. Its whole spectrum is the
-    # pair channel, so the four-boson words of the observable, contracted into
-    # the pair amplitude by `observable_pair_corrections`, enter at the same
-    # order as the pair word itself. The reference is the static weight ⟨Q†Q⟩ in
-    # the Gaussian vacuum of a Néel dimer, with Q rebuilt from its words of two
-    # and four bosons in a truncated Fock space. The integrated pair channel
-    # must reproduce it to O(1/s²), and does so to 4e-3 and 9e-4 at s = 4 and 8,
-    # whereas without the correction it misses by the 5% and 2% of the
-    # four-boson words.
-    let
-        function dimer(s)
-            cryst = Crystal(lattice_vectors(1, 1.1, 10, 90, 90, 100), [[0, 0, 0], [0.4, 0.3, 0.1]], 1)
-            sys = System(cryst, [1 => Moment(; s, g=1), 2 => Moment(; s, g=1)], :dipole)
-            set_exchange!(sys, 1/s, Bond(1, 2, [0, 0, 0]))
-            O = stevens_matrices(s)
-            set_onsite_coupling!(sys, -0.15 * O[2, 0] / s, 1)
-            set_onsite_coupling!(sys, -0.15 * O[2, 0] / s, 2)
-            sys = to_inhomogeneous(sys)
-            set_field_at!(sys, [0, 0, -0.3], (1, 1, 1, 1))
-            set_field_at!(sys, [0, 0, 0.3], (1, 1, 1, 2))
-            set_dipole!(sys, [0, 0, 1], (1, 1, 1, 1))
-            set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
-            return sys
+    # The sum rule, order by order. The weight of a correlation integrated over
+    # ω > 0 equals the static weight ⟨Q†Q⟩ - |⟨Q⟩|², an identity that holds
+    # separately at each order of the 1/s expansion. Scale every 1/s piece by a
+    # bookkeeping parameter ε: the cubic vertex by ε; the static self-energy, the
+    # amplitude corrections δc and δpair by ε²; and, because a K-boson word of
+    # an observable is smaller than its one-boson word by ε^(K-1), its pair
+    # amplitude by ε. Then the ε² coefficient of the integrated corrected
+    # spectrum must equal that of the strict static weight, the ground state of
+    # H₂ + εH₃ + ε²(H₄ + δH₂ + H₁) with Q = Σ_K ε^(K-1) W_K, computed in a
+    # truncated Fock space. That is exact, not asymptotic, so the gate needs a
+    # single s and is limited only by Fock truncation and finite differences.
+    #
+    # The cluster is a canted antiferromagnetic dimer, so that H₃ ≠ 0 and every
+    # channel is live: a uniform field cants the moments, and a staggered
+    # transverse field and easy axis pin the canting, keeping the ground state
+    # gapped. Without the pin it tunnels between its two chiralities, with a gap
+    # that closes exponentially in s, and is not the state that the expansion
+    # describes. The observables span ranks 1 to 3, among them a quadrupole
+    # whose spectrum is mostly two-magnon and an octupole whose one-magnon
+    # amplitude is suppressed, cases where the leading channel is not the
+    # one-magnon one.
+    let s = 4.0, nmax = 10
+        cryst = Crystal(lattice_vectors(1, 1.1, 10, 90, 90, 100), [[0, 0, 0], [0.4, 0.3, 0.1]], 1)
+        sys = System(cryst, [1 => Moment(; s, g=1), 2 => Moment(; s, g=1)], :dipole)
+        set_exchange!(sys, 1/s, Bond(1, 2, [0, 0, 0]))
+        O = stevens_matrices(s)
+        set_onsite_coupling!(sys, -0.1 * O[2, 2] / s, 1)
+        set_onsite_coupling!(sys, -0.1 * O[2, 2] / s, 2)
+        sys = to_inhomogeneous(sys)
+        set_field_at!(sys, [-0.25, 0, 0.8], (1, 1, 1, 1))
+        set_field_at!(sys, [0.25, 0, 0.8], (1, 1, 1, 2))
+        set_dipole!(sys, [0.9, 0, -0.4], (1, 1, 1, 1))
+        set_dipole!(sys, [-0.9, 0, -0.4], (1, 1, 1, 2))
+        minimize_energy!(sys; maxiters=10_000)
+
+        # Gauss-Legendre nodes, by Golub-Welsch
+        function gausslegendre(n)
+            (x, V) = eigen(SymTridiagonal(zeros(n), [k / √(4k^2 - 1) for k in 1:n-1]))
+            return (x, 2 .* V[1, :].^2)
         end
-        function quadrupole_measure(sys, s)
-            A = Hermitian(ComplexF64.(Matrix(stevens_matrices(s)[2, 2])))
-            obs = fill(Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(A)), 1, 1, 1, 1, 2, 1)
-            return Sunny.MeasureSpec(obs, [(1, 1)], (q, corr) -> real(only(corr)), fill(one(FormFactor), 1, 2, 1))
+        (xs, ws) = gausslegendre(100)
+        # Taylor coefficients of f at 0, through second order
+        function taylor2(f; h=0.02)
+            (fm2, fm1, f0, fp1, fp2) = f.((-2h, -h, 0.0, h, 2h))
+            return (; f0, c1 = (fm2 - 8fm1 + 8fp1 - fp2) / 12h, c2 = (-fm2 + 16fm1 - 30f0 + 16fp1 - fp2) / 24h^2)
         end
-        function pair_weight_errors(s; nmax=12)
-            sys = dimer(s)
-            swt = SpinWaveTheory(sys; measure=quadrupole_measure(sys, s), regularization=0)
-            L = 2
+        scaled(ts, x) = [Sunny.BosonMonomial(x * t.c, t.as, t.ns) for t in ts]
+
+        # Weight at ω > 0 of the :nambu response at q = 0, a finite sum of poles
+        # χ(z) = Σ rₙ/(z - ωₙ). It is (Σ rₙ + Σ rₙ sign ωₙ)/2, the second sum being
+        # -(1/π) ∫ χ(iy) dy, so that no broadening enters.
+        function corrected_weight(swt, ε)
+            L = Sunny.nbands(swt)
+            ol = Sunny.OneLoop(swt; η=1e-3, grid=Sunny.BZGrid(1, 1, 1))
+            ol = Sunny.OneLoop(ol.swt, ol.η, ol.loop_grid, ol.bin_width, scaled(ol.terms3, ε), ol.terms4,
+                               scaled(ol.terms2, ε^2), ε^2 * ol.δc, map(ts -> scaled(ts, ε^2), ol.δpair))
+            se = Sunny.SelfEnergy(ol, [0, 0, 0])
+            # The row of the bath for the pair amplitude, by ε
+            d = 2L + 1
+            for ρ in (se.decay, se.source), v in values(ρ.bins), n in 1:ρ.dim
+                v[n ≤ d ? Sunny.packed_index(n, d) : Sunny.packed_index(d, n)] *= (n == d ? ε^2 : ε)
+            end
+            p = 1:2L
+            E = Diagonal(abs.(se.ε))
+            Ĩ = Diagonal([ones(L); -ones(L)])
+            w = se.w[:, 1]
+            function χ(zs)
+                (; Σ, K) = Sunny.dyson_model(se, :nambu, zs)
+                return map(eachindex(zs)) do i
+                    Kz = K[:, :, i]
+                    G = inv(zs[i] * Ĩ - E - Σ - Kz[p, p])
+                    w' * G * w + (Kz[d:d, p] * G * w)[1] + (w' * G * Kz[p, d:d])[1] + Kz[d, d] + (Kz[d:d, p] * G * Kz[p, d:d])[1]
+                end
+            end
+            θ = (π/2) .* xs
+            signed = -real(sum(ws .* (π/2) ./ cos.(θ).^2 .* χ(im .* tan.(θ)))) / π
+            total = real(im * 1e8 * only(χ([1e8im])))
+            return (total + signed) / 2
+        end
+
+        function strict_weight(swt, ε)
+            L = Sunny.nbands(swt)
             Ns = (nmax+1, nmax+1)
             dim = prod(Ns)
             bop = fock_ops(Ns)
             (_, H2) = fock_quadratic(swt, bop, dim)
-            ψ = eigen(Hermitian(Matrix(H2))).vectors[:, 1]
-            W(K) = expand(bop, reduce(vcat, (Sunny.observable_monomials(swt, 1, i, Val{K}()) for i in 1:L)), dim)
-            weight(Q) = real(ψ' * Q' * Q * ψ) - abs2(ψ' * Q * ψ)
-            ol = Sunny.OneLoop(swt; η=0.02, grid=Sunny.BZGrid(1, 1, 1))
-            bare = Sunny.OneLoop(ol.swt, ol.η, ol.loop_grid, ol.bin_width, ol.terms3, ol.terms4, ol.terms2, ol.δc,
-                                 map(_ -> Sunny.BosonMonomial{2}[], ol.δpair))
-            # Mass of the direct channel of the decay measure, the integrated pair weight
-            pair(ol) = real(sum(v -> Sunny.bin_entry(v, 2L+1, 2L+1), values(Sunny.SelfEnergy(ol, [0, 0, 0]).decay.bins)))
-            return (; corrected = pair(ol) / weight(W(2) + W(4)) - 1, bare = pair(bare) / weight(W(2) + W(4)) - 1,
-                      leading = pair(bare) / weight(W(2)) - 1)
+            H3 = expand(bop, Sunny.cubic_monomials(swt), dim)
+            H4 = expand(bop, [Sunny.quartic_monomials(swt); Sunny.lswt_correction_monomials(swt, Val{2}())], dim) +
+                 expand(bop, Sunny.lswt_correction_monomials(swt, Val{1}()), dim)
+            Q = sum(K -> ε^(K-1) * expand(bop, reduce(vcat, (Sunny.observable_monomials(swt, 1, i, Val{K}()) for i in 1:L)), dim), 1:4)
+            ψ = eigen(Hermitian(Matrix(H2 + ε * H3 + ε^2 * H4))).vectors[:, 1]
+            return real(ψ' * Q' * Q * ψ) - abs2(ψ' * Q * ψ)
         end
-        (e4, e8) = pair_weight_errors.((4.0, 8.0))
-        # The pair word alone is reproduced exactly, from the same vacuum
-        @test abs(e4.leading) < 1e-9
-        # With the correction, the residual is O(1/s²): small and falling fourfold
-        @test abs(e8.corrected) < 2e-3
-        @test abs(e8.corrected) < 0.3 * abs(e4.corrected)
-        # Without it, the residual is O(1/s), larger and falling only twofold
-        @test abs(e8.bare) > 10 * abs(e8.corrected)
-        @test abs(e8.bare) > 0.4 * abs(e4.bare)
+
+        for A in (spin_matrices(s)[1], spin_matrices(s)[3], O[2, 1], O[2, 2], O[3, -1])
+            st = Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(Hermitian(ComplexF64.(Matrix(A)))))
+            measure = Sunny.MeasureSpec(fill(st, 1, 1, 1, 1, 2, 1), [(1, 1)], (q, corr) -> real(only(corr)),
+                                        fill(one(FormFactor), 1, 2, 1))
+            swt = SpinWaveTheory(sys; measure, regularization=0)
+            a = taylor2(ε -> corrected_weight(swt, ε))
+            b = taylor2(ε -> strict_weight(swt, ε))
+            @test a.f0 ≈ b.f0 rtol=1e-7
+            @test abs(a.c1) < 1e-8 * b.f0
+            @test a.c2 ≈ b.c2 rtol=1e-6
+        end
+
+        # For an observable with no one-magnon part, the ε² term above is its
+        # leading order, and its first correction is the ε⁴ term. Here the
+        # corrections do NOT satisfy the gate: the pair amplitude is taken in the
+        # harmonic vacuum, missing the shift of ⟨W₂†W₂⟩ that the vacuum takes at
+        # first order. The quadrupole 𝒪₂² of a collinear Néel dimer isolates it,
+        # since there H₃ = 0 and 𝒪₂² creates only pairs.
+        sys = System(cryst, [1 => Moment(; s, g=1), 2 => Moment(; s, g=1)], :dipole)
+        set_exchange!(sys, 1/s, Bond(1, 2, [0, 0, 0]))
+        set_onsite_coupling!(sys, -0.15 * O[2, 0] / s, 1)
+        set_onsite_coupling!(sys, -0.15 * O[2, 0] / s, 2)
+        sys = to_inhomogeneous(sys)
+        set_field_at!(sys, [0, 0, -0.3], (1, 1, 1, 1))
+        set_field_at!(sys, [0, 0, 0.3], (1, 1, 1, 2))
+        set_dipole!(sys, [0, 0, 1], (1, 1, 1, 1))
+        set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
+        st = Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(Hermitian(ComplexF64.(Matrix(O[2, 2])))))
+        measure = Sunny.MeasureSpec(fill(st, 1, 1, 1, 1, 2, 1), [(1, 1)], (q, corr) -> real(only(corr)),
+                                    fill(one(FormFactor), 1, 2, 1))
+        swt = SpinWaveTheory(sys; measure, regularization=0)
+        # Fourth-order Taylor coefficient of f at 0, from a symmetric stencil
+        function taylor4(f; h=0.05)
+            v = f.((-3h, -2h, -h, 0.0, h, 2h, 3h))
+            return (; c2 = (2v[1] - 27v[2] + 270v[3] - 490v[4] + 270v[5] - 27v[6] + 2v[7]) / 360h^2,
+                      c4 = (-v[1] + 12v[2] - 39v[3] + 56v[4] - 39v[5] + 12v[6] - v[7]) / 144h^4)
+        end
+        a = taylor4(ε -> corrected_weight(swt, ε))
+        b = taylor4(ε -> strict_weight(swt, ε))
+        @test a.c2 ≈ b.c2 rtol=1e-7
+        @test_broken a.c4 ≈ b.c4 rtol=1e-4
     end
 end
 
