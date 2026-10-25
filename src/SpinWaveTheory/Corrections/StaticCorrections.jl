@@ -5,14 +5,14 @@
 # Corrections.jl.
 
 """
-    energy_per_site_lswt_correction(swt::SpinWaveTheory; rtol=nothing, maxevals=nothing)
+    corrected_energy_per_site(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
 
-Correction to the classical energy per site at relative order ``1/s``, where
-``s`` is the spin magnitude in dipole mode, or ``1/λ`` for the representation
-label ``λ`` in SU(N) mode. If the classical energy is ``J s²``, this correction
-appears at order ``J s``.
+Energy per site of the magnetic structure, corrected at relative order ``1/s``,
+where ``s`` is the spin magnitude in dipole mode, or ``1/λ`` for the
+representation label ``λ`` in SU(N) mode. If the classical energy is ``J s²``, the
+correction appears at order ``J s``.
 
-It is the zero-point energy of the harmonic magnons,
+The correction is the zero-point energy of the harmonic magnons,
 ``(1/2) Σ_n ∫d³q ω(𝐪, n)`` over the first magnetic Brillouin zone, less the
 uniform ``𝐪 = 0`` term that the Holstein-Primakoff normal ordering leaves behind,
 together with the constant that [`anisotropy_correction`](@ref) generates from an
@@ -25,11 +25,11 @@ and so belong to the next order. To include them, add their `δE` fields to this
 result.
 
 The Brillouin-zone integral is performed by adaptive cubature, controlled by at
-least one of `rtol` (a relative accuracy target) or `maxevals` (a budget of
+least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
 integrand evaluations).
 """
-function energy_per_site_lswt_correction(swt::SpinWaveTheory; rtol=nothing, maxevals=nothing)
-    isnothing(rtol) && isnothing(maxevals) && error("Must specify `rtol` or `maxevals` to control momentum-space integration.")
+function corrected_energy_per_site(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
+    isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
 
     (; sys) = swt
     # Normalize per physical site
@@ -45,7 +45,7 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; rtol=nothing, maxe
 
     # Integrate zero-point energy over the first Brillouin zone 𝐪 ∈ [0, 1]³ for
     # magnetic cell in reshaped RLU. Error bars are discarded.
-    (δE₂, _) = hcubature((0, 0, 0), (1, 1, 1); rtol=@something(rtol, 0),
+    (δE₂, _) = hcubature((0, 0, 0), (1, 1, 1); rtol=@something(tol, 0),
                          maxevals=@something(maxevals, typemax(Int))) do q_reshaped
         dynamical_matrix!(H, swt, q_reshaped)
         ωs = bogoliubov!(V, H)
@@ -57,11 +57,11 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; rtol=nothing, maxe
     # coupling enters the boson Hamiltonian exactly and there is nothing to add.
     δE₃ = sys.mode == :SUN ? 0.0 : anisotropy_correction(swt).δE
 
-    return δE₁ + δE₂ + δE₃
+    return swt.classical_energy + δE₁ + δE₂ + δE₃
 end
 
 # Reduction in the magnitude of each classical dipole, for :SUN mode
-function magnetization_lswt_correction_sun(swt::SpinWaveTheory; rtol, maxevals)
+function dipole_shortening_sun(swt::SpinWaveTheory; tol, maxevals)
     (; sys, data) = swt
 
     # This correction measures the reduction of the classical dipole moment along
@@ -88,7 +88,7 @@ function magnetization_lswt_correction_sun(swt::SpinWaveTheory; rtol, maxevals)
         @assert O[N, N, i] ≈ norm(swt.sys.dipoles[i])
     end
 
-    (δS, _) = hcubature((0, 0, 0), (1, 1, 1); rtol, maxevals) do q
+    (δS, _) = hcubature((0, 0, 0), (1, 1, 1); rtol=tol, maxevals) do q
         swt_hamiltonian_SUN!(H, swt, q)
         bogoliubov!(V, H)
         ret = zeros(Natoms)
@@ -105,12 +105,12 @@ function magnetization_lswt_correction_sun(swt::SpinWaveTheory; rtol, maxevals)
 end
 
 # Reduction in the magnitude of each classical dipole, for :dipole mode
-function magnetization_lswt_correction_dipole(swt::SpinWaveTheory; rtol, maxevals)
+function dipole_shortening_dipole(swt::SpinWaveTheory; tol, maxevals)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     V = zeros(ComplexF64, 2L, 2L)
 
-    (δS, _) = hcubature((0, 0, 0), (1, 1, 1); rtol, maxevals) do q
+    (δS, _) = hcubature((0, 0, 0), (1, 1, 1); rtol=tol, maxevals) do q
         swt_hamiltonian_dipole!(H, swt, Vec3(q))
         bogoliubov!(V, H)
         return SVector{L}(-norm2(view(V, L+i, 1:L)) for i in 1:L)
@@ -119,44 +119,34 @@ function magnetization_lswt_correction_dipole(swt::SpinWaveTheory; rtol, maxeval
     return δS
 end
 
-"""
-    magnetization_lswt_correction(swt::SpinWaveTheory; rtol=nothing, maxevals=nothing)
-
-Reduction in the magnitude of each classical dipole of the magnetic cell, caused
-by zero-point fluctuations and appearing at relative order ``1/s``. Returns one
-negative number per site. In `:dipole` and `:dipole_uncorrected` mode the
-classical magnitude is constrained to be spin-`s`, whereas in `:SUN` mode it may
-already be smaller than `s` because of anisotropic interactions.
-
-This shortens each dipole without reorienting it. At the same order the ordered
-structure also tilts, for which see [`corrected_dipoles`](@ref).
-
-The Brillouin-zone integral is performed by adaptive cubature, controlled by at
-least one of `rtol` (a relative accuracy target) or `maxevals` (a budget of
-integrand evaluations).
-"""
-function magnetization_lswt_correction(swt::SpinWaveTheory; rtol=nothing, maxevals=nothing)
-    isnothing(rtol) && isnothing(maxevals) && error("Must specify `rtol` or `maxevals` to control momentum-space integration.")
-    opts = (; rtol=@something(rtol, 0), maxevals=@something(maxevals, typemax(Int)))
+# Reduction in the magnitude of each classical dipole of the magnetic cell, caused
+# by zero-point fluctuations and appearing at relative order 1/s. One negative
+# number per site. In :dipole and :dipole_uncorrected mode the classical magnitude
+# is constrained to be spin-s, whereas in :SUN mode it may already be smaller than
+# s because of anisotropic interactions. This shortens each dipole without
+# reorienting it; the tilt at the same order is the tadpole's, and
+# `corrected_dipoles` combines the two.
+function dipole_shortening(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
+    opts = (; tol=@something(tol, 0), maxevals=@something(maxevals, typemax(Int)))
 
     (; sys) = swt
     if sys.mode == :SUN
-        return magnetization_lswt_correction_sun(swt; opts...)
+        return dipole_shortening_sun(swt; opts...)
     else
         @assert sys.mode in (:dipole, :dipole_uncorrected)
-        return magnetization_lswt_correction_dipole(swt; opts...)
+        return dipole_shortening_dipole(swt; opts...)
     end
 end
 
 """
-    corrected_dipoles(swt::SpinWaveTheory; rtol=nothing, maxevals=nothing)
+    corrected_dipoles(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
 
 Classical dipoles of the magnetic cell, corrected at relative order ``1/s``.
 Zero-point fluctuations act on the ordered structure in two independent ways at
-this order, and both are applied here: each dipole is shortened by
-[`magnetization_lswt_correction`](@ref), and the structure is tilted by the
-zero-point pressure of [`tadpole_correction`](@ref), whose canonical example is
-the change in canting angle of an antiferromagnet in an applied field.
+this order, and both are applied here: each dipole is shortened along its own
+direction, and the structure is tilted by the zero-point pressure of
+[`tadpole_correction`](@ref), whose canonical example is the change in canting
+angle of an antiferromagnet in an applied field.
 
 The tilt vanishes for a collinear structure, and requires the cubic vertex, which
 is available for a narrower class of models than the shortening is; see
@@ -165,16 +155,18 @@ shortened but untilted, which is still correct at this order for any structure t
 tilt would not move.
 
 The Brillouin-zone integrals are performed by adaptive cubature, controlled by at
-least one of `rtol` (a relative accuracy target) or `maxevals` (a budget of
+least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
 integrand evaluations).
 """
-function corrected_dipoles(swt::SpinWaveTheory; rtol=nothing, maxevals=nothing)
+function corrected_dipoles(swt::SpinWaveTheory; tol=nothing, maxevals=nothing)
+    isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
+
     (; sys) = swt
-    δS = magnetization_lswt_correction(swt; rtol, maxevals)
+    δS = dipole_shortening(swt; tol, maxevals)
     # `tadpole_correction` already returns dipoles of the classical magnitude,
     # rotated but not shortened, so the two corrections compose by scaling.
     dipoles = if isnothing(corrections_unsupported_reason(swt))
-        tadpole_correction(swt; rtol, maxevals).dipoles
+        tadpole_correction(swt; tol, maxevals).dipoles
     else
         # One dipole per element of δS, which is a site of the magnetic cell; note
         # that in :SUN mode this is not `nbands(swt)`.

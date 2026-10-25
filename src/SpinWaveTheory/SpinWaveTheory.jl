@@ -39,6 +39,7 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     data           :: Union{SWTDataDipole, SWTDataSUN}
     measure        :: MeasureSpec
     regularization :: Float64
+    classical_energy :: Float64
 end
 
 function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, energy_ϵ=nothing)
@@ -56,10 +57,13 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     new_cryst = resize_and_flatten_crystal(sys.crystal, sys.dims)
     sys = reshape_supercell_aux(sys, new_cryst, (1, 1, 1))
 
+    # Read the classical energy before `swt_data!` invalidates it
+    classical_energy = energy_per_site(sys)
+
     # Rotate local operators to quantization axis
     data = swt_data!(sys, measure)
 
-    return SpinWaveTheory(sys, data, measure, regularization)
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy)
 end
 
 
