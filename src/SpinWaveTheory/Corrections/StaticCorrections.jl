@@ -12,7 +12,7 @@
 # be gapless.
 
 """
-    hartree_fock_correction(swt::SpinWaveTheory; tol, vacuum=MagnonVacuum(swt))
+    hartree_fock_correction(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz=BZAdaptive(tol=0.01))
 
 Decouples the four-boson term of the Holstein-Primakoff expansion into a
 mean-field correction to the quadratic (LSWT) Hamiltonian, with mean fields
@@ -27,14 +27,14 @@ degenerate family (order by disorder), the mean fields are taken in the Gaussian
 state of its positive-norm modes, and `MagnonVacuum(swt, terms2)` may then be
 stable where LSWT is not.
 
-Momentum integrals are controlled by `tol`, a relative accuracy or a
-[`BZGrid`](@ref). A `vacuum` solved on a `tol` of its own uses that one.
+Brillouin zone integrals are evaluated according to `bz`, either
+[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
 """
-function hartree_fock_correction(swt::SpinWaveTheory; tol=nothing, vacuum=MagnonVacuum(swt))
+function hartree_fock_correction(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz::BZIntegration=BZAdaptive(tol=0.01))
     check_corrections_supported(swt)
-    tol = resolve_tol(swt, vacuum, tol)
+    check_vacuum(swt, vacuum, bz, :bz)
     terms4 = quartic_monomials(swt)
-    (; terms2, δE) = mean_field(terms4, contractions(vacuum, terms4, tol))
+    (; terms2, δE) = mean_field(terms4, contractions(vacuum, terms4, bz))
     return (; terms2, δE = δE / nsites(uncontracted_system(swt.sys)))
 end
 
@@ -54,7 +54,7 @@ function mean_field(terms4, g::Contractions)
 end
 
 """
-    self_consistent_vacuum(swt::SpinWaveTheory; tol, guess=nothing, scf_tol=1e-8, maxiters=200)
+    self_consistent_vacuum(swt::SpinWaveTheory; grid, guess=nothing, scf_tol=1e-8, maxiters=200)
 
 The [`MagnonVacuum`](@ref) that reproduces its own mean field, i.e.
 self-consistent Hartree-Fock-Bogoliubov. Among Gaussian states it is stationary
@@ -66,26 +66,25 @@ point needs a stabilizing shift. Self-consistency resums one class of
 higher-order terms and drops others of the same order. It is uncontrolled, and
 it gaps the Goldstone mode of a broken continuous symmetry.
 
-Momentum integrals are controlled by `tol`, a relative accuracy or a
-[`BZGrid`](@ref). The vacuum records it, and every 1/s correction that is
-given this vacuum then uses the same `tol`. With a `BZGrid`, the counterterm
-cancels the mean field exactly in [`corrected_intensities`](@ref); with a
-number, to within the accuracy of the momentum integrals.
+Momentum integrals are discrete sums over the points of `grid`, a
+[`BZGrid`](@ref). The vacuum records it, and every ``1/s`` correction that is
+given this vacuum must be given the same grid, so that the counterterm cancels
+the mean field exactly in [`corrected_intensities`](@ref). A grid that resolves
+a regulator `η` there is, e.g., `auto_bzgrid(; η, vacuum=MagnonVacuum(swt),
+tol=0.01)`.
 """
-function self_consistent_vacuum(swt::SpinWaveTheory; tol, guess=nothing, scf_tol=1e-8, maxiters=200, memory=5)
+function self_consistent_vacuum(swt::SpinWaveTheory; grid::BZGrid, guess=nothing, scf_tol=1e-8, maxiters=200, memory=5)
     # The fixed point of g ↦ contractions in the vacuum of H₂ plus the mean
     # field of g. The iteration is accelerated by Anderson mixing over the last
     # `memory` iterates, with real coefficients, so each iterate is an affine
     # combination of correlations of Gaussian states and its mean field stays
     # Hermitian. Where an iterate has no vacuum, a uniform shift s b†b restores
-    # one, starting from the most negative eigenvalue on the grid of the
-    # quadrature, or a coarse grid for cubature. The shift must vanish at the
-    # fixed point.
+    # one, starting from the most negative eigenvalue on the grid. The shift
+    # must vanish at the fixed point.
     check_corrections_supported(swt)
-    tol isa Union{Real, BZGrid} || error("`tol` must be a number or a `BZGrid`")
     L = nbands(swt)
     terms4 = quartic_monomials(swt)
-    probe = grid_points(tol isa BZGrid ? tol : BZGrid(8, 8, 8))
+    probe = grid_points(grid)
     shifted(terms2, s) = MagnonVacuum(swt, [terms2; [BosonMonomial(complex(s), (L+a, a), (zero(Vec3), zero(Vec3))) for a in 1:L]])
 
     H = zeros(ComplexF64, 2L, 2L)
@@ -93,7 +92,7 @@ function self_consistent_vacuum(swt::SpinWaveTheory; tol, guess=nothing, scf_tol
         s = 0.0
         while true
             try
-                return (contractions(shifted(terms2, s), terms4, tol), s)
+                return (contractions(shifted(terms2, s), terms4, grid), s)
             catch err
                 err isa InstabilityError || rethrow()
                 λ = minimum(probe) do q
@@ -112,7 +111,7 @@ function self_consistent_vacuum(swt::SpinWaveTheory; tol, guess=nothing, scf_tol
         terms2 = mean_field(terms4, g).terms2
         (g′, s) = stabilized(terms2)
         r = g′.values - g.values
-        norm(r) < scf_tol && return iszero(s) ? MagnonVacuum(swt, terms2, tol) :
+        norm(r) < scf_tol && return iszero(s) ? MagnonVacuum(swt, terms2, grid) :
             throw(InstabilityError("Quantum fluctuations do not stabilize the structure: the self-consistent \
                                     mean field leaves the quadratic Hamiltonian indefinite."))
         push!(xs, g.values)
@@ -151,7 +150,7 @@ end
 # correction from H₄.
 
 """
-    tadpole_correction(swt::SpinWaveTheory; tol, vacuum=MagnonVacuum(swt))
+    tadpole_correction(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz=BZAdaptive(tol=0.01))
 
 Computes the shift of the ordered magnetic structure caused by zero-point
 fluctuations, which appears at relative order ``1/s``. An example is the change
@@ -172,14 +171,14 @@ should be applied together. Restoring an exact Goldstone mode requires, in
 addition, the self-energy generated by the cubic vertex, which enters at the
 same order.
 
-Momentum integrals are controlled by `tol`, a relative accuracy or a
-[`BZGrid`](@ref). A `vacuum` solved on a `tol` of its own uses that one.
+Brillouin zone integrals are evaluated according to `bz`, either
+[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
 """
-function tadpole_correction(swt::SpinWaveTheory; tol=nothing, vacuum=MagnonVacuum(swt))
+function tadpole_correction(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz::BZIntegration=BZAdaptive(tol=0.01))
     check_corrections_supported(swt)
-    tol = resolve_tol(swt, vacuum, tol)
+    check_vacuum(swt, vacuum, bz, :bz)
     terms3 = cubic_monomials(swt)
-    (; terms2, δE, w) = tadpole(vacuum, terms3, contractions(vacuum, terms3, tol))
+    (; terms2, δE, w) = tadpole(vacuum, terms3, contractions(vacuum, terms3, bz))
     return (; terms2, δE = δE / nsites(uncontracted_system(swt.sys)), v = w[1:nbands(swt)])
 end
 
@@ -233,7 +232,7 @@ function tadpole(vac::MagnonVacuum, terms3, g::Contractions)
 end
 
 """
-    observable_corrections(swt::SpinWaveTheory; v=nothing, tol, vacuum=MagnonVacuum(swt))
+    observable_corrections(swt::SpinWaveTheory; v=nothing, vacuum=MagnonVacuum(swt), bz=BZAdaptive(tol=0.01))
 
 Correction of relative order ``1/s`` to the amplitude for a magnon to be created
 by each observable. Two effects contribute at this order: the cubic term of the
@@ -244,14 +243,14 @@ displacement `v` of [`tadpole_correction`](@ref), and is omitted if `v` is
 labeled as in [`accum_observable_corrections!`](@ref), which is what applies
 them.
 
-Momentum integrals are controlled by `tol`, a relative accuracy or a
-[`BZGrid`](@ref). A `vacuum` solved on a `tol` of its own uses that one.
+Brillouin zone integrals are evaluated according to `bz`, either
+[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
 """
-function observable_corrections(swt::SpinWaveTheory; v=nothing, tol=nothing, vacuum=MagnonVacuum(swt))
+function observable_corrections(swt::SpinWaveTheory; v=nothing, vacuum=MagnonVacuum(swt), bz::BZIntegration=BZAdaptive(tol=0.01))
     check_corrections_supported(swt)
-    tol = resolve_tol(swt, vacuum, tol)
+    check_vacuum(swt, vacuum, bz, :bz)
     w = isnothing(v) ? nothing : [v; conj(v)]
-    g = contractions(vacuum, observable_cubic_monomials(swt), tol)
+    g = contractions(vacuum, observable_cubic_monomials(swt), bz)
     return observable_corrections(swt, w, g)
 end
 
@@ -269,7 +268,7 @@ function observable_corrections(swt::SpinWaveTheory, w, g::Contractions)
 end
 
 """
-    corrected_energy_per_site(swt::SpinWaveTheory; tol)
+    corrected_energy_per_site(swt::SpinWaveTheory; bz=BZAdaptive(tol=0.01))
 
 Energy per site of the magnetic structure, corrected at relative order ``1/s``,
 where ``s`` is the spin magnitude in dipole mode, or ``1/λ`` for the
@@ -289,17 +288,17 @@ Not included are the corrections of [`tadpole_correction`](@ref) and
 to this result. See [`gaussian_energy_per_site`](@ref) for the energy of a
 self-consistent vacuum.
 
-Momentum integrals are controlled by `tol`, a relative accuracy or a
-[`BZGrid`](@ref).
+Brillouin zone integrals are evaluated according to `bz`, either
+[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
 """
-function corrected_energy_per_site(swt::SpinWaveTheory; tol)
+function corrected_energy_per_site(swt::SpinWaveTheory; bz::BZIntegration=BZAdaptive(tol=0.01))
     # Vanishes in :SUN mode, where an onsite coupling enters the boson
     # Hamiltonian exactly and there is nothing to add.
-    return swt.classical_energy + zero_point_energy(MagnonVacuum(swt), tol) + anisotropy_correction(swt).δE
+    return swt.classical_energy + zero_point_energy(MagnonVacuum(swt), bz) + anisotropy_correction(swt).δE
 end
 
 """
-    gaussian_energy_per_site(swt::SpinWaveTheory; tol, vacuum=MagnonVacuum(swt))
+    gaussian_energy_per_site(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz=BZAdaptive(tol=0.01))
 
 Expectation value of the Hamiltonian per site, through its four-boson term, in
 the Gaussian state `vacuum`. This is a variational upper bound on the ground
@@ -309,18 +308,18 @@ self-consistent Hartree-Fock. In the harmonic vacuum it is the result of
 [`corrected_energy_per_site`](@ref) plus ``⟨H₄⟩``, i.e. less the `δE` of
 [`hartree_fock_correction`](@ref).
 
-Momentum integrals are controlled by `tol`, a relative accuracy or a
-[`BZGrid`](@ref). A `vacuum` solved on a `tol` of its own uses that one.
+Brillouin zone integrals are evaluated according to `bz`, either
+[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
 """
-function gaussian_energy_per_site(swt::SpinWaveTheory; tol=nothing, vacuum=MagnonVacuum(swt))
+function gaussian_energy_per_site(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz::BZIntegration=BZAdaptive(tol=0.01))
     check_corrections_supported(swt)
-    tol = resolve_tol(swt, vacuum, tol)
+    check_vacuum(swt, vacuum, bz, :bz)
     terms4 = quartic_monomials(swt)
-    g = contractions(vacuum, Iterators.flatten((vacuum.correction, terms4)), tol)
+    g = contractions(vacuum, Iterators.flatten((vacuum.correction, terms4)), bz)
     # ⟨H₂⟩ is the zero-point energy of H₂ plus the correction, less
     # ⟨correction⟩, and ⟨H₄⟩ is minus the constant of its mean field
     E₄ = -mean_field(terms4, g).δE - real(wick_expectation(vacuum.correction, g, nothing))
-    return swt.classical_energy + zero_point_energy(vacuum, tol) + anisotropy_correction(swt).δE +
+    return swt.classical_energy + zero_point_energy(vacuum, bz) + anisotropy_correction(swt).δE +
            E₄ / nsites(uncontracted_system(swt.sys))
 end
 
@@ -329,13 +328,13 @@ end
 # (1,1)-block of its quadratic Hamiltonian. This trace is q-dependent wherever a
 # bond joins a site to its own periodic image, e.g. a ferromagnet, so it cannot
 # be taken at q = 0.
-function zero_point_energy(vac::MagnonVacuum, tol)
+function zero_point_energy(vac::MagnonVacuum, bz)
     # Normalize per physical site
     Nsites = nsites(uncontracted_system(vac.swt.sys))
     L = nbands(vac.swt)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
-    return bz_average(tol) do q_reshaped
+    return bz_average(bz) do q_reshaped
         vacuum_hamiltonian!(H, vac, q_reshaped)
         trA = real(tr(view(H, 1:L, 1:L)))
         ωs = bogoliubov!(ws, H)
@@ -344,7 +343,7 @@ function zero_point_energy(vac::MagnonVacuum, tol)
 end
 
 """
-    boson_density(swt::SpinWaveTheory; tol, vacuum=MagnonVacuum(swt))
+    boson_density(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz=BZAdaptive(tol=0.01))
 
 Zero-point density of Holstein-Primakoff bosons, ``n_i = Σ_α ⟨b^†_{iα}
 b_{iα}⟩``, summed over the flavors ``α`` carried by each site of the magnetic
@@ -362,23 +361,23 @@ no dipole at all, as for a quadrupolar state. Use
 [`corrected_magnetic_moments`](@ref) for the ordered moment itself, which is
 available in either mode.
 
-Momentum integrals are controlled by `tol`, a relative accuracy or a
-[`BZGrid`](@ref). A `vacuum` solved on a `tol` of its own uses that one.
+Brillouin zone integrals are evaluated according to `bz`, either
+[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
 """
-function boson_density(swt::SpinWaveTheory; tol=nothing, vacuum=MagnonVacuum(swt))
-    tol = resolve_tol(swt, vacuum, tol)
+function boson_density(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz::BZIntegration=BZAdaptive(tol=0.01))
+    check_vacuum(swt, vacuum, bz, :bz)
     L = nbands(swt)
     nf = nflavors(swt)
     # Bosons are laid out as (flavor, atom) with flavor fastest, so each site owns a
     # contiguous run of `nf` flavors.
     o = zero(Vec3)
     ns = [BosonMonomial(1.0+0im, (L+a, a), (o, o)) for a in 1:L]
-    g = contractions(vacuum, ns, tol)
+    g = contractions(vacuum, ns, bz)
     return [real(wick_expectation(ns[(i-1)*nf .+ (1:nf)], g, nothing)) for i in 1:div(L, nf)]
 end
 
 """
-    corrected_magnetic_moments(swt::SpinWaveTheory; tol, vacuum=MagnonVacuum(swt))
+    corrected_magnetic_moments(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz=BZAdaptive(tol=0.01))
 
 Magnetic moments ``μ = -g 𝐒`` in units of the Bohr magneton, corrected at
 relative order ``1/s``, for each site of the magnetic cell. Compare to the
@@ -408,24 +407,24 @@ depletion is; see [`tadpole_correction`](@ref). Where it is unavailable the
 moments are returned depleted but untilted, which is still correct at this order
 for any structure the tilt would not move.
 
-Momentum integrals are controlled by `tol`, a relative accuracy or a
-[`BZGrid`](@ref). A `vacuum` solved on a `tol` of its own uses that one.
+Brillouin zone integrals are evaluated according to `bz`, either
+[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
 """
-function corrected_magnetic_moments(swt::SpinWaveTheory; tol=nothing, vacuum=MagnonVacuum(swt))
-    tol = resolve_tol(swt, vacuum, tol)
+function corrected_magnetic_moments(swt::SpinWaveTheory; vacuum=MagnonVacuum(swt), bz::BZIntegration=BZAdaptive(tol=0.01))
+    check_vacuum(swt, vacuum, bz, :bz)
     (; sys) = swt
     L = nbands(swt)
     Na = nsites(sys)
 
     # The tilt needs the cubic vertex; without it the depletion below is still
     # the whole correction for any structure the tilt would not move.
-    v = isnothing(corrections_unsupported_reason(swt)) ? tadpole_correction(swt; tol, vacuum).v : zeros(ComplexF64, L)
+    v = isnothing(corrections_unsupported_reason(swt)) ? tadpole_correction(swt; vacuum, bz).v : zeros(ComplexF64, L)
     w = [v; conj(v)]
 
     # ⟨𝐒⟩ to O(1/s): the classical dipole, its tilt by one displaced leg, and
     # its depletion by one contraction. Every word acts on a single site, so
     # there is no wavevector dependence to keep.
-    g = contractions(vacuum, (t for α in 1:3, i in 1:Na for t in spin_monomials(swt, α, i, Val{2}())), tol)
+    g = contractions(vacuum, (t for α in 1:3, i in 1:Na for t in spin_monomials(swt, α, i, Val{2}())), bz)
     # Shaped like `magnetic_moments`, i.e. indexed by `Site`. The leading dims
     # are (1, 1, 1) because `SpinWaveTheory` flattens any supercell into its
     # cell. Each component is real, the spin operators being Hermitian.
