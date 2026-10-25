@@ -9,7 +9,11 @@ struct BandIntensities{T, Q <: AbstractQPoints, D} <: AbstractIntensities
     disp :: Array{Float64, D} # (nbands × nq...)
     # Intensity data as Dirac-magnitudes
     data :: Array{T, D} # (nbands × nq...)
+    # Half width at half maximum of each band, if it decays
+    widths :: Union{Nothing, Array{Float64, D}} # (nbands × nq...)
 end
+
+BandIntensities(crystal, qpts, disp, data) = BandIntensities(crystal, qpts, disp, data, nothing)
 
 struct Intensities{T, Q <: AbstractQPoints, D} <: AbstractIntensities
     # Original chemical cell

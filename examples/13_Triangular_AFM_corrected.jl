@@ -24,11 +24,13 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys; ndims=2)
 
-# Calculate spin-wave intensities, including all corrections to order ``1/s``.
-# The regulator ``η > 0`` defines an energy resolution. The numerical cost of
-# the momentum integrals scales like ``η^{-D}`` in effective dimension ``D``.
-# The function `corrected_intensities` is currently experimental and subject to
-# change.
+# Calculate spin-wave intensities with loop corrections at order ``1/s`` using
+# `corrected_intensities` (an experimental feature). The option
+# `dyson=:particle` applies the particle-sector Dyson equation as in Eq. (12) of
+# Mourigal et al. Sunny's default, `dyson=:nambu`, would instead apply the Dyson
+# equation in the full particle-hole space, which may be more accurate. The
+# regulator ``η > 0`` defines an effective energy resolution. Numerical costs
+# grow as ``η^{-D}`` in the effective model dimension ``D``.
 
 swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
 qpts = [[2/3, -1/3, 0], [0, 0, 0], [1/2, 0, 0], [1/6, 1/6, 0], [0, 1/4, 0]]
@@ -36,24 +38,10 @@ labels=["K", "Γ", "M", "Y₁", "Y"]
 path = q_space_path(cryst, qpts, 200; labels)
 η = 0.03s
 energies = 0:(η/2):(20s/3)
-res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true)
+res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true, dyson=:particle)
 ;#hide
 
-# Plot the corrected intensities. Gray pixels indicate regions where the theory
-# is uncontrolled, as detected by resummed magnon poles that fall below half of
-# the lowest harmonic energy.
-#
-# A visual comparison with Fig. 4 of Mourigal et al. highlights significant
-# deviations, especially in the ``s = 1/2`` case at lower energies. The two
-# schemes agree at order ``1/s``, but differ in their resummation procedure.
-# Sunny solves the Dyson equation in the full Nambu (particle/hole) space,
-# whereas Mourigal et al. project to the particle space alone [concretely, see
-# Eq. (12) for their resummation procedure]. Sunny's choice is the standard form
-# of the Dyson equation for bosons with broken symmetry, and is the one that
-# respects Goldstone's theorem. It can also produce renormalized poles with
-# imaginary frequency and these signal where perturbation theory becomes
-# uncontrolled. To more closely reproduce Fig. 4 of Mourigal et al., recalculate
-# `corrected_intensities` with the hidden option `resummation=:particle`.
+# The corrected intensities can be compared with Fig. 4 of Mourigal et al.
 
 plot_intensities(res; colormap=:jet, colorrange=(0, s+3/2),
                  title="s = $s_str", axis=(; xlabel="", ylabel="ω / J"))

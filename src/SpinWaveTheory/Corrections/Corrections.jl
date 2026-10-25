@@ -63,9 +63,10 @@
 # whenever the auxiliary model is stable, i.e. |ε| + Σstat + K_mm(0) ⪰ 0. Where
 # it is not, the 1/s correction exceeds the harmonic energy and the expansion
 # itself has broken down; `corrected_channels` reports this. The interference
-# terms linear in K_md are missing from published 1/s calculations (e.g.
-# arXiv:1306.1231, arXiv:1607.08238). For a trace measure they cancel in a zone
-# sum, but not pointwise.
+# terms linear in K_md are absent from the standard 1/s treatment, which takes
+# the magnon spectral function as the major component of S and adds the
+# two-magnon continuum separately (PRB 79, 144416, Sec. VI). For a trace measure
+# they cancel in a zone sum, but not pointwise.
 #
 # K depends on frequency only through the scalar x, so the masses y y†, summed
 # over the wavevectors of `loop_wavevectors`, are accumulated into bins of x and
