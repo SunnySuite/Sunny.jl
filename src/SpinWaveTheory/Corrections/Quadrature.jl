@@ -74,8 +74,15 @@ function check_grid(swt, bz::BZIntegration)
         error("The Gaussian state of `swt` was solved on `$grid`, but `$bz` was given. Omit it to use the state's grid.")
 end
 
-# The default quadrature of the static corrections: adaptive cubature, unless
-# the Gaussian state was solved on a grid, which must then be repeated
+"""
+    default_bz(swt::SpinWaveTheory)
+
+The default `bz` of the static ``1/s`` corrections, e.g.
+[`hartree_fock_correction`](@ref): the [`BZGrid`](@ref) on which the Gaussian
+state of `swt` was solved, if it was solved self-consistently, otherwise
+`BZAdaptive(tol=0.01)`. Every use of a self-consistent state must repeat its
+grid, so that the counterterm cancels the mean field exactly.
+"""
 default_bz(swt) = @something swt.state.grid BZAdaptive(tol=0.01)
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
