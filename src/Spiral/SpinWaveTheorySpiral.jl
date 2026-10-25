@@ -73,9 +73,7 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
     end
 
     if !isnothing(sys.ewald)
-        (; cache) = sys.ewald
-        Aq = ewald_interaction_tensor(cache, -q_reshaped)
-        Aq = reshape(Aq, Na, Na)
+        Aq = ewald_site_tensor(sys, -q_reshaped)
         for i in 1:Na, j in 1:Na
             Jq[i, j] += gs[i]' * Aq[i, j] * gs[j]
         end

@@ -23,9 +23,7 @@ function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
     end
 
     if !isnothing(sys.ewald)
-        (; cache) = sys.ewald
-        Aq = ewald_interaction_tensor(cache, q_reshaped)
-        Aq = reshape(Aq, Na, Na)
+        Aq = ewald_site_tensor(sys, q_reshaped)
         for i in 1:Na, j in 1:Na
             view(Jq, :, i, :, j) .+= sys.gs[i]' * Aq[i, j] * sys.gs[j]
         end
