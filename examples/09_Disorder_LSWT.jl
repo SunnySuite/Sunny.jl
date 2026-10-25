@@ -68,28 +68,28 @@ for (i, x) in enumerate([0.0, 0.1, 0.2, 0.46])
 end
 fig
 
-# Calculate at 4.0 K and ``x = 0.46`` for the wavevectors appearing in Fig. 5 of
-# Cowley et al. At the zone boundary, the calculated peaks at 3.3, 4.9, and 6.3
-# meV agree reasonably with the experimental values of 3.15, 4.85, and 6.40 meV
-# (vertical dashed lines). Cowley et al. attribute these peaks to Mn²⁺ ions with
-# 2, 3, and 4 magnetic neighbors. Toward the zone center, the fine structure
-# fades, and the intensity grows and moves to lower energies. Note that Cowley
-# et al. label wavevectors in a non-standard √2×√2 magnetic cell convention
-# whereby ``(h, h, 2.9)`` becomes ``(2h, 0, 2.9)``.
+# Fig. 5 of Cowley et al. reports neutron intensity at dilution ``x = 0.46`` and
+# temperature 4.0 K. Their RLU notation uses a √2×√2 magnetic cell whereby ``(ξ,
+# 0, l)`` maps to Sunny's ``(ξ/2, ξ/2, l)``. At the magnetic zone boundary ``ξ =
+# 1/2`` the calculated peaks (3.3, 4.9, and 6.3 meV) agree reasonably with the
+# experimental values (vertical dashed lines at 3.15, 4.85, and 6.40 meV). These
+# peaks represent Mn²⁺ ions with 2, 3, and 4 magnetic neighbors. Toward the
+# magnetic zone center ``ξ = 1`` the fine structure fades, and the intensity
+# grows and moves to lower energies.
 
 sys_inhom = diluted_system(sys, 0.46)
 formfactors = [1 => FormFactor("Mn2")]
 swt = SpinWaveTheoryLarge(sys_inhom; measure=ssf_perp(sys_inhom; formfactors))
-hs = [0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
+ξs = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 energies = range(1, 8, 141)
 kernel = gaussian(fwhm=0.6)
-res = intensities(swt, [[h, h, 2.9] for h in hs]; energies, kernel, kT=4.0*units.K, threaded=true)
+res = intensities(swt, [[ξ/2, ξ/2, 2.9] for ξ in ξs]; energies, kernel, kT=4.0*units.K, threaded=true)
 
 fig = Figure(size=(768, 650))
-for (i, h) in enumerate(hs)
-    ax = Axis(fig[fldmod1(i, 2)...]; xlabel="Energy (meV)", ylabel="Intensity", title="𝐪 = ($h, $h, 2.9)")
+for (i, ξ) in enumerate(ξs)
+    ax = Axis(fig[fldmod1(i, 2)...]; xlabel="Energy (meV)", ylabel="Intensity", title="ξ = $ξ")
     lines!(ax, energies, res.data[:, i])
-    h == 0.25 && vlines!(ax, [3.15, 4.85, 6.40]; color=:gray, linestyle=:dash, linewidth=3, label="Measured peaks")
-    h == 0.25 && axislegend(ax; position=:lb)
+    ξ == 0.5 && vlines!(ax, [3.15, 4.85, 6.40]; color=:gray, linestyle=:dash, linewidth=3, label="Measured peaks")
+    ξ == 0.5 && axislegend(ax; position=:lb)
 end
 fig
