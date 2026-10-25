@@ -629,6 +629,15 @@ end
         H2 = transpose(Sunny.mul_dynamical_matrix(swt, x, fill(q, 2L)))
 
         @test H1 ≈ H2
+
+        # In mode :SUN, both are compiled from the quadratic boson monomials,
+        # which the 1/s corrections certify against exact diagonalization
+        if mode == :SUN
+            H3 = zeros(ComplexF64, 2L, 2L)
+            Sunny.accum_quadratic!(H3, Sunny.sun_monomials(swt, Val{2}()), q)
+            @test H1 ≈ H3 + swt.regularization * I
+            @test H1 == H1'
+        end
     end
 end
 

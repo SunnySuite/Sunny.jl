@@ -40,6 +40,8 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     measure        :: MeasureSpec
     regularization :: Float64
     classical_energy :: Float64
+    # The quadratic Hamiltonian, compiled in mode :SUN
+    quadratic_table :: Union{Nothing, QuadraticTable}
 end
 
 function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, energy_ϵ=nothing)
@@ -63,7 +65,12 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     # Rotate local operators to quantization axis
     data = swt_data!(sys, measure)
 
-    return SpinWaveTheory(sys, data, measure, regularization, classical_energy)
+    quadratic_table = if sys.mode == :SUN
+        L = (sys.Ns[1] - 1) * natoms(sys.crystal)
+        QuadraticTable(sun_monomials(sys, data.spin_ops, Val{2}()), L)
+    end
+
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, quadratic_table)
 end
 
 
