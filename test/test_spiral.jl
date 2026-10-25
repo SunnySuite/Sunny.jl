@@ -27,6 +27,11 @@
 
     @test E1 ≈ E2
 
+    # The spiral energy is invariant to enlarging the magnetic cell
+    sys2 = repeat_periodically_as_spiral(sys, (1, 2, 3); k, axis)
+    enable_dipole_dipole!(sys2, 1.0)
+    @test spiral_energy_per_site(sys2; k, axis) ≈ E1
+
     ################ test random case ###################
     La, Lb, Lc = (2, 3, 4)
     k = [1/La, 1/Lb, 1/Lc]
@@ -221,7 +226,7 @@ end
 
 
 @testitem "DM Spiral" begin
-    import LinearAlgebra: diagm
+    import LinearAlgebra: diagm, eigvals, Hermitian
 
     latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
     cryst = Crystal(latvecs, [[0, 0, 0], [0, 0.1, 0]]; types=["a", "b"])
@@ -241,6 +246,19 @@ end
 
     sys2 = repeat_periodically_as_spiral(sys, (1, 1, 4); k, axis)
     @test spiral_energy_per_site(sys; axis, k) ≈ energy_per_site(sys2) ≈ -1.0
+
+    # The spiral energy is invariant to enlarging the magnetic cell, for any k.
+    # A generic k makes the winding phases across the enlarged cell nontrivial.
+    kg = [0.1, 0.2, 0.37]
+    sys2g = repeat_periodically_as_spiral(sys, (1, 1, 4); k=kg, axis)
+    @test spiral_energy_per_site(sys2g; axis, k=kg) ≈ spiral_energy_per_site(sys; axis, k=kg)
+
+    # The Luttinger-Tisza exchange matrix of the enlarged system has the folded
+    # eigenvalues of the original one
+    q = [0.1, 0.2, 0.37]
+    evals2 = eigvals(Hermitian(Sunny.fourier_exchange_matrix(sys2; q)))
+    evals = [eigvals(Hermitian(Sunny.fourier_exchange_matrix(sys; q=q+[0, 0, n/4]))) for n in 0:3]
+    @test evals2 ≈ sort(reduce(vcat, evals))
 
     # Compare SWT calculated both ways
 

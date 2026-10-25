@@ -1,22 +1,19 @@
 function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
-    @assert sys.dims == (1, 1, 1) "System must have only a single cell"
     q_supercell = to_supercell_rlu(sys, q)
 
-    Na = natoms(sys.crystal)
+    Na = nsites(sys)
     Jq .= 0
     Jq = reshape(Jq, 3, Na, 3, Na)
 
-    for (i, int) in enumerate(sys.interactions_union)
-        for coupling in int.pair
+    for i in 1:Na
+        for coupling in interactions_at(sys, i).pair
             (; isculled, bond, bilin, biquad) = coupling
             isculled && break
             iszero(biquad) || error("Biquadratic interactions not supported")
 
-            @assert i == bond.i
-            j = bond.j
-
-            J = exp(2π * im * dot(q_supercell, bond.n)) * Mat3(bilin*I)
+            (j, n) = bond_target(sys, i, bond)
+            J = exp(2π * im * dot(q_supercell, n)) * Mat3(bilin*I)
             view(Jq, :, i, :, j) .+= J
             view(Jq, :, j, :, i) .+= J'
         end
@@ -30,8 +27,7 @@ function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
     end
 
     for i in 1:Na
-        onsite_coupling = sys.interactions_union[i].onsite
-        (; c2, c4, c6) = onsite_coupling
+        (; c2, c4, c6) = interactions_at(sys, i).onsite
         iszero(c4) && iszero(c6) || error("Single-ion anisotropy beyond quadratic order not supported")
         anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
                               c2[5] -c2[1]-c2[3] 0.5c2[4];
@@ -83,7 +79,7 @@ function fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
 end
 
 function fourier_exchange_matrix(sys::System; q)
-    Na = natoms(sys.crystal)
+    Na = nsites(sys)
     Jq = zeros(ComplexF64, 3Na, 3Na)
     return fourier_exchange_matrix!(Jq, sys; q)
 end
