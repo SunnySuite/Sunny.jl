@@ -1110,7 +1110,7 @@ end
                                      loop_grid=(12, 12, 1), mean_field_maxevals=opts.maxevals)
     (; transverse) = chans
     pos = energies .> 0
-    @test !any(chans.artifacts)
+    @test !any(chans.unstable)
     @test all(≥(0), (transverse + chans.cross + chans.direct)[pos, :])
     # The commutator is small for a trace measure, so it is compared on the scale of
     # the static weight. The residual is the truncated Lorentzian tail.
