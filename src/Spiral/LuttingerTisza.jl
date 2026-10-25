@@ -22,7 +22,7 @@ function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
     if !isnothing(sys.ewald)
         Aq = ewald_interaction_tensor(sys, q_supercell)
         for i in 1:Na, j in 1:Na
-            view(Jq, :, i, :, j) .+= sys.gs[i]' * ewald_pair(Aq, sys, q_supercell, i, j) * sys.gs[j]
+            view(Jq, :, i, :, j) .+= ewald_coupling(Aq, sys, q_supercell, i, j)
         end
     end
 

@@ -75,14 +75,6 @@ function bare_sites_for_unit(ent::Entanglement, unit_site)
     return (bare_site(cell, part, dims) for part in units[to_atom(unit_site)])
 end
 
-# The bare sites of unit i, as linear indices into the uncontracted system. A
-# site that is not entangled is its own bare site.
-function bare_indices(sys::System, i::Int)
-    is_entangled(sys) || return (i,)
-    ent = get_entanglement(sys)
-    return (LinearIndices(ent.uncontracted.dipoles)[bs] for bs in bare_sites_for_unit(ent, eachsite(sys)[i]))
-end
-
 # Needed because uncontracted.dipoles and related state are mutably updated
 function clone_entanglement(ent::Entanglement)
     return Entanglement(ent.units, clone_system(ent.uncontracted))
@@ -785,6 +777,19 @@ end
 # Spin wave theory
 ################################################################################
 
+# The bare sites of unit i, as linear indices into the uncontracted system, each
+# paired with its cell before periodic wrapping. A site that is not entangled is
+# its own bare site.
+function bare_indices_and_cells(sys::System, i::Int)
+    site = eachsite(sys)[i]
+    is_entangled(sys) || return ((i, to_cell(site)),)
+    (; uncontracted, units) = get_entanglement(sys)
+    return map(units[to_atom(site)]) do part
+        bi = LinearIndices(uncontracted.dipoles)[bare_site(to_cell(site), part, uncontracted.dims)]
+        (bi, to_cell(site) .+ Tuple(part.Δcell))
+    end
+end
+
 # Enumerate the inter-unit bilinear exchange terms delegated to the uncontracted
 # system. Each term invokes `f(i, j, bi, bj, J, n)` to indicate that bare sites
 # `bi, bj` of the uncontracted system belong to units `i, j` of `sys`, all as
@@ -792,7 +797,7 @@ end
 # magnetic cells.
 function foreach_entangled_bilinear_term(f, sys::System)
     (; uncontracted, units) = get_entanglement(sys)
-    for i in 1:nsites(sys), bi in bare_indices(sys, i)
+    for i in 1:nsites(sys), (bi, _) in bare_indices_and_cells(sys, i)
         for pc in interactions_at(uncontracted, bi).pair
             pc.isculled && break
             # The bond between units, from the cell of the unit containing `bi`

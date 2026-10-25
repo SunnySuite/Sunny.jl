@@ -143,17 +143,18 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         end
     end
 
-    # Part s of a moment rotating with the spiral carries wavevector -s k. Parts
-    # within one class interfere, and couple through A at that wavevector.
+    # Part s of a spin rotating with the spiral carries wavevector -s k. Parts
+    # within one class interfere, and couple through A at that wavevector. The
+    # g-tensors commute with rotations about `axis`, and so with each projector.
     if !isnothing(sys.ewald)
-        μ = magnetic_moments(sys)
+        S = sys.dipoles
         P = spiral_projectors(axis)
         for class in spiral_classes(k_supercell)
             q = -first(class) * k_supercell
             A = ewald_interaction_tensor(sys, q)
             Pc = sum(P[s+2] for s in class)
             for i in 1:nsites(sys), j in 1:nsites(sys)
-                E += real(μ[i]' * Pc' * ewald_pair(A, sys, q, i, j) * Pc * μ[j]) / 2
+                E += real(S[i]' * Pc' * ewald_coupling(A, sys, q, i, j) * Pc * S[j]) / 2
             end
         end
 
