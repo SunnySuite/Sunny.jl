@@ -31,7 +31,7 @@
 # The asymmetry between the external legs is only apparent: the leading τ₃ makes
 # τ₃Σ̂ Hermitian below the three-magnon threshold, as the Dyson equation
 # requires. Both this structure and the factor of 18 are verified against the
-# exact Nambu Green function of a dimer, whose 𝐪-independence lets one grid
+# exact Nambu Green function of a cluster, whose 𝐪-independence lets one grid
 # point integrate the loop exactly.
 
 """
