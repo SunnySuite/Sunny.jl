@@ -52,11 +52,9 @@ end
 # generalization in https://github.com/SunnySuite/Sunny.jl/pull/304.
 
 function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
-    (; sys, data) = swt
-    (; local_rotations) = data
+    (; sys) = swt
     (; gs) = sys
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
-    Rs = local_rotations
     Na = natoms(sys.crystal)
     fill!(Jq, zero(CMat3))
 
@@ -68,8 +66,7 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_reshaped)
             @assert i == bond.i
             j = bond.j
 
-            J_lab = Rs[i] * Mat3(bilin*I) * Rs[j]' # Undo transformation in `swt_data!`
-            J = exp(-2π * im * dot(q_reshaped, bond.n)) * J_lab
+            J = exp(-2π * im * dot(q_reshaped, bond.n)) * Mat3(bilin*I)
             Jq[i, j] += J
             Jq[j, i] += J'
         end
