@@ -1,12 +1,11 @@
 # # 9. Spin waves in disordered magnets
 #
 # This example uses [`to_inhomogeneous`](@ref) and [`SpinWaveTheoryLarge`](@ref)
-# to efficiently calculate the inelastic neutron spectrum of Rb₂Mn₁₋ₓMgₓF₄, a
-# disordered quasi-2D antiferromagnet. The doping fraction ``x`` introduces
-# random magnetic vacancies. Inelastic neutron measurements were reported in
-# [Cowley et al., Phys. Rev. B **15**, 4292
-# (1977)](https://doi.org/10.1103/PhysRevB.15.4292). Sunny models this data
-# using spin wave calculations on very large supercells.
+# to calculate the spectrum of Rb₂Mn₁₋ₓMgₓF₄, a disordered quasi-2D
+# antiferromagnet. The doping fraction ``x`` introduces random magnetic
+# vacancies. Inelastic neutron measurements were reported in [Cowley et al.,
+# Phys. Rev. B **15**, 4292 (1977)](https://doi.org/10.1103/PhysRevB.15.4292).
+# Sunny models this data using spin wave calculations on very large supercells.
 
 using Sunny, GLMakie
 
@@ -43,13 +42,17 @@ function diluted_system(sys, x)
     return sys_inhom
 end
 
-# Calculate ``S(𝐪, ω)`` along a path with increasing dilution ``x``. The Néel
-# ordering wavevector is the M point. Undiluted, there is a single sharp magnon.
-# With dilution, the long-wavelength magnon near M stays relatively coherent,
-# while modes near the zone boundary become strongly damped. Simultaneously,
-# flat ``𝐪``-independent bands appear. These are localized excitations of spins
-# with different numbers of magnetic neighbors. Near and beyond percolation
-# (``x_c ≈ 0.407``), the low-energy weight is dominated by finite clusters.
+# Calculate ``S(𝐪, ω)`` at various dilutions ``x``.
+# [`SpinWaveTheoryLarge`](@ref) is designed for large supercells such as this
+# one. It uses the Lanczos method instead of direct matrix diagonalization to
+# reduce computational cost to linear scaling in system size.
+#
+# Undiluted, there is a single sharp magnon. With dilution, the long-wavelength
+# magnon near the ordering wavevector M stays relatively coherent, while modes
+# near the zone boundary become strongly damped. Simultaneously, flat
+# ``𝐪``-independent bands appear. These are localized excitations of spins with
+# different numbers of magnetic neighbors. Near and beyond percolation (``x_c ≈
+# 0.407``), the low-energy weight is dominated by finite clusters.
 
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path = q_space_path(cryst, qs, 150; labels=["Γ", "X", "M", "Γ"])
