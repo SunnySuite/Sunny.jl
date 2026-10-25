@@ -549,44 +549,47 @@ function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel=
     data .= res.data
     return Intensities(res.crystal, res.qpts, res.energies, data)
 end
+
 """
-    intensities(swt::SpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
+    intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
     intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
 
 Calculates dynamical pair correlation intensities for a set of ``𝐪``-points in
 reciprocal space.
 
-Linear spin wave theory calculations are performed with an instance of
-[`SpinWaveTheory`](@ref). The alternative [`SpinWaveTheorySpiral`](@ref) allows
-to study generalized spiral orders with a single, incommensurate-``𝐤`` ordering
-wavevector. Another alternative [`SpinWaveTheoryLarge`](@ref) is favorable for
-calculations on large magnetic cells, and allows to study systems with disorder.
+Several spin-wave calculators `swt` are possible. [`SpinWaveTheory`](@ref)
+calculates the magnons using direct matrix diagonalization, and is appropriate
+for compact magnetic cells. [`SpinWaveTheorySpiral`](@ref) generalizes to
+incommensurate spiral order, but requires uniaxial symmetry in all model
+interactions. [`SpinWaveTheoryLarge`](@ref) replaces direct diagonalization with
+an iterative calculation method that scales well to large system sizes; this can
+be useful for studying disordered systems or magnetic structures with
+approximately incommensurate ordering wavevectors.
 
-Spin wave intensities are the structure factor ``(1 + n_B(ω)) χ''(𝐪, ω)`` at
-temperature `kT`, where ``n_B(ω) = 1/(e^{ω/kT}-1)`` is the Bose function, at
-energies of either sign. They require a `kernel`, an intrinsic broadening `η`,
-or both. The intrinsic broadening gives each excitation a Lorentzian line shape
-of half-width `η` in the dynamical susceptibility, ``χ''(𝐪, ω) =
--\\mathrm{Im}\\, χ(𝐪, ω + iη)/π``. The instrumental `kernel`, e.g.,
-`gaussian(; fwhm)`, is applied after the thermal factor, and with `η > 0` must
-be analytic, i.e., it must accept complex energies, as do [`gaussian`](@ref) and
-[`lorentzian`](@ref). Near a Goldstone mode, linear spin wave theory predicts
-an intensity that diverges as ``ω → 0``, and that, in a finite magnetic cell,
-depends on the `regularization` of zero modes in [`SpinWaveTheory`](@ref). A
-small `η` removes this dependence.
+The target is the structure factor ``(1 + n_B(ω)) χ''(𝐪, ω)`` at temperature
+`kT`, where ``n_B(ω) = 1/(e^{ω/kT}-1)`` is the Bose function for energy transfer
+``ω``. The dynamical susceptibility ``χ''(𝐪, ω) = -\\mathrm{Im}\\, χ(𝐪, ω +
+iη)/π`` allows for an optional energy-scale regulator `η`. This regulator damps
+soft mode intensities, e.g., in the vicinity of a Goldstone mode.
+
+The `kernel` is intended for modeling instrument resolution effects (e.g.,
+[`gaussian`](@ref) broadening). In the special case that a positive `η` is
+supplied, but `kernel` is omitted, the magnons will have a Lorentzian line
+shape. If both `η` and `kernel` are supplied, then [`SpinWaveTheory`](@ref) and
+[`SpinWaveTheorySpiral`](@ref) (but not [`SpinWaveTheoryLarge`](@ref)) use the
+`kernel` alone as the line shape.
+
+If `threaded=true`, the calculation will be parallelized over ``𝐪``. Direct
+solvers then benefit strongly from an appropriate BLAS backend; see
+[`load_blas_for_threading`](@ref).
 
 Intensities can also be calculated for `SampledCorrelations` associated with
-classical spin dynamics. In this case, thermal broadening will already be
-present, and the line-broadening `kernel` may be omitted. Conversely, the
-parameter `kT` becomes required. If positive, it will introduce an intensity
+classical spin dynamics. Here a positive `kT` will introduce an intensity
 correction factor ``|βω (1 + n_B(ω))|`` that undoes the occupation factor for
 the classical Boltzmann distribution and applies the quantum thermal occupation
 factor. The special choice `kT = nothing` will suppress the classical-to-quantum
 correction factor, and yield statistics consistent with the classical Boltzmann
-distribution. If a `kernel` is provided, it will be used to perform a
-convolution along the energy axis on top of any intrinsic broadening already
-present in the correlation data. In this case, `energies` must be an explicit
-list specifying the desired output energies, exactly as for `SpinWaveTheory`.
+distribution.
 """
 function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
     qpts = convert(AbstractQPoints, qpts)

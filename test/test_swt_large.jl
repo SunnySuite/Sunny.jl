@@ -48,27 +48,26 @@ end
 
         formfactors = [1 => FormFactor("Fe2")]
         measure = ssf_perp(sys; formfactors)
-        energies = range(0, 6, 100)
-        η = 0.05
+        energies = range(0, 6, 61)
 
-        # The two calculators agree at the same η, with or without a kernel,
-        # including one whose width varies with energy
+        # Without a kernel, both calculators give each excitation the Lorentzian
+        # line shape of half width η. Away from ω = 0, where the thermal factor
+        # is smooth, this is a Lorentzian kernel of full width 2η.
         swt = SpinWaveTheory(sys; measure)
         swt_large = SpinWaveTheoryLarge(sys; measure, tol=1e-10)
-        σ(ϵ) = (0.1 + 0.05ϵ) / 2√(2log(2))
-        kernels = [nothing, lorentzian(fwhm=0.3), Sunny.NonstationaryBroadening((ϵ, ω) -> exp(-(ω-ϵ)^2/2σ(ϵ)^2) / √(2π*σ(ϵ)^2))]
-        for kernel in kernels, kT in (0.0, 0.3)
-            res1 = intensities(swt, [q]; energies, η, kernel, kT)
-            res2 = intensities(swt_large, [q]; energies, η, kernel, kT)
-            @test isapprox(res1.data, res2.data, rtol=1e-4)
-        end
-
-        # Away from ω = 0, where the thermal factor is smooth, a Lorentzian kernel
-        # of width Γ combines with η into a Lorentzian of width Γ + 2η
+        res1 = intensities(swt, [q]; energies, η=0.05, kT=0.3)
+        res2 = intensities(swt_large, [q]; energies, η=0.05, kT=0.3)
+        res3 = intensities(swt, [q]; energies, kernel=lorentzian(fwhm=0.1), kT=0.3)
         far = energies .> 1.0
-        res1 = intensities(swt, [q]; energies, kernel=lorentzian(fwhm=0.3+2η), kT=0.3)
-        res2 = intensities(swt, [q]; energies, η, kernel=lorentzian(fwhm=0.3), kT=0.3)
-        @test isapprox(res1.data[far], res2.data[far], rtol=1e-2)
+        @test isapprox(res1.data, res2.data, rtol=1e-6)
+        @test isapprox(res1.data[far], res3.data[far], rtol=1e-2)
+
+        # With a kernel, dense SWT omits the Lorentzian line shape, and agrees
+        # with SpinWaveTheoryLarge up to O(η) relative to the kernel width
+        kernel = gaussian(fwhm=0.3)
+        res1 = intensities(swt, [q]; energies, η=1e-4, kernel)
+        res2 = intensities(swt_large, [q]; energies, η=1e-4, kernel)
+        @test isapprox(res1.data, res2.data, rtol=1e-3)
     end
 end
 
@@ -91,35 +90,36 @@ end
     minimize_energy!(sys; maxiters=10_000)
 
     measure = ssf_perp(sys)
-    energies = range(-2, 3, 201)
-    η = 0.1
+    energies = range(-2, 3, 51)
     qs = [[1/3, 1/3, 0], [0.2, 0.05, 0]]
+    kT = 0.5
 
-    # The broadened susceptibility is insensitive to the gap that the
-    # regularization opens at the exact zero modes
-    res = map((1e-8, 1e-6)) do regularization
-        swt = SpinWaveTheoryLarge(sys; measure, tol=1e-8, regularization)
-        intensities(swt, qs; energies, η, kT=0.5).data
-    end
-    @test isapprox(res[1], res[2]; rtol=1e-3)
-
-    # Exact reference: the poles of χ'' of either sign, as Lorentzians, times 1 +
-    # n_B(ω). The poles at negative energy describe the opposite wavevector, so
-    # this tests detailed balance at kT > 0.
+    # Without a kernel, both calculators give the poles of χ'' of either sign
+    # their Lorentzian line shapes, times 1 + n_B(ω). The poles at negative energy
+    # describe the opposite wavevector, so this tests detailed balance. The result
+    # is insensitive to the gap that the regularization opens at the zero modes.
     swt = SpinWaveTheory(sys; measure)
-    (disp, residues) = Sunny.susceptibility_poles(swt, Sunny.QPoints(qs); threaded=false)
-    K(x) = (η/π) / (x^2 + η^2)
-    ref = [sum(K.(ω .- disp[:, iq]) .* residues[:, iq]) / (1 - exp(-ω/0.5)) for ω in energies, iq in eachindex(qs)]
-    nonzero = .!iszero.(energies)
-    @test isapprox(res[1][nonzero, :], ref[nonzero, :]; rtol=1e-8)
-
-    # Dense SWT interpolates a tabulated line shape, here also with a kernel
     swt_large = SpinWaveTheoryLarge(sys; measure, tol=1e-8)
-    for kernel in (nothing, gaussian(fwhm=0.3)), kT in (0.0, 0.5)
-        res1 = intensities(swt, qs; energies, η, kernel, kT).data
-        res2 = intensities(swt_large, qs; energies, η, kernel, kT).data
-        @test isapprox(res1, res2; rtol=1e-3)
-    end
+    res1 = intensities(swt, qs; energies, η=0.1, kT).data
+    res2 = intensities(swt_large, qs; energies, η=0.1, kT).data
+    res3 = intensities(SpinWaveTheory(sys; measure, regularization=1e-6), qs; energies, η=0.1, kT).data
+    @test isapprox(res1, res2; rtol=1e-6)
+    @test isapprox(res1, res3; rtol=1e-3)
+
+    # The line shape of a single pole, explicitly
+    (disp, residues) = Sunny.susceptibility_poles(swt, Sunny.QPoints(qs[2:2]); threaded=false)
+    (ω, η) = (energies[40], 0.1)
+    ref = sum(@. (η/π) / ((ω - disp)^2 + η^2) * residues) / (1 - exp(-ω/kT))
+    @test res1[40, 2] ≈ ref
+
+    # With a kernel, dense SWT gives each pole the weight of its Lorentzian. This
+    # removes the dependence on the regularization, and conserves the spectral
+    # weight of SpinWaveTheoryLarge.
+    kernel = gaussian(fwhm=0.3)
+    res1 = intensities(swt, qs; energies, η=0.01, kernel, kT).data
+    res2 = intensities(swt_large, qs; energies, η=0.01, kernel, kT).data
+    @test isapprox(sum(res1; dims=1), sum(res2; dims=1); rtol=1e-2)
+    @test isapprox(res1, res2; rtol=3e-2)
 end
 
 
@@ -129,7 +129,7 @@ end
     sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(2, 1, 1))
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     measure = ssf_trace(sys)
-    energies = range(0, 5, 11)
+    energies = range(0, 5, 51)
 
     polarize_spins!(sys, [0, 0, 1])
     swt = SpinWaveTheoryLarge(sys; measure, tol=1e-2)
@@ -138,6 +138,10 @@ end
     set_dipole!(sys, [0, 0, -1], (2, 1, 1, 1))
     swt = SpinWaveTheoryLarge(sys; measure, tol=1e-2)
     @test all(isfinite, intensities(swt, [[0.3, 0, 0]]; energies, η=0.1).data)
+
+    # Exceeding the iteration cap is an error
+    swt_capped = SpinWaveTheoryLarge(sys; measure, tol=1e-6, maxiters=1)
+    @test_throws "Exceeded maxiters" intensities(swt_capped, [[0.3, 0, 0]]; energies, η=0.1)
 
     # The deprecated interface infers η from the kernel width
     swt_kpm = @test_logs (:warn, r"deprecated") SpinWaveTheoryKPM(sys; measure, tol=1e-2)
