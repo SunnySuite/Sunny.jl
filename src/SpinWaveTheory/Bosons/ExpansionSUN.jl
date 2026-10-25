@@ -7,7 +7,7 @@
 # the symmetric SU(N) representation, Sunny's :SUN mode being M = 1. Writing the
 # condensate flavor as N and n̂ = Σ_{m<N} b†_m b_m for the number of bosons that
 # have left it, a local operator A — an N×N matrix in the local frame that
-# `swt_data` rotates into — is promoted to the M-box representation as
+# `local_interactions` rotates into — is promoted to the M-box representation as
 #
 #     Â = Σ_{mn<N} A[m,n] b†_m b_n
 #       + Σ_{m<N} (A[m,N] b†_m √(M-n̂) + A[N,m] √(M-n̂) b_m) + A[N,N] (M - n̂).
@@ -28,9 +28,8 @@
 # needed. There is no four-boson word at all, the square root contributing only
 # odd ones. And the words of nb ≤ 2 are exactly what LSWT already holds — LSWT
 # compiles its Hamiltonian from the nb = 2 words, and the classical energy is
-# A[N,N] — so unlike dipole mode there is no sub-leading
-# remainder at low boson number, which is why `lswt_correction_monomials` has
-# nothing to return here.
+# A[N,N] — so unlike dipole mode there is no sub-leading remainder at low boson
+# number, which is why `lswt_correction_monomials` has nothing to return here.
 #
 # THE TRUNCATION RULE, in the form the discussion in ExpansionDipole.jl takes
 # here: each n-boson sector is kept at its leading order in 1/M, which is its
@@ -51,9 +50,9 @@
 # falls as 1/M, which is precisely the omitted five-boson word.
 #
 # Two consequences for the physics are worth flagging. Biquadratic exchange
-# needs no special treatment, `swt_data` having already decomposed every
-# coupling into the (A, B) tensor pairs of `coupling.general.data` that the
-# assembly below consumes. And the cubic vertex does *not* vanish for a
+# needs no special treatment, `local_interactions` having already decomposed
+# every coupling into the (A, B) tensor pairs of `coupling.general.data` that
+# the assembly below consumes. And the cubic vertex does *not* vanish for a
 # collinear structure, as it does in dipole mode: flavor-changing words let a
 # single-ion level decay into two magnons of different flavors, a channel with
 # no dipole-mode counterpart.
@@ -102,21 +101,21 @@ function local_monomials(A, i, off, ::Val{nb}, Nf, L, M=1) where nb
     return terms
 end
 
-# Monomials of the K-boson term of the expansion in mode :SUN. Each onsite
-# coupling, which `swt_data` has already absorbed the Zeeman term into,
-# contributes its K-boson word directly. Each pair coupling A_i ⊗ B_j
-# contributes every split of the K bosons between its two sites; all K+1 of them
-# carry the same power M^{2-K/2}, so all are kept. See `local_monomials` for `M`,
-# which is 1 in every use outside the tests. For an entangled system, the
-# bilinear exchange between units is held by its uncontracted system, and
-# expands in the local-frame spin operators `spin_ops` of the bare atoms.
+# Monomials of the K-boson term of the expansion in mode :SUN, about the
+# structure whose local frames are `frames`. Each onsite coupling, into which
+# `local_interactions` absorbs the Zeeman term, contributes its K-boson word
+# directly. Each pair coupling A_i ⊗ B_j contributes every split of the K bosons
+# between its two sites; all K+1 of them carry the same power M^{2-K/2}, so all
+# are kept. See `local_monomials` for `M`, which is 1 in every use outside the
+# tests. For an entangled system, the bilinear exchange between units is held by
+# its uncontracted system, and expands in the local-frame spin operators of the
+# bare atoms.
 #
 # The K = 2 term is the LSWT Hamiltonian itself, which `QuadraticTable`
-# compiles for `dynamical_matrix!`.
-monomials_SUN(swt::SpinWaveTheory, k::Val, M=1) = monomials_SUN(swt.sys, swt.data::SWTDataSUN, k, M)
-
-function monomials_SUN(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
-    (; spin_ops, interactions) = data
+# compiles for `dynamical_matrix!`. There is no remainder beyond LSWT at K ≤ 2,
+# as explained above.
+function hamiltonian_monomials(sys::System, frames::Vector{Matrix{ComplexF64}}, ::Val{K}; beyond_lswt=false, M=1) where K
+    beyond_lswt && K <= 2 && return BosonMonomial{K}[]
     @assert allequal(sys.Ns)
     Nf = sys.Ns[1] - 1
     L = Nf * nsites(sys)
@@ -126,7 +125,8 @@ function monomials_SUN(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
     words(A, i) = ntuple(p -> local_monomials(A, i, o, Val{p-1}(), Nf, L, M), Val{K+1}())
     add_pair!(A, i, B, j, n) = append_products!(terms, 1, words(A, i), words(B, j), n)
 
-    for (i, int) in enumerate(interactions)
+    for i in 1:nsites(sys)
+        int = local_interactions(sys, frames, i)
         append!(terms, local_monomials(int.onsite, i, o, Val{K}(), Nf, L, M))
 
         for coupling in int.pair
@@ -141,8 +141,9 @@ function monomials_SUN(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
 
     if is_entangled(sys)
         foreach_entangled_bilinear_term(sys) do i, j, bi, bj, J, n
+            (Si, Sj) = (local_spin_ops(sys, frames[i], bi), local_spin_ops(sys, frames[j], bj))
             for α in 1:3, β in 1:3
-                iszero(J[α, β]) || add_pair!(J[α, β] * spin_ops[α, bi], i, spin_ops[β, bj], j, n)
+                iszero(J[α, β]) || add_pair!(J[α, β] * Si[α], i, Sj[β], j, n)
             end
         end
     end

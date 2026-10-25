@@ -20,23 +20,20 @@
 # of its Stevens polynomial, whose words are read off at their leading power,
 # and also at the next for the 1/s corrections. Either way the stored
 # coefficients are those of the operator, without `rcs_factors`.
-function observable_monomials(sys::System, data, μ, i, ::Val{K}; part=1, beyond_tree=true) where K
+function observable_monomials(sys::System, frames, measure, μ, i, ::Val{K}; part=1, beyond_tree=true) where K
     L = nbands(sys)
-    if sys.mode == :SUN
-        A = (data::SWTDataSUN).observables[μ, i, part]
-        return local_monomials(A, i, zero(Vec3), Val{K}(), nflavors(sys), L)
-    end
+    O = local_observable(sys, frames, measure, μ, i; part)
+    sys.mode == :SUN && return local_monomials(O, i, zero(Vec3), Val{K}(), nflavors(sys), L)
 
     @assert sys.mode in (:dipole, :dipole_uncorrected)
     part == 1 || error("Distinct parts unsupported in dipole-mode.")
-    (; sqrtS, observables) = data::SWTDataDipole
-    O = observables[μ, i]
+    s = sys.κs[i]
     words = if O isa Vec3
-        spin_component_words(O, √2 * sqrtS[i])
+        spin_component_words(O, √(2s))
     elseif sys.mode == :dipole
-        exact_stevens_words(stevens_ranks(O), sqrtS[i]^2)
+        exact_stevens_words(stevens_ranks(O), s)
     else
-        (lead, sub) = stevens_words(stevens_ranks(O), √2 * sqrtS[i], false)
+        (lead, sub) = stevens_words(stevens_ranks(O), √(2s), false)
         beyond_tree ? lead + sub : lead
     end
     return local_word_monomials(words, i, L, Val{K}())
@@ -46,7 +43,7 @@ end
 # support
 function observable_monomials(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
     @assert num_parts_per_unit(swt.measure) == 1  # Entangled units are rejected
-    return observable_monomials(swt.sys, swt.data, μ, i, Val{K}())
+    return observable_monomials(swt.sys, swt.frames, swt.measure, μ, i, Val{K}())
 end
 
 # Every K-boson word of observable μ, over the sites of the magnetic cell.
@@ -58,25 +55,30 @@ observable_monomials(swt::SpinWaveTheory, μ, ::Val{K}) where K =
 all_observable_monomials(swt::SpinWaveTheory, ::Val{K}) where K =
     reduce(vcat, (observable_monomials(swt, μ, Val{K}()) for μ in 1:num_observables(swt.measure)); init=BosonMonomial{K}[])
 
+# Monomials of `K` bosons in the expansion of the spin component α of site i, in
+# the local frame. Unlike `observable_monomials`, which describes what `measure`
+# reads out and so only needs the words that create a magnon, this is the full
+# expansion of 𝐒 itself, whose expectation value `corrected_magnetic_moments`
+# takes. The words of K = 0, 1, 2 are respectively the classical dipole, the
+# tadpole tilt, and the zero-point depletion.
+#
 # In mode :SUN the spin components are matrices on the same footing as a term of
 # the Hamiltonian, so their words are those of `local_monomials`. In the dipole
 # modes the Holstein-Primakoff expansion of ExpansionDipole.jl gives the words
 # directly, ⟨𝐒⟩ = R (σ Re v, σ Im v, s - ⟨b†b⟩) in a local frame whose ẑ is the
 # classical dipole.
 function spin_monomials(swt::SpinWaveTheory, α, i, ::Val{K}) where K
-    (; sys, data) = swt
+    (; sys, frames) = swt
     L = nbands(swt)
-    o = zero(Vec3)
-
     if sys.mode == :SUN
-        return local_monomials((data::SWTDataSUN).spin_ops[α, i], i, o, Val{K}(), nflavors(swt), L)
+        S = local_spin_ops(sys, frames[i], i)[α]
+        return local_monomials(S, i, zero(Vec3), Val{K}(), nflavors(swt), L)
     end
 
     @assert sys.mode in (:dipole, :dipole_uncorrected)
-    (; local_rotations, sqrtS) = data::SWTDataDipole
     # Row α of R is the global component α in the local frame. The words are the
     # classical dipole, the tilt, and the depletion. All vanish on a vacant site,
     # where R does.
-    words = spin_component_words(local_rotations[i][α, :], √2 * sqrtS[i])
+    words = spin_component_words(frames[i][α, :], √(2sys.κs[i]))
     return local_word_monomials(words, i, L, Val{K}())
 end

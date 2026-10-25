@@ -232,7 +232,7 @@ function self_consistent_tadpole(swt::SpinWaveTheory; bz, constraints=(), guess=
     grid = to_bz(bz)
     grid isa BZGrid || error("Self-consistency needs grid dimensions `bz = (n1, n2, n3)`.")
     swt.sys.mode == :dipole || error("Self-consistent tadpole requires mode :dipole")
-    frames = swt.data.local_rotations
+    frames = swt.frames
     for iter in 1:maxiters
         sc = self_consistent(with_frames(swt, frames); bz=grid, constraints, guess, scf_tol, maxiters, memory)
         frames′ = relax_frames(sc, grid)
@@ -248,7 +248,7 @@ end
 # `frame_labels`
 function frame_energy(swt::SpinWaveTheory, frames, g)
     sw = with_frames(swt, frames)
-    E = wick_expectation(quadratic_monomials(sw.sys, sw.data), g, nothing) +
+    E = wick_expectation(sw.monomials.quadratic, g, nothing) +
         wick_expectation(quartic_monomials(sw), g, nothing; nfactors=2)
     return sw.classical_energy + anisotropy_correction(sw).δE + real(E) / nsites(uncontracted_system(sw.sys))
 end
@@ -260,7 +260,7 @@ end
 function frame_labels(swt::SpinWaveTheory)
     L = nbands(swt)
     ret = BosonMonomial{2}[]
-    for (; as, ns) in Iterators.flatten((quadratic_monomials(swt.sys, swt.data), quartic_monomials(swt)))
+    for (; as, ns) in Iterators.flatten((swt.monomials.quadratic, quartic_monomials(swt)))
         for p in eachindex(as), q in p+1:lastindex(as)
             (i, j) = (mod1(as[p], L), mod1(as[q], L))
             for a in (i, L+i), b in (j, L+j)
@@ -282,8 +282,7 @@ function with_frames(swt::SpinWaveTheory, frames::Vector{Mat3})
     for (i, site) in enumerate(eachsite(sys))
         iszero(frames[i]) || set_dipole!(sys, frames[i][:, 3], site)
     end
-    data = swt_data(sys, swt.measure; frames)
-    return SpinWaveTheory(sys, data, swt.measure, swt.regularization, energy_per_site(sys))
+    return SpinWaveTheory(sys, frames, swt.measure, swt.regularization, energy_per_site(sys))
 end
 
 # The local frames of `swt` rotated by angles θ[2i-1], θ[2i] about the two
@@ -302,7 +301,7 @@ end
 # direction in which F is flat.
 function relax_frames(sc::SpinWaveTheory, grid; h=1e-4, maxiters=20, tol=1e-12)
     g = contractions(sc, frame_labels(sc), grid)
-    frames = sc.data.local_rotations
+    frames = sc.frames
     n = 2length(frames)
     e(k) = h * (1:n .== k)
     F(θ) = frame_energy(sc, rotate_frames(frames, θ), g)
@@ -384,7 +383,7 @@ function tadpole(swt::SpinWaveTheory, terms3, g::Contractions)
     # they vanish at a classical minimum but not once tadpole relaxation has
     # moved the structure off one. In mode :dipole those of an onsite
     # anisotropy vanish identically, because `rcs_factors` leaves the classical
-    # energy exact. See `monomials_dipole`.
+    # energy exact. See `hamiltonian_monomials`.
     ℓ = nambu_vector([wick_reduce(terms3, g, nothing, Val{1}()); lswt_correction_monomials(swt, Val{1}())], L, noise)
 
     # Packing v into the Nambu vector w, with w[i] = v_i and w[L+i] = conj(v_i),

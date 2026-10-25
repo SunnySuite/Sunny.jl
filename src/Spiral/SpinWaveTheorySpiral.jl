@@ -53,21 +53,12 @@ end
 # table. Branch s ∈ (-1, 0, 1), at momentum transfer q + s k, is this table
 # evaluated at q + s k.
 function spiral_table(swt::SpinWaveTheory, k_supercell, axis)
-    (; sys, data) = swt
-    Rs = data.local_rotations
-    interactions = map(1:nsites(sys)) do i
-        int = interactions_at(sys, i)
-        pair = map(int.pair) do pc
-            (; bond, scalar, bilin, biquad, general) = pc
-            iszero(biquad) && isempty(general.data) || error("Biquadratic interactions not supported")
-            (j, n) = bond_target(sys, i, bond)
-            R = axis_angle_to_matrix(axis, 2π * dot(k_supercell, n))
-            PairCoupling(bond, scalar, Rs[i]' * Mat3(bilin*I) * R * Rs[j], biquad, general)
-        end
-        Interactions(int.onsite, pair)
+    (; sys, frames) = swt
+    for i in 1:nsites(sys), pc in interactions_at(sys, i).pair
+        iszero(pc.biquad) && isempty(pc.general.data) || error("Biquadratic interactions not supported")
     end
-    rotating = SWTDataDipole(Rs, data.observables, data.stevens_coefs, data.sqrtS, interactions)
-    return QuadraticTable(quadratic_monomials(sys, rotating), nbands(swt))
+    twist(n) = axis_angle_to_matrix(axis, 2π * dot(k_supercell, n))
+    return QuadraticTable(hamiltonian_monomials(sys, frames, Val{2}(); twist), nbands(swt))
 end
 
 function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., s)
