@@ -109,7 +109,7 @@ end
 
 # The Gaussian state that reproduces its own mean field, solved on `grid`; see
 # `about_self_consistent_vacuum`.
-function swt_self_consistent(swt::SpinWaveTheory, grid::BZGrid; constraints, guess, scf_tol, maxiters, memory)
+function swt_self_consistent(swt::SpinWaveTheory, grid::NTuple{3, Int}; constraints, guess, scf_tol, maxiters, memory)
     # The fixed point of g ↦ contractions in the vacuum of H₂ plus the mean
     # field of g. The iteration is accelerated by Anderson mixing over the last
     # `memory` iterates, with real coefficients, so each iterate is an affine
@@ -162,7 +162,7 @@ function swt_self_consistent(swt::SpinWaveTheory, grid::BZGrid; constraints, gue
         (terms2, info) = correction(g)
         (g′, s) = stabilized(terms2)
         r = g′.values - g.values
-        norm(r) < scf_tol && return iszero(s) ? swt_with_state(swt, GaussianState(terms2, grid.dims, (; method=:hartree_fock, iter, info...))) :
+        norm(r) < scf_tol && return iszero(s) ? swt_with_state(swt, GaussianState(terms2, grid, (; method=:hartree_fock, iter, info...))) :
             throw(InstabilityError("Quantum fluctuations do not stabilize the structure: the self-consistent \
                                     mean field leaves the quadratic Hamiltonian indefinite."))
         push!(xs, g.values)
@@ -244,8 +244,8 @@ rotated by it is again converged, with the same spectrum.
 """
 function about_self_consistent_vacuum(swt::SpinWaveTheory; bz, tadpole=false, constraints=(), guess=nothing,
                                       scf_tol=1e-8, maxiters=200, memory=5)
-    grid = to_bz(bz)
-    grid isa BZGrid || error("Self-consistency needs grid dimensions `bz = (n1, n2, n3)`.")
+    bz isa NTuple{3, Integer} || error("Self-consistency needs grid dimensions `bz = (n1, n2, n3)`.")
+    grid = check_bz(bz)
     opts = (; constraints, scf_tol, maxiters, memory)
     tadpole || return swt_self_consistent(swt, grid; guess, opts...)
 
@@ -255,7 +255,7 @@ function about_self_consistent_vacuum(swt::SpinWaveTheory; bz, tadpole=false, co
         sc = swt_self_consistent(swt_build(swt.sys, swt.measure, swt.regularization; frames), grid; guess, opts...)
         frames′ = relax_frames(sc, grid)
         δ = maximum(norm(R[:, 3] - R′[:, 3]) for (R, R′) in zip(frames, frames′))
-        δ < 10scf_tol && return swt_with_state(sc, GaussianState(sc.state.correction, grid.dims,
+        δ < 10scf_tol && return swt_with_state(sc, GaussianState(sc.state.correction, grid,
                                                      Base.merge(sc.state.info, (; tadpole_iter=iter))))
         (frames, guess) = (frames′, sc)
     end

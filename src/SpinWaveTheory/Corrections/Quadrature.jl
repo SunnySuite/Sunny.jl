@@ -5,95 +5,80 @@
 # ---- Brillouin-zone quadrature ----
 
 """
-    BZIntegration
+    bz :: BZIntegration
 
-A rule for integrating over the magnetic Brillouin zone. Usually this will be
-inferred from the keyword argument `bz`. If `bz` is a tuple `(n1, n2, n3)`, then
-this provides the size of the uniform integration grid. If `bz` is a number,
-then this specifies a relative accuracy target, to be used with either
-adaptative quadrature, or a uniform integration grid, as appropriate to the
-solver. If left unspecified, `bz=nothing` typically implies a default relative
-accuracy of `bz=0.01`. An exception is when [`SpinWaveTheory`](@ref) must expand
-about a self-consistent Gaussian state; in such cases, the self-consistent
-state's grid will be reused for subsequent calculations.
+Spin wave corrections functions accept a keyword argument `bz` that determines a
+method for integrating over the magnetic Brillouin zone. If `bz` is a tuple
+`(n1, n2, n3)`, then it defines the size of a uniform integration grid. If `bz`
+is a number, then it specifies a relative accuracy target. The default
+`bz=nothing` will imply a relative accuracy of `bz=0.01`, except when the grid
+is required to match that used in constructing a self-consistent Gaussian state.
 
 Adaptive quadrature is used by default for static corrections, e.g.
 [`boson_density`](@ref), and converges quickly because of the smooth integrands.
-Fequency-dependent calculations, e.g. [`corrected_intensities`](@ref), always
+Frequency-dependent calculations, e.g. [`corrected_intensities`](@ref), always
 require a uniform grid. It will be autoselected from the accuracy target and the
 ``η``-regularization as described in [`auto_bzgrid`](@ref). A fixed grid, shared
-between between static and loop calculations, is a prerequisite for exact
-satisfaction of the Ward identity, as needed to keep Goldstone modes gapless.
+between static and loop calculations, is a prerequisite for exact satisfaction
+of the Ward identity, as needed to keep Goldstone modes gapless.
 """
-abstract type BZIntegration end
-
-# A uniform grid of `n1×n2×n3` wavevectors in the magnetic Brillouin zone
-struct BZGrid <: BZIntegration
-    dims :: NTuple{3, Int}
-end
-
-BZGrid(n1, n2, n3) = BZGrid((n1, n2, n3))
-
-# Adaptive cubature over the magnetic Brillouin zone to the relative accuracy
-# `tol`
-struct BZAdaptive <: BZIntegration
-    tol :: Float64
-end
+const BZIntegration = Union{Nothing, Real, NTuple{3, Integer}}
 
 # The quadrature of the static corrections selected by the keyword `bz`, as
-# documented at `BZIntegration`
+# documented at `BZIntegration`: a relative accuracy for adaptive cubature, or
+# grid dimensions
 function static_bz(swt, bz)
-    ret = to_bz(@something bz swt.state.grid 0.01)
-    check_grid(swt, ret)
-    return ret
+    bz = check_bz(@something bz swt.state.grid 0.01)
+    check_grid(swt, bz)
+    return bz
 end
 
-# The loop grid of the frequency-dependent corrections selected by the keyword
-# `bz`, as documented at `BZIntegration`
+# The dimensions of the loop grid of the frequency-dependent corrections
+# selected by the keyword `bz`, as documented at `BZIntegration`
 function loop_bz(swt, bz; η)
-    bz = @something bz swt.state.grid 0.01
-    ret = to_bz(bz isa Real ? auto_bzgrid(swt; η, tol=bz) : bz)
-    ret isa BZGrid || error("Loop integrals need grid dimensions `bz = (n1, n2, n3)` or a relative tolerance.")
-    check_grid(swt, ret)
-    return ret
+    bz = check_bz(@something bz swt.state.grid 0.01)
+    dims = bz isa Real ? auto_bzgrid(swt; η, tol=bz) : bz
+    check_grid(swt, dims)
+    return dims
 end
 
-to_bz(bz::BZIntegration) = bz
-to_bz(tol::Real) = BZAdaptive(tol)
-to_bz(dims::NTuple{3, Int}) = BZGrid(dims)
-to_bz(bz) = error("Expected `bz` to be a relative accuracy or grid dimensions (n1, n2, n3), got $bz.")
+# Grid dimensions are normalized to `Int`
+check_bz(tol::Real) = tol
+check_bz(dims::NTuple{3, Integer}) = Int.(dims)
+check_bz(bz) = error("Expected `bz` to be a relative accuracy or grid dimensions (n1, n2, n3), got $bz.")
 
 # Scale of the error that the quadrature leaves in an identity that holds only
 # for exact integrals, against which such identities are asserted.
-quadrature_noise(bz::BZAdaptive) = max(bz.tol, 1e-8)
-quadrature_noise(::BZGrid) = 1e-3
+quadrature_noise(tol::Real) = max(tol, 1e-8)
+quadrature_noise(::NTuple{3, Int}) = 1e-3
 
 # Wavevectors of a uniform grid, offset by half a step to keep off the zone
 # centre, in supercell RLU. The grid is closed under 𝐪 ↦ -𝐪, which keeps every
 # average of a Hermitian quantity Hermitian.
-grid_points(grid::BZGrid) = [Vec3((Tuple(c) .- 1/2) ./ grid.dims) for c in CartesianIndices(grid.dims)]
+grid_points(dims::NTuple{3, Int}) = [Vec3((Tuple(c) .- 1/2) ./ dims) for c in CartesianIndices(dims)]
 
 # Average of `f(q_supercell)`, which may be array valued, over the magnetic
-# Brillouin zone 𝐪 ∈ [0, 1)³ in supercell RLU.
-function bz_average(f, grid::BZGrid)
-    ps = grid_points(grid)
+# Brillouin zone 𝐪 ∈ [0, 1)³ in supercell RLU, on a uniform grid of dimensions
+# `dims`.
+function bz_average(f, dims::NTuple{3, Int})
+    ps = grid_points(dims)
     return sum(f, ps) / length(ps)
 end
 
-# HCubature stops once `err ≤ max(atol, rtol * norm(val))`. Setting `atol`
-# equal to `tol` measures the accuracy against max(norm(val), 1), so that
-# averages vanishing by symmetry converge at once. The averages taken here,
-# correlations and energies per site, are of order one.
-function bz_average(f, bz::BZAdaptive)
-    (; tol) = bz
+# The same by adaptive cubature to the relative accuracy `tol`. HCubature stops
+# once `err ≤ max(atol, rtol * norm(val))`. Setting `atol` equal to `tol`
+# measures the accuracy against max(norm(val), 1), so that averages vanishing by
+# symmetry converge at once. The averages taken here, correlations and energies
+# per site, are of order one.
+function bz_average(f, tol::Real)
     return first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=tol))
 end
 
 # A self-consistent Gaussian state was solved on a grid, which every use of it
 # must share
-function check_grid(swt, bz::BZIntegration)
+function check_grid(swt, bz)
     (; grid) = swt.state
-    isnothing(grid) || BZGrid(grid) == bz ||
+    isnothing(grid) || grid == bz ||
         error("The Gaussian state of `swt` was solved on the grid $grid, but `bz` selects another. Omit `bz` to use the state's grid.")
 end
 
