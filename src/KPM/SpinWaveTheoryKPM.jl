@@ -144,7 +144,7 @@ function intensities_kpm!(data, swt_kry, qpts; energies, kernel, kT, verbose)
         q_supercell = to_supercell_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        set_swt_observable_vectors!(u, swt, q_global)
+        observable_vectors!(u, swt, q_global)
 
         # Find extreme eigenvalues and rescaling factor
         lo, hi = eigbounds(swt, q_supercell, niters_bounds)
@@ -237,7 +237,7 @@ function intensities_lanczos!(data, swt_kry, qpts; energies, kernel, kT, verbose
         q_supercell = to_supercell_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
-        set_swt_observable_vectors!(u, swt, q_global)
+        observable_vectors!(u, swt, q_global)
 
         # Perform Lanczos calculation
  
