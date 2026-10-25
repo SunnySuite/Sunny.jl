@@ -123,10 +123,10 @@ plot_intensities(res)
 function powder_average(f, cryst, radii, n::Int; seed=0)
     res = f([Vec3(0,0,0)]) # Dummy call to learn types
     if res isa Intensities
-        data = zeros(length(res.energies), length(radii))
+        data = zeros(eltype(res.data), length(res.energies), length(radii))
         ret = PowderIntensities(cryst, collect(radii), res.energies, data)
     elseif res isa StaticIntensities
-        data = zeros(length(radii))
+        data = zeros(eltype(res.data), length(radii))
         ret = PowderStaticIntensities(cryst, collect(radii), data)
     else
         error("Provided function must call `intensities` or `intensities_static`.")
