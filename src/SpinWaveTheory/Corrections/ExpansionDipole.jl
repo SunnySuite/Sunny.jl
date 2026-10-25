@@ -185,8 +185,11 @@ const SPIN_AXIS_WORDS = map(1:3) do α
     local_words!(Dict{Tuple{Int, Int}, ComplexF64}(), GRADED_SPINS[α], 1.0, n -> 2 - n)
 end
 
-spin_component_words(r, x) =
-    Dict(k => x^(2 - (k[1] + 2k[2])) * sum(r[α] * SPIN_AXIS_WORDS[α][k] for α in 1:3) for k in keys(SPIN_AXIS_WORDS[1]))
+#
+# A vacant site, x = 0, has no bosons and so no words. The cubic word would
+# otherwise divide by x.
+spin_component_words(r, x) = Dict(k => iszero(x) ? 0.0im : x^(2 - (k[1] + 2k[2])) * sum(r[α] * SPIN_AXIS_WORDS[α][k] for α in 1:3)
+                                  for k in keys(SPIN_AXIS_WORDS[1]))
 
 # Holstein-Primakoff expansion of the onsite anisotropy of site i, as the words of
 # `local_words!`. Note that the transverse components generate words of every odd
@@ -402,6 +405,10 @@ function cubic_monomials_dipole(swt::SpinWaveTheory)
     o = zero(Vec3)
 
     for (i, int) in enumerate(interactions)
+        # A vacant site has no bosons. Its words would divide by its zero spin
+        # magnitude below.
+        iszero(sqrtS[i]) && continue
+
         # The Zeeman coupling is +𝐁⋅𝐒, as implied by the quadratic Hamiltonian.
         # Its transverse part survives at a classical minimum, where exchange
         # rather than the local frame cancels it, and enters through the cubic
@@ -418,6 +425,7 @@ function cubic_monomials_dipole(swt::SpinWaveTheory)
             iszero(coupling.bilin) && continue
 
             j = bond.j
+            iszero(sqrtS[j]) && continue
             n = Vec3(bond.n)
             J = coupling.bilin::Mat3
             si = sqrtS[i]^2
@@ -495,6 +503,7 @@ function quartic_monomials_dipole(swt::SpinWaveTheory)
     o = zero(Vec3)
 
     for (i, int) in enumerate(interactions)
+        iszero(sqrtS[i]) && continue
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
@@ -502,6 +511,7 @@ function quartic_monomials_dipole(swt::SpinWaveTheory)
             iszero(coupling.bilin) && continue
 
             j = bond.j
+            iszero(sqrtS[j]) && continue
             n = Vec3(bond.n)
             J = coupling.bilin::Mat3
 
