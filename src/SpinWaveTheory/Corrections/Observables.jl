@@ -57,31 +57,36 @@
 # satisfies the sum rule to relative order 1/s; the entire content of the next
 # order is the -⟨n̂²⟩ above, and the contraction of the cubic word produces it.
 
-# Monomials of `K` bosons in the expansion of observable μ at site i, in the local
-# frame and without the Fourier phase or form factor that
-# `observable_prefactor` supplies. Only K = 2, the longitudinal word, and K = 3,
-# the leading correction to the transverse ones, are needed; the one-boson word is
-# the LSWT amplitude that `observable_vectors!` builds.
+# Monomials of `K` bosons in the expansion of part p of observable μ at site i,
+# in the local frame and without the Fourier phase or form factor that
+# `observable_prefactor` supplies. The one-boson words are the LSWT amplitudes
+# that `observable_coefficients` compiles. Of the others, only K = 2, the
+# longitudinal word, and K = 3, the leading correction to the transverse ones,
+# are needed.
 #
 # In mode :SUN an observable is a matrix on the same footing as a term of the
 # Hamiltonian, so its words are those of `local_monomials`. In the dipole modes it
 # is a spin component, whose words `spin_component_words` reads off the graded
 # expansion that the onsite anisotropy shares.
-function observable_monomials(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
-    (; sys, data) = swt
-    L = nbands(swt)
-    o = zero(Vec3)
-
+function observable_monomials(sys::System, data, μ, i, ::Val{K}; part=1) where K
+    L = nbands(sys)
     if sys.mode == :SUN
-        @assert num_parts_per_unit(swt.measure) == 1  # Entangled units are rejected
-        A = (data::SWTDataSUN).observables[μ, i, 1]
-        return local_monomials(A, i, o, Val{K}(), nflavors(swt), L)
+        A = (data::SWTDataSUN).observables[μ, i, part]
+        return local_monomials(A, i, zero(Vec3), Val{K}(), nflavors(sys), L)
     end
 
     @assert sys.mode in (:dipole, :dipole_uncorrected)
+    part == 1 || error("Distinct parts unsupported in dipole-mode.")
     (; sqrtS, observables) = data::SWTDataDipole
     words = spin_component_words(observables[μ, i], √2 * sqrtS[i])
     return local_word_monomials(words, i, L, Val{K}())
+end
+
+# The same for a measure of a single part, which is all that the 1/s corrections
+# support
+function observable_monomials(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
+    @assert num_parts_per_unit(swt.measure) == 1  # Entangled units are rejected
+    return observable_monomials(swt.sys, swt.data, μ, i, Val{K}())
 end
 
 # Every K-boson word of observable μ, over the sites of the magnetic cell.
@@ -167,14 +172,5 @@ observables `u` of `observable_vectors!`, which stores the coefficient of
 the boson operator labeled `a` in `u[ā, μ]`, where `ā = mod1(a+L, 2L)`.
 """
 function accum_observable_corrections!(u, swt::SpinWaveTheory, q_global, δc)
-    (; sys, measure) = swt
-    L = nbands(swt)
-    Nf = nflavors(swt)
-    for μ in 1:num_observables(measure), a in 1:L
-        i = boson_site(a, L, Nf)
-        pref = observable_prefactor(measure, μ, i, q_global, sys)
-        u[a, μ]   += pref * δc[L+a, μ]
-        u[L+a, μ] += pref * δc[a, μ]
-    end
-    return u
+    return accum_observable_vectors!(u, swt.sys, swt.measure, reshape(δc, size(δc)..., 1), q_global)
 end
