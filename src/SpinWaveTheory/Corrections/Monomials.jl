@@ -78,10 +78,6 @@ function accum_quadratic!(H, terms::Vector{BosonMonomial{2}}, q_supercell)
     hermitianpart!(H)
 end
 
-# Site owning boson `a` of the Nambu labeling, bosons being laid out as (flavor,
-# atom) with flavor fastest, `Nf` of them per site. The identity in dipole mode.
-boson_site(a, L, Nf) = div(mod1(a, L) - 1, Nf) + 1
-
 # Fourier transforming a monomial and summing over cells yields
 #
 #     Σ_𝐫 ∏ₛ b^{σₛ}_{iₛ, 𝐫+𝐧ₛ} = N^{1-K/2} Σ_{Σ𝐤=0} e^{2πi Σₛ 𝐤ₛ⋅𝐧ₛ} ∏ₛ x_{𝐤ₛ}[aₛ],

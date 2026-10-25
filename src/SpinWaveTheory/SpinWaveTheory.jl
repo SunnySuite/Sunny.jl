@@ -87,6 +87,8 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     quadratic_table :: QuadraticTable
     bare_table      :: QuadraticTable
     monomials       :: MonomialCache
+    # One-boson words of the observables; see `observable_coefficients`
+    observable_coefs :: Array{ComplexF64, 3}
 end
 
 function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, energy_ϵ=nothing)
@@ -109,18 +111,25 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     # Rotate local operators to quantization axis
     data = swt_data(sys, measure)
 
-    L = (sys.mode == :SUN ? sys.Ns[1] - 1 : 1) * nsites(sys)
-    table = QuadraticTable(quadratic_monomials(sys, data), L)
-    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, GaussianState(), table, table, MonomialCache())
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy)
+end
+
+# The harmonic theory of the structure in `sys`, given its local `data`
+function SpinWaveTheory(sys::System, data, measure, regularization, classical_energy)
+    table = QuadraticTable(quadratic_monomials(sys, data), nbands(sys))
+    coefs = observable_coefficients(sys, data, measure)
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, GaussianState(), table, table,
+                          MonomialCache(), coefs)
 end
 
 # The same theory about the Gaussian state `state`. Everything but the quadratic
 # table is shared.
 function SpinWaveTheory(swt::SpinWaveTheory, state::GaussianState)
-    (; sys, data, measure, regularization, classical_energy, bare_table, monomials) = swt
+    (; sys, data, measure, regularization, classical_energy, bare_table, monomials, observable_coefs) = swt
     table = isempty(state.correction) ? bare_table :
         QuadraticTable([quadratic_monomials(sys, data); state.correction], nbands(swt))
-    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, state, table, bare_table, monomials)
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, state, table, bare_table,
+                          monomials, observable_coefs)
 end
 
 
@@ -134,15 +143,10 @@ function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     end
 end
 
-function nflavors(swt::SpinWaveTheory)
-    (; sys) = swt
-    return sys.mode == :SUN ? sys.Ns[1]-1 : 1
-end
-
-function nbands(swt::SpinWaveTheory)
-    (; sys) = swt
-    return nflavors(swt) * nsites(sys)
-end
+nflavors(sys::System) = sys.mode == :SUN ? sys.Ns[1]-1 : 1
+nbands(sys::System) = nflavors(sys) * nsites(sys)
+nflavors(swt::SpinWaveTheory) = nflavors(swt.sys)
+nbands(swt::SpinWaveTheory) = nbands(swt.sys)
 
 # For a site with linear index i in `1:nsites(sys)`, return the linear index j
 # of the site that `bond` reaches, and the number of magnetic cells by which it
@@ -381,6 +385,21 @@ function observable_prefactor(measure, μ, i, q_global, sys; part=1)
     cis(dot(q_global, r)) * compute_form_factor(ff, norm2(q_global))
 end
 
+# Coefficients C[a, μ, p] of the one-boson words of part p of each local
+# observable μ, by Nambu label a, in the local frame and without the Fourier
+# phase or form factor that `observable_prefactor` supplies. These are the
+# amplitudes of LSWT, the leading order of the words of
+# `observable_monomials`.
+function observable_coefficients(sys::System, data, measure::MeasureSpec)
+    C = zeros(ComplexF64, 2nbands(sys), num_observables(measure), num_parts_per_unit(measure))
+    for p in axes(C, 3), μ in axes(C, 2), i in 1:nsites(sys)
+        for (; c, as) in observable_monomials(sys, data, μ, i, Val{1}(); part=p)
+            C[as[1], μ, p] += c
+        end
+    end
+    return C
+end
+
 # Linearize each Fourier observable Â(q) = Σᵢ exp(+i q⋅rᵢ) Âᵢ as a coefficient
 # vector u in the Nambu basis of Holstein-Primakoff bosons [a_q, a_-q†].
 #
@@ -391,39 +410,23 @@ observable_vectors!(u, swt::SpinWaveTheory, q_global) =
     observable_vectors!(u, swt, swt.sys, swt.measure, q_global)
 
 function observable_vectors!(u, swt::SpinWaveTheory, sys::System, measure::MeasureSpec, q_global)
-    (; data) = swt
-    Na = nsites(sys)
-    Nobs = num_observables(measure)
-    Nf = nflavors(swt)
-    L = Nf * Na
+    fill!(u, 0)
+    return accum_observable_vectors!(u, sys, measure, swt.observable_coefs, q_global)
+end
 
-    if sys.mode == :SUN
-        (; observables) = data::SWTDataSUN
-        @assert allequal(sys.Ns)
-        N = first(sys.Ns)
-        for μ in 1:Nobs, i in 1:Na
-            view(u, (i-1)*Nf .+ (1:Nf), μ) .= 0
-            view(u, (i-1)*Nf .+ (1:Nf) .+ L, μ) .= 0
-            for p in 1:num_parts_per_unit(measure)
-                pref = observable_prefactor(measure, μ, i, q_global, sys; part=p)
-                O = observables[μ, i, p]
-                for f in 1:Nf
-                    u[f + (i-1)*Nf,     μ] += pref * O[f, N]
-                    u[f + (i-1)*Nf + L, μ] += pref * O[N, f]
-                end
-            end
-        end
-    else
-        @assert sys.mode in (:dipole, :dipole_uncorrected)
-        num_parts_per_unit(measure) == 1 || error("Distinct parts unsupported in dipole-mode.")
-        (; sqrtS, observables) = data::SWTDataDipole
-        for μ in 1:Nobs, i in 1:Na
-            pref = observable_prefactor(measure, μ, i, q_global, sys)
-            O = observables[μ, i]
-            u[i, μ]   = pref * (sqrtS[i] / √2) * (O[1] + im*O[2])
-            u[i+L, μ] = pref * (sqrtS[i] / √2) * (O[1] - im*O[2])
+# Adds to `u` the observables whose one-boson words have coefficients C[a, μ, p],
+# as in `observable_coefficients`. The coefficient of the operator labeled a is
+# stored in u[ā, μ], where ā = mod1(a+L, 2L), and each part p of a unit carries
+# its own Fourier phase and form factor.
+function accum_observable_vectors!(u, sys::System, measure::MeasureSpec, C, q_global)
+    L = nbands(sys)
+    Nf = nflavors(sys)
+    for p in axes(C, 3), μ in axes(C, 2), i in 1:nsites(sys)
+        pref = observable_prefactor(measure, μ, i, q_global, sys; part=p)
+        for a in (i-1)*Nf .+ (1:Nf)
+            u[a, μ]   += pref * C[L+a, μ, p]
+            u[L+a, μ] += pref * C[a, μ, p]
         end
     end
-
     return u
 end
