@@ -1,18 +1,16 @@
-# Takes a list of q points, converts into SampledCorrelation.data indices and
-# corresponding exact wave vectors, and eliminates repeated elements.
+# Takes a list of q points in supercell RLU, converts into SampledCorrelation.data
+# indices and corresponding exact wave vectors, and eliminates repeated elements.
 function pruned_wave_vector_info(sc::SampledCorrelations, qs)
 
     # Round to the nearest wavevector and wrapped index
     Ls = size(sc.samplebuf)[2:4]
-    ms = map(qs) do q 
-        round.(Int, Ls .* q)
-    end
+    ms = map(q -> round.(Int, q), qs)
     idcs = map(ms) do m
         CartesianIndex{3}(map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)))
     end
 
     # Convert to absolute units (for form factors)
-    qabs_rounded = map(m -> sc.recipvecs * (m ./ Ls), ms)
+    qabs_rounded = map(m -> sc.recipvecs_supercell * m, ms)
 
     # List of "starting" pointers i where qabs_rounded[i-1] != qabs_rounded[i],
     # i.e., indices where the desired wave vector is distinct from the previous
@@ -102,22 +100,24 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
 
     # Prepare memory and configuration variables for actual calculation
     qpts = Base.convert(AbstractQPoints, qpts)
-    qs_reshaped = [to_reshaped_rlu(sc, q) for q in qpts.qs]
+    qs_supercell = [to_supercell_rlu(sc, q) for q in qpts.qs]
 
     # SampledCorrelations disallows form factors that vary with observable, so
     # drop first index. Merge the remaining two (unit, part) indices.
     ffs = vec(sc.measure.formfactors[1, :, :])
 
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic SWT
-    q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
+    q_idx_info = pruned_wave_vector_info(sc, qs_supercell)
     NCorr  = Val{size(sc.data, 1)}()
     NAtoms = Val{size(sc.data, 2)}()
 
     # Intensities calculation
-    intensities_aux!(intensities, sc.data, sc.recipvecs, sc.positions, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NAtoms)
+    intensities_aux!(intensities, sc.data, sc.recipvecs_supercell, sc.positions_supercell, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NAtoms)
 
-    # Convert to a q-space density in original (not reshaped) RLU.
-    intensities .*= det(sc.recipvecs) / det(sc.origin_crystal.recipvecs)
+    # The data is averaged over the ncells cells of sys.crystal that make up
+    # the supercell. Convert to a density per conventional chemical cell.
+    ncells = prod(size(sc.data)[4:6])
+    intensities .*= ncells * det(sc.recipvecs_supercell) / det(sc.origin_crystal.recipvecs)
 
     # Post-processing steps for dynamical or static intensities
     if dynamic
