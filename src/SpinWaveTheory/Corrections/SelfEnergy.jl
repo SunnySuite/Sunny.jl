@@ -337,7 +337,10 @@ struct OneLoop
     terms3    :: Vector{BosonMonomial{3}}
     terms4    :: Vector{BosonMonomial{4}}
     terms2    :: Vector{BosonMonomial{2}}
+    # Corrections to the amplitudes for each observable to create one magnon,
+    # and a pair, by `observable_corrections` and `observable_pair_corrections`
     δc        :: Matrix{ComplexF64}
+    δpair     :: Matrix{Vector{BosonMonomial{2}}}
 end
 
 function OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid::BZGrid=auto_bzgrid(swt; η, tol=0.01))
@@ -352,18 +355,20 @@ function OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid::BZGrid=auto_bz
     cubic_vertex_vanishes(swt, terms3) && (terms3 = BosonMonomial{3}[])
 
     terms4 = quartic_monomials(swt)
-    g = contractions(swt, Iterators.flatten((terms3, terms4, observable_cubic_monomials(swt))), grid)
+    g = contractions(swt, Iterators.flatten((terms3, terms4, all_observable_monomials(swt, Val{3}()),
+                                             all_observable_monomials(swt, Val{4}()))), grid)
     tad = isempty(terms3) ? nothing : tadpole(swt, terms3, g)
     terms2 = [mean_field(terms4, g).terms2
               isnothing(tad) ? BosonMonomial{2}[] : tad.terms2
               anisotropy_correction(swt).terms2]
     δc = observable_corrections(swt, isnothing(tad) ? nothing : tad.w, g)
+    δpair = observable_pair_corrections(swt, g)
     bin_width = η / 10
     if !isnothing(energies) && length(energies) > 1
         dω = (last(energies) - first(energies)) / (length(energies) - 1)
         bin_width = dω / cld(dω, bin_width)
     end
-    return OneLoop(swt, η, loop_grid, bin_width, terms3, terms4, terms2, δc)
+    return OneLoop(swt, η, loop_grid, bin_width, terms3, terms4, terms2, δc, δpair)
 end
 
 """
@@ -417,7 +422,7 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     w = T' * u
 
     grid = loop_wavevectors(loop_grid, q_supercell)
-    words2 = observable_pair_monomials(swt, q_global)
+    words2 = observable_pair_monomials(swt, q_global; ol.δpair)
     chans = ladder ? pair_channels(ol.terms4, q_supercell, L) : nothing
     (; decay, source) = pair_measures(swt, ol.terms3, q_supercell, grid; bin_width, words2, chans)
     return SelfEnergy(ol.η, ε, T, Σstat, w, decay, source, ladder ? chans.σ : Float64[])

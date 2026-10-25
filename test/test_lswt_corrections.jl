@@ -1102,7 +1102,7 @@ end
 
 @testitem "1/s corrections to intensities" setup=[CorrectionModels] begin
     using LinearAlgebra
-    using .CorrectionModels: triangular, square_afm, square_cryst, canted_square
+    using .CorrectionModels: triangular, square_afm, square_cryst, canted_square, fock_ops, fock_quadratic, expand
 
     sys = triangular()
     swt = SpinWaveTheory(sys; measure=nothing)
@@ -1460,6 +1460,66 @@ end
         # here. The residual error is that of the energy integral above.
         @test abs((w.elastic + w.transverse + w.longitudinal) / w.casimir - 1) < 1e-3
         @test (w.elastic + w.harm + w.longitudinal) / w.casimir - 1 > 0.02
+    end
+
+    # An observable that creates no single magnon, here the quadrupole 𝒪₂²
+    # about a moment along ẑ, which changes Sᶻ by two. Its whole spectrum is the
+    # pair channel, so the four-boson words of the observable, contracted into
+    # the pair amplitude by `observable_pair_corrections`, enter at the same
+    # order as the pair word itself. The reference is the static weight ⟨Q†Q⟩ in
+    # the Gaussian vacuum of a Néel dimer, with Q rebuilt from its words of two
+    # and four bosons in a truncated Fock space. The integrated pair channel
+    # must reproduce it to O(1/s²), and does so to 4e-3 and 9e-4 at s = 4 and 8,
+    # whereas without the correction it misses by the 5% and 2% of the
+    # four-boson words.
+    let
+        function dimer(s)
+            cryst = Crystal(lattice_vectors(1, 1.1, 10, 90, 90, 100), [[0, 0, 0], [0.4, 0.3, 0.1]], 1)
+            sys = System(cryst, [1 => Moment(; s, g=1), 2 => Moment(; s, g=1)], :dipole)
+            set_exchange!(sys, 1/s, Bond(1, 2, [0, 0, 0]))
+            O = stevens_matrices(s)
+            set_onsite_coupling!(sys, -0.15 * O[2, 0] / s, 1)
+            set_onsite_coupling!(sys, -0.15 * O[2, 0] / s, 2)
+            sys = to_inhomogeneous(sys)
+            set_field_at!(sys, [0, 0, -0.3], (1, 1, 1, 1))
+            set_field_at!(sys, [0, 0, 0.3], (1, 1, 1, 2))
+            set_dipole!(sys, [0, 0, 1], (1, 1, 1, 1))
+            set_dipole!(sys, [0, 0, -1], (1, 1, 1, 2))
+            return sys
+        end
+        function quadrupole_measure(sys, s)
+            A = Hermitian(ComplexF64.(Matrix(stevens_matrices(s)[2, 2])))
+            obs = fill(Sunny.StevensExpansion(Sunny.matrix_to_stevens_coefficients(A)), 1, 1, 1, 1, 2, 1)
+            return Sunny.MeasureSpec(obs, [(1, 1)], (q, corr) -> real(only(corr)), fill(one(FormFactor), 1, 2, 1))
+        end
+        function pair_weight_errors(s; nmax=12)
+            sys = dimer(s)
+            swt = SpinWaveTheory(sys; measure=quadrupole_measure(sys, s), regularization=0)
+            L = 2
+            Ns = (nmax+1, nmax+1)
+            dim = prod(Ns)
+            bop = fock_ops(Ns)
+            (_, H2) = fock_quadratic(swt, bop, dim)
+            ψ = eigen(Hermitian(Matrix(H2))).vectors[:, 1]
+            W(K) = expand(bop, reduce(vcat, (Sunny.observable_monomials(swt, 1, i, Val{K}()) for i in 1:L)), dim)
+            weight(Q) = real(ψ' * Q' * Q * ψ) - abs2(ψ' * Q * ψ)
+            ol = Sunny.OneLoop(swt; η=0.02, grid=Sunny.BZGrid(1, 1, 1))
+            bare = Sunny.OneLoop(ol.swt, ol.η, ol.loop_grid, ol.bin_width, ol.terms3, ol.terms4, ol.terms2, ol.δc,
+                                 map(_ -> Sunny.BosonMonomial{2}[], ol.δpair))
+            # Mass of the direct channel of the decay measure, the integrated pair weight
+            pair(ol) = real(sum(v -> Sunny.bin_entry(v, 2L+1, 2L+1), values(Sunny.SelfEnergy(ol, [0, 0, 0]).decay.bins)))
+            return (; corrected = pair(ol) / weight(W(2) + W(4)) - 1, bare = pair(bare) / weight(W(2) + W(4)) - 1,
+                      leading = pair(bare) / weight(W(2)) - 1)
+        end
+        (e4, e8) = pair_weight_errors.((4.0, 8.0))
+        # The pair word alone is reproduced exactly, from the same vacuum
+        @test abs(e4.leading) < 1e-9
+        # With the correction, the residual is O(1/s²): small and falling fourfold
+        @test abs(e8.corrected) < 2e-3
+        @test abs(e8.corrected) < 0.3 * abs(e4.corrected)
+        # Without it, the residual is O(1/s), larger and falling only twofold
+        @test abs(e8.bare) > 10 * abs(e8.corrected)
+        @test abs(e8.bare) > 0.4 * abs(e4.bare)
     end
 end
 
