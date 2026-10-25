@@ -29,6 +29,27 @@ end
 
 GaussianState() = GaussianState(BosonMonomial{2}[], nothing, (;))
 
+# The monomials of H₃ and H₄, built on first use. They depend on the structure
+# and couplings but not on the Gaussian state, so every state of one theory
+# shares them. Only the 1/s corrections need them, and building them costs
+# several times more than the rest of `SpinWaveTheory`. Consumers must not
+# mutate the lists returned.
+mutable struct MonomialCache
+    const lock :: ReentrantLock
+    cubic      :: Union{Nothing, Vector{BosonMonomial{3}}}
+    quartic    :: Union{Nothing, Vector{BosonMonomial{4}}}
+end
+
+MonomialCache() = MonomialCache(ReentrantLock(), nothing, nothing)
+
+# The field `name` of `cache`, built by `f` if it is not yet present
+function cached!(f, cache::MonomialCache, name::Symbol)
+    @lock cache.lock begin
+        v = getfield(cache, name)
+        isnothing(v) ? setfield!(cache, name, f()) : v
+    end
+end
+
 """
     SpinWaveTheory(sys::System; measure, regularization=1e-8)
 
@@ -65,6 +86,7 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     # The quadratic Hamiltonian of `state`, and of LSWT itself, Ewald excluded
     quadratic_table :: QuadraticTable
     bare_table      :: QuadraticTable
+    monomials       :: MonomialCache
 end
 
 function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, energy_ϵ=nothing)
@@ -89,16 +111,16 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
 
     L = (sys.mode == :SUN ? sys.Ns[1] - 1 : 1) * nsites(sys)
     table = QuadraticTable(quadratic_monomials(sys, data), L)
-    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, GaussianState(), table, table)
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, GaussianState(), table, table, MonomialCache())
 end
 
 # The same theory about the Gaussian state `state`. Everything but the quadratic
 # table is shared.
 function SpinWaveTheory(swt::SpinWaveTheory, state::GaussianState)
-    (; sys, data, measure, regularization, classical_energy, bare_table) = swt
+    (; sys, data, measure, regularization, classical_energy, bare_table, monomials) = swt
     table = isempty(state.correction) ? bare_table :
         QuadraticTable([quadratic_monomials(sys, data); state.correction], nbands(swt))
-    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, state, table, bare_table)
+    return SpinWaveTheory(sys, data, measure, regularization, classical_energy, state, table, bare_table, monomials)
 end
 
 
