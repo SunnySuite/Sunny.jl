@@ -133,18 +133,20 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         (; μ) = sys.ewald
         μ .= magnetic_moments(sys)
 
-        A0 = ewald_site_tensor(sys, zero(Vec3))
-        Ak = ewald_site_tensor(sys, k_supercell)
+        A0 = ewald_interaction_tensor(sys, zero(Vec3))
+        Ak = ewald_interaction_tensor(sys, k_supercell)
 
         k_case = spiral_propagation_case(k_supercell)
 
         for i in 1:nsites(sys), j in 1:nsites(sys)
+            A0ij = ewald_pair(A0, sys, zero(Vec3), i, j)
+            Akij = ewald_pair(Ak, sys, k_supercell, i, j)
             if k_case == 1
-                E += real(μ[i]' * A0[i, j] * μ[j]) / 2
+                E += real(μ[i]' * A0ij * μ[j]) / 2
             elseif k_case == 2
-                E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + K²*Ak[i, j]*K²) * μ[j]) / 2
+                E += real(μ[i]' * ((I+K²)*A0ij*(I+K²) + K²*Akij*K²) * μ[j]) / 2
             else @assert k_case == 3
-                E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + (im*K+K²)*Ak[i, j]*(im*K+K²)/2) * μ[j]) / 2
+                E += real(μ[i]' * ((I+K²)*A0ij*(I+K²) + (im*K+K²)*Akij*(im*K+K²)/2) * μ[j]) / 2
             end
         end
 

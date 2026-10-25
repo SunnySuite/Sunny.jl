@@ -69,9 +69,9 @@ function fourier_bilinear_interaction!(Jq, swt::SpinWaveTheory, q_supercell)
     end
 
     if !isnothing(sys.ewald)
-        Aq = ewald_site_tensor(sys, -q_supercell)
+        Aq = ewald_interaction_tensor(sys, -q_supercell)
         for i in 1:nsites(sys), j in 1:nsites(sys)
-            Jq[i, j] += gs[i]' * Aq[i, j] * gs[j]
+            Jq[i, j] += gs[i]' * ewald_pair(Aq, sys, -q_supercell, i, j) * gs[j]
         end
     end
 end

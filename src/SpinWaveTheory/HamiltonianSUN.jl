@@ -69,16 +69,16 @@ function accum_ewald_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_supercel
     (; gs) = usys
 
     # Interaction matrices between bare sites at wavevector q and at zero
-    Aq = ewald_site_tensor(sys, q_supercell)
-    A0 = ewald_site_tensor(sys, zero(Vec3))
+    Aq = ewald_interaction_tensor(sys, q_supercell)
+    A0 = ewald_interaction_tensor(sys, zero(Vec3))
 
     for i in 1:Na, j in 1:Na
         for bi in bare_indices(sys, i), bj in bare_indices(sys, j)
             # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
             # energy, where μ = - g S. A symmetric contribution will appear for
             # the bond reversal (a, b) → (b, a).
-            Jq = gs[bi]' * Aq[bi, bj] * gs[bj] / 2
-            J0 = gs[bi]' * A0[bi, bj] * gs[bj] / 2
+            Jq = gs[bi]' * ewald_pair(Aq, sys, q_supercell, bi, bj) * gs[bj] / 2
+            J0 = gs[bi]' * ewald_pair(A0, sys, zero(Vec3), bi, bj) * gs[bj] / 2
 
             for α in 1:3, β in 1:3
                 Ai = spin_ops[α, bi]
