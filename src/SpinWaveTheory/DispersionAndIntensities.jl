@@ -214,11 +214,14 @@ perform line broadening of the bands. Use [`load_blas_for_threading`](@ref) and
 set `threaded=true` to parallelize the calculation using Julia threads.
 """
 function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false, threaded=false)
-    (; sys, measure) = swt
-    num_observables(measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
+    num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     with_negative && error("Option `with_negative=true` not yet supported.")
+    # The fields `sys` and `measure` are abstract, to limit specialization, so
+    # the loop over wavevectors is behind a function barrier
+    return intensities_bands(swt, swt.sys, swt.measure, convert(AbstractQPoints, qpts); kT, threaded)
+end
 
-    qpts = convert(AbstractQPoints, qpts)
+function intensities_bands(swt::SpinWaveTheory, sys::System, measure::MeasureSpec, qpts::AbstractQPoints; kT, threaded)
     cryst = orig_crystal(sys)
 
     # Number of (magnetic) atoms in magnetic cell
@@ -252,10 +255,10 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false,
         q = qpts.qs[iq]
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
-        view(disp, :, iq) .= view(excitations!(ws, H, swt, q), 1:L)
+        view(disp, :, iq) .= view(excitations_reshaped!(ws, H, swt, q_reshaped), 1:L)
 
         # Linearized observables Â_μ(q) in Holstein-Primakoff bosons
-        set_swt_observable_vectors!(u, swt, q_reshaped, q_global)
+        set_swt_observable_vectors!(u, swt, sys, measure, q_reshaped, q_global)
 
         # Fill `intensity` array
         for band in 1:L
