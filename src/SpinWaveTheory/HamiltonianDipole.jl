@@ -13,16 +13,16 @@ function accum_ewald_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_super
     Rs = local_rotations
 
     # Interaction matrices between sites at wavevector q and at zero
-    Aq = ewald_site_tensor(sys, q_supercell)
-    A0 = ewald_site_tensor(sys, zero(Vec3))
+    Aq = ewald_interaction_tensor(sys, q_supercell)
+    A0 = ewald_interaction_tensor(sys, zero(Vec3))
 
     # Loop over sublattice pairs
     for i in 1:L, j in 1:L
         # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
         # energy. A symmetric contribution will appear for the bond reversal
         # (i, j) → (j, i).  Note that μ = -μB g S.
-        J = gs[i]' * Aq[i, j] * gs[j] / 2
-        J0 = gs[i]' * A0[i, j] * gs[j] / 2
+        J = gs[i]' * ewald_pair(Aq, sys, q_supercell, i, j) * gs[j] / 2
+        J0 = gs[i]' * ewald_pair(A0, sys, zero(Vec3), i, j) * gs[j] / 2
 
         # Perform same transformation as appears in usual bilinear exchange.
         # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
