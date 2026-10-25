@@ -851,7 +851,7 @@ end
     @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, bz=(6, 6, 1))) < 1e-12
     grid32 = (32, 32, 1)
     Zcs = map((Sunny.hartree_fock_correction(swt; bz=grid32).terms2,
-               Sunny.with_self_consistent_vacuum(swt; bz=grid32, scf_tol=1e-7).vacuum.correction)) do terms2
+               Sunny.to_self_consistent_vacuum(swt; bz=grid32, scf_tol=1e-7).vacuum.correction)) do terms2
         dispersion(Sunny.swt_with_vacuum(swt; correction=terms2), [[0.3, 0.1, 0]])
     end
     @test Zcs[1] ≈ Zcs[2] atol=1e-7
@@ -868,7 +868,7 @@ end
             @test dispersion(swt2, [[0.3, 0.1, 0]]) ≈ dispersion(swt, [[0.3, 0.1, 0]])
             @test swt2.classical_energy ≈ swt.classical_energy
         end
-        sc = Sunny.with_self_consistent_vacuum(swt; bz)
+        sc = Sunny.to_self_consistent_vacuum(swt; bz)
         E(λ) = Sunny.gaussian_energy_per_site(Sunny.swt_with_vacuum(swt; correction=[Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.vacuum.correction]); bz)
         @test abs(E(1 + 1e-3) - E(1 - 1e-3)) / 2e-3 < 1e-6
         @test E(1) ≈ Sunny.gaussian_energy_per_site(sc) atol=1e-14
@@ -878,14 +878,14 @@ end
         # wavevector, and a pin restores the harmonic one, which only the
         # regularization gaps
         gap(sw) = minimum(dispersion(sw, [[0, 0, 0]]))
-        pinned = Sunny.with_self_consistent_vacuum(swt; bz, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
+        pinned = Sunny.to_self_consistent_vacuum(swt; bz, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
         @test gap(sc) > 0.1
         @test gap(pinned) ≈ gap(swt) rtol=0.1
         # Relaxing the structure as well lowers the energy further, and makes
         # the state jointly stationary, so the magnetization is the expectation
         # value of the spin, ∂E/∂B = ⟨Sᶻ⟩ for g = 1. At zero field the
         # structure is collinear and does not move.
-        relaxed(B; scf_tol=1e-10) = Sunny.with_self_consistent_vacuum(SpinWaveTheory(canted_square(1/2, B); measure=nothing); bz, relax_structure=true, scf_tol)
+        relaxed(B; scf_tol=1e-10) = Sunny.to_self_consistent_vacuum(SpinWaveTheory(canted_square(1/2, B); measure=nothing); bz, relax_spins=true, scf_tol)
         st = relaxed(1.0)
         Sz(sw) = sum((1/2 - n) * R[3, 3] for (n, R) in zip(Sunny.boson_density(sw), sw.vacuum.frames)) / 2
         @test Sunny.gaussian_energy_per_site(st) < E(1)
@@ -2130,7 +2130,7 @@ end
     # quadrature, so its accuracy is irrelevant here and a coarse grid keeps the
     # iterations cheap.
     ress = map((swt, Sunny.swt_with_vacuum(swt; correction=terms2))) do start
-        sc = Sunny.with_self_consistent_vacuum(start; bz=(8, 8, 1))
+        sc = Sunny.to_self_consistent_vacuum(start; bz=(8, 8, 1))
         return (Sunny.gaussian_energy_per_site(sc), dispersion(sc, [[0.3, 0.1, 0]]))
     end
     @test ress[1][1] ≈ ress[2][1] atol=1e-8

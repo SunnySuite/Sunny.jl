@@ -83,10 +83,10 @@
 # harmonic by default. The keyword `bz` selects the quadrature over the zone: a
 # relative accuracy, met by adaptive cubature for static averages and by a grid
 # resolving `η` for loop integrals, or the dimensions of a fixed grid. A vacuum
-# produced by `with_self_consistent_vacuum` records its grid, which subsequent calls
-# use.
+# produced by `to_self_consistent_vacuum` records its grid, which subsequent
+# calls use.
 #
-#     Vacuum       with_one_step_vacuum, with_self_consistent_vacuum,
+#     Vacuum       to_hartree_fock_corrected_vacuum, to_self_consistent_vacuum,
 #                  GoldstonePin
 #     Spectra      corrected_intensities, corrected_intensities_bands
 #     Statics      corrected_energy_per_site, gaussian_energy_per_site,
