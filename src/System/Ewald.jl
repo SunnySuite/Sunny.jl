@@ -223,20 +223,6 @@ function ewald_interaction_tensor(@nospecialize(sys::System), q_supercell)
     return iszero(q_supercell) ? A : ewald_interaction_tensor(cache, Vec3(q_supercell))
 end
 
-# The entry of Ac = ewald_interaction_tensor(sys, q_supercell) that couples site
-# i to site j and all of its periodic images, by linear site index. For an
-# entangled system, i and j index the sites of the uncontracted system. Their
-# cells differ by Δ, which wraps by w magnetic cells, so that the entry is that
-# at cell Δ mod dims, with the phase of an image displaced by -w.
-function ewald_pair(Ac, @nospecialize(sys::System), q_supercell, i, j)
-    usys = uncontracted_system(sys)
-    (; dims) = usys
-    si, sj = eachsite(usys)[i], eachsite(usys)[j]
-    Δ = Tuple(to_cell(sj)) .- Tuple(to_cell(si))
-    cell = CartesianIndex(mod.(Δ, dims) .+ 1)
-    return cis(-2π * dot(q_supercell, Vec3(fld.(Δ, dims)))) * Ac[cell, to_atom(si), to_atom(sj)]
-end
-
 # The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known
 # statically.
 function ewald_energy(@nospecialize(sys::System))

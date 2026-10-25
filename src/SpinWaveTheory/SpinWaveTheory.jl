@@ -1,4 +1,3 @@
-# Per-site data is indexed by the linear site index; see `bond_target`
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}             # Rotations from global to quantization frame
     observables           :: Array{Vec3, 2}           # Observables rotated to local frame (nobs × nsites)
@@ -123,6 +122,19 @@ function nbands(swt::SpinWaveTheory)
     return nflavors(swt) * nsites(sys)
 end
 
+# For a site with linear index i in `1:nsites(sys)`, return the linear index j
+# of the site that `bond` reaches, and the number of magnetic cells by which it
+# wraps.
+function bond_target(sys::System, i::Int, bond::Bond)
+    cell = Tuple(to_cell(eachsite(sys)[i])) .- 1 .+ Tuple(bond.n)
+    j = LinearIndices(sys.dipoles)[(mod.(cell, sys.dims) .+ 1)..., bond.j]
+    return (j, Vec3(fld.(cell, sys.dims)))
+end
+
+# The interactions of the site with linear index i in `1:nsites(sys)`, stored
+# per sublattice in a homogeneous system
+interactions_at(sys::System, i::Int) =
+    is_homogeneous(sys) ? sys.interactions_union[to_atom(eachsite(sys)[i])] : sys.interactions_union[i]
 
 # Wavevectors in RLU of the original crystal, `q`, and of the magnetic cell of
 # `sys`, `q_supercell`. The magnetic cell spans `sys.dims` cells of
@@ -217,7 +229,7 @@ function swt_data(sys::System{N}, @nospecialize measure) where N
         end
 
         # Store spin dipoles of each bare site in the local frame
-        for bi in bare_indices(sys, i)
+        for (bi, _) in bare_indices_and_cells(sys, i)
             S = spin_ops_embedded(sys, to_atom(eachsite(usys)[bi]))
             for α in 1:3
                 spin_ops[α, bi] = Hermitian(U' * S[α] * U)
@@ -231,7 +243,7 @@ function swt_data(sys::System{N}, @nospecialize measure) where N
 
         # Rotate onsite coupling, with the Zeeman coupling of each bare site
         onsite = int.onsite
-        for bi in bare_indices(sys, i)
+        for (bi, _) in bare_indices_and_cells(sys, i)
             S = spin_ops_embedded(sys, to_atom(eachsite(usys)[bi]))
             onsite += (usys.extfield[bi]' * usys.gs[bi]) * S
         end

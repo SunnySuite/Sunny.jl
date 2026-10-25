@@ -210,6 +210,7 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 # Split a site `site` into its cell and sublattice parts
 @inline to_cell(site) = (site[1], site[2], site[3])
 @inline to_atom(site) = site[4]
+@inline to_cell_atom(site) = (to_cell(site), to_atom(site))
 
 # Like mod1(x, L), but short-circuits early in the common case. See
 # https://github.com/SunnySuite/Sunny.jl/pull/184 for discussion.
@@ -221,15 +222,6 @@ end
 @inline function bonded_site(site, bond, dims)
     # @assert to_atom(site) == bond.i
     CartesianIndex(altmod1.(to_cell(site) .+ bond.n, dims)..., bond.j)
-end
-
-# For a site with linear index i in `1:nsites(sys)`, the linear index j of the
-# site that `bond` reaches, and the number of magnetic cells by which it wraps,
-# which is the bond offset in the magnetic cell
-function bond_target(sys::System, i::Int, bond::Bond)
-    cell = Tuple(to_cell(eachsite(sys)[i])) .- 1 .+ Tuple(bond.n)
-    j = LinearIndices(sys.dipoles)[(mod.(cell, sys.dims) .+ 1)..., bond.j]
-    return (j, Vec3(fld.(cell, sys.dims)))
 end
 
 function spin_label_site(sys::System, site)
