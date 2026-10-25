@@ -65,7 +65,8 @@ function vacuum_bogoliubov!(ws::BogoliubovWorkspace, H, vac::MagnonVacuum, q_res
     catch err
         err isa PosDefException || rethrow()
         rethrow(InstabilityError("Quadratic Hamiltonian of the vacuum not positive definite at reshaped wavevector \
-                                  $(vec3_to_string(q_reshaped))."))
+                                  $(vec3_to_string(q_reshaped)). If quantum fluctuations stabilize the structure, \
+                                  pass `vacuum = Sunny.MagnonVacuum(swt, Sunny.hartree_fock_correction(swt).terms2)`."))
     end
 end
 
@@ -160,12 +161,60 @@ function contractions(vac::MagnonVacuum, terms, quad::BZQuadrature)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
     values = bz_average(quad) do q_reshaped
-        vacuum_bogoliubov!(ws, H, vac, q_reshaped)
-        U = view(ws.T, :, 1:L)
+        U = vacuum_modes!(ws, H, vac, q_reshaped)
         return ComplexF64[cis(-2π * dot(q_reshaped, Vec3(Δ))) * dot(view(U, nambu_conj(a′, L), :), view(U, a, :))
                           for (a, a′, Δ) in keys]
     end
     return Contractions(L, index, values, noise)
+end
+
+# Columns U of the quasi-particle annihilators of the vacuum at `q_reshaped`,
+# normalized as U†ĨU = 1, which fix its correlations ⟨x x†⟩ = UU†. Normally
+# these are the particle columns of `bogoliubov!`. A quadratic Hamiltonian that
+# is not positive definite has no ground state, but if its frequencies are real
+# and each mode has a definite sign of the para-norm t†Ĩt, its positive-norm
+# modes still define a Gaussian state, annihilated by every quasi-particle. One
+# or more of them then has negative energy. This occurs for a structure that
+# quantum fluctuations select from a classically degenerate family (order by
+# disorder), e.g. the up-up-down plateau of the Heisenberg triangular AFM. It is
+# the zeroth order about which the mean field is computed, and for a family
+# related by a symmetry of the quadratic Hamiltonian it is the vacuum of every
+# member. A complex frequency, or a mode of null para-norm, is a dynamical
+# instability, and no vacuum exists.
+function vacuum_modes!(ws::BogoliubovWorkspace, H, vac::MagnonVacuum, q_reshaped)
+    L = nbands(vac.swt)
+    try
+        vacuum_bogoliubov!(ws, H, vac, q_reshaped)
+        return view(ws.T, :, 1:L)
+    catch err
+        err isa InstabilityError || rethrow()
+    end
+    vacuum_hamiltonian!(H, vac, q_reshaped)
+    Ĩ = Diagonal([ones(L); -ones(L)])
+    (λ, V) = eigen(Ĩ * H; sortby=real)
+    tol = sqrt(eps()) * opnorm(H, 1)
+    unstable() = InstabilityError("Quadratic Hamiltonian of the vacuum dynamically unstable at reshaped \
+                                   wavevector $(vec3_to_string(q_reshaped)).")
+    all(x -> abs(imag(x)) < tol, λ) || throw(unstable())
+    # Within each cluster of degenerate frequencies, eigen returns an arbitrary
+    # basis. The positive-norm part of an orthonormal basis of the cluster is a
+    # bounded choice, and unique unless the cluster mixes both signs. Para-norms
+    # of unit vectors are dimensionless, and small near a Goldstone mode.
+    U = zeros(ComplexF64, 2L, 0)
+    i = 1
+    while i <= 2L
+        j = i
+        while j < 2L && real(λ[j+1] - λ[i]) < tol
+            j += 1
+        end
+        W = Matrix(qr(V[:, i:j]).Q)[:, 1:j-i+1]
+        (g, X) = eigen(Hermitian(W' * Ĩ * W))
+        all(x -> abs(x) > sqrt(eps()), g) || throw(unstable())
+        U = [U (W * X[:, g .> 0]) ./ sqrt.(g[g .> 0])']
+        i = j + 1
+    end
+    size(U, 2) == L || throw(unstable())
+    return U
 end
 
 # ---- Wick's theorem ----

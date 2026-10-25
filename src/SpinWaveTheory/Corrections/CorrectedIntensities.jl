@@ -52,9 +52,9 @@
 # correction does so, with a counterterm.
 
 """
-    corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, dyson=:nambu,
-                          loop_grid=nothing, vacuum=MagnonVacuum(swt), mark_breakdown=true,
-                          threaded=false, verbose=false)
+    corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, tol=0.01,
+                          dyson=:nambu, loop_grid=nothing, vacuum=MagnonVacuum(swt),
+                          mark_breakdown=true, threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including one-loop
 spin-wave corrections, i.e., relative order ``1/s`` in dipole mode. Magnon
@@ -65,8 +65,8 @@ two-magnon continuum.
 The Green function is evaluated at ``ω + iη``, so `η` both regulates the loop
 integrals and broadens the result into Lorentzians. Choose it small compared to
 the linewidths of interest, but no smaller: the wavevector grid of the loop
-integrals grows as `1/η` in each dispersing dimension. Apply instrumental
-resolution to the result afterwards.
+integrals grows as `1/η` in each dispersing dimension. An optional `kernel`,
+e.g. for instrumental resolution, can be used to postprocess the result.
 
 The accuracy target `tol` sets that grid, unless `loop_grid` is given
 explicitly. The static mean fields are summed on the same grid, which keeps
@@ -81,13 +81,13 @@ The `dyson` option selects how the one-loop self-energy is resummed:
   ``ω > 0`` wherever the resummed propagator is stable.
 - `:ladder` extends `:nambu` with the interaction between the two magnons of
   each pair, summed to all orders. This produces two-magnon bound states and
-  resonances, as in the truncated Hilbert space exact diagonalization of
-  [Zhang et al., arXiv:2508.21142](https://arxiv.org/abs/2508.21142), but in the
-  full Nambu space. A static counterterm keeps the magnon dispersion at
-  ``ω = 0``, and so every Goldstone mode, exactly that of `:nambu`. The ladder
-  is beyond one-loop order. It is intended for gapped magnets: near a soft mode
-  in two dimensions, the bare quartic vertex binds pairs of soft magnons below
-  ``ω = 0`` as the loop grid is refined, which is reported as a breakdown.
+  resonances, as in the truncated Hilbert space exact diagonalization of [Zhang
+  et al., arXiv:2508.21142](https://arxiv.org/abs/2508.21142), but in the full
+  Nambu space. A static counterterm keeps the magnon dispersion at ``ω = 0``,
+  and so every Goldstone mode, exactly that of `:nambu`. The ladder is beyond
+  one-loop order. It is intended for gapped magnets: near a soft mode in two
+  dimensions, the bare quartic vertex binds pairs of soft magnons below ``ω =
+  0`` as the loop grid is refined, which is reported as a breakdown.
 - `:particle` keeps only the particle block of the self-energy, and collects the
   magnon response plus the bare two-magnon continuum without interference. The
   intensity is never negative at ``ω > 0``. Pole shifts are correct at order
@@ -149,14 +149,18 @@ progress bar and diagnostics.
     and the linearization assume that the anomalous coupling is small against the
     ``2ε`` that separates a pole from its mirror.
 """
-function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
-                               mark_breakdown=true, dyson=:nambu, threaded=false, verbose=false,
-                               vacuum=MagnonVacuum(swt))
+function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, tol=0.01,
+                               loop_grid=nothing, mark_breakdown=true, dyson=:nambu, threaded=false,
+                               verbose=false, vacuum=MagnonVacuum(swt))
     (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
         corrected_channels(swt, qpts; energies, η, tol, loop_grid, dyson, threaded, verbose, vacuum)
-    data = transverse + cross + direct
-    mark_breakdown && (data[abs.(energies) .≤ η, breakdown] .= NaN)
-    return Intensities(cryst, qpts, energies, reshape(data, length(energies), size(qpts.qs)...))
+    data = reshape(transverse + cross + direct, length(energies), size(qpts.qs)...)
+    res = Intensities(cryst, qpts, energies, data)
+    isnothing(kernel) || (res = broaden(res; kernel))
+    if mark_breakdown
+        reshape(res.data, length(energies), :)[abs.(energies) .≤ η, breakdown] .= NaN
+    end
+    return res
 end
 
 """
