@@ -1,10 +1,10 @@
 
-function Ewald(sys::System{N}, μ0_μB², demag) where N
+function Ewald(sys::System{N}, μ0_μB², demag; excluded=[]) where N
     (; crystal, dims) = sys
 
     # Collect pieces to build the Ewald interaction tensor A(q) cheaply. This
     # caching can accelerate spin wave theory.
-    cache = EwaldTensorCache(crystal, dims, μ0_μB², demag)
+    cache = EwaldTensorCache(crystal, dims, μ0_μB², demag; excluded)
 
     # Build and store the interaction tensor A(q=0). The imaginary part cancels
     # in the symmetric sum over ±k, so keep only the real part.
@@ -51,7 +51,7 @@ end
 
 @inline cell_offset(cell) = Vec3(cell[1]-1, cell[2]-1, cell[3]-1)
 
-function EwaldTensorCache(cryst::Crystal, dims::NTuple{3,Int}, μ0_μB², demag::Mat3)
+function EwaldTensorCache(cryst::Crystal, dims::NTuple{3,Int}, μ0_μB², demag::Mat3; excluded=[])
     na = natoms(cryst)
 
     # Superlattice vectors and reciprocals for the full system volume
@@ -99,7 +99,7 @@ function EwaldTensorCache(cryst::Crystal, dims::NTuple{3,Int}, μ0_μB², demag:
         real_terms[cell, i, j] = terms
     end
 
-    return EwaldTensorCache(dims, cryst, μ0_μB², demag, σ², Tuple(mmax), kmax^2, Tuple(nmax), real_terms, [])
+    return EwaldTensorCache(dims, cryst, μ0_μB², demag, σ², Tuple(mmax), kmax^2, Tuple(nmax), real_terms, excluded)
 end
 
 # Calculate the Ewald interaction tensor A[cell, i, j] at the given wavevector q

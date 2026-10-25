@@ -171,19 +171,15 @@ function clone_system(sys::System{N}) where N
                  copy(extfield), copy(dipoles), copy(coherents),
                  empty_dipole_buffers, empty_coherent_buffers, copy(rng), entanglement_clone)
 
-    if !isnothing(ewald)
+    if ewald isa Ewald
         # At the moment, clone_ewald is unavailable, so instead rebuild the
         # Ewald data structures from scratch. This might be fixed eventually.
         # See https://github.com/JuliaMath/FFTW.jl/issues/261.
-        (; μ0_μB², demag) = ewald.cache
-        enable_dipole_dipole!(ret, μ0_μB²; demag)
-    end
-
-    # The same rebuild on the uncontracted system restores the intra-unit
-    # dipole couplings, which entanglement had folded into the onsite term
-    if is_entangled(ret)
-        (; uncontracted, units) = get_entanglement(ret)
-        contract_ewald!(ret, uncontracted, units)
+        (; μ0_μB², demag, excluded) = ewald.cache
+        ret.ewald = Ewald(ret, μ0_μB², demag; excluded)
+    else
+        @assert ewald isa Union{Nothing, EwaldDelegated}
+        ret.ewald = ewald
     end
 
     return ret
