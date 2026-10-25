@@ -12,15 +12,15 @@ method for integrating over the magnetic Brillouin zone. If `bz` is a tuple
 `(n1, n2, n3)`, then it defines the size of a uniform integration grid. If `bz`
 is a number, then it specifies a relative accuracy target. The default
 `bz=nothing` will imply a relative accuracy of `bz=0.01`, except when the grid
-is required to match that used in constructing a self-consistent Gaussian state.
+is required to match that used in constructing a self-consistent vacuum.
 
 Adaptive quadrature is used by default for static corrections, e.g.
 [`boson_density`](@ref), and converges quickly because of the smooth integrands.
 Frequency-dependent calculations, e.g. [`corrected_intensities`](@ref), always
 require a uniform grid. It will be autoselected from the accuracy target and the
-``η``-regularization as described in [`auto_bzgrid`](@ref). A fixed grid, shared
-between static and loop calculations, is a prerequisite for exact satisfaction
-of the Ward identity, as needed to keep Goldstone modes gapless.
+``η``-regularization. A fixed grid, shared between static and loop calculations,
+is a prerequisite for exact satisfaction of the Ward identity, as needed to keep
+Goldstone modes gapless.
 """
 const BZIntegration = Union{Nothing, Real, NTuple{3, Integer}}
 
@@ -28,7 +28,7 @@ const BZIntegration = Union{Nothing, Real, NTuple{3, Integer}}
 # documented at `BZIntegration`: a relative accuracy for adaptive cubature, or
 # grid dimensions
 function static_bz(swt, bz)
-    bz = check_bz(@something bz swt.state.grid 0.01)
+    bz = check_bz(@something bz swt.vacuum.grid 0.01)
     check_grid(swt, bz)
     return bz
 end
@@ -36,7 +36,7 @@ end
 # The dimensions of the loop grid of the frequency-dependent corrections
 # selected by the keyword `bz`, as documented at `BZIntegration`
 function loop_bz(swt, bz; η)
-    bz = check_bz(@something bz swt.state.grid 0.01)
+    bz = check_bz(@something bz swt.vacuum.grid 0.01)
     dims = bz isa Real ? auto_bzgrid(swt; η, tol=bz) : bz
     check_grid(swt, dims)
     return dims
@@ -74,12 +74,12 @@ function bz_average(f, tol::Real)
     return first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=tol))
 end
 
-# A self-consistent Gaussian state was solved on a grid, which every use of it
+# A self-consistent vacuum was solved on a grid, which every use of it
 # must share
 function check_grid(swt, bz)
-    (; grid) = swt.state
+    (; grid) = swt.vacuum
     isnothing(grid) || grid == bz ||
-        error("The Gaussian state of `swt` was solved on the grid $grid, but `bz` selects another. Omit `bz` to use the state's grid.")
+        error("The vacuum of `swt` was solved on the grid $grid, but `bz` selects another. Omit `bz` to use the vacuum's grid.")
 end
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
