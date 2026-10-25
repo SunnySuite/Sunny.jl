@@ -114,8 +114,8 @@
 
 # Why the 1/s corrections of this directory are unavailable for `swt`, or `nothing`
 # if they are available. Returned rather than thrown so that a caller offering a
-# correct but weaker result in the unsupported cases, such as `corrected_dipoles`,
-# can ask without catching.
+# correct but weaker result in the unsupported cases, such as
+# `corrected_magnetic_moments`, can ask without catching.
 function corrections_unsupported_reason(swt::SpinWaveTheory)
     (; sys) = swt
     @assert sys.mode in (:dipole, :dipole_uncorrected, :SUN)
