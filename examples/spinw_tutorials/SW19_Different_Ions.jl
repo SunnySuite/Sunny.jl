@@ -73,4 +73,4 @@ fig
 # respectively. The larger correction on Fe is due to the relatively weak
 # interchain coupling.
 
-Sunny.boson_density(swt; tol=1e-4)
+Sunny.boson_density(swt; bz=1e-4)
