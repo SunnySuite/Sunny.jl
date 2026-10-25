@@ -374,6 +374,23 @@ function cubic_monomials(swt::SpinWaveTheory)
     return merge_monomials([terms; anisotropy_monomials(swt, Val{3}())])
 end
 
+# True when the cubic vertex is numerically zero, so that everything it generates —
+# the self-energy, the tadpole, and their interference with the direct pair amplitude
+# — vanishes and need not be computed. The usual cause is a collinear structure,
+# where the monomials cancel on merging rather than being absent: a two-sublattice
+# antiferromagnet has 26 monomials whose coefficients sum to O(1e-11), so the test
+# must be on magnitude and not on `isempty`. The scale is the quadratic Hamiltonian,
+# which makes it dimensionless; measured ratios are 9e-13 for that antiferromagnet
+# against 0.046 once a field cants it and 0.083 for the triangular-lattice 120°
+# structure, so the threshold sits in a ten-order gap.
+function cubic_vertex_vanishes(swt::SpinWaveTheory, terms3)
+    isempty(terms3) && return true
+    L = nbands(swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    dynamical_matrix!(H, swt, zero(Vec3))
+    return maximum(abs(t.c) for t in terms3) < 1e-8 * norm(H)
+end
+
 # Monomials of H₄, the four-boson term, which is smaller than H₂ by s^(-1). Since
 # Sᶻ is exact and the transverse components have no four-boson part, only two
 # families survive: the product of the longitudinal fluctuations on the two sites
@@ -455,6 +472,10 @@ function vertex!(U::Array{ComplexF64, K}, terms::Vector{BosonMonomial{K}},
                  qs::NTuple{K, Vec3}, Ts::NTuple{K, Matrix{ComplexF64}},
                  scratch::Array{ComplexF64, K}=similar(U)) where K
     @assert all(x -> abs(x - round(x)) < 1e-12, sum(qs)) "Vertex momenta must sum to zero"
+    # A change of basis leaves a vanishing tensor vanishing, so an empty term list
+    # skips the matrix products entirely. Worth a branch because callers that have
+    # discarded a negligible vertex still run the loop for its other consumers.
+    isempty(terms) && return fill!(U, 0)
     N = size(U, 1)
     # The cache is indexed by a value rather than a type, so the lookup must be
     # annotated for the loop below to be type stable. That loop is the innermost one

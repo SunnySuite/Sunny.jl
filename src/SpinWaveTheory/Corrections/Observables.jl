@@ -9,8 +9,8 @@
 # which are respectively odd and even in the boson number. Only the odd part can
 # create a single magnon and only the even part can create a pair, so at leading
 # order the one-magnon bands of `intensities_bands` come entirely from the
-# transverse components and the two-magnon continuum of TwoMagnon.jl entirely from
-# the longitudinal one.
+# transverse components and the direct two-magnon continuum entirely from the
+# longitudinal one.
 #
 # LSWT keeps only the leading part of S⁺ = σ(b - b†bb/4s). Retaining the cubic word
 # costs nothing at leading order, because it changes the boson number by one just
