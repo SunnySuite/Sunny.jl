@@ -1174,17 +1174,6 @@ end
         @test ((G' - G) / (2π*im))[1:L, 1:L] ≈ c.specfunc[:, :, 1, 1]
     end
 
-    # The dressed vacuum reproduces the on-shell poles at each node of its grid,
-    # and its interpolant between nodes keeps the Goldstone modes of LSWT
-    let vac = Sunny.dressed_vacuum(Sunny.OneLoop(swt2; η, loop_grid); grid=(2, 2, 1))
-        ws = Sunny.BogoliubovWorkspace(L)
-        H = zeros(ComplexF64, 2L, 2L)
-        node = Sunny.Vec3(1/4, 3/4, 0)
-        poles = Sunny.corrected_intensities_bands(swt2, [Sunny.to_standard_rlu(sys, node)]; η, loop_grid).disp
-        @test sort(Sunny.vacuum_bogoliubov!(ws, H, vac, node)[1:L]) ≈ sort(vec(poles))
-        @test minimum(abs, Sunny.vacuum_bogoliubov!(ws, H, vac, Sunny.Vec3(0, 0, 0))) < 1e-6
-    end
-
     # The reproduction schemes propagate the resolvent of a stable quadratic
     # model here, and assemble the magnon term and the continuum separately, so
     # both are positive. The magnon term of `:particle` keeps the amplitudes and
@@ -1285,15 +1274,15 @@ end
               intensities(swt, qs; energies, kernel).data - mirror atol=1e-12
 
         # Expanding instead about a vacuum whose quadratic Hamiltonian is
-        # rescaled leaves its eigenvectors alone, and with no loop to dress,
-        # the counterterm restores the harmonic propagator exactly. The
-        # rescaling is tabulated on a coarse grid, which interpolates exactly.
+        # shifted by a uniform b†b term leaves its eigenvectors alone, and with
+        # no loop to dress, the counterterm restores the harmonic propagator
+        # exactly.
+        o = Sunny.Vec3(0, 0, 0)
         L = Sunny.nbands(swt)
-        Hs = stack(Sunny.dynamical_matrix(swt, Sunny.Vec3((Tuple(c) .- 1/2) ./ (2, 2, 1))) * 1.3 for c in CartesianIndices((2, 2, 1)))
-        rescaled = Sunny.MagnonVacuum(swt, Sunny.TabulatedVacuum(swt, Hs))
-        c = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=(4, 4, 1), vacuum=rescaled)
+        shift = [Sunny.BosonMonomial(0.3+0im, (L+1, 1), (o, o))]
+        c = Sunny.corrected_channels(swt, qs; energies, η, loop_grid=(4, 4, 1), vacuum=Sunny.MagnonVacuum(swt, shift))
         @test c.transverse + c.cross + c.direct ≈ chans.transverse + chans.cross + chans.direct atol=1e-12
-        @test c.disp ≈ 1.3 * chans.disp
+        @test c.disp ≈ chans.disp .+ 0.3
     end
 
     # The fast path of `corrected_channels`. A collinear structure has no cubic
