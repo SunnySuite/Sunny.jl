@@ -57,9 +57,9 @@ function correlation_key(a, a′, Δ::Vec3, L)
 end
 
 # Canonical labels of every correlation needed to decouple the given monomials.
-function correlation_keys(L, termss...)
+function correlation_keys(L, terms)
     ret = Tuple{Int, Int, NTuple{3, Int}}[]
-    for terms in termss, (; as, ns) in terms, p in eachindex(as), q in p+1:lastindex(as)
+    for (; as, ns) in terms, p in eachindex(as), q in p+1:lastindex(as)
         (k, _) = correlation_key(as[p], as[q], ns[q] - ns[p], L)
         k in ret || push!(ret, k)
     end
