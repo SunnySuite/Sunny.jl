@@ -1,23 +1,30 @@
-# Identify the "special cases" for the propagation wavevector k. Case 1 is all
-# integer k components (i.e., k=[0,0,0] up to periodicity), and Case 2 is all
-# half integer k components, apart from Case 1. The fallback, Case 3, is any
-# other k. The spiral energy can be discontinuous between these cases. For
-# example, the wavevector k = [1/2, 0, 0] is not equivalent to [1/2+ϵ, 0, 0] in
-# the limit ϵ → 0. To account for some floating point roundoff, however, we
-# identify wavevector components (x+ϵ ≈ x) within the tolerance ϵ < 1e-8.
+# A vector decomposes by angular momentum s ∈ (-1, 0, 1) about the spiral axis,
+# via the projectors P[s+2], which sum to the identity. Under a rotation by θ
+# about the axis, part s acquires the phase e^{-isθ}.
+function spiral_projectors(axis)
+    nx = CMat3([0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0])
+    R2 = CMat3(axis * axis')
+    R1 = (1/2) .* CMat3(I - im .* nx - R2)
+    return (R1, R2, conj(R1))
+end
+
+# Classes of angular momenta s ∈ (-1, 0, 1) whose shifts s k agree modulo the
+# reciprocal lattice. The parts of one class carry the same wavevector, and
+# interfere. Results can therefore be discontinuous in k: for example, k = [1/2,
+# 0, 0] is not equivalent to [1/2+ϵ, 0, 0] in the limit ϵ → 0. To account for
+# floating point roundoff, shifts are identified within a tolerance of 1e-8.
 #
 # The public-facing user interface expects k in RLU for the conventional cell.
 # All internal aspects of the calculation, however, proceed in terms of
 # k_supercell, the RLU of the magnetic cell of the system.
-function spiral_propagation_case(k_supercell)
-    ϵ = 1e-8
-    if norm(k_supercell - round.(k_supercell)) < ϵ
-        return 1
-    elseif norm(2k_supercell - round.(2k_supercell)) < 2ϵ
-        return 2
-    else
-        return 3
+function spiral_classes(k_supercell)
+    same(s, t) = norm((s - t) * k_supercell - round.((s - t) * k_supercell)) < 1e-8
+    classes = Vector{Int}[]
+    for s in (-1, 0, 1)
+        c = findfirst(c -> same(first(c), s), classes)
+        isnothing(c) ? push!(classes, [s]) : push!(classes[c], s)
     end
+    return classes
 end
 
 
@@ -36,6 +43,13 @@ the lattice vectors of the chemical cell.
 
 The return value is the energy associated with one periodic copy of `sys`.
 Selecting ``𝐤 = 0`` yields the ordinary system [`energy`](@ref).
+
+Long-range dipole-dipole interactions, if enabled, are included exactly.
+Unlike exchange, they do not commute with rotations about `axis`, so full
+energy minimization would typically distort the spiral, introducing higher
+harmonics of ``𝐤``. The spiral energy remains useful as a first-order
+estimate, e.g., to determine how weak dipole-dipole interactions break a
+degeneracy of spiral states.
 
 See also [`minimize_spiral_energy!`](@ref) and
 [`repeat_periodically_as_spiral`](@ref).
@@ -128,25 +142,17 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         end
     end
 
-    # See "spiral_energy.lyx" for derivation
+    # Part s of a moment rotating with the spiral carries wavevector -s k. Parts
+    # within one class interfere, and couple through A at that wavevector.
     if !isnothing(sys.ewald)
-        (; μ) = sys.ewald
-        μ .= magnetic_moments(sys)
-
-        A0 = ewald_interaction_tensor(sys, zero(Vec3))
-        Ak = ewald_interaction_tensor(sys, k_supercell)
-
-        k_case = spiral_propagation_case(k_supercell)
-
-        for i in 1:nsites(sys), j in 1:nsites(sys)
-            A0ij = ewald_pair(A0, sys, zero(Vec3), i, j)
-            Akij = ewald_pair(Ak, sys, k_supercell, i, j)
-            if k_case == 1
-                E += real(μ[i]' * A0ij * μ[j]) / 2
-            elseif k_case == 2
-                E += real(μ[i]' * ((I+K²)*A0ij*(I+K²) + K²*Akij*K²) * μ[j]) / 2
-            else @assert k_case == 3
-                E += real(μ[i]' * ((I+K²)*A0ij*(I+K²) + (im*K+K²)*Akij*(im*K+K²)/2) * μ[j]) / 2
+        μ = magnetic_moments(sys)
+        P = spiral_projectors(axis)
+        for class in spiral_classes(k_supercell)
+            q = -first(class) * k_supercell
+            A = ewald_interaction_tensor(sys, q)
+            Pc = sum(P[s+2] for s in class)
+            for i in 1:nsites(sys), j in 1:nsites(sys)
+                E += real(μ[i]' * Pc' * ewald_pair(A, sys, q, i, j) * Pc * μ[j]) / 2
             end
         end
 
