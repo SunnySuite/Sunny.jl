@@ -7,8 +7,8 @@
 # identify wavevector components (x+ϵ ≈ x) within the tolerance ϵ < 1e-8.
 #
 # The public-facing user interface expects k in RLU for the conventional cell.
-# If the system has been reshaped, however, then all internal aspects of the
-# calculation must proceed in terms of k_supercell, the RLU of the supercell.
+# All internal aspects of the calculation, however, proceed in terms of
+# k_supercell, the RLU of the magnetic cell of the system.
 function spiral_propagation_case(k_supercell)
     ϵ = 1e-8
     if norm(k_supercell - round.(k_supercell)) < ϵ
@@ -42,7 +42,6 @@ See also [`minimize_spiral_energy!`](@ref) and
 """
 function spiral_energy(sys::System{0}; k, axis)
     sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")
-    sys.dims == (1, 1, 1) || error("System must have only a single cell")
 
     check_rotational_symmetry(sys; axis, θ=0.01)
 
@@ -68,17 +67,17 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
     end
     dEdk = zero(Vec3)
 
-    @assert sys.dims == (1,1,1)
-    Na = natoms(sys.crystal)
-
     k_supercell = to_supercell_rlu(sys, k)
+    # The linear map from k to k_supercell, needed for dθ/dk
+    k_supercell_jacobian = diagm(Vec3(sys.dims)) * (sys.crystal.recipvecs \ orig_crystal(sys).recipvecs)
 
     axis = normalize(axis)
     x, y, z = axis
     K = Mat3([0 -z y; z 0 -x; -y x 0])
     K² = K*K
 
-    for (i, int) in enumerate(sys.interactions_union)
+    for i in 1:nsites(sys)
+        int = interactions_at(sys, i)
         Si = sys.dipoles[i]
 
         # Pair coupling
@@ -86,14 +85,12 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
             (; isculled, bond, bilin, biquad) = coupling
             isculled && break
 
-            @assert i == bond.i
-            j = bond.j
-
+            (j, n) = bond_target(sys, i, bond)
             Sj = sys.dipoles[j]
 
-            # Rotation angle along `axis` for cells displaced by `n`
-            θ = 2π * dot(k_supercell, bond.n)
-            dθdk = 2π*bond.n
+            # Rotation angle along `axis` for magnetic cells displaced by `n`
+            θ = 2π * dot(k_supercell, n)
+            dθdk = 2π * k_supercell_jacobian' * n
 
             # Rotation as a 3×3 matrix
             s, c = sincos(θ)
@@ -141,7 +138,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
 
         k_case = spiral_propagation_case(k_supercell)
 
-        for i in 1:Na, j in 1:Na
+        for i in 1:nsites(sys), j in 1:nsites(sys)
             if k_case == 1
                 E += real(μ[i]' * A0[i, j] * μ[j]) / 2
             elseif k_case == 2
@@ -221,7 +218,6 @@ function minimize_spiral_energy!(sys, axis; maxiters=1000, k_guess=randn(sys.rng
     axis = normalize(axis)
 
     sys.mode in (:dipole, :dipole_uncorrected) || error("SU(N) mode not supported")
-    sys.dims == (1, 1, 1) || error("System must have only a single cell")
     norm([S × axis for S in sys.dipoles]) > 1e-12 || error("Spins cannot be exactly aligned with polarization axis")
 
     # Note: if k were fixed, we could check θ = 2πkᵅ for each component α, which
