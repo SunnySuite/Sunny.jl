@@ -45,9 +45,9 @@ for (row, (; Δ, energies, colorrange)) in enumerate(panels)
     set_param!(sys, :Δ, Δ)
     measure = ssf_custom((q, ssf) -> real(ssf[3, 3]), sys; apply_g=false)
     swt = SpinWaveTheory(sys; measure)
-    vacuum = Sunny.MagnonVacuum(swt, Sunny.hartree_fock_correction(swt).terms2)
+    swt_hf = Sunny.with_correction(swt, Sunny.hartree_fock_correction(swt).terms2)
     for (col, dyson) in enumerate((:nambu, :ladder))
-        res = Sunny.corrected_intensities(swt, path; energies, η, kernel, dyson, vacuum, threaded=true, verbose=true)
+        res = Sunny.corrected_intensities(swt_hf, path; energies, η, kernel, dyson, threaded=true, verbose=true)
         plot_intensities!(fig[row, col], res; colormap=:viridis, colorrange,
                           title="Sᶻᶻ, Δ = $Δ, dyson = :$dyson")
     end
@@ -57,8 +57,8 @@ fig
 # At Δ = 5, the ladder gives the four flat bound-state branches of Fig. 4(a),
 # below the continuum. At Δ = 2, the upper two branches enter the continuum and
 # broaden, as in Fig. 4(b). At Δ = 1, the UUD state is classically unstable, but
-# is stabilized by quantum fluctuations. The Hartree-Fock mean field of
-# `MagnonVacuum` captures this, gapping the soft mode. The lower branch then has
+# is stabilized by quantum fluctuations. Expanding about the Hartree-Fock
+# corrected vacuum captures this, gapping the soft mode. The lower branch then has
 # minimum 0.69 J at the K point, compared with 0.75 J from THED. The weak mode
 # near 1.5 J that MPS finds is attributed to four-magnon states, which both THED
 # and the ladder omit.

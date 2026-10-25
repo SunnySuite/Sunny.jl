@@ -21,56 +21,43 @@
 
 # ---- The vacuum ----
 
-"""
-    MagnonVacuum(swt::SpinWaveTheory)
-    MagnonVacuum(swt::SpinWaveTheory, correction)
+# The Gaussian state about which the 1/s corrections expand the bosons is the
+# `state` of the `SpinWaveTheory`, the vacuum of the LSWT quadratic Hamiltonian
+# plus its correction, a list of quadratic boson monomials such as the
+# mean-field corrections return. Its quasi-particles are the internal lines of
+# every loop, and the mean fields are contractions in it. Without a correction
+# this is the 1/s expansion proper. For the self-consistent correction, see
+# `self_consistent`.
+#
+# A correction resums some class of higher-order terms. Since the full
+# Hamiltonian does not depend on this choice, the correction is subtracted again
+# as a counterterm in the static self-energy, so the bare propagator of the Dyson
+# equation remains that of LSWT and results differ from the 1/s expansion only
+# at the order neglected.
 
-The Gaussian state about which the 1/s corrections expand the bosons: the vacuum
-of the LSWT quadratic Hamiltonian plus `correction`, a list of quadratic boson
-monomials such as the mean-field corrections return. Its quasi-particles are the
-internal lines of every loop, and the mean fields are contractions in it.
-Without a correction this is the ``1/s`` expansion proper. For the
-self-consistent correction, see [`self_consistent_vacuum`](@ref).
+# The same theory about the harmonic vacuum, i.e. LSWT proper
+harmonic(swt::SpinWaveTheory) = isempty(swt.state.correction) ? swt : SpinWaveTheory(swt, GaussianState())
 
-A correction resums some class of higher-order terms. Since the full
-Hamiltonian does not depend on this choice, the correction is subtracted again
-as a counterterm in the static self-energy, so the bare propagator of the Dyson
-equation remains that of LSWT and results differ from the ``1/s`` expansion only
-at the order neglected.
-"""
-struct MagnonVacuum
-    swt        :: SpinWaveTheory
-    correction :: Vector{BosonMonomial{2}}
-    # The grid on which a self-consistent correction was solved, which every
-    # use of the vacuum must repeat; `nothing` otherwise
-    grid       :: Union{Nothing, BZGrid}
-end
-
-MagnonVacuum(swt::SpinWaveTheory, correction) = MagnonVacuum(swt, correction, nothing)
-MagnonVacuum(swt::SpinWaveTheory) = MagnonVacuum(swt, BosonMonomial{2}[])
-
-# Quadratic Hamiltonian of the vacuum at a wavevector in reshaped RLU
-function vacuum_hamiltonian!(H, vac::MagnonVacuum, q_reshaped)
-    dynamical_matrix!(H, vac.swt, q_reshaped)
-    accum_quadratic!(H, vac.correction, q_reshaped)
-end
+# The same theory about the vacuum of its quadratic Hamiltonian plus `terms2`
+with_correction(swt::SpinWaveTheory, terms2) =
+    SpinWaveTheory(swt, GaussianState([swt.state.correction; terms2], nothing, (;)))
 
 # Adds the counterterm of the vacuum, minus its correction, to the Nambu matrix δH
-accum_counterterm!(δH, vac::MagnonVacuum, q_reshaped) =
-    accum_quadratic!(δH, [BosonMonomial(-c, as, ns) for (; c, as, ns) in vac.correction], q_reshaped)
+accum_counterterm!(δH, swt::SpinWaveTheory, q_reshaped) =
+    accum_quadratic!(δH, [BosonMonomial(-c, as, ns) for (; c, as, ns) in swt.state.correction], q_reshaped)
 
 # Quasi-particles of the vacuum, as `bogoliubov!` returns them in `ws`. A
 # quadratic Hamiltonian that is not positive definite has no vacuum, which is an
 # instability of the structure when the Hamiltonian is the harmonic one.
-function vacuum_bogoliubov!(ws::BogoliubovWorkspace, H, vac::MagnonVacuum, q_reshaped)
-    vacuum_hamiltonian!(H, vac, q_reshaped)
+function vacuum_bogoliubov!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_reshaped)
+    dynamical_matrix!(H, swt, q_reshaped)
     try
         return bogoliubov!(ws, H)
     catch err
         err isa PosDefException || rethrow()
         rethrow(InstabilityError("Quadratic Hamiltonian of the vacuum not positive definite at reshaped wavevector \
                                   $(vec3_to_string(q_reshaped)). If quantum fluctuations stabilize the structure, \
-                                  see `Sunny.self_consistent_vacuum`."))
+                                  see `Sunny.self_consistent`."))
     end
 end
 
@@ -81,14 +68,14 @@ end
 # returns with them, and `w` is the multiplicity by which the contribution is to
 # be scaled. All of the arrays are overwritten on each iteration, so `f` must
 # consume them before returning.
-function foreach_magnon_pair(f, vac::MagnonVacuum, q_reshaped, grid::LoopGrid)
-    L = nbands(vac.swt)
+function foreach_magnon_pair(f, swt::SpinWaveTheory, q_reshaped, grid::LoopGrid)
+    L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     # Both magnon lines are live at once, so each gets its own workspace
     (ws1, ws2) = (BogoliubovWorkspace(L), BogoliubovWorkspace(L))
     for (p, w) in zip(grid.ps, grid.wts)
-        ε1 = vacuum_bogoliubov!(ws1, H, vac, p)
-        ε2 = vacuum_bogoliubov!(ws2, H, vac, q_reshaped - p)
+        ε1 = vacuum_bogoliubov!(ws1, H, swt, p)
+        ε2 = vacuum_bogoliubov!(ws2, H, swt, q_reshaped - p)
         f(p, w, ws1.T, ws2.T, ε1, ε2)
     end
 end
@@ -151,8 +138,8 @@ Contractions(g::Contractions, values) = Contractions(g.L, g.index, values, g.noi
 # pay for a single pass over the zone. On the loop grid of the cubic
 # self-energy, a Ward identity relates these averages to that integrand point by
 # point, which keeps each Goldstone mode exactly gapless, grid by grid.
-function contractions(vac::MagnonVacuum, terms, tol)
-    L = nbands(vac.swt)
+function contractions(swt::SpinWaveTheory, terms, tol)
+    L = nbands(swt)
     index = Dict{Tuple{Int, Int, NTuple{3, Int}}, Int}()
     for (; as, ns) in terms, p in eachindex(as), q in p+1:lastindex(as)
         (k, _) = correlation_key(as[p], as[q], ns[q] - ns[p], L)
@@ -165,7 +152,7 @@ function contractions(vac::MagnonVacuum, terms, tol)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
     values = bz_average(tol) do q_reshaped
-        U = vacuum_modes!(ws, H, vac, q_reshaped)
+        U = vacuum_modes!(ws, H, swt, q_reshaped)
         return ComplexF64[cis(-2π * dot(q_reshaped, Vec3(Δ))) * dot(view(U, nambu_conj(a′, L), :), view(U, a, :))
                           for (a, a′, Δ) in keys]
     end
@@ -185,21 +172,21 @@ end
 # related by a symmetry of the quadratic Hamiltonian it is the vacuum of every
 # member. A complex frequency, or a mode of null para-norm, is a dynamical
 # instability, and no vacuum exists.
-function vacuum_modes!(ws::BogoliubovWorkspace, H, vac::MagnonVacuum, q_reshaped)
-    L = nbands(vac.swt)
+function vacuum_modes!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_reshaped)
+    L = nbands(swt)
     try
-        vacuum_bogoliubov!(ws, H, vac, q_reshaped)
+        vacuum_bogoliubov!(ws, H, swt, q_reshaped)
         return view(ws.T, :, 1:L)
     catch err
         err isa InstabilityError || rethrow()
     end
-    vacuum_hamiltonian!(H, vac, q_reshaped)
+    dynamical_matrix!(H, swt, q_reshaped)
     Ĩ = Diagonal([ones(L); -ones(L)])
     (λ, V) = eigen(Ĩ * H; sortby=real)
     tol = sqrt(eps()) * opnorm(H, 1)
     unstable() = InstabilityError("Quadratic Hamiltonian of the vacuum dynamically unstable at reshaped \
                                    wavevector $(vec3_to_string(q_reshaped)). If quantum fluctuations \
-                                   stabilize the structure, see `Sunny.self_consistent_vacuum`.")
+                                   stabilize the structure, see `Sunny.self_consistent`.")
     all(x -> abs(imag(x)) < tol, λ) || throw(unstable())
     # Within each cluster of degenerate frequencies, eigen returns an arbitrary
     # basis. The positive-norm part of an orthonormal basis of the cluster is a
