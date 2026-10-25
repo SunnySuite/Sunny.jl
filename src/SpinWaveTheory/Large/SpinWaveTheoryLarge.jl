@@ -8,13 +8,12 @@ Large supercells can be useful for modeling, e.g., quenched chemical disorder or
 magnetic states with long-wavelength modulations.
 
 The [`intensities`](@ref) are estimated independently per ``𝐪`` using the
-Lanczos method [1, 2]. Lanczos iterations terminate when the error, relative to
-the max norm along the energy axis, is below `tol`. The number of iterations
-scales like ``(Δϵ/w) \\log(1/\\mathrm{tol})``, where ``Δϵ`` is the spectral
-bandwidth of excitations and ``w`` is the required energy resolution. In
-strongly gapped systems, ``w`` is the `kernel` width. Near soft modes, however,
-``w ≳ \\max(ϵ_0, η)`` where ``ϵ_0`` is the typical soft mode energy. Thus the
-intrinsic broadening scale ``η`` also acts as Lanczos regulator. Exceeding
+Lanczos method [1, 2]. Lanczos iterations continue until a heuristic error
+estimate is below `tol` relative to the max intensity at ``𝐪``. The number of
+iterations scales like ``(Δϵ/w) \\log(1/\\mathrm{tol})``, where ``Δϵ`` is the
+spectral bandwidth of excitations and ``w ≥ η`` is the required energy
+resolution. Small ``w`` may arise from nearly degenerate soft modes; here,
+consider using the intrinsic broadening ``η`` as a regulator. Exceeding
 `maxiters` iterations will throw an error. Pass `verbose=true` to `intensities`
 to print a progress bar and the iteration statistics.
 
@@ -122,6 +121,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     n = size(H, 1)
     Nobs = num_observables(measure)
     rb = RetardedBroadening(energies; η, kernel, kT)
+    resolution = max(rb.width, 2η)
     # Lanczos steps per wavevector, summed over runs, for the `verbose` report
     iters = zeros(Int, size(qpts.qs))
 
@@ -155,7 +155,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
         end
 
         (As, m) = try
-            lanczos_correlations(mulS!, starts, rb; cross, tol, maxiters)
+            lanczos_correlations(mulS!, starts, rb; cross, resolution, tol, maxiters)
         catch err
             err isa InstabilityError || rethrow()
             throw(InstabilityError("Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable."))
@@ -208,20 +208,31 @@ end
 # taken, summed over runs, or `nothing` for As if not converged within
 # `maxiters` steps.
 #
-# The error estimates of `LanczosResolvent`, for the start and the probes, are
-# broadened by the magnitudes of the same weights. Iteration stops when every
-# estimate is below `tol/2` relative to the largest intensity -Im χ / π of the
-# starts, a factor 2 margin for the estimates. The runs advance together,
-# because this largest intensity is itself an estimate, which can fall by
-# orders of magnitude while some run is unconverged, e.g., at a soft mode as η
-# → 0.
+# Iteration stops when both:
+# 1. Every run has enough rows to resolve the energy scale `resolution` = w, the
+#    larger of the kernel width and the line width 2η, unless its Krylov space
+#    is exhausted. Like the nodes of Gauss quadrature, the m Ritz values of T
+#    are spaced by about πΛ/m near the center of a spectrum in [-Λ, Λ], i.e.,
+#    near ω = 0, where soft modes are. Before m ≥ πΛ/w, the rows so far say
+#    little about modes a distance w apart, and the error estimate, which
+#    assumes that the further rows resemble those so far, cannot be trusted.
+#    Here Λ is estimated by 2 max β_j, which bounds the Ritz values when α_j =
+#    0, by the Gershgorin theorem.
+# 2. Every error estimate of `LanczosResolvent`, for the start and the probes,
+#    broadened by the magnitudes of the same weights, is below `tol/2` relative
+#    to the largest intensity -Im χ / π of the starts, a factor 2 margin for the
+#    estimates.
+#
+# The runs advance together, because this largest intensity is itself an
+# estimate, which can fall by orders of magnitude while some run is unconverged,
+# e.g., at a soft mode as η → 0.
 #
 # Checks are at even numbers of rows of T. For a real combination of Hermitian
 # observables, the weights at ±λ are equal, so that α_j = 0, and the spectrum of
 # T is symmetric under θ → -θ. An odd number of rows then forces a spurious Ritz
 # value at zero. The steps between checks grow by 25%, so that the overhead of
 # checks is a fixed fraction.
-function lanczos_correlations(mulS!, vs, rb; cross, tol, maxiters)
+function lanczos_correlations(mulS!, vs, rb; cross, resolution, tol, maxiters)
     probes = cross ? reduce(hcat, vs) : zeros(ComplexF64, length(vs[1]), 0)
     As = [zeros(ComplexF64, size(rb.W, 1), 1 + size(probes, 2)) for _ in vs]
     norms = [sqrt(real(dot_noblas(v, v))) for v in vs]
@@ -239,7 +250,8 @@ function lanczos_correlations(mulS!, vs, rb; cross, tol, maxiters)
         end
         scale = maximum(A -> maximum(x -> abs(imag(x)), view(A, :, 1)), As) / π
         steps = sum(r -> r.nrows, rs)
-        2 * maximum(errs) <= tol * scale && return (As, steps)
+        resolved = all(r -> exhausted(r) || r.nrows >= 2π * r.βmax / resolution, rs)
+        resolved && 2 * maximum(errs) <= tol * scale && return (As, steps)
         m >= maxiters && return (nothing, steps)
         m += max(2, m ÷ 4)
         m += isodd(m)

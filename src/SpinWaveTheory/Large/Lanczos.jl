@@ -19,13 +19,27 @@
 # u_j ≥ Im z, so that no pivot vanishes. The Krylov space is exhausted when the
 # residual vanishes, which makes the sums exact.
 #
-# After m rows, x_m = g_m / u_m is the last entry of y. The further rows of T,
-# coupled by β_m, change x₁ by δx₁ = β_m² x_m² τ / (1 - β_m² τ / u_m), by the
-# Sherman–Morrison formula, where τ is the leading entry of the resolvent of the
-# further rows. Taking τ ≈ 1/u_m, as if the further coefficients resembled those
-# so far, gives the estimate |δx₁| ≈ β_m² |x_m|² |τ|. It is large near any mode
-# that T does not yet resolve, i.e., where the Krylov basis has not yet
-# separated eigenvalues closer than Im z.
+# After m rows, x_m = g_m / u_m is the last entry of y. The further rows of T
+# couple to these only through β_m, so that by the Sherman–Morrison formula they
+# change x₁ by δx₁ = β_m² x_m² τ / (1 - β_m² τ / u_m), where τ is the leading
+# entry of the resolvent of the further rows, and the denominator accounts for
+# their coupling back to the rows so far. The estimate takes τ ≈ 1/u_m, as if
+# the further rows resembled those so far, and neglects the coupling back,
+# |δx₁| ≈ β_m² |x_m|² |τ|. With τ ≈ 1/u_m, the denominator could vanish
+# spuriously. The estimate is large near any mode that T has seen but not yet
+# resolved, i.e., where the resolvent has not decayed along the Krylov basis.
+#
+# No estimate from T alone can be a guarantee. The m rows and β_m are fixed by
+# the first 2m+1 moments of the spectral weight of v, so they cannot distinguish
+# spectra that share these moments. A feature that the moments do not yet
+# reveal, e.g., a weak mode a few Im z from a strong one, is missing both from
+# x₁ and from its estimate. The rigorous |τ| ≤ 1/Im z avoids this only by
+# overestimating by orders of magnitude at small η. Misses are most likely at
+# low energy, because the weight of a mode in the moments is its intensity times
+# its energy λ, e.g., for a soft mode a few Im z below another soft mode. They
+# are also most likely in short runs, where few moments are known, which is why
+# `lanczos_correlations` also requires enough rows to resolve the energy scale
+# of the output.
 #
 # The probe sums converge more slowly, because a probe lies mostly outside the
 # Krylov space. In full space, the error of Q y is e = β_m x_m (z - ĨS)⁻¹ q_{m+1},
@@ -54,9 +68,11 @@ mutable struct LanczosResolvent{F}
     Sq           :: Vector{ComplexF64}
     w            :: Vector{ComplexF64}
     Sw           :: Vector{ComplexF64}
-    # The rows eliminated, and the coupling β_m of the last to the next
+    # The rows eliminated, the coupling β_m of the last to the next, and the
+    # largest coupling so far
     nrows        :: Int
     β            :: Float64
+    βmax         :: Float64
     # Per node, 1/u_m, g_m, and the sums x₁ and sₐ, with hₐₘ for each probe
     const invu   :: Vector{ComplexF64}
     const g      :: Vector{ComplexF64}
@@ -75,7 +91,7 @@ function LanczosResolvent(mulS!, v, probes, zs)
     (nz, np) = (length(zs), size(probes, 2))
     z(dims...) = zeros(ComplexF64, dims...)
     return LanczosResolvent(mulS!, probes, zs, β₀, G, v / β₀, zero(v), Sv / β₀, zero(v), zero(v),
-                            0, 0.0, z(nz), ones(ComplexF64, nz), z(nz), z(np, nz), z(np, nz))
+                            0, 0.0, 0.0, z(nz), ones(ComplexF64, nz), z(nz), z(np, nz), z(np, nz))
 end
 
 exhausted(r::LanczosResolvent) = r.nrows > 0 && iszero(r.β)
@@ -138,6 +154,7 @@ function extend!(r::LanczosResolvent, m)
         scale = α^2 + β′^2 + abs(β²)
         β² < -sqrt(eps()) * scale && throw(InstabilityError("S is not positive definite"))
         r.β = β² <= sqrt(eps()) * scale ? 0.0 : sqrt(β²)
+        r.βmax = max(r.βmax, r.β)
         exhausted(r) && break
         # The next vector. The current one becomes the previous one by swapping
         # buffers.
