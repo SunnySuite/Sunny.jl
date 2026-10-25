@@ -825,26 +825,35 @@ end
     # into each local frame, so the vertex tensors, the Bogoliubov matrices and the
     # dynamical matrices themselves all differ between the two modes by phases.
     #
-    # Every quadrature here is loose, because what is asserted is a *difference*
-    # between two modes that run the identical integrand: the discretization error
-    # cancels between them rather than entering the comparison. Tightening `tol` to
-    # 1e-8 costs 13x and leaves the agreement below at 1e-12 either way.
+    # The quadratures here must be *tight*, even though what is asserted is a
+    # difference between two modes running the same integrand. Discretization error
+    # does not cancel between them: the two modes reach the same Hamiltonian only to
+    # round-off, and `hcubature` subdivides by comparing an error estimate against
+    # `tol`, so a 1e-14 disagreement can send them down different refinement paths
+    # and leave errors of order `tol` that do not subtract. Those land in the
+    # Hartree-Fock coefficients, hence in Σstat, hence — divided by a near-degenerate
+    # Dyson denominator — in `εc` and the intensities, at 1e-7 for `tol` = 1e-4.
+    # Freezing Σstat across such a perturbation drops the discrepancy to 1e-11,
+    # confirming the mean-field cubature as the sole amplifier. At 1e-6 every
+    # refinement path is converged well past the threshold below. Pinning
+    # `loop_grid` keeps the wavevector loop at the size `tol` = 0.02 would have
+    # chosen, so tightening costs 5x rather than 900x.
     let
         (s, B) = (1/2, 0.6)
         qs = [[0.23, 0.11, 0], [0.4, 0.3, 0]]
         rs = map((:dipole_uncorrected, :SUN)) do mode
             sys = canted_square(s, B; mode)
             swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-            hf = Sunny.hartree_fock_correction(swt; maxiters=1, tol=1e-4)
-            tad = Sunny.tadpole_correction(swt; tol=1e-4)
+            hf = Sunny.hartree_fock_correction(swt; maxiters=1, tol=1e-6)
+            tad = Sunny.tadpole_correction(swt; tol=1e-6)
             return (; ε = dispersion(swt, qs),
-                      E = Sunny.corrected_energy_per_site(swt; tol=1e-4),
-                      n = Sunny.boson_density(swt; tol=1e-4),
+                      E = Sunny.corrected_energy_per_site(swt; tol=1e-6),
+                      n = Sunny.boson_density(swt; tol=1e-6),
                       δE = [hf.δE, tad.δE],
                       εc = Sunny.corrected_dispersion(swt, qs, [hf.terms2; tad.terms2]),
                       Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, grid=(8, 8, 1)),
                       I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61),
-                                                      η=0.1, tol=0.02).data)
+                                                      η=0.1, tol=1e-6, loop_grid=(26, 26, 1)).data)
         end
         for k in keys(rs[1])
             @test maximum(abs, getfield(rs[1], k) .- getfield(rs[2], k)) < 1e-11
