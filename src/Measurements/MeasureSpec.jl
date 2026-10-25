@@ -171,24 +171,6 @@ CRC.@non_differentiable MeasureSpec(observables, corr_pairs, combiner, formfacto
 CRC.@non_differentiable ssf_custom(f, sys)
 
 
-# A tuple of static arrays, with the arithmetic of a vector space. Calculators
-# accumulate measured data with `zero`, `+`, and scalar `*`, which Base does not
-# define for tuples.
-struct TupleVec{T <: Tuple}
-    data :: T
-end
-Base.zero(::Type{TupleVec{T}}) where T = TupleVec(map(zero, fieldtypes(T)))
-Base.zero(a::TupleVec) = zero(typeof(a))
-Base.:+(a::TupleVec, b::TupleVec) = TupleVec(map(+, a.data, b.data))
-Base.:*(c::Number, a::TupleVec) = TupleVec(map(x -> c * x, a.data))
-Base.:*(a::TupleVec, c::Number) = c * a
-Base.:/(a::TupleVec, c::Number) = TupleVec(map(x -> x / c, a.data))
-Base.iterate(a::TupleVec, i...) = iterate(a.data, i...)
-Base.getindex(a::TupleVec, i) = a.data[i]
-Base.length(a::TupleVec) = length(a.data)
-LinearAlgebra.norm(a::TupleVec) = norm(map(norm, a.data))
-Base.isapprox(a::TupleVec, b::TupleVec; kws...) = all(map((x, y) -> isapprox(x, y; kws...), a.data, b.data))
-
 """
     ssf_multipoles(f, sys::System; max_k)
 
@@ -200,13 +182,10 @@ the global frame. Rank 1 holds the spin components, ``(𝒪_{1,1}, 𝒪_{1,0},
 …)`` and so on.
 
 The function `f` accepts a wavevector ``𝐪`` in global Cartesian coordinates and
-the correlations `C`, and returns any number or `isbits` type. With `f = (q, C)
--> C`, the measured data is `C` itself, a `TupleVec` of matrices, one for each
-pair of ranks ``k_1 ≤ k_2``, ordered as ``(1, 1), (1, 2), …, (1,
-k_\\mathrm{max}), (2, 2), …``. Within a block, rows run over ``q_1 = k_1, k_1 -
-1, …, -k_1`` and columns over ``q_2``. The helper function
-[`extract_multipole_block`](@ref) extracts blocks of `C` in an interpretable
-form.
+the correlations `C`, and returns any number or `isbits` type. Index `C[k1, q1,
+k2, q2]` to obtain the correlation of ``𝒪_{k_1,q_1}`` and ``𝒪_{k_2,q_2}``. The
+object `C` is valid only during the call to `f`. To measure several
+correlations, return them as a static array.
 
 A site of spin ``s`` has multipoles only up to rank ``2s``; higher ranks give
 zero. In dipole mode, the measure is supported by [`SpinWaveTheory`](@ref), but
@@ -218,15 +197,14 @@ multipole depends on its rank.
 # Examples
 
 ```julia
-# All correlations up to rank 2
-measure = ssf_multipoles((q, C) -> C, sys; max_k=2)
-res = intensities_bands(SpinWaveTheory(sys; measure), qpts)
-(DD, DQ, QQ) = res.data[1]                                    # 3×3, 3×5, 5×5
-extract_multipole_block(res.data[1], Val(1), Val(2))[1, -2]   # ⟨Sˣ 𝒪₂₋₂⟩
-
-# The quadrupole-quadrupole correlation ⟨O₂₋₁ O₂₁⟩
+# The quadrupole-quadrupole correlation ⟨𝒪₂₋₁ 𝒪₂₁⟩
 measure = ssf_multipoles(sys; max_k=2) do q, C
-    real(extract_multipole_block(C, Val(2), Val(2))[-1, 1])
+    real(C[2, -1, 2, 1])
+end
+
+# The dipole-quadrupole block, as a static matrix
+measure = ssf_multipoles(sys; max_k=2) do q, C
+    SMatrix{3, 5}(C[1, q1, 2, q2] for q1 in 1:-1:-1, q2 in 2:-1:-2)
 end
 ```
 """
@@ -239,9 +217,9 @@ function ssf_multipoles(f, sys::System; max_k)
     sys.mode == :dipole_uncorrected && error("Mode :dipole_uncorrected is not supported")
     1 ≤ max_k ≤ 6 || error("Require 1 ≤ max_k ≤ 6")
 
-    # The observables 𝒪_{k,q}, rank by rank with q = k…-k, so that the i-th of
-    # rank k is observable k² - 1 + i. In mode :SUN, the matrix itself, and in
-    # dipole mode a Stevens expansion with a single coefficient.
+    # The observables 𝒪_{k,q}, rank by rank with q = k…-k, so that 𝒪_{k,q} is
+    # observable k² + k - q. In mode :SUN, the matrix itself, and in dipole
+    # mode a Stevens expansion with a single coefficient.
     n = max_k * (max_k + 2)
     Op = sys.mode == :SUN ? HermitianC64 : StevensExpansion
     observables = Array{Op, 6}(undef, n, size(eachsite(sys))..., 1)
@@ -250,14 +228,9 @@ function ssf_multipoles(f, sys::System; max_k)
                                             stevens_expansion_of_single_rank(ntuple(j -> Float64(j == i), 2k+1))
     end
 
-    # Every pair once, as the upper triangle. Rank pairs are type parameters, so
-    # that each block is a static matrix of inferable size.
+    # Every pair once, as the upper triangle
     corr_pairs = [(μ, ν) for ν in 1:n for μ in 1:ν]
-    entry(corr, μ, ν) = μ ≤ ν ? corr[packed_index(μ, ν)] : conj(corr[packed_index(ν, μ)])
-    block(corr, ::Val{k1}, ::Val{k2}) where {k1, k2} =
-        SMatrix{2k1+1, 2k2+1, ComplexF64}(entry(corr, k1^2-1+i, k2^2-1+j) for i in 1:2k1+1, j in 1:2k2+1)
-    ranks = Tuple((Val{k1}(), Val{k2}()) for k1 in 1:max_k for k2 in k1:max_k)
-    combiner(q, corr) = f(q, TupleVec(map(r -> block(corr, r...), ranks)))
+    combiner(q, corr) = f(q, MultipoleCorrelations(corr, max_k))
 
     ffs = fill(one(FormFactor), n, natoms(sys.crystal), 1)
     return MeasureSpec(observables, corr_pairs, combiner, ffs)
@@ -265,24 +238,23 @@ end
 
 CRC.@non_differentiable ssf_multipoles(f, sys)
 
-"""
-    extract_multipole_block(C, Val(k1), Val(k2))
+# The correlations of `ssf_multipoles`, a view of the calculator's buffer of
+# pair correlations in the order of the upper triangle. The rank `max_k` is a
+# field, not a type parameter, so that callbacks of any rank compile once.
+struct MultipoleCorrelations{V <: AbstractVector}
+    corr  :: V
+    max_k :: Int
+end
 
-The block of the multipole correlations `C` of [`ssf_multipoles`](@ref) between
-ranks `k1` and `k2`, indexed by ``q_1 ∈ -k_1:k_1`` and ``q_2 ∈ -k_2:k_2``, so
-that entry `[q1, q2]` is the correlation of ``𝒪_{k_1,q_1}`` and
-``𝒪_{k_2,q_2}``. For rank 1, the spin components are ``(Sˣ, Sʸ, Sᶻ) =
-(𝒪_{1,1}, 𝒪_{1,-1}, 𝒪_{1,0})``. Either order of the two ranks is allowed.
-Passing the ranks as `Val` makes the block's size static, so that the call
-allocates nothing and its result has an inferable type.
-"""
-function extract_multipole_block(C::TupleVec, ::Val{k1}, ::Val{k2}) where {k1, k2}
-    # The blocks are the rank pairs k1 ≤ k2, in order, with rows q = k…-k
-    k1 > k2 && return extract_multipole_block(C, Val(k2), Val(k1))'
-    max_k = isqrt(2length(C))
-    1 ≤ k1 && k2 ≤ max_k || error("Ranks must be between 1 and $max_k")
-    b = (k1 - 1) * (2max_k - k1 + 2) ÷ 2 + (k2 - k1 + 1)
-    return OffsetArray(reverse(C[b]), -k1:k1, -k2:k2)
+function Base.getindex(C::MultipoleCorrelations, k1::Int, q1::Int, k2::Int, q2::Int)
+    @boundscheck begin
+        (1 ≤ k1 ≤ C.max_k && 1 ≤ k2 ≤ C.max_k) || error("Ranks must be between 1 and $(C.max_k)")
+        (abs(q1) ≤ k1 && abs(q2) ≤ k2) || throw(BoundsError(C, (k1, q1, k2, q2)))
+    end
+    μ = k1^2 + k1 - q1
+    ν = k2^2 + k2 - q2
+    # The index of the pair (μ, ν) in the upper triangle
+    return μ ≤ ν ? C.corr[μ + ν*(ν-1) ÷ 2] : conj(C.corr[ν + μ*(μ-1) ÷ 2])
 end
 
 """

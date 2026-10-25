@@ -121,7 +121,7 @@ function SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol=nothin
     return SpinWaveTheoryKPM(SpinWaveTheoryLarge(sys; measure, regularization, tol=min(tol, 0.5), maxiters))
 end
 function intensities(swt::SpinWaveTheoryKPM, qpts; energies, kernel, kT=0.0, verbose=false)
-    η = 0.1 * kernel_width_at_zero(kernel)
+    η = 0.1 * kernel_fwhm(kernel, 0.0)
     @warn "Forwarding to `SpinWaveTheoryLarge` intensities calculator with η = $η" maxlog=10
     return intensities(swt.swt_large, qpts; energies, η, kernel, kT)
 end
