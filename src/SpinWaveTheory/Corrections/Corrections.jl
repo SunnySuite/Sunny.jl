@@ -26,7 +26,7 @@
 # Resummation. Collect the quasi-particles into y_𝐪 = [α_𝐪; α†_{-𝐪}], with
 # metric Ĩ = diagm([ones(L); -ones(L)]), and write w = T†u for the observable
 # amplitudes (u from `observable_vectors!`, corrected by
-# Observables.jl). LSWT gives the retarded response
+# ObservableCorrections.jl). LSWT gives the retarded response
 #
 #     χ^{μν}(z) = w_μ' G₀(z) w_ν,   G₀(z) = (zĨ - |ε|)⁻¹,
 #

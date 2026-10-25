@@ -127,8 +127,8 @@ end
 # H12(k) = H12(-k)ᵗ. That makes T3 = P conj(T(k)) P para-unitary and a
 # diagonalizer of H(-k), and its column `nambu_conj(m, L)` is by construction
 # the adjoint of column m of T(k). A phase left free here would rescale the
-# off-diagonal elements of Σ̂ relative to the mean fields and to the observables
-# of Observables.jl, which are expressed in the columns of T(k) themselves;
+# off-diagonal elements of Σ̂ relative to the mean fields and to the observable
+# corrections, which are expressed in the columns of T(k) themselves;
 # degenerate bands fare worse still, two calls being free to choose different
 # bases within a degenerate block.
 function foreach_cubic_line(f, swt::SpinWaveTheory, terms3, k, grid::LoopGrid, M)
