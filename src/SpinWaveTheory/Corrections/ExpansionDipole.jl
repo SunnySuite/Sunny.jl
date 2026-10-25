@@ -32,18 +32,6 @@
 # longitudinal and transverse parts of H₄, and spoils its exact independence of 𝐪.
 # Expanding an onsite anisotropy exactly gaps out the Goldstone mode of an easy-plane
 # ferromagnet; see `anisotropy_coefficients`.
-#
-# Writing a bilinear coupling in the raising/lowering basis,
-#
-#     Σ_{ab∈{x,y}} J_{ab} Sᵃ_i Sᵇ_j = (1/4) Σ_{pq∈{+,-}} c_{pq} Sᵖ_i S^q_j,
-#     c_{pq} = J_{xx} - i η_q J_{xy} - i η_p J_{yx} - η_p η_q J_{yy},
-#
-# with η₊ = 1 and η₋ = -1, organizes the quartic term below. As a check on the
-# convention, its leading part reproduces Sunny's quadratic coefficients:
-# c₋₊ σ_i σ_j / 4 is `Q` and c₊₊ σ_i σ_j / 4 is `P`, where σ_i = √(2s_i).
-function pm_coefficient(J, ηp, ηq)
-    return J[1, 1] - im*ηq*J[1, 2] - im*ηp*J[2, 1] - ηp*ηq*J[2, 2]
-end
 
 # Truncated Laurent polynomials in x = √(2s), which is the variable that grades the
 # Holstein-Primakoff expansion: a spin operator of degree k contributes to the word
@@ -306,8 +294,10 @@ end
 #
 #     Q b†_i b_j + P b_i b_j + h.c. - J_zz (s_j b†_i b_i + s_i b†_j b_j),
 #
-# with Q and P as given by `pm_coefficient`, and a biquadratic exchange the
-# analogous terms of its quadrupolar matrix. A word with both bosons on one site,
+# with the hopping Q and pairing P that `add_bond!` computes below, the K = 2
+# term of the product of spin components that `monomials_dipole` expands for
+# K = 3, 4. A biquadratic exchange gives the analogous terms of its quadrupolar
+# matrix. A word with both bosons on one site,
 # such as A₂ b†b†/2, enters twice in the Nambu matrix, hence its factor 1/2.
 function quadratic_monomials_dipole(sys::System, data::SWTDataDipole)
     (; local_rotations, stevens_coefs, sqrtS, interactions) = data
@@ -381,83 +371,65 @@ end
 quadratic_monomials(sys::System, data) =
     sys.mode == :SUN ? monomials_SUN(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
 cubic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :cubic) do
-    swt.sys.mode == :SUN ? monomials_SUN(swt, Val{3}()) : cubic_monomials_dipole(swt)
+    swt.sys.mode == :SUN ? monomials_SUN(swt, Val{3}()) : monomials_dipole(swt, Val{3}())
 end
 quartic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :quartic) do
-    swt.sys.mode == :SUN ? monomials_SUN(swt, Val{4}()) : quartic_monomials_dipole(swt)
+    swt.sys.mode == :SUN ? monomials_SUN(swt, Val{4}()) : monomials_dipole(swt, Val{4}())
 end
 
-# Monomials of H₃, the three-boson term. A cubic term arises either as the
-# product of a transverse component on one site of a bond with the fluctuating
-# part of Sᶻ on the other, or as the cubic part of a single transverse component
-# multiplying the classical Sᶻ of its partner. Both scale as s^(1/2), i.e. they
-# are smaller than H₂ by s^(-1/2). Every such monomial changes the boson number by
-# ±1, so the source vertex ⟨3 magnons|H₃|0⟩ appears only after the Bogoliubov
-# transformation mixes b with b†. An onsite anisotropy contributes as well, and
-# does produce ±3 monomials directly.
-function cubic_monomials_dipole(swt::SpinWaveTheory)
+# Monomials of H₃ or H₄, the terms of K = 3 or 4 bosons, which are smaller than
+# H₂ by s^(-1/2) and s^(-1) respectively. Every coupling is a product of spin
+# components, each of which the truncated Holstein-Primakoff expansion holds
+# exactly, word by word at its leading power; see `spin_component_words`. So
+# the K-boson term of a bilinear exchange is every split of the K bosons between
+# the words of its two sites, as in `append_products!`, and that of the Zeeman
+# coupling +𝐁⋅𝐒 is a single word. An onsite anisotropy is not a product of
+# spin components but a Stevens operator, whose words `anisotropy_monomials`
+# supplies.
+#
+# Some cubic words survive only away from a classical energy minimum. The
+# cubic part of a transverse component, multiplying the classical Sᶻ of its
+# partner or the Zeeman field, sums over the bonds of a site to its transverse
+# effective field, which vanishes at a minimum exactly as H₁ does. These are
+# retained because tadpole relaxation moves the structure off that minimum.
+function monomials_dipole(swt::SpinWaveTheory, ::Val{K}) where K
     (; sys, data) = swt
     (; local_rotations, sqrtS, interactions) = data
     L = nbands(swt)
 
-    terms = BosonMonomial{3}[]
-    add!(c, as, ns) = iszero(c) || push!(terms, BosonMonomial(ComplexF64(c), as, ns))
-    o = zero(Vec3)
+    # Words of each spin component, in the local frame, at each site and number of
+    # bosons. All are empty on a vacant site, which has no bosons. As in
+    # `append_products!`, the number of bosons is kept static.
+    counts = ntuple(p -> Val{p-1}(), Val{K+1}())
+    function words(r, i)
+        w = spin_component_words(r, √2 * sqrtS[i])
+        return map(v -> local_word_monomials(w, i, L, v), counts)
+    end
+    spins = [map(r -> words(r, i), (Vec3(1, 0, 0), Vec3(0, 1, 0), Vec3(0, 0, 1))) for i in 1:L]
 
+    terms = BosonMonomial{K}[]
     for (i, int) in enumerate(interactions)
-        # A vacant site has no bosons. Its words would divide by its zero spin
-        # magnitude below.
-        iszero(sqrtS[i]) && continue
-
-        # The Zeeman coupling is +𝐁⋅𝐒, as implied by the quadratic Hamiltonian.
-        # Its transverse part survives at a classical minimum, where exchange
-        # rather than the local frame cancels it, and enters through the cubic
-        # part of S⁺ and S⁻.
-        R = local_rotations[i]
-        B = sys.gs[i]' * sys.extfield[i]
-        add!(-dot(B, R[:, 1] - im*R[:, 2]) / (4√2 * sqrtS[i]), (L+i, i, i), (o, o, o))
-        add!(-dot(B, R[:, 1] + im*R[:, 2]) / (4√2 * sqrtS[i]), (L+i, L+i, i), (o, o, o))
+        B = local_rotations[i]' * (sys.gs[i]' * sys.extfield[i])
+        append!(terms, words(B, i)[K+1])
 
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
             iszero(coupling.bilin) && continue
             (j, n) = bond_target(sys, i, bond)
-            iszero(sqrtS[j]) && continue
             J = coupling.bilin::Mat3
-            si = sqrtS[i]^2
-            sj = sqrtS[j]^2
-
-            # Transverse component on one site times the -b†b part of Sᶻ on the
-            # other. Because the rotated exchange matrix is real, the amplitude
-            # to create a transverse deviation is the conjugate of the amplitude
-            # to destroy one.
-            V31 = -√(si/2) * (J[1, 3] - im*J[2, 3])
-            V32 = -√(sj/2) * (J[3, 1] - im*J[3, 2])
-            add!(V31, (i, L+j, j), (o, n, n))
-            add!(conj(V31), (L+i, L+j, j), (o, n, n))
-            add!(V32, (L+i, i, j), (o, o, n))
-            add!(conj(V32), (L+i, i, L+j), (o, o, n))
-
-            # Cubic part of that same transverse component, multiplying the
-            # classical Sᶻ = s of the other site. Relative to the terms above
-            # this carries a factor s_other / 4s_self.
-            #
-            # Like the Zeeman terms, these are proportional to the transverse
-            # effective field hˣ - i hʸ on the site in question, so summed over
-            # all bonds they cancel whenever the structure is a classical energy
-            # minimum, exactly as H₁ does. They are retained because tadpole
-            # relaxation moves the structure off that minimum.
-            add!(V31 * sj/4si, (L+i, i, i), (o, o, o))
-            add!(conj(V31) * sj/4si, (L+i, L+i, i), (o, o, o))
-            add!(V32 * si/4sj, (L+j, j, j), (n, n, n))
-            add!(conj(V32) * si/4sj, (L+j, L+j, j), (n, n, n))
+            # Component a of 𝐒_i times the spin component (J 𝐒_j)_a
+            for a in 1:3
+                r = J[a, :]
+                iszero(r) || append_products!(terms, 1, spins[i][a], words(r, j), n)
+            end
         end
     end
 
-    # Merged because this list is contracted once per loop wavevector, which is the
-    # innermost loop of the whole calculation.
-    return merge_monomials([terms; anisotropy_monomials(swt, Val{3}())])
+    # Merged because the cubic list is contracted once per loop wavevector, the
+    # innermost loop of the whole calculation, and because the quartic list is
+    # Wick decoupled term by term.
+    return merge_monomials([terms; anisotropy_monomials(swt, Val{K}())])
 end
 
 # True when the cubic vertex is numerically zero, so that everything it
@@ -482,48 +454,4 @@ function cubic_vertex_vanishes(swt::SpinWaveTheory, terms3)
     H = zeros(ComplexF64, 2L, 2L)
     dynamical_matrix!(H, swt, zero(Vec3))
     return maximum(abs(t.c) for t in terms3) < 1e-8 * norm(H)
-end
-
-# Monomials of H₄, the four-boson term, which is smaller than H₂ by s^(-1).
-# Since Sᶻ is exact and the transverse components have no four-boson part, only
-# two families survive: the product of the longitudinal fluctuations on the two
-# sites of a bond, and the product of a linear transverse component on one site
-# with the cubic part of a transverse component on the other. A Zeeman coupling,
-# being linear in 𝐒, contributes nothing here, but an onsite anisotropy does.
-function quartic_monomials_dipole(swt::SpinWaveTheory)
-    (; sys, data) = swt
-    (; sqrtS, interactions) = data
-    L = nbands(swt)
-
-    terms = BosonMonomial{4}[]
-    add!(c, as, ns) = iszero(c) || push!(terms, BosonMonomial(ComplexF64(c), as, ns))
-    o = zero(Vec3)
-
-    for (i, int) in enumerate(interactions)
-        iszero(sqrtS[i]) && continue
-        for coupling in int.pair
-            (; isculled, bond) = coupling
-            isculled && break
-            iszero(coupling.bilin) && continue
-            (j, n) = bond_target(sys, i, bond)
-            iszero(sqrtS[j]) && continue
-            J = coupling.bilin::Mat3
-
-            # Longitudinal: J_zz (b†b)_i (b†b)_j
-            add!(J[3, 3], (L+i, i, L+j, j), (o, o, n, n))
-
-            # Transverse: one site supplies Sᵖ at linear order, σ_i b or σ_i b†,
-            # and the other supplies the cubic part of S^q, -Θ^q/2σ_j with
-            # Θ⁺ = b†bb and Θ⁻ = b†b†b. Both assignments of the two roles occur.
-            for (ηp, p) in ((1, i), (-1, L+i)), (ηq, q) in ((1, j), (-1, L+j))
-                V = -pm_coefficient(J, ηp, ηq) / 8
-                Θi = ηp > 0 ? (L+i, i, i) : (L+i, L+i, i)
-                Θj = ηq > 0 ? (L+j, j, j) : (L+j, L+j, j)
-                add!(V * sqrtS[i]/sqrtS[j], (p, Θj...), (o, n, n, n))
-                add!(V * sqrtS[j]/sqrtS[i], (Θi..., q), (o, o, o, n))
-            end
-        end
-    end
-
-    return [terms; anisotropy_monomials(swt, Val{4}())]
 end

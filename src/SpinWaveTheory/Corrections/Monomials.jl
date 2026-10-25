@@ -36,6 +36,25 @@ function merge_monomials(terms::Vector{BosonMonomial{K}}) where K
     return sort!(collect(values(ret)); by = t -> map(n -> round.(Int, Tuple(n)), t.ns))
 end
 
+# Appends the K-boson term of c A B, for local operators A and B on sites whose
+# cells are offset by 𝐧. The words of each are given by boson number, `wa[p+1]`
+# holding those of p bosons at zero offset. The term is every split of the K
+# bosons between the two operators, A's to the left. Since each word carries a
+# single power of the expansion parameter, so does each product, and keeping
+# every split is the truncation rule at leading order.
+function append_products!(terms::Vector{BosonMonomial{K}}, c, wa, wb, n) where K
+    # The split is a type parameter, which unrolling over a tuple of Vals keeps
+    # static. `SpinWaveTheory` calls this on construction, and a dynamic
+    # dispatch per split would dominate its cost.
+    foreach(v -> append_split!(terms, c, wa, wb, n, v), ntuple(p -> Val{p-1}(), Val{K+1}()))
+end
+
+function append_split!(terms::Vector{BosonMonomial{K}}, c, wa, wb, n, ::Val{p}) where {K, p}
+    for ta in wa[p+1], tb in wb[K-p+1]
+        push!(terms, BosonMonomial(c * ta.c * tb.c, (ta.as..., tb.as...), (ta.ns..., map(m -> m + n, tb.ns)...)))
+    end
+end
+
 # All permutations of (1, …, K), used to symmetrize a vertex over its slots.
 function slot_permutations(K::Int)
     K == 1 && return [(1,)]
