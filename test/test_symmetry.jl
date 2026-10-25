@@ -531,7 +531,7 @@ end
                                   C C B]
 
         Bond(1, 2, [-1, 0, 0])
-        Distance 0.7905694150, coordination 12
+        Distance 0.790569415, coordination 12
         Connects [0, 0, 0] to [-3/4, 1/4, 0]
         Allowed exchange matrix: [A  D -F
                                   D  B  E

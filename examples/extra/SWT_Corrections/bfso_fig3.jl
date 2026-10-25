@@ -48,7 +48,7 @@ res1 = domain_average(cryst, path; rotations, weights) do path
     intensities(swtA, path; energies, η)
 end
 res2 = domain_average(cryst, path; rotations, weights) do path
-    Sunny.corrected_intensities(swtB, path; energies, η, scheme=:one_loop,
+    Sunny.corrected_intensities(swtB, path, :one_loop; energies, η,
                                 threaded=true, verbose=true)
 end
 

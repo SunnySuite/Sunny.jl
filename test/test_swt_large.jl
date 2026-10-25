@@ -127,31 +127,34 @@ end
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     measure = ssf_trace(sys)
     energies = range(0, 5, 51)
+    qs = [[0.3, 0, 0]]
 
     polarize_spins!(sys, [0, 0, 1])
     swt = SpinWaveTheoryLarge(sys; measure, tol=1e-2)
-    @test_throws Sunny.InstabilityError intensities(swt, [[0.3, 0, 0]]; energies, η=0.1)
+    @test_throws Sunny.InstabilityError intensities(swt, qs; energies, η=0.1)
 
     set_dipole!(sys, [0, 0, -1], (2, 1, 1, 1))
     swt = SpinWaveTheoryLarge(sys; measure, tol=1e-2)
-    @test all(isfinite, intensities(swt, [[0.3, 0, 0]]; energies, η=0.1).data)
+    @test all(isfinite, intensities(swt, qs; energies, η=0.1).data)
 
     # Exceeding the iteration cap is an error
     swt_capped = SpinWaveTheoryLarge(sys; measure, tol=1e-6, maxiters=1)
-    @test_throws "Exceeded maxiters" intensities(swt_capped, [[0.3, 0, 0]]; energies, η=0.1)
+    @test_throws "Exceeded maxiters" intensities(swt_capped, qs; energies, η=0.1)
 
     # The deprecated interface infers η from the kernel width
     swt_kpm = @test_logs (:warn, r"deprecated") SpinWaveTheoryKPM(sys; measure, tol=1e-2)
     kernel = gaussian(fwhm=0.5)
-    @test intensities(swt_kpm, [[0.3, 0, 0]]; energies, kernel).data ≈ intensities(swt, [[0.3, 0, 0]]; energies, η=0.05, kernel).data
+    res0 = intensities(swt, qs; energies, η=0.05, kernel)
+    res1 = @test_logs (:warn, r"with η = 0.05") intensities(swt_kpm, qs; energies, kernel)
+    @test res1.data ≈ res0.data
 
     # With a kernel, the default η = 0 is the limit η → 0⁺
-    q = [0.01, 0, 0]
-    @test_throws "Specify a `kernel`" intensities(swt, [q]; energies)
-    res0 = intensities(swt, [q]; energies, kernel).data
-    @test isapprox(res0, intensities(swt, [q]; energies, kernel, η=1e-9).data; rtol=1e-4)
-    @test all(isfinite, intensities(swt, [q]; energies, kernel, η=0.05).data)
+    qs = [[0.01, 0, 0]]
+    @test_throws "Specify a `kernel`" intensities(swt, qs; energies)
+    res0 = intensities(swt, qs; energies, kernel).data
+    @test isapprox(res0, intensities(swt, qs; energies, η=1e-9, kernel).data; rtol=1e-4)
+    @test all(isfinite, intensities(swt, qs; energies, η=0.05, kernel).data)
 
     # A kernel much narrower than η is an error
-    @test_throws "Kernel width must exceed η/4" intensities(swt, [q]; energies, kernel, η=2.5)
+    @test_throws "Kernel width must exceed η/4" intensities(swt, qs; energies, η=2.5, kernel)
 end
