@@ -3,10 +3,10 @@
 # This example uses [`to_inhomogeneous`](@ref) and [`SpinWaveTheoryLarge`](@ref)
 # to efficiently calculate the inelastic neutron spectrum of Rb₂Mn₁₋ₓMgₓF₄, a
 # disordered quasi-2D antiferromagnet. The doping fraction ``x`` introduces
-# random magnetic vacancies. Inelastic neutron measurements were reported in [R.
-# A. Cowley, G. Shirane, R. J. Birgeneau, and H. J. Guggenheim, Phys. Rev. B
-# **15**, 4292 (1977)](https://doi.org/10.1103/PhysRevB.15.4292). Sunny models
-# this data using spin wave calculations on very large supercells.
+# random magnetic vacancies. Inelastic neutron measurements were reported in
+# [Cowley et al., Phys. Rev. B **15**, 4292
+# (1977)](https://doi.org/10.1103/PhysRevB.15.4292). Sunny models this data
+# using spin wave calculations on very large supercells.
 
 using Sunny, GLMakie
 
@@ -27,10 +27,10 @@ minimize_energy!(sys)
 
 # A helper function that builds an 80×80 supercell, converts it
 # [`to_inhomogeneous`](@ref), and calls [`set_vacancy_at!`](@ref) for a fraction
-# `x` of randomly selected sites. These vacancies model substitution of the
-# non-magnetic ion Mg. A more complicated model could also modify the local
-# couplings via [`set_exchange_at!`](@ref), [`set_onsite_coupling_at!`](@ref),
-# and related functions.
+# ``x`` of random sites. These vacancies model substitution of the non-magnetic
+# ion Mg. A more complicated model could also modify the local couplings via
+# [`set_exchange_at!`](@ref), [`set_onsite_coupling_at!`](@ref), and related
+# functions.
 
 function diluted_system(sys, x)
     sys_inhom = to_inhomogeneous(resize_supercell(sys, (80, 80, 1)))
@@ -67,12 +67,12 @@ fig
 
 # Calculate at 4.0 K and ``x = 0.46`` for the wavevectors appearing in Fig. 5 of
 # Cowley et al. At the zone boundary, the calculated peaks at 3.3, 4.9, and 6.3
-# meV agree with the experimental values of 3.15, 4.85, and 6.40 meV (vertical
-# dashed lines). Cowley et al. attribute these peaks to Mn²⁺ ions with 2, 3, and
-# 4 magnetic neighbors. Toward the zone center, the fine structure fades, and
-# the intensity grows and moves to lower energies. Note that Cowley et al. label
-# wavectors in a non-standard √2×√2 magnetic cell convention whereby ``(h, h,
-# 2.9)`` maps to ``(2h, 0, 2.9)``.
+# meV agree reasonably with the experimental values of 3.15, 4.85, and 6.40 meV
+# (vertical dashed lines). Cowley et al. attribute these peaks to Mn²⁺ ions with
+# 2, 3, and 4 magnetic neighbors. Toward the zone center, the fine structure
+# fades, and the intensity grows and moves to lower energies. Note that Cowley
+# et al. label wavevectors in a non-standard √2×√2 magnetic cell convention
+# whereby ``(h, h, 2.9)`` becomes ``(2h, 0, 2.9)``.
 
 sys_inhom = diluted_system(sys, 0.46)
 formfactors = [1 => FormFactor("Mn2")]
