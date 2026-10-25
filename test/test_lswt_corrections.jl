@@ -42,13 +42,18 @@
     cluster_aniso(@nospecialize(O), s, i) = ((0.3*O[2, 0] + 0.15*O[2, 1])/s^2 + (0.02*O[4, 2] - 0.01*O[4, -3])/s^4 +
                                              0.004*O[6, i]/s^6)
 
-    # The `aniso` switch is a `Bool` rather than a function or `nothing`, so
-    # that this and `cluster_errors` each compile one specialization instead of
-    # one per call site.
-    function cluster(ss; mode=:dipole, aniso=false)
+    # Scalar biquadratic exchange on each bond of the cluster, carrying a factor
+    # (s_i s_j)^-1 for the reason given above: (𝐒ᵢ⋅𝐒ⱼ)² is of order s⁴, and the
+    # bilinear exchange of order s²
+    const cluster_Ks = [0.15, -0.1, 0.05]
+
+    # The `aniso` and `biquad` switches are `Bool`s rather than functions or
+    # `nothing`, so that this and `cluster_errors` each compile one
+    # specialization instead of one per call site.
+    function cluster(ss; mode=:dipole, aniso=false, biquad=false)
         sys = System(cluster_cryst, [i => Moment(s=ss[i], g=1) for i in 1:3], mode)
         for (n, (i, j)) in enumerate([(1, 2), (2, 3), (1, 3)])
-            set_exchange!(sys, cluster_Js[n], Bond(i, j, [0, 0, 0]))
+            set_exchange!(sys, cluster_Js[n], Bond(i, j, [0, 0, 0]); biquad = biquad * cluster_Ks[n] / (ss[i] * ss[j]))
         end
         set_field!(sys, cluster_B)
         aniso && for i in 1:3
@@ -184,8 +189,8 @@
     # Compares the whole Holstein-Primakoff expansion, order by order in the
     # boson number, against exact diagonalization in the *spin* Hilbert space,
     # so that the truncation of the series is itself what is under test.
-    function cluster_errors(ss; mode=:dipole, aniso=false)
-        sys = cluster(ss; mode, aniso)
+    function cluster_errors(ss; mode=:dipole, aniso=false, biquad=false)
+        sys = cluster(ss; mode, aniso, biquad)
         # Regularization would otherwise leak into the quadratic coefficients
         swt = SpinWaveTheory(sys; measure=nothing, regularization=0)
         Ns = ntuple(i -> Int(2ss[i]+1), 3)
@@ -208,17 +213,29 @@
             A = Hermitian(Matrix(cluster_aniso(stevens_matrices(ss[i]), ss[i], i)))
             Hex .+= op(Matrix(Sunny.rotate_operator(A, Rs[i])), i)
         end
-        # Each bond appears twice, once culled
+        # Each bond appears twice, once culled. A scalar biquadratic exchange is
+        # stored as the coefficient of Σ_q c_q 𝒪_2^q ⊗ 𝒪_2^q, with c_q the
+        # `scalar_biquad_metric`, and in mode :dipole that coefficient carries
+        # the renormalization λ₂ of each site, which is divided out here to
+        # recover the operator. Mode :dipole has also absorbed the term
+        # -(1/2)𝐒ᵢ⋅𝐒ⱼ of (𝐒ᵢ⋅𝐒ⱼ)² into the bilinear exchange stored, and its
+        # constant into the scalar.
         for int in sys.interactions_union, c in int.pair
             c.isculled && continue
             @assert iszero(c.bond.n)
             (i, j) = (c.bond.i, c.bond.j)
             J = Rs[i]' * c.bilin * Rs[j]
-            Hex .+= sum(J[a, b] * S(a, i) * S(b, j) for a in 1:3, b in 1:3)
+            Hex .+= sum(J[a, b] * S(a, i) * S(b, j) for a in 1:3, b in 1:3) + c.scalar * I
+            iszero(c.biquad) && continue
+            λ(s) = mode == :dipole ? Sunny.rcs_factors(s)[2] : 1.0
+            Q(i) = [op(Matrix(Sunny.rotate_operator(Hermitian(Matrix(stevens_matrices(ss[i])[2, q])), Rs[i])), i) for q in 2:-1:-2]
+            (Qi, Qj) = (Q(i), Q(j))
+            K = c.biquad / (λ(ss[i]) * λ(ss[j]))
+            Hex .+= K * sum(Sunny.scalar_biquad_metric[q] * Qi[q] * Qj[q] for q in 1:5)
         end
 
         (; terms2, δE) = Sunny.anisotropy_correction(swt)
-        H1 = expand(bop, Sunny.anisotropy_monomials(swt, Val{1}()), dim)
+        H1 = expand(bop, Sunny.lswt_correction_monomials(swt, Val{1}()), dim)
         H3 = expand(bop, Sunny.cubic_monomials(swt), dim)
         H4 = expand(bop, Sunny.quartic_monomials(swt), dim)
         # Quadratic Hamiltonian of LSWT, plus its own correction at order 1/s
@@ -601,20 +618,27 @@ end
         # exchange-only case above; mixing in an integer tuple would specialize
         # `cluster_errors` a second time, which costs more in compilation than
         # the whole block does in arithmetic.
-        e = cluster_errors((3.0, 3.0, 3.0); mode, aniso=true)
+        # A biquadratic exchange is the product of two quadrupoles, whose words
+        # are truncated likewise, so it is covered by the same checks.
+        e = cluster_errors((3.0, 3.0, 3.0); mode, aniso=true, biquad=true)
         @test e.hermiticity < 1e-12
         @test e.reachable < 0.02
         # The Stevens coefficients are renormalized in mode :dipole so that the
         # classical energy function is exact in a spin coherent state, to all
-        # orders
-        # in 1/s. That makes the corrections to the energy and to the linear term
-        # vanish identically, and leaves the anomalous coefficient A₂ as the only
-        # correction to LSWT's H₂.
+        # orders in 1/s. That makes the corrections to the energy and to the
+        # linear term vanish identically, and leaves the anomalous words as the
+        # only correction to LSWT's H₂.
         @test mode == :dipole ? e.coherent < 1e-12 : e.coherent > 1e-3
+        @test mode == :dipole ? max(e.classical, e.quadratic) < 1e-12 : e.quadratic > 1e-5
+        # The sub-leading words of the quadrupoles enter the anomalous block,
+        # which the biquadratic exchange alone isolates. With them its residual
+        # falls about sevenfold from s = 2 to 4, and without them only threefold.
+        (r2, r4) = map(s -> cluster_errors((s, s, s); mode, biquad=true).anomalous, (2.0, 4.0))
+        @test r4 < 0.2 * r2
         # The 1/s falloff of that leftover is checked in one mode only, the word
         # truncation being the same in both.
         mode == :dipole || continue
-        @test cluster_errors((4.0, 4.0, 4.0); mode, aniso=true).reachable < 0.5 * e.reachable
+        @test cluster_errors((4.0, 4.0, 4.0); mode, aniso=true, biquad=true).reachable < 0.5 * e.reachable
     end
 
 
@@ -1055,7 +1079,7 @@ end
     # easy-plane ferromagnet leaves a zero mode at 𝐪 = 0, while the cubic and
     # linear vertices vanish identically by that same symmetry. That leaves
     # `anisotropy_correction` to cancel the mean field on its own -- which it
-    # can only do because `anisotropy_coefficients` keeps exactly one order in
+    # can only do because `monomials_dipole` keeps exactly one order in
     # 1/s per word. Since a perturbation of the quadratic form opens a gap like
     # its square root, expanding the anisotropy exactly instead, thereby
     # injecting a partial set of O(1/s²) terms, would gap the mode at O(1/s).
@@ -1068,7 +1092,7 @@ end
         set_dipole!(sys, [1, 0, 0], (1, 1, 1, 1))
         sw = SpinWaveTheory(sys; measure=nothing)
         @test maximum(abs(t.c) for t in Sunny.cubic_monomials(sw)) < 1e-12
-        @test maximum(abs(t.c) for t in Sunny.anisotropy_monomials(sw, Val{1}()); init=0.0) < 1e-12
+        @test maximum(abs(t.c) for t in Sunny.lswt_correction_monomials(sw, Val{1}()); init=0.0) < 1e-12
         ε = dispersion(sw, [[0, 0, 0]])[1]
         mf = Sunny.hartree_fock_correction(sw; bz).terms2
         resid(t2) = Sunny.static_self_energy(sw, [[0, 0, 0]], t2)[1] * ε
@@ -1910,7 +1934,7 @@ end
     # the dipole by s t, to first order
     grad = [(δE₀(normalize(Rloc[:, 3] + 1e-5*Rloc[:, k])) - δE₀(normalize(Rloc[:, 3] - 1e-5*Rloc[:, k]))) / (2e-5 * 3)
             for k in 1:2]
-    terms1 = Sunny.anisotropy_monomials(swt, Val{1}())
+    terms1 = Sunny.lswt_correction_monomials(swt, Val{1}())
     cb = only(t.c for t in terms1 if t.as == (2,))  # coefficient of b†
     @test only(t.c for t in terms1 if t.as == (1,)) ≈ conj(cb)
     @test grad ≈ 2 * [real(cb), imag(cb)] / √6 rtol=1e-6

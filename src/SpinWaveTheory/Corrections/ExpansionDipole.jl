@@ -31,7 +31,7 @@
 # band shift of the square-lattice antiferromagnet, a thirty-fold cancellation between the
 # longitudinal and transverse parts of H₄, and spoils its exact independence of 𝐪.
 # Expanding an onsite anisotropy exactly gaps out the Goldstone mode of an easy-plane
-# ferromagnet; see `anisotropy_coefficients`.
+# ferromagnet; see the test of `anisotropy_correction`.
 
 # Truncated Laurent polynomials in x = √(2s), which is the variable that grades the
 # Holstein-Primakoff expansion: a spin operator of degree k contributes to the word
@@ -111,15 +111,11 @@ function graded_spin_matrices(nmax::Int)
     return (Jx, Jy, Jz)
 end
 
-# Graded spin matrices and Stevens operators 𝒪_k^q for even k, ordered as in
-# `stevens_matrices`, and the reciprocals of the `rcs_factors` renormalizations.
-# These depend on nothing, and building them dominates the cost of
-# `anisotropy_coefficients`, so they are built once here. Only matrix elements
-# between boson numbers ≤ 4 are ever read, and a Stevens operator of order k ≤ 6
-# shifts the boson number by at most k while its diagonal factors reach one
-# further, so seven states suffice.
+# Graded spin matrices, and the reciprocals of the `rcs_factors`
+# renormalizations. Only matrix elements between boson numbers ≤ 4 are ever
+# read, and a Stevens operator of order k ≤ 6 shifts the boson number by at most
+# k while its diagonal factors reach one further, so seven states suffice.
 const GRADED_SPINS = graded_spin_matrices(6)
-const GRADED_STEVENS = map(k -> stevens_abstract_polynomials(; J=GRADED_SPINS, k), (0, 2, 4, 6))
 const GRADED_INV_RCS = map(inv, rcs_factors(monomial(2, 1/2)))
 
 # Holstein-Primakoff words of a single-site operator `𝒪`, a graded matrix over
@@ -154,7 +150,7 @@ function local_word_monomials(words, i, L, ::Val{K}) where K
     terms = BosonMonomial{K}[]
     for d in K:-2:0
         j = div(K - d, 2)
-        c = get(words, (d, j), 0.0im)
+        c = word(words, (d, j))
         iszero(c) && continue
         push!(terms, BosonMonomial(c, ntuple(t -> t <= d+j ? L+i : i, Val{K}()), ns))
         iszero(d) && continue
@@ -163,99 +159,203 @@ function local_word_monomials(words, i, L, ::Val{K}) where K
     return terms
 end
 
-# Words of the spin component 𝐫 ⋅ 𝐒 of site i, for a vector `r` in the local
-# frame, each at its leading power x^{2-n}. A spin component is exact in the
-# truncated Holstein-Primakoff expansion, which keeps every word at leading
-# order; see the truncation rule at the top of this file. The words are linear
-# in `r`, and those of each axis carry the single power x^{2-n}, so they are
-# expanded once for x = 1 and rescaled.
-const SPIN_AXIS_WORDS = map(1:3) do α
-    local_words!(Dict{Tuple{Int, Int}, ComplexF64}(), GRADED_SPINS[α], 1.0, n -> 2 - n)
-end
+# The normal-ordered words (b†)^{d+j} bʲ, keyed by (d, j), of at most four
+# bosons, and their numbers of bosons. A set of words is a vector over these.
+const WORD_KEYS = Tuple((d, j) for d in 0:4 for j in 0:div(4-d, 2))
+const WORD_NB = map(((d, j),) -> d + 2j, WORD_KEYS)
+const Words = SVector{length(WORD_KEYS), ComplexF64}
 
-# A vacant site, x = 0, has no bosons and so no words. The cubic word would
-# otherwise divide by x.
-spin_component_words(r, x) = Dict(k => iszero(x) ? 0.0im : x^(2 - (k[1] + 2k[2])) * sum(r[α] * SPIN_AXIS_WORDS[α][k] for α in 1:3)
-                                  for k in keys(SPIN_AXIS_WORDS[1]))
+word(w::Words, key) = w[findfirst(==(key), WORD_KEYS)]
 
-# Holstein-Primakoff expansion of the onsite anisotropy of site i, as the words of
-# `local_words!`. Note that the transverse components generate words of every odd
-# length, since S⁺ = σ√(1 - n̂/2s) b.
-#
-# Returned is only what LSWT does not already contain, and only to the order that
-# the truncation rule at the top of this file prescribes. A word of n bosons has
-# leading power x^{2k-n} for each Stevens order k, and
-#
-#   * for n ≤ 2 that leading power is exactly what LSWT keeps — the classical
-#     energy, its gradient, and the coefficients A1 and A2 of
-#     `quadratic_monomials_dipole` — so the sub-leading power x^{2k-n-2} is returned;
-#   * for n = 3, 4 nothing is already present, so the leading power is returned.
-#
-# Reading off a fixed power per word keeps this construction consistent with the truncated
-# vertices of `cubic_monomials` and `quartic_monomials`, so no separate subtraction of the
-# LSWT terms is needed.
-#
-# Sunny stores an anisotropy as coefficients of the Stevens operators 𝒪_k^q. In mode :dipole
-# those carry the renormalization `rcs_factors`, chosen so that the classical energy
-# reproduces the exact expectation value in a spin coherent state; dividing it out recovers
-# the operator the user supplied, and because the factor is itself a series in 1/s it must
-# be divided out order by order. Mode :dipole_uncorrected instead uses the stored
-# coefficients directly, lifting the user's classical polynomial to the operator with the
-# same Stevens coefficients. That lift is a convention, a classical polynomial determining
-# an operator only up to the relative order 1/s computed here.
-#
-# For n ≤ 2 the result is therefore two scalars times the leading word L that LSWT already
-# holds, gated against `quadratic_monomials_dipole` in the test suite:
-#
-#   * The lift rescales every such word by -binomial(k, 2)/2s, the leading deviation of
-#     `rcs_factors` from unity, in mode :dipole_uncorrected only. Mode :dipole is the more
-#     accurate choice precisely because λ_k removes it, leaving the classical energy, its
-#     gradient, and A1 with no correction at all.
-#   * A boson coherent state is not a spin coherent state: their amplitudes on one spin
-#     deviation agree, but on two they differ by √(1 - 1/2s). LSWT reads the anomalous A2
-#     off the classical energy and so gets it too small by that factor, which both modes
-#     correct by a further +L/4s.
-#
-# In mode :dipole that leaves A2 as the only correction below three bosons. The one-boson
-# word is proportional to the classical energy gradient in both modes, so an onsite
-# anisotropy sources `tadpole_correction` only away from the classical minimum, and never in
-# mode :dipole.
-function anisotropy_coefficients(swt::SpinWaveTheory, i::Int)
-    (; sys, data) = swt
-    stvexp = data.stevens_coefs[i]
-    x = √2 * data.sqrtS[i]
-
-    words = Dict((d, j) => 0.0im for d in 0:4 for j in 0:div(4-d, 2))
-    for (k, c) in zip((0, 2, 4, 6), (stvexp.c0, stvexp.c2, stvexp.c4, stvexp.c6))
-        iszero(c) && continue
-        𝒪 = c' * GRADED_STEVENS[div(k, 2) + 1]
-        if sys.mode == :dipole
-            𝒪 = 𝒪 * GRADED_INV_RCS[k]
+# The words of each Stevens operator 𝒪_k^q, for k ≤ 6 and ordered as in
+# `stevens_matrices`, as a pair (lead, sub): the word of n bosons at its leading
+# power x^{2k-n}, and at the next, x^{2k-n-2}, each at x = 1. A word scales with
+# x as its power, so these depend on nothing, and are built once here.
+const STEVENS_WORDS = map(0:6) do k
+    map(stevens_abstract_polynomials(; J=GRADED_SPINS, k)) do 𝒪
+        function words(p)
+            w = local_words!(Dict{Tuple{Int, Int}, ComplexF64}(), 𝒪, 1.0, p)
+            return Words(map(key -> w[key], WORD_KEYS))
         end
-        local_words!(words, 𝒪, x, n -> 2k - n - (n <= 2 ? 2 : 0))
+        (words(n -> 2k - n), words(n -> 2k - n - 2))
     end
-
-    return words
 end
 
-# Monomials of the onsite anisotropies containing exactly K bosons, beyond what
-# LSWT already accounts for. K = 3 and 4 complete the cubic and quartic
-# vertices, while K = 1 and 2 correct terms that LSWT treats at leading order
-# and enter through `tadpole_correction` and `anisotropy_correction`
-# respectively.
-#
-# Empty in mode :SUN, where an onsite coupling is not a Stevens polynomial to be
-# re-expanded but a matrix that `monomials_SUN` promotes exactly, leaving no
-# remainder at any boson number. See ExpansionSUN.jl.
-function anisotropy_monomials(swt::SpinWaveTheory, ::Val{K}) where K
-    L = nbands(swt)
-    terms = BosonMonomial{K}[]
-    swt.sys.mode == :SUN && return terms
-    for i in 1:L
-        iszero(swt.data.interactions[i].onsite) && continue
-        append!(terms, local_word_monomials(anisotropy_coefficients(swt, i), i, L, Val{K}()))
+# The leading correction to 1/λ_k, i.e. 1/λ_k = 1 + RCS_SHIFT[k]/2s + O(1/s²),
+# for the renormalizations λ_k of `rcs_factors`.
+const RCS_SHIFT = map(k -> real(coefficient(GRADED_INV_RCS[k], -2)), 0:6)
+
+# The pair (lead, sub) of words, as in `STEVENS_WORDS`, of the local operator
+# Σ_kq c_kq 𝒪_k^q at a site of spin s, given x = √2s and an iterable `cs` of
+# pairs (k, c_k), with c_k the coefficients ordered as in `stevens_matrices`.
+# Where `rcs` holds, the stored c_k carry the renormalization λ_k of mode
+# :dipole, which the sub-leading words divide back out. A vacant site, x = 0, has
+# no bosons and so no words.
+function stevens_words(cs, x, rcs::Bool)
+    iszero(x) && return (zero(Words), zero(Words))
+    # The orders of `cs` may hold coefficient vectors of different types, so
+    # they are visited by recursion rather than iteration, which stays static
+    return mapreduce(.+, cs) do (k, c)
+        lead = sub = zero(Words)
+        powers = map(n -> x^(2k - n), Words(WORD_NB))
+        for (q, ckq) in enumerate(c)
+            iszero(ckq) && continue
+            (wl, ws) = STEVENS_WORDS[k+1][q]
+            lead += ckq * wl .* powers
+            sub += ckq * (ws + rcs * RCS_SHIFT[k+1] * wl) .* powers / x^2
+        end
+        (lead, sub)
     end
-    return terms
+end
+
+# Stevens coefficients of the spin component 𝐫 ⋅ 𝐒, since (𝒪_1^1, 𝒪_1^0, 𝒪_1^-1) =
+# (Sˣ, Sᶻ, Sʸ), and the leading words of that component. Its sub-leading words of
+# at most two bosons vanish: Sᶻ = s - b†b is exact, as are the one-boson words
+# of S±.
+spin_component_coefs(r) = ((1, (r[1], r[3], r[2])),)
+spin_component_words(r, x) = first(stevens_words(spin_component_coefs(r), x, false))
+
+# THE PRODUCER. Every term of the Hamiltonian is a product of local operators,
+# each a Stevens polynomial on one site, and every local operator expands into
+# the words of `stevens_words`, a leading part and a sub-leading part. The
+# K-boson term of a product is every split of the K bosons between the words of
+# its factors, as in `append_products!`. Each factor carries a single power of
+# x = √2s in its leading part, so each product carries a single power as well,
+# and the sub-leading part of a product is the sum of the products of one
+# sub-leading factor with the leading others. Then the truncation rule of this
+# file is that the term of K bosons keeps the leading part only, for K ≥ 3, and
+# also the sub-leading part, for K ≤ 2.
+#
+# The terms are
+#
+#   * the Zeeman coupling +𝐁⋅𝐒 and the bilinear exchange 𝐒ᵢ⋅J𝐒ⱼ, products of
+#     spin components, whose sub-leading words of at most two bosons vanish;
+#   * the onsite anisotropy, a single Stevens polynomial;
+#   * the biquadratic exchange, the product of the quadrupoles of its two sites.
+#
+# LSWT is the leading part of the term of two bosons, and is evaluated at the
+# coefficients as stored, which in mode :dipole carry the renormalization λ_k of
+# `rcs_factors`. That choice makes the classical energy the exact expectation
+# value in a spin coherent state, and LSWT a small-tilt expansion of it. The 1/s
+# corrections instead expand the operator the user supplied, dividing λ_k back
+# out order by order. In mode :dipole_uncorrected the stored coefficients are
+# used directly, which lifts the user's classical polynomial to the operator
+# with the same Stevens coefficients. That lift is a convention, a classical
+# polynomial determining an operator only up to the relative order 1/s computed
+# here.
+#
+# Two consequences for the sub-leading words, both gated against exact
+# diagonalization in the test suite. Mode :dipole leaves only the anomalous
+# word b†b† of an onsite anisotropy: a boson coherent state is not a spin
+# coherent state, their amplitudes on one deviation agreeing but those on two
+# differing by √(1 - 1/2s). In mode :dipole_uncorrected every word of at most two
+# bosons is also rescaled, by -binomial(k, 2)/2s, the leading deviation of λ_k
+# from unity. In either mode the one-boson word is proportional to the
+# classical energy gradient, so an onsite anisotropy sources
+# `tadpole_correction` only away from the classical minimum.
+
+# Each local operator of the Hamiltonian as Stevens coefficients, in the local
+# frame: the onsite anisotropy of each site, and the quadrupoles 𝒪_2^q,
+# ordered as in `stevens_matrices`.
+onsite_stevens_coefs(stvexp::StevensExpansion) =
+    ((0, stvexp.c0), (2, stvexp.c2), (4, stvexp.c4), (6, stvexp.c6))
+quadrupole_coefs(q) = ((2, ntuple(p -> p == q ? 1.0 : 0.0, 5)),)
+
+# Monomials of the term of K bosons of the Hamiltonian in the dipole modes,
+# beyond LSWT if `beyond_lswt`. For K ≥ 3, which LSWT does not contain, that is
+# the whole term, kept at leading order; for K ≤ 2 it is the sub-leading part
+# only, the O(1/s) correction to LSWT. Without `beyond_lswt` the K = 2 term is
+# the LSWT Hamiltonian itself, which `QuadraticTable` compiles.
+#
+# Some cubic words survive only away from a classical energy minimum. The cubic
+# part of a transverse component, multiplying the classical Sᶻ of its partner or
+# the Zeeman field, sums over the bonds of a site to its transverse effective
+# field, which vanishes at a minimum exactly as H₁ does. These are retained
+# because tadpole relaxation moves the structure off that minimum.
+function monomials_dipole(sys::System, data::SWTDataDipole, ::Val{K}; beyond_lswt) where K
+    (; local_rotations, stevens_coefs, sqrtS, interactions) = data
+    L = nsites(sys)
+    rcs = sys.mode == :dipole
+
+    # The leading and sub-leading part, at each number of bosons, of the local
+    # operator with Stevens coefficients `cs` at site i. The number of bosons is
+    # kept static, as in `append_products!`.
+    counts = ntuple(p -> Val{p-1}(), Val{K+1}())
+    function words(cs, i)
+        (lead, sub) = stevens_words(cs, √2 * sqrtS[i], rcs)
+        return (map(v -> local_word_monomials(lead, i, L, v), counts),
+                map(v -> local_word_monomials(sub, i, L, v), counts))
+    end
+    leading_only(w) = (w[1], map(_ -> BosonMonomial{0}[], w[2]))
+    axes = (Vec3(1, 0, 0), Vec3(0, 1, 0), Vec3(0, 0, 1))
+    spins = [map(r -> leading_only(words(spin_component_coefs(r), i)), axes) for i in 1:L]
+    quads = [ntuple(q -> words(quadrupole_coefs(q), i), 5) for i in 1:L]
+
+    # The kept part of the term of K bosons of the product of factors (A, B), on
+    # sites whose cells are offset by n, with coefficient c
+    terms = BosonMonomial{K}[]
+    keep_lead = !beyond_lswt || K >= 3
+    keep_sub = beyond_lswt && K <= 2
+    function add_product!(c, (Al, As), (Bl, Bs), n)
+        keep_lead && append_products!(terms, c, Al, Bl, n)
+        if keep_sub
+            append_products!(terms, c, As, Bl, n)
+            append_products!(terms, c, Al, Bs, n)
+        end
+    end
+    function add_local!((Al, As))
+        keep_lead && append!(terms, Al[K+1])
+        keep_sub && append!(terms, As[K+1])
+    end
+
+    for (i, int) in enumerate(interactions)
+        B = local_rotations[i]' * (sys.gs[i]' * sys.extfield[i])
+        add_local!(leading_only(words(spin_component_coefs(B), i)))
+        iszero(int.onsite) || add_local!(words(onsite_stevens_coefs(stevens_coefs[i]), i))
+
+        for coupling in int.pair
+            (; isculled, bond) = coupling
+            isculled && break
+            (j, n) = bond_target(sys, i, bond)
+            # Component a of 𝐒_i times the spin component (J 𝐒_j)_a
+            J = coupling.bilin
+            if !iszero(J)
+                for a in 1:3
+                    r = (J::Mat3)[a, :]
+                    iszero(r) || add_product!(1, spins[i][a], leading_only(words(spin_component_coefs(r), j)), n)
+                end
+            end
+            # Quadrupole p of site i times quadrupole q of site j
+            Kq = coupling.biquad
+            if !iszero(Kq)
+                for p in 1:5, q in 1:5
+                    iszero(Kq[p, q]) || add_product!(Kq[p, q], quads[i][p], quads[j][q], n)
+                end
+            end
+        end
+    end
+
+    # Merged because the cubic list is contracted once per loop wavevector, the
+    # innermost loop of the whole calculation, and because the quartic list is
+    # Wick decoupled term by term. The LSWT Hamiltonian is merged instead by
+    # `QuadraticTable`, which `SpinWaveTheory` builds on every construction.
+    return beyond_lswt ? merge_monomials(terms) : terms
+end
+
+monomials_dipole(swt::SpinWaveTheory, k::Val; beyond_lswt=true) =
+    monomials_dipole(swt.sys, swt.data::SWTDataDipole, k; beyond_lswt)
+
+# Monomials of the sub-leading part of the term of K ≤ 2 bosons, the O(1/s)
+# correction to what LSWT treats at leading order. K = 1 enters through
+# `tadpole_correction`, K = 2 through `anisotropy_correction`, and K = 0 is
+# the correction to the classical energy. Empty in mode :SUN, where an onsite
+# coupling is not a Stevens polynomial to be re-expanded but a matrix that
+# `monomials_SUN` promotes exactly, leaving no remainder at any boson number.
+# See ExpansionSUN.jl.
+function lswt_correction_monomials(swt::SpinWaveTheory, k::Val{K}) where K
+    @assert K <= 2
+    swt.sys.mode == :SUN && return BosonMonomial{K}[]
+    return monomials_dipole(swt, k)
 end
 
 """
@@ -279,157 +379,22 @@ classical energy function.
 """
 function anisotropy_correction(swt::SpinWaveTheory)
     check_corrections_supported(swt)
-    δE = sum(1:nbands(swt); init=0.0) do i
-        (swt.sys.mode == :SUN || iszero(swt.data.interactions[i].onsite)) ? 0.0 :
-            real(anisotropy_coefficients(swt, i)[(0, 0)])
-    end
-    return (; terms2 = anisotropy_monomials(swt, Val{2}()),
+    δE = sum(t -> real(t.c), lswt_correction_monomials(swt, Val{0}()); init=0.0)
+    return (; terms2 = lswt_correction_monomials(swt, Val{2}()),
               δE = δE / nsites(uncontracted_system(swt.sys)))
 end
 
-# Monomials of H₂, the LSWT Hamiltonian in the dipole modes, which
-# `QuadraticTable` compiles for `dynamical_matrix!`. Each term is the
-# leading order of a bond or site, the sub-leading corrections being those of
-# `anisotropy_correction`. A bilinear exchange in the local frames contributes
-#
-#     Q b†_i b_j + P b_i b_j + h.c. - J_zz (s_j b†_i b_i + s_i b†_j b_j),
-#
-# with the hopping Q and pairing P that `add_bond!` computes below, the K = 2
-# term of the product of spin components that `monomials_dipole` expands for
-# K = 3, 4. A biquadratic exchange gives the analogous terms of its quadrupolar
-# matrix. A word with both bosons on one site,
-# such as A₂ b†b†/2, enters twice in the Nambu matrix, hence its factor 1/2.
-function quadratic_monomials_dipole(sys::System, data::SWTDataDipole)
-    (; local_rotations, stevens_coefs, sqrtS, interactions) = data
-    L = nsites(sys)
-
-    terms = BosonMonomial{2}[]
-    add!(c, as, ns) = iszero(c) || push!(terms, BosonMonomial(ComplexF64(c), as, ns))
-    o = zero(Vec3)
-
-    for (i, int) in enumerate(interactions)
-        # Zeeman term, suppressed on a vacant site by its null local frame
-        B = sys.gs[i]' * sys.extfield[i]
-        add!(-dot(B, local_rotations[i][:, 3]), (L+i, i), (o, o))
-
-        # Single-ion anisotropy
-        (; c2, c4, c6) = stevens_coefs[i]
-        s = sqrtS[i]^2
-        A1 = -6s*c2[3] - 80*s^3*c4[5] - 336*s^5*c6[7]
-        A2 = 2s*(c2[1]+im*c2[5]) + 12s^3*(c4[3]+im*c4[7]) + 32s^5*(c6[5]+im*c6[9])
-        add!(A1, (L+i, i), (o, o))
-        add!(A2/2, (L+i, L+i), (o, o))
-        add!(conj(A2)/2, (i, i), (o, o))
-
-        for coupling in int.pair
-            (; isculled, bond) = coupling
-            isculled && break
-            (j, n) = bond_target(sys, i, bond)
-            si = sqrtS[i]^2
-            sj = sqrtS[j]^2
-            sij = sqrtS[i] * sqrtS[j]
-
-            # Hopping Q and pairing P between the two sites, and their adjoints
-            function add_bond!(Q, P)
-                add!(Q, (L+i, j), (o, n))
-                add!(conj(Q), (L+j, i), (n, o))
-                add!(P, (i, j), (o, n))
-                add!(conj(P), (L+i, L+j), (o, n))
-            end
-
-            if !iszero(coupling.bilin)
-                J = coupling.bilin
-                add_bond!(0.5 * sij * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1])),
-                          0.5 * sij * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1])))
-                add!(-sj * J[3, 3], (L+i, i), (o, o))
-                add!(-si * J[3, 3], (L+j, j), (n, n))
-            end
-
-            if !iszero(coupling.biquad)
-                K = coupling.biquad
-                Sj2Si = sj^2 * si
-                Si2Sj = si^2 * sj
-                add_bond!(0.5 * sij^3 * ( K[4, 4]+K[2, 2] - im*(-K[4, 2]+K[2, 4])),
-                          0.5 * sij^3 * (-K[4, 4]+K[2, 2] - im*( K[4, 2]+K[2, 4])))
-                add!(-12 * Sj2Si * K[3, 3], (L+i, i), (o, o))
-                add!(-12 * Si2Sj * K[3, 3], (L+j, j), (n, n))
-                add!(2 * Sj2Si * (K[1, 3] - im*K[5, 3]), (i, i), (o, o))
-                add!(2 * Sj2Si * (K[1, 3] + im*K[5, 3]), (L+i, L+i), (o, o))
-                add!(2 * Si2Sj * (K[3, 1] - im*K[3, 5]), (j, j), (n, n))
-                add!(2 * Si2Sj * (K[3, 1] + im*K[3, 5]), (L+j, L+j), (n, n))
-            end
-        end
-    end
-
-    return terms
-end
-
-# Monomials of H₂, H₃ and H₄, the two-, three- and four-boson terms. Mode :SUN
-# expands in 1/M rather than 1/s and is handled by ExpansionSUN.jl, which shares
-# everything below the monomial representation itself. The higher orders are
-# cached in `swt`, and must not be mutated.
+# Monomials of H₂, the LSWT Hamiltonian, which `QuadraticTable` compiles for
+# `dynamical_matrix!`, and of H₃ and H₄, cached in `swt` and not to be mutated.
+# Mode :SUN expands in 1/M rather than 1/s and is handled by ExpansionSUN.jl,
+# which shares everything below the monomial representation itself.
 quadratic_monomials(sys::System, data) =
-    sys.mode == :SUN ? monomials_SUN(sys, data, Val{2}()) : quadratic_monomials_dipole(sys, data)
+    sys.mode == :SUN ? monomials_SUN(sys, data, Val{2}()) : monomials_dipole(sys, data, Val{2}(); beyond_lswt=false)
 cubic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :cubic) do
     swt.sys.mode == :SUN ? monomials_SUN(swt, Val{3}()) : monomials_dipole(swt, Val{3}())
 end
 quartic_monomials(swt::SpinWaveTheory) = cached!(swt.monomials, :quartic) do
     swt.sys.mode == :SUN ? monomials_SUN(swt, Val{4}()) : monomials_dipole(swt, Val{4}())
-end
-
-# Monomials of H₃ or H₄, the terms of K = 3 or 4 bosons, which are smaller than
-# H₂ by s^(-1/2) and s^(-1) respectively. Every coupling is a product of spin
-# components, each of which the truncated Holstein-Primakoff expansion holds
-# exactly, word by word at its leading power; see `spin_component_words`. So
-# the K-boson term of a bilinear exchange is every split of the K bosons between
-# the words of its two sites, as in `append_products!`, and that of the Zeeman
-# coupling +𝐁⋅𝐒 is a single word. An onsite anisotropy is not a product of
-# spin components but a Stevens operator, whose words `anisotropy_monomials`
-# supplies.
-#
-# Some cubic words survive only away from a classical energy minimum. The
-# cubic part of a transverse component, multiplying the classical Sᶻ of its
-# partner or the Zeeman field, sums over the bonds of a site to its transverse
-# effective field, which vanishes at a minimum exactly as H₁ does. These are
-# retained because tadpole relaxation moves the structure off that minimum.
-function monomials_dipole(swt::SpinWaveTheory, ::Val{K}) where K
-    (; sys, data) = swt
-    (; local_rotations, sqrtS, interactions) = data
-    L = nbands(swt)
-
-    # Words of each spin component, in the local frame, at each site and number of
-    # bosons. All are empty on a vacant site, which has no bosons. As in
-    # `append_products!`, the number of bosons is kept static.
-    counts = ntuple(p -> Val{p-1}(), Val{K+1}())
-    function words(r, i)
-        w = spin_component_words(r, √2 * sqrtS[i])
-        return map(v -> local_word_monomials(w, i, L, v), counts)
-    end
-    spins = [map(r -> words(r, i), (Vec3(1, 0, 0), Vec3(0, 1, 0), Vec3(0, 0, 1))) for i in 1:L]
-
-    terms = BosonMonomial{K}[]
-    for (i, int) in enumerate(interactions)
-        B = local_rotations[i]' * (sys.gs[i]' * sys.extfield[i])
-        append!(terms, words(B, i)[K+1])
-
-        for coupling in int.pair
-            (; isculled, bond) = coupling
-            isculled && break
-            iszero(coupling.bilin) && continue
-            (j, n) = bond_target(sys, i, bond)
-            J = coupling.bilin::Mat3
-            # Component a of 𝐒_i times the spin component (J 𝐒_j)_a
-            for a in 1:3
-                r = J[a, :]
-                iszero(r) || append_products!(terms, 1, spins[i][a], words(r, j), n)
-            end
-        end
-    end
-
-    # Merged because the cubic list is contracted once per loop wavevector, the
-    # innermost loop of the whole calculation, and because the quartic list is
-    # Wick decoupled term by term.
-    return merge_monomials([terms; anisotropy_monomials(swt, Val{K}())])
 end
 
 # True when the cubic vertex is numerically zero, so that everything it
