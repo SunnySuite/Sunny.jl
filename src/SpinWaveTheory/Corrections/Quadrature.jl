@@ -155,59 +155,134 @@ packed_index(n, n′) = n + n′ * (n′ - 1) ÷ 2
 # Element (n, n′) of packed Hermitian bin `v`, for any n, n′
 bin_entry(v, n, n′) = n ≤ n′ ? v[packed_index(n, n′)] : conj(v[packed_index(n′, n)])
 
-# Accumulates the rank-one mass c y y† at bath energy x. The weight c carries the
-# sign of the channel, and would carry its thermal factor at T > 0.
-function accum_binned!(ρ::PairMeasure, x, c, y)
-    t = x / ρ.Δ
-    j = floor(Int, t)
-    f = t - j
-    for (jj, cc) in ((j, c * (1 - f)), (j + 1, c * f))
-        v = get!(() -> zeros(ComplexF64, packed_index(ρ.dim, ρ.dim)), ρ.bins, jj)
-        @inbounds for n′ in 1:ρ.dim, n in 1:n′
-            v[packed_index(n, n′)] += cc * y[n] * conj(y[n′])
+# Accumulates the rank-one masses c_i y_i y_i† at bath energies xs[i], with y_i
+# the columns of `Y`. Each mass is split linearly between its two nearest bins.
+# The weight c carries the sign σ of the channel, and would carry its thermal
+# factor at T > 0. Sorting the shares by bin makes each bin one rank-k update,
+# of the scaled columns stored in the workspace `Z`, of size at least dim × 2n.
+function accum_binned!(ρ::PairMeasure, xs, cs, Y; Z=zeros(ComplexF64, ρ.dim, 2length(xs)))
+    σ = sign(sum(cs))
+    all(c -> σ * c ≥ 0, cs) || error("Masses of one measure must share a sign")
+    ts = xs / ρ.Δ
+    js = floor.(Int, ts)
+    bins = [js; js .+ 1]
+    weights = abs.([cs .* (js .+ 1 - ts); cs .* (ts - js)])
+    perm = sortperm(bins)
+    Z = view(Z, :, eachindex(perm))
+    Z .= view(Y, :, mod1.(perm, length(xs))) .* sqrt.(weights[perm])'
+    bins = bins[perm]
+    S = zeros(ComplexF64, ρ.dim, ρ.dim)
+    for j in unique(bins)
+        BLAS.herk!('U', 'N', σ, view(Z, :, searchsorted(bins, j)), 0.0, S)
+        v = get!(() -> zeros(ComplexF64, packed_index(ρ.dim, ρ.dim)), ρ.bins, j)
+        for n′ in 1:ρ.dim, n in 1:n′
+            v[packed_index(n, n′)] += S[n, n′]
         end
     end
 end
 
 # Cauchy transform K(z) = Σ_j ρ_j / (z - jΔ), summed over the measures `ρs` and
-# returned as a `dim×dim×length(zs)` array. Frequencies are processed in small
-# blocks, which keeps the matrix products cache resident.
-function cauchy_transform(ρs, zs; nb=16)
+# returned as a `dim×dim×length(zs)` array. Each Hermitian bin is transformed as
+# the real and imaginary parts of its packed upper triangle, real series that
+# are then unpacked into K. If `zs` is a range whose step is a whole number of
+# bins, the sum is a discrete convolution, evaluated by FFT where the bins are
+# dense enough to pay for it.
+function cauchy_transform(ρs, zs)
     dim = first(ρs).dim
     K = zeros(ComplexF64, dim, dim, length(zs))
-    Kr = reshape(K, dim^2, length(zs))
     for ρ in ρs
-        js = collect(keys(ρ.bins))
-        P = zeros(ComplexF64, dim^2, length(js))
-        for (i, j) in enumerate(js), n′ in 1:dim, n in 1:dim
-            P[n + (n′ - 1) * dim, i] = bin_entry(ρ.bins[j], n, n′)
+        isempty(ρ.bins) && continue
+        y = if use_fft(ρ, zs)
+            packed_transform_fft(ρ, zs, round(Int, real(step(zs)) / ρ.Δ))
+        else
+            packed_transform(ρ, zs)
         end
-        C = zeros(ComplexF64, length(js), nb)
-        for r in Iterators.partition(eachindex(zs), nb)
-            Cr = view(C, :, 1:length(r))
-            for (k, iz) in enumerate(r), (i, j) in enumerate(js)
-                Cr[i, k] = 1 / (zs[iz] - j * ρ.Δ)
-            end
-            mul!(view(Kr, :, r), P, Cr, true, true)
+        # The series S and A of each packed entry give K_ab += S + iA and
+        # K_ba += S - iA
+        for k in eachindex(zs), b in 1:dim, a in 1:b
+            c = packed_index(a, b)
+            (S, A) = (y[2c-1, k], y[2c, k])
+            K[a, b, k] += S + im * A
+            a == b || (K[b, a, k] += S - im * A)
         end
     end
     return K
 end
-# Applies `f` to each index, optionally in parallel. The wavevector loops of
-# this module allocate their buffers per iteration so that they may be threaded.
-# A progress bar labeled `desc` is shown unless `desc` is nothing; `next!` is
-# itself thread safe. To animate the bar, stdout must allow the `\r` character
-# to rewrite the current line; this is only supported on TTY outputs.
-function foreach_maybe_threaded(f, threaded, indices; desc=nothing)
-    enabled = !isnothing(desc) && stdout isa Base.TTY
-    meter = ProgressMeter.Progress(length(indices); desc=@something(desc, ""),
-                                  enabled, output=stdout)
-    g = i -> (f(i); ProgressMeter.next!(meter))
-    if threaded
-        Threads.@threads for i in indices
-            g(i)
-        end
-    else
-        foreach(g, indices)
+
+# Whether the FFT pays for itself. The explicit sum costs nbins × nz per entry,
+# the FFT (m + 2) N log N, at a similar cost per operation (measured on Apple M5).
+function use_fft(ρ::PairMeasure, zs)
+    zs isa AbstractRange && length(zs) > 1 && iszero(imag(step(zs))) || return false
+    m = round(Int, real(step(zs)) / ρ.Δ)
+    m > 0 && m * ρ.Δ ≈ real(step(zs)) || return false
+    (j0, j1) = extrema(keys(ρ.bins))
+    N = length(zs) + cld(j1 - j0 + 1, m)
+    return length(ρ.bins) * length(zs) > (m + 2) * N * log2(N)
+end
+
+# Transforms of the packed series of `ρ` at each of `zs`, as a matrix with one
+# row per series, by explicit sum over bins.
+function packed_transform(ρ::PairMeasure, zs)
+    y = zeros(ComplexF64, 2packed_index(ρ.dim, ρ.dim), length(zs))
+    for (j, v) in ρ.bins, (k, z) in enumerate(zs)
+        c = 1 / (z - j * ρ.Δ)
+        @views y[:, k] .+= c .* reinterpret(Float64, v)
     end
+    return y
+end
+
+# As `packed_transform`, at zs[k+1] = z₀ + k m Δ for k = 0, …, n-1. Writing each
+# bin index as j = j₀ + m i + r, with 0 ≤ r < m,
+#
+#     K_k = Σ_r Σ_i ρ_{j₀+mi+r} h^r_{k-i},   h^r_s = 1 / (z₀ - (j₀ + r)Δ + s m Δ),
+#
+# is a sum of m convolutions on the grid of `zs`. These are summed in Fourier
+# space, so that a single inverse transform serves every r, and a circular
+# convolution of length N ≥ n + ni - 1 is exact at k < n. The real series are
+# convolved by real FFTs with the real and imaginary parts of h, a block of `nc`
+# series at a time.
+function packed_transform_fft(ρ::PairMeasure, zs, m; nc=64)
+    (; Δ, bins) = ρ
+    n = length(zs)
+    ns = 2packed_index(ρ.dim, ρ.dim)
+    (j0, j1) = extrema(keys(bins))
+    ni = cld(j1 - j0 + 1, m)
+    N = nextprod((2, 3, 5), n + ni - 1)
+
+    # The series of each bin j0 + mi + r, at vs[mi + r + 1]
+    empty = zeros(ComplexF64, ns ÷ 2)
+    vs = [reinterpret(Float64, get(bins, j, empty)) for j in j0:j0+m*ni-1]
+
+    h = [1 / (first(zs) - (j0 + r) * Δ + (k < n ? k : k - N) * m * Δ) for k in 0:N-1, r in 0:m-1]
+    (ĥr, ĥi) = (FFTW.rfft(real(h), 1), FFTW.rfft(imag(h), 1))
+
+    X = zeros(N, nc)
+    X̂ = zeros(ComplexF64, N ÷ 2 + 1, nc)
+    (Yr, Yi) = (similar(X̂), similar(X̂))
+    (yr, yi) = (similar(X), similar(X))
+    pf = FFTW.plan_rfft(X, 1)
+    pb = FFTW.plan_brfft(X̂, N, 1)
+    y = zeros(ComplexF64, ns, n)
+    for cs in Iterators.partition(1:ns, nc)
+        fill!(Yr, 0)
+        fill!(Yi, 0)
+        # Rows past ni stay zero, as the circular convolution requires
+        for r in 0:m-1
+            for i in 0:ni-1
+                v = vs[m*i + r + 1]
+                for (c′, c) in enumerate(cs)
+                    X[i+1, c′] = v[c]
+                end
+            end
+            mul!(X̂, pf, X)
+            @. Yr += X̂ * $view(ĥr, :, r+1)
+            @. Yi += X̂ * $view(ĥi, :, r+1)
+        end
+        mul!(yr, pb, Yr)
+        mul!(yi, pb, Yi)
+        for (c′, c) in enumerate(cs), k in 1:n
+            y[c, k] = complex(yr[k, c′], yi[k, c′]) / N
+        end
+    end
+    return y
 end
