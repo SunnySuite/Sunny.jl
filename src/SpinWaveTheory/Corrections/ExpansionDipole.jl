@@ -178,11 +178,15 @@ end
 # Words of the spin component 𝐫 ⋅ 𝐒 of site i, for a vector `r` in the local
 # frame, each at its leading power x^{2-n}. A spin component is exact in the
 # truncated Holstein-Primakoff expansion, which keeps every word at leading
-# order; see the truncation rule at the top of this file.
-function spin_component_words(r, x)
-    𝒪 = r[1] * GRADED_SPINS[1] + r[2] * GRADED_SPINS[2] + r[3] * GRADED_SPINS[3]
-    return local_words!(Dict{Tuple{Int, Int}, ComplexF64}(), 𝒪, x, n -> 2 - n)
+# order; see the truncation rule at the top of this file. The words are linear
+# in `r`, and those of each axis carry the single power x^{2-n}, so they are
+# expanded once for x = 1 and rescaled.
+const SPIN_AXIS_WORDS = map(1:3) do α
+    local_words!(Dict{Tuple{Int, Int}, ComplexF64}(), GRADED_SPINS[α], 1.0, n -> 2 - n)
 end
+
+spin_component_words(r, x) =
+    Dict(k => x^(2 - (k[1] + 2k[2])) * sum(r[α] * SPIN_AXIS_WORDS[α][k] for α in 1:3) for k in keys(SPIN_AXIS_WORDS[1]))
 
 # Holstein-Primakoff expansion of the onsite anisotropy of site i, as the words of
 # `local_words!`. Note that the transverse components generate words of every odd
