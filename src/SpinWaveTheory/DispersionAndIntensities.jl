@@ -257,7 +257,7 @@ function intensities_bands(swt::SpinWaveTheory, sys::System, measure::MeasureSpe
         view(disp, :, iq) .= view(excitations_supercell!(ws, H, swt, q_supercell), 1:L)
 
         # Linearized observables Â_μ(q) in Holstein-Primakoff bosons
-        set_swt_observable_vectors!(u, swt, sys, measure, q_supercell, q_global)
+        set_swt_observable_vectors!(u, swt, sys, measure, q_global)
 
         # Fill `intensity` array
         for band in 1:L
