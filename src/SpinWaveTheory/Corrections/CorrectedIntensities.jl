@@ -53,8 +53,8 @@
 
 """
     corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, tol=0.01,
-                          dyson=:nambu, loop_grid=nothing, vacuum=MagnonVacuum(swt),
-                          mark_breakdown=true, threaded=false, verbose=false)
+                          dyson=:nambu, vacuum=MagnonVacuum(swt), mark_breakdown=true,
+                          threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including one-loop
 spin-wave corrections, i.e., relative order ``1/s`` in dipole mode. Magnon
@@ -68,9 +68,10 @@ the linewidths of interest, but no smaller: the wavevector grid of the loop
 integrals grows as `1/η` in each dispersing dimension. An optional `kernel`,
 e.g. for instrumental resolution, can be used to postprocess the result.
 
-The accuracy target `tol` sets that grid, unless `loop_grid` is given
-explicitly. The static mean fields are summed on the same grid, which keeps
-Goldstone modes exactly gapless, grid by grid.
+The accuracy target `tol` sets that grid, or a [`BZGrid`](@ref) fixes it. The
+static mean fields are summed on the same grid, which keeps Goldstone modes
+exactly gapless, grid by grid. A `vacuum` solved on a `tol` of its own, e.g. by
+[`self_consistent_vacuum`](@ref), uses that one.
 
 The `dyson` option selects how the one-loop self-energy is resummed:
 
@@ -149,11 +150,11 @@ progress bar and diagnostics.
     and the linearization assume that the anomalous coupling is small against the
     ``2ε`` that separates a pole from its mirror.
 """
-function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, tol=0.01,
-                               loop_grid=nothing, mark_breakdown=true, dyson=:nambu, threaded=false,
-                               verbose=false, vacuum=MagnonVacuum(swt))
+function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, tol=nothing,
+                               mark_breakdown=true, dyson=:nambu, threaded=false, verbose=false,
+                               vacuum=MagnonVacuum(swt))
     (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
-        corrected_channels(swt, qpts; energies, η, tol, loop_grid, dyson, threaded, verbose, vacuum)
+        corrected_channels(swt, qpts; energies, η, tol, dyson, threaded, verbose, vacuum)
     data = reshape(transverse + cross + direct, length(energies), size(qpts.qs)...)
     res = Intensities(cryst, qpts, energies, data)
     isnothing(kernel) || (res = broaden(res; kernel))
@@ -164,8 +165,8 @@ function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=n
 end
 
 """
-    corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, tol=0.01, loop_grid=nothing,
-                                vacuum=MagnonVacuum(swt), threaded=false, verbose=false)
+    corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, tol=0.01, vacuum=MagnonVacuum(swt),
+                                threaded=false, verbose=false)
 
 Magnon bands at temperature ``T = 0`` with one-loop corrections, i.e., relative
 order ``1/s`` in dipole mode, for fitting a measured dispersion. These are the
@@ -180,9 +181,9 @@ redistribution of weight at that order. Here `η` regularizes the loop
 integrals only, and does not broaden the result. The widths are nonnegative,
 and the bands of ``𝐪`` mirror the hole poles at ``-𝐪`` exactly.
 """
-function corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, tol=0.01, loop_grid=nothing,
-                                     threaded=false, verbose=false, vacuum=MagnonVacuum(swt))
-    (; cryst, qpts, bands) = corrected_channels(swt, qpts; energies=Float64[], η, tol, loop_grid,
+function corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, tol=nothing, threaded=false,
+                                     verbose=false, vacuum=MagnonVacuum(swt))
+    (; cryst, qpts, bands) = corrected_channels(swt, qpts; energies=Float64[], η, tol,
                                                 dyson=:on_shell, threaded, verbose, vacuum)
     sz = (size(bands.disp, 1), size(qpts.qs)...)
     return BandIntensities(cryst, qpts, reshape(bands.disp, sz), reshape(bands.data, sz), reshape(bands.widths, sz))
@@ -201,7 +202,7 @@ end
 # quasi-particles are the internal lines of the loops and the basis of the Dyson
 # equation, its mean fields are contractions in its vacuum, and `disp` reports
 # its energies.
-function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, loop_grid=nothing,
+function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=nothing,
                             dyson=:nambu, threaded=false, verbose=false, spectral=false,
                             vacuum=MagnonVacuum(swt))
     dyson in (:nambu, :ladder, :particle, :on_shell) ||
@@ -230,7 +231,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
                      of η/2 or less adds little cost."""
         end
     end
-    ol = OneLoop(swt; η, tol, loop_grid, vacuum, energies)
+    ol = OneLoop(swt; η, tol, vacuum, energies)
 
     chans = (; transverse = zeros(eltype(measure), length(energies), length(qpts.qs)),
                cross = zeros(eltype(measure), length(energies), length(qpts.qs)),
@@ -321,7 +322,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
 
     if verbose
         println("""
-            corrected_intensities with tol = $tol
+            corrected_intensities with tol = $(resolve_tol(swt, vacuum, tol, 0.01))
               loop grid       $(join(ol.loop_grid, "×")) = $(prod(ol.loop_grid)) points""")
     end
 
