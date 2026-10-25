@@ -185,7 +185,6 @@ const SPIN_AXIS_WORDS = map(1:3) do α
     local_words!(Dict{Tuple{Int, Int}, ComplexF64}(), GRADED_SPINS[α], 1.0, n -> 2 - n)
 end
 
-#
 # A vacant site, x = 0, has no bosons and so no words. The cubic word would
 # otherwise divide by x.
 spin_component_words(r, x) = Dict(k => iszero(x) ? 0.0im : x^(2 - (k[1] + 2k[2])) * sum(r[α] * SPIN_AXIS_WORDS[α][k] for α in 1:3)

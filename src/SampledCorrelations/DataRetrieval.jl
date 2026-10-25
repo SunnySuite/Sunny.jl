@@ -1,5 +1,6 @@
-# Takes a list of q points in supercell RLU, converts into SampledCorrelation.data
-# indices and corresponding exact wave vectors, and eliminates repeated elements.
+# Takes a list of q points in supercell RLU, converts into
+# SampledCorrelation.data indices and corresponding exact wave vectors, and
+# eliminates repeated elements.
 function pruned_wave_vector_info(sc::SampledCorrelations, qs)
 
     # Round to the nearest wavevector and wrapped index

@@ -149,9 +149,9 @@ function monomials_SUN(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
     end
 
     if is_entangled(sys)
-        foreach_entangled_bilinear_term(sys) do i, j, ai, aj, J, n
+        foreach_entangled_bilinear_term(sys) do i, j, bi, bj, J, n
             for α in 1:3, β in 1:3
-                iszero(J[α, β]) || add_pair!(J[α, β] * spin_ops[α, ai], i, spin_ops[β, aj], j, Vec3(n))
+                iszero(J[α, β]) || add_pair!(J[α, β] * spin_ops[α, bi], i, spin_ops[β, bj], j, n)
             end
         end
     end
