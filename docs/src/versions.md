@@ -15,6 +15,13 @@
   ([#507](@ref)).
 * One-dimensional paths supported in [`q_space_grid`](@ref). Labeling of plot
   axes in 1D and 2D is clarified ([#516](@ref)).
+* **Breaking**: [`SpinWaveTheorySpiral`](@ref) now requires that interactions
+  be invariant under rotations about the polarization axis, consistent with
+  [`spiral_energy`](@ref). Long-range dipole-dipole interactions are no longer
+  supported in spiral spin wave theory, which previously gave incorrect
+  results; use [`SpinWaveTheory`](@ref) on a commensurate supercell instead.
+* Fix spin wave theory with dipole-dipole interactions and unequal spin
+  magnitudes.
 
 ## v0.9.2
 (Jul 13, 2026)
