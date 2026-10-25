@@ -91,8 +91,8 @@ end
     # Check equivalence of dispersion calculations in a field, which removes
     # the degeneracy that DM leaves at zero field. The Zeeman term is set on
     # the entangled system after construction and lives on the uncontracted
-    # clone. It must survive the reshape inside `SpinWaveTheory`; equivalence
-    # with the bare system confirms it is carried.
+    # clone. It must be carried into `SpinWaveTheory`, as equivalence with the
+    # bare system confirms.
     qs = [[0.1, 0, 0], [0.25, 0, 0], [0.3, 0.2, 0]]
     disp(s) = sort(dispersion(SpinWaveTheory(s; measure=nothing), qs); dims=1)
     for s in (esys, bsys)
@@ -417,6 +417,42 @@ end
               5.800316340774632  5.577887749213549  5.639863059424799
               11.597318534836047 11.597144492278936 11.597192079860365]
     @test isapprox(disp, golden; atol=1e-6)
+
+    # Dipole-dipole may also be enabled after entangling
+    dsys2 = System(box, moments, :SUN)
+    set_exchange!(dsys2, 1.0, Bond(1, 2, [0, 0, 0]))
+    set_exchange!(dsys2, 0.2, Bond(1, 1, [1, 0, 0]))
+    set_exchange!(dsys2, 0.2, Bond(2, 2, [1, 0, 0]))
+    set_field!(dsys2, [0, 0, -3])
+    edsys2 = entangle_system(dsys2, [[1, 2]])
+    enable_dipole_dipole!(edsys2, units.vacuum_permeability; demag=Sunny.Mat3(I/3))
+    for site in eachsite(edsys2)
+        set_coherent!(edsys2, edsys.coherents[site], site)
+    end
+    @test energy(edsys2) ≈ energy(edsys)
+
+    # The same dimer, translated so that its second atom wraps into the next
+    # cell, is described by a unit that straddles the cell boundary. Phases of
+    # the dipole-dipole couplings follow the units, not the bare sites.
+    shifted = Crystal([5.0 0 0; 0 5 0; 0 0 6], [[0, 0.9, 0], [0, 0.1, 0]], 1; types=["A","B"])
+    ssys = System(shifted, moments, :SUN)
+    set_exchange!(ssys, 1.0, Bond(1, 2, [0, 1, 0]))
+    set_exchange!(ssys, 0.2, Bond(1, 1, [1, 0, 0]))
+    set_exchange!(ssys, 0.2, Bond(2, 2, [1, 0, 0]))
+    set_field!(ssys, [0, 0, -3])
+    enable_dipole_dipole!(ssys, units.vacuum_permeability; demag=Sunny.Mat3(I/3))
+    essys = entangle_system(ssys, [[(1, [0, 0, 0]), (2, [0, 1, 0])]])
+    for site in eachsite(essys)
+        set_coherent!(essys, edsys.coherents[site], site)
+    end
+    @test energy(essys) ≈ energy(edsys)
+    sdisp = sort(dispersion(SpinWaveTheory(essys; measure=nothing), qs); dims=1)
+    @test isapprox(sdisp, golden; atol=1e-6)
+
+    # The matrix-free product, used by KPM, does not yet support dipole-dipole
+    swt = SpinWaveTheory(edsys; measure=nothing)
+    x = zeros(ComplexF64, 1, 2Sunny.nbands(swt))
+    @test_throws "Ewald not supported" Sunny.mul_dynamical_matrix(swt, x, [Sunny.Vec3(0.1, 0, 0)])
 end
 
 @testitem "Model parameters for entangled units" begin

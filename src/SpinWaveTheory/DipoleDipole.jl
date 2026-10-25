@@ -3,8 +3,9 @@
 # of magnetic moments μᵢ = -gᵢ Sᵢ contributes (μᵢ A μⱼ)/2 to the energy, and the
 # reversed pair (j, i) supplies the symmetric half. For an entangled system the
 # moments are those of the bare sites of each unit.
-function accum_ewald!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_supercell::Vec3)
+function accum_ewald!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_supercell)
     (; sys) = swt
+    q_supercell = Vec3(q_supercell)
     Aq = ewald_interaction_tensor(sys, q_supercell)
     A0 = ewald_interaction_tensor(sys, zero(Vec3))
     if sys.mode == :SUN
@@ -73,7 +74,7 @@ end
 # at q = 0. Linear terms on both units couple them, and take J at q.
 function accum_ewald_SUN!(H, swt, Aq, A0, q_supercell)
     (; sys, data) = swt
-    (; spin_ops) = data
+    (; spin_ops) = data::SWTDataSUN
     N = sys.Ns[1]
     Na = nsites(sys)
     L = (N-1) * Na
@@ -83,30 +84,44 @@ function accum_ewald_SUN!(H, swt, Aq, A0, q_supercell)
     H21 = reshape(view(H, L+1:2L, 1:L), blockdims)
     H22 = reshape(view(H, L+1:2L, L+1:2L), blockdims)
 
+    # The bosons live on units, so a bare site that wraps by a different number
+    # of magnetic cells than its unit contributes the corresponding phase
+    usys = uncontracted_system(sys)
+    windings = zeros(Vec3, nsites(usys))
+    if is_entangled(sys)
+        (; units) = get_entanglement(sys)
+        for (i, site) in enumerate(eachsite(sys)), (bi, part) in zip(bare_indices(sys, i), units[to_atom(site)])
+            windings[bi] = fld.(Tuple(to_cell(site)) .- 1 .+ Tuple(part.Δcell), usys.dims)
+        end
+    end
+
     for i in 1:Na, j in 1:Na, bi in bare_indices(sys, i), bj in bare_indices(sys, j)
         (Jq, J0) = ewald_coupling(Aq, A0, sys, q_supercell, bi, bj)
-        for α in 1:3, β in 1:3, m in 1:N-1, n in 1:N-1
+        Jq *= cis(-2π * dot(q_supercell, windings[bj] - windings[bi]))
+        for α in 1:3, β in 1:3
             A, B = spin_ops[α, bi], spin_ops[β, bj]
             jq, j0 = Jq[α, β], J0[α, β]
-            # Quadratic on one unit, mean on the other
-            ci = (A[m, n] - δ(m, n) * A[N, N]) * B[N, N]
-            cj = A[N, N] * (B[m, n] - δ(m, n) * B[N, N])
-            H11[m, i, n, i] += ci * j0
-            H22[n, i, m, i] += ci * j0
-            H11[m, j, n, j] += cj * j0
-            H22[n, j, m, j] += cj * j0
-            # Hopping i → j and j → i, and pairing
-            hij = A[m, N] * B[N, n]
-            hji = A[N, m] * B[n, N]
-            p = A[m, N] * B[n, N]
-            H11[m, i, n, j] += hij * jq
-            H22[n, j, m, i] += hij * conj(jq)
-            H11[n, j, m, i] += hji * conj(jq)
-            H22[m, i, n, j] += hji * jq
-            H12[m, i, n, j] += p * jq
-            H12[n, j, m, i] += p * conj(jq)
-            H21[n, j, m, i] += conj(p) * conj(jq)
-            H21[m, i, n, j] += conj(p) * jq
+            for m in 1:N-1, n in 1:N-1
+                # Quadratic on one unit, mean on the other
+                ci = (A[m, n] - δ(m, n) * A[N, N]) * B[N, N]
+                cj = A[N, N] * (B[m, n] - δ(m, n) * B[N, N])
+                H11[m, i, n, i] += ci * j0
+                H22[n, i, m, i] += ci * j0
+                H11[m, j, n, j] += cj * j0
+                H22[n, j, m, j] += cj * j0
+                # Hopping i → j and j → i, and pairing
+                hij = A[m, N] * B[N, n]
+                hji = A[N, m] * B[n, N]
+                p = A[m, N] * B[n, N]
+                H11[m, i, n, j] += hij * jq
+                H22[n, j, m, i] += hij * conj(jq)
+                H11[n, j, m, i] += hji * conj(jq)
+                H22[m, i, n, j] += hji * jq
+                H12[m, i, n, j] += p * jq
+                H12[n, j, m, i] += p * conj(jq)
+                H21[n, j, m, i] += conj(p) * conj(jq)
+                H21[m, i, n, j] += conj(p) * jq
+            end
         end
     end
 end
