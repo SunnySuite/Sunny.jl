@@ -2,7 +2,7 @@
 #
 # This tutorial calculates the spin wave spectrum of a triangular
 # antiferromagnet, including all perturbative corrections at order ``1/s``. The
-# result reproduces [Mourigal, Fuhrman, Chernyshev and Zhitomirsky, Phys. Rev. B
+# study follows [Mourigal, Fuhrman, Chernyshev and Zhitomirsky, Phys. Rev. B
 # **88**, 094407 (2013)](https://doi.org/10.1103/PhysRevB.88.094407).
 
 using Sunny, LinearAlgebra, Printf, Statistics
@@ -39,11 +39,21 @@ energies = 0:(η/2):(20s/3)
 res = Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true)
 ;#hide
 
-# The plotted intensities may be compared with the [erratum
-# figure](https://doi.org/10.1103/PhysRevB.93.099901) of Mourigal et al. Sunny
-# goes beyond previous work by including interference between transverse and
-# longitudinal channels. This additional correction to the two-magnon continuum
-# completes the full set of ``1/s`` corrections.
+# Plot the corrected intensities. Gray pixels indicate regions where the theory
+# is uncontrolled, as detected by resummed magnon poles that fall below half of
+# the lowest harmonic energy.
+#
+# A visual comparison with Fig. 4 of Mourigal et al. highlights significant
+# deviations, especially in the ``s = 1/2`` case at lower energies. The two
+# schemes agree at order ``1/s``, but differ in their resummation procedure.
+# Sunny solves the Dyson equation in the full Nambu (particle/hole) space,
+# whereas Mourigal et al. project to the particle space alone [concretely, see
+# Eq. (12) for their resummation procedure]. Sunny's choice is the standard form
+# of the Dyson equation for bosons with broken symmetry, and is the one that
+# respects Goldstone's theorem. It can also produce renormalized poles with
+# imaginary frequency and these signal where perturbation theory becomes
+# uncontrolled. To more closely reproduce Fig. 4 of Mourigal et al., recalculate
+# `corrected_intensities` with the hidden option `resummation=:particle`.
 
 plot_intensities(res; colormap=:jet, colorrange=(0, s+3/2),
                  title="s = $s_str", axis=(; xlabel="", ylabel="ω / J"))
