@@ -80,10 +80,10 @@
 # cluster with anisotropic interactions and readouts.
 #
 # Entry points. Every function takes `swt`, whose Gaussian state is the vacuum,
-# harmonic by default. Loop integrals take a `BZGrid` or auto-select one
-# according to `η`. Static averages accept either a `BZGrid` or parameters
-# `BZAdaptive` for adaptive cubature. A state produced by `self_consistent`
-# records its grid, which subsequent calls use by default.
+# harmonic by default. The keyword `bz` selects the quadrature over the zone: a
+# relative accuracy, met by adaptive cubature for static averages and by a grid
+# resolving `η` for loop integrals, or the dimensions of a fixed grid. A state
+# produced by `self_consistent` records its grid, which subsequent calls use.
 #
 #     Vacuum       self_consistent, GoldstonePin, with_correction
 #     Spectra      corrected_intensities, corrected_intensities_bands

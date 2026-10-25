@@ -53,8 +53,7 @@
 
 """
     corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, dyson=:nambu,
-                          grid=auto_bzgrid(swt; η, tol=0.01), mark_breakdown=true,
-                          threaded=false, verbose=false)
+                          bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including one-loop
 spin-wave corrections, i.e., relative order ``1/s`` in dipole mode. Magnon
@@ -68,15 +67,13 @@ the linewidths of interest, but no smaller: the wavevector grid of the loop
 integrals grows as `1/η` in each dispersing dimension. An optional `kernel`,
 e.g. for instrumental resolution, can be used to postprocess the result.
 
-Loop integrals over the Brillouin zone are approximated as a discrete sum over
-the points of the [`BZGrid`](@ref). The [`auto_bzgrid`](@ref) default resolves
-`η` in the dispersion of `swt` to a relative accuracy of `tol=0.01`. The static
-mean fields are summed on the same grid, which keeps Goldstone modes exactly
-gapless.
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref). The static mean fields are summed on the grid of the
+loop integrals, which keeps Goldstone modes exactly gapless.
 
 The bosons are expanded about the Gaussian state of `swt`, by default the
-harmonic vacuum of LSWT. A state from `Sunny.self_consistent` is used on
-the grid on which it was solved. Its correction to the quadratic Hamiltonian is
+harmonic vacuum of LSWT. A state from `Sunny.self_consistent` is used on the
+grid on which it was solved. Its correction to the quadratic Hamiltonian is
 subtracted as a counterterm, so that the result differs from the ``1/s``
 expansion only at the order neglected. A correction that was added to pin a
 Goldstone mode is therefore removed again; for the spectrum of the corrected
@@ -94,14 +91,14 @@ The `dyson` option selects how the one-loop self-energy is resummed:
   resonances, as in the truncated Hilbert space exact diagonalization of [Zhang
   et al., arXiv:2508.21142](https://arxiv.org/abs/2508.21142), but in the full
   Nambu space. A static counterterm keeps the magnon dispersion at ``ω = 0``,
-  and so every Goldstone mode, exactly that of `:nambu`. In a gapped magnet
-  this counterterm removes a physical shift, so that the result departs
-  slightly from the exact ladder. The ladder is beyond one-loop order. Near a
-  Goldstone mode the off-shell quartic vertex lacks its Adler zero. In two
-  dimensions, once the loop grid is fine enough, it binds pairs of soft magnons
-  below ``ω = 0`` at the Goldstone wavevectors, which is reported as a
-  breakdown there. In three dimensions, results near the Goldstone mode are
-  sensitive to the loop grid. Gapped magnets have no Adler zero to protect.
+  and so every Goldstone mode, exactly that of `:nambu`. In a gapped magnet this
+  counterterm removes a physical shift, so that the result departs slightly from
+  the exact ladder. The ladder is beyond one-loop order. Near a Goldstone mode
+  the off-shell quartic vertex lacks its Adler zero. In two dimensions, once the
+  loop grid is fine enough, it binds pairs of soft magnons below ``ω = 0`` at
+  the Goldstone wavevectors, which is reported as a breakdown there. In three
+  dimensions, results near the Goldstone mode are sensitive to the loop grid.
+  Gapped magnets have no Adler zero to protect.
 - `:particle` keeps only the particle block of the self-energy, and collects the
   magnon response plus the bare two-magnon continuum without interference. The
   intensity is never negative at ``ω > 0``. Pole shifts are correct at order
@@ -165,10 +162,9 @@ progress bar and diagnostics.
     ``2ε`` that separates a pole from its mirror.
 """
 function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, dyson=:nambu,
-                               grid::BZGrid=auto_bzgrid(swt; η, tol=0.01),
-                               mark_breakdown=true, threaded=false, verbose=false)
+                               bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
     (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
-        corrected_channels(swt, qpts; energies, η, dyson, grid, threaded, verbose)
+        corrected_channels(swt, qpts; energies, η, dyson, bz, threaded, verbose)
     data = reshape(transverse + cross + direct, length(energies), size(qpts.qs)...)
     res = Intensities(cryst, qpts, energies, data)
     isnothing(kernel) || (res = broaden(res; kernel))
@@ -179,7 +175,7 @@ function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=n
 end
 
 """
-    corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, grid=auto_bzgrid(swt; η, tol=0.01),
+    corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, bz=nothing,
                                 threaded=false, verbose=false)
 
 Magnon bands at temperature ``T = 0`` with one-loop corrections, i.e., relative
@@ -187,18 +183,18 @@ order ``1/s`` in dipole mode, for fitting a measured dispersion. These are the
 poles of the `dyson=:on_shell` option of [`corrected_intensities`](@ref), which
 describes the scheme and its limits; the two-magnon continuum is omitted.
 
-Each band carries a shifted energy and a half width at half maximum in the
-field `widths`, arising from decay into the two-magnon continuum, both correct
-at order ``1/s``. The intensity of each band is that of linear spin wave
-theory, for the observables corrected at order ``1/s``; it omits the
-redistribution of weight at that order. Here `η` regularizes the loop
-integrals only, and does not broaden the result. The widths are nonnegative,
-and the bands of ``𝐪`` mirror the hole poles at ``-𝐪`` exactly.
+Each band carries a shifted energy and a half width at half maximum in the field
+`widths`, arising from decay into the two-magnon continuum, both correct at
+order ``1/s``. The intensity of each band is that of linear spin wave theory,
+for the observables corrected at order ``1/s``; it omits the redistribution of
+weight at that order. Here `η` regularizes the loop integrals only, and does not
+broaden the result. The widths are nonnegative, and the bands of ``𝐪`` mirror
+the hole poles at ``-𝐪`` exactly.
 """
-function corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, grid::BZGrid=auto_bzgrid(swt; η, tol=0.01),
+function corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, bz=nothing,
                                      threaded=false, verbose=false)
     (; cryst, qpts, bands) = corrected_channels(swt, qpts; energies=Float64[], η, dyson=:on_shell,
-                                                grid, threaded, verbose)
+                                                bz, threaded, verbose)
     sz = (size(bands.disp, 1), size(qpts.qs)...)
     return BandIntensities(cryst, qpts, reshape(bands.disp, sz), reshape(bands.data, sz), reshape(bands.widths, sz))
 end
@@ -217,8 +213,7 @@ end
 # of the Dyson equation, its mean fields are contractions in it, and `disp`
 # reports its energies.
 function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, dyson=:nambu,
-                            grid::BZGrid=auto_bzgrid(swt; η, tol=0.01),
-                            threaded=false, verbose=false, spectral=false)
+                            bz=nothing, threaded=false, verbose=false, spectral=false)
     dyson in (:nambu, :ladder, :particle, :on_shell) ||
         error("Unknown `dyson=:$dyson`; use :nambu, :ladder, :particle or :on_shell.")
 
@@ -245,7 +240,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, dyson=:namb
                      of η/2 or less adds little cost."""
         end
     end
-    ol = OneLoop(swt; energies, η, grid)
+    ol = OneLoop(swt; energies, η, bz)
 
     chans = (; transverse = zeros(eltype(measure), length(energies), length(qpts.qs)),
                cross = zeros(eltype(measure), length(energies), length(qpts.qs)),

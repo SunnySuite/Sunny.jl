@@ -608,7 +608,7 @@ end
 
         # Likewise for the 1/s corrections, whose vertices must not divide by
         # the vanishing spin magnitude of the vacancy
-        bz = Sunny.BZGrid(4, 1, 1)
+        bz = (4, 1, 1)
         @test Sunny.boson_density(SpinWaveTheory(sys; measure=nothing); bz)[1] ≈
               Sunny.boson_density(SpinWaveTheory(sys_ref; measure=nothing); bz)[1]
         @test Sunny.corrected_magnetic_moments(SpinWaveTheory(sys; measure=nothing); bz)[1] ≈

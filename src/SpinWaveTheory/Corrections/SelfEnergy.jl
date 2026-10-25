@@ -39,7 +39,7 @@
 # point integrate the loop exactly.
 
 """
-    cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid=auto_bzgrid(swt; η, tol=0.01))
+    cubic_self_energy(swt::SpinWaveTheory, qpts; η, bz=nothing)
 
 On-shell self-energy of each magnon due to the cubic term of the
 Holstein-Primakoff expansion, ``Σ_n(𝐪, ε_{𝐪n})``, where ``ε`` are the energies
@@ -56,14 +56,14 @@ full Nambu matrix of the static and cubic self-energy, see [`SelfEnergy`](@ref).
 In `:dipole` and `:dipole_uncorrected` modes the self-energy vanishes
 identically for a collinear magnetic structure. That is special to those modes,
 and does not carry over to `:SUN`, where a single-ion level may decay into two
-magnons of different flavors even when every dipole is parallel. It is otherwise
-given by a discrete sum over the points of `grid`, as in
-[`corrected_intensities`](@ref). Unlike the smooth integrands elsewhere in this
-module, this one is singular wherever a magnon is degenerate with a pair of
-magnons, so it is regularized by a small positive broadening `η`, and both must
-be converged together: `η` must exceed the grid spacing of the energies being
-integrated, while remaining small compared to the linewidths themselves. The
-default grid is chosen accordingly.
+magnons of different flavors even when every dipole is parallel. Unlike the
+smooth integrands elsewhere in this module, this one is singular wherever a
+magnon is degenerate with a pair of magnons, so it is regularized by a small
+positive broadening `η`, and both must be converged together: `η` must exceed
+the grid spacing of the energies being integrated, while remaining small
+compared to the linewidths themselves. The default grid is chosen accordingly.
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref).
 
 The real part converges much more readily than the imaginary one, being a
 principal value. Taking `η` below the energy grid spacing makes the imaginary
@@ -73,10 +73,10 @@ surface entirely. A width that halves when `η` does is such an artifact.
 Because only the diagonal part of the self-energy is returned, the result is
 unreliable where two bands are degenerate.
 """
-function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid::BZGrid=auto_bzgrid(swt; η, tol=0.01))
+function cubic_self_energy(swt::SpinWaveTheory, qpts; η, bz=nothing)
     check_corrections_supported(swt)
     η > 0 || error("Broadening η must be positive")
-    check_grid(swt, grid)
+    grid = loop_bz(swt, bz; η)
 
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
@@ -102,10 +102,10 @@ end
 # the derivation above. Returns an array of size (2L, 2L, length(zs)). The
 # internal lines are the quasi-particles of the Gaussian state of `swt`, which
 # are also the basis of the external legs.
-function cubic_self_energy_matrix(swt::SpinWaveTheory, q, zs; η, grid::BZGrid=auto_bzgrid(swt; η, tol=0.01))
+function cubic_self_energy_matrix(swt::SpinWaveTheory, q, zs; η, bz=nothing)
     check_corrections_supported(swt)
     η > 0 || error("Broadening η must be positive")
-    check_grid(swt, grid)
+    grid = loop_bz(swt, bz; η)
     k = to_supercell_rlu(swt.sys, q)
     return cubic_self_energy_at(swt, cubic_monomials(swt), k, zs, loop_wavevectors(grid.dims, k), η)
 end
@@ -312,7 +312,7 @@ function pair_channels(terms4::Vector{BosonMonomial{4}}, q_supercell, L)
 end
 
 """
-    OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid=auto_bzgrid(swt; η, tol=0.01))
+    OneLoop(swt::SpinWaveTheory; energies=nothing, η, bz=nothing)
 
 The one-loop expansion about the Gaussian state of `swt`, with everything that is common to all
 wavevectors: the mean-field, tadpole and anisotropy corrections to the quadratic
@@ -343,10 +343,10 @@ struct OneLoop
     δpair     :: Matrix{Vector{BosonMonomial{2}}}
 end
 
-function OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid::BZGrid=auto_bzgrid(swt; η, tol=0.01))
+function OneLoop(swt::SpinWaveTheory; energies=nothing, η, bz=nothing)
     check_corrections_supported(swt)
     η > 0 || error("Regulator `η` must be positive.")
-    check_grid(swt, grid)
+    grid = loop_bz(swt, bz; η)
     loop_grid = grid.dims
 
     # A negligible cubic vertex is dropped outright, e.g. collinear order in

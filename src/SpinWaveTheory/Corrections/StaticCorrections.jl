@@ -11,7 +11,7 @@
 # broken continuous symmetry, gapping a mode that should be gapless.
 
 """
-    hartree_fock_correction(swt::SpinWaveTheory; bz=default_bz(swt))
+    hartree_fock_correction(swt::SpinWaveTheory; bz=nothing)
 
 Decouples the four-boson term of the Holstein-Primakoff expansion into a
 mean-field correction to the quadratic (LSWT) Hamiltonian, with mean fields
@@ -27,12 +27,12 @@ degenerate family (order by disorder), the mean fields are taken in the Gaussian
 state of its positive-norm modes, and the corrected Hamiltonian may then be
 stable where LSWT is not.
 
-Brillouin zone integrals are evaluated according to `bz`, either
-[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref).
 """
-function hartree_fock_correction(swt::SpinWaveTheory; bz::BZIntegration=default_bz(swt))
+function hartree_fock_correction(swt::SpinWaveTheory; bz=nothing)
     check_corrections_supported(swt)
-    check_grid(swt, bz)
+    bz = static_bz(swt, bz)
     terms4 = quartic_monomials(swt)
     (; terms2, δE) = mean_field(terms4, contractions(swt, terms4, bz))
     return (; terms2, δE = δE / nsites(uncontracted_system(swt.sys)))
@@ -88,7 +88,7 @@ function constraint_terms(pin::GoldstonePin, swt, terms2)
 end
 
 """
-    self_consistent(swt::SpinWaveTheory; grid, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200)
+    self_consistent(swt::SpinWaveTheory; bz, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200)
 
 The [`SpinWaveTheory`](@ref) about the Gaussian state that reproduces its own
 mean field, i.e. self-consistent Hartree-Fock-Bogoliubov. Its `dispersion` and
@@ -108,14 +108,14 @@ reported in the `info` of the state.
 
 [`self_consistent_tadpole`](@ref) additionally relaxes the structure.
 
-Momentum integrals are discrete sums over the points of `grid`, a
-[`BZGrid`](@ref). The state records it, and every ``1/s`` correction about
-this state uses the same grid by default, so that the counterterm cancels the
-mean field exactly in [`corrected_intensities`](@ref). A grid that resolves a
-regulator `η` there is, e.g., `auto_bzgrid(swt; η, tol=0.01)`.
+`bz` specifies an explicit grid for integration. The state records it, and every
+``1/s`` correction about this state uses the same grid, so that the counterterm
+cancels the mean field exactly in [`corrected_intensities`](@ref).
 """
-function self_consistent(swt::SpinWaveTheory; grid::BZGrid, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200,
+function self_consistent(swt::SpinWaveTheory; bz, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200,
                          memory=5)
+    grid = to_bz(bz)
+    grid isa BZGrid || error("Self-consistency needs grid dimensions `bz = (n1, n2, n3)`.")
     # The fixed point of g ↦ contractions in the vacuum of H₂ plus the mean
     # field of g. The iteration is accelerated by Anderson mixing over the last
     # `memory` iterates, with real coefficients, so each iterate is an affine
@@ -187,7 +187,7 @@ function self_consistent(swt::SpinWaveTheory; grid::BZGrid, constraints=(), gues
 end
 
 """
-    self_consistent_tadpole(swt::SpinWaveTheory; grid, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200, memory=5)
+    self_consistent_tadpole(swt::SpinWaveTheory; bz, constraints=(), guess=nothing, scf_tol=1e-8, maxiters=200, memory=5)
 
 Like [`self_consistent`](@ref), but additionally relaxes the structure: the
 dipoles are rotated until the energy of the state is stationary in their
@@ -227,12 +227,14 @@ the anomalous ones carry a phase in each local frame, which pins the azimuth,
 so the relaxation cannot drift along the symmetry, and a converged state
 rotated by it is again converged, with the same spectrum.
 """
-function self_consistent_tadpole(swt::SpinWaveTheory; grid::BZGrid, constraints=(), guess=nothing, scf_tol=1e-8,
+function self_consistent_tadpole(swt::SpinWaveTheory; bz, constraints=(), guess=nothing, scf_tol=1e-8,
                                  maxiters=200, memory=5)
+    grid = to_bz(bz)
+    grid isa BZGrid || error("Self-consistency needs grid dimensions `bz = (n1, n2, n3)`.")
     swt.sys.mode == :dipole || error("Self-consistent tadpole requires mode :dipole")
     frames = swt.data.local_rotations
     for iter in 1:maxiters
-        sc = self_consistent(with_frames(swt, frames); grid, constraints, guess, scf_tol, maxiters, memory)
+        sc = self_consistent(with_frames(swt, frames); bz=grid, constraints, guess, scf_tol, maxiters, memory)
         frames′ = relax_frames(sc, grid)
         δ = maximum(norm(R[:, 3] - R′[:, 3]) for (R, R′) in zip(frames, frames′))
         δ < 10scf_tol && return SpinWaveTheory(sc, GaussianState(sc.state.correction, grid,
@@ -337,7 +339,7 @@ end
 # correction from H₄.
 
 """
-    tadpole_correction(swt::SpinWaveTheory; bz=default_bz(swt))
+    tadpole_correction(swt::SpinWaveTheory; bz=nothing)
 
 Computes the shift of the ordered magnetic structure caused by zero-point
 fluctuations, which appears at relative order ``1/s``. An example is the change
@@ -358,12 +360,12 @@ should be applied together. Restoring an exact Goldstone mode requires, in
 addition, the self-energy generated by the cubic vertex, which enters at the
 same order.
 
-Brillouin zone integrals are evaluated according to `bz`, either
-[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref).
 """
-function tadpole_correction(swt::SpinWaveTheory; bz::BZIntegration=default_bz(swt))
+function tadpole_correction(swt::SpinWaveTheory; bz=nothing)
     check_corrections_supported(swt)
-    check_grid(swt, bz)
+    bz = static_bz(swt, bz)
     terms3 = cubic_monomials(swt)
     (; terms2, δE, w) = tadpole(swt, terms3, contractions(swt, terms3, bz))
     return (; terms2, δE = δE / nsites(uncontracted_system(swt.sys)), v = w[1:nbands(swt)])
@@ -418,7 +420,7 @@ function tadpole(swt::SpinWaveTheory, terms3, g::Contractions)
 end
 
 """
-    observable_corrections(swt::SpinWaveTheory; v=nothing, bz=default_bz(swt))
+    observable_corrections(swt::SpinWaveTheory; v=nothing, bz=nothing)
 
 Correction of relative order ``1/s`` to the amplitude for a magnon to be created
 by each observable. Two effects contribute at this order: the cubic term of the
@@ -429,12 +431,12 @@ displacement `v` of [`tadpole_correction`](@ref), and is omitted if `v` is
 labeled as in [`accum_observable_corrections!`](@ref), which is what applies
 them.
 
-Brillouin zone integrals are evaluated according to `bz`, either
-[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref).
 """
-function observable_corrections(swt::SpinWaveTheory; v=nothing, bz::BZIntegration=default_bz(swt))
+function observable_corrections(swt::SpinWaveTheory; v=nothing, bz=nothing)
     check_corrections_supported(swt)
-    check_grid(swt, bz)
+    bz = static_bz(swt, bz)
     w = isnothing(v) ? nothing : [v; conj(v)]
     g = contractions(swt, all_observable_monomials(swt, Val{3}()), bz)
     return observable_corrections(swt, w, g)
@@ -454,7 +456,7 @@ function observable_corrections(swt::SpinWaveTheory, w, g::Contractions)
 end
 
 """
-    corrected_energy_per_site(swt::SpinWaveTheory; bz=BZAdaptive(tol=0.01))
+    corrected_energy_per_site(swt::SpinWaveTheory; bz=nothing)
 
 Energy per site of the magnetic structure, corrected at relative order ``1/s``,
 where ``s`` is the spin magnitude in dipole mode, or ``1/λ`` for the
@@ -474,17 +476,18 @@ Not included are the corrections of [`tadpole_correction`](@ref) and
 to this result. See [`gaussian_energy_per_site`](@ref) for the energy of a
 self-consistent state.
 
-Brillouin zone integrals are evaluated according to `bz`, either
-[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref).
 """
-function corrected_energy_per_site(swt::SpinWaveTheory; bz::BZIntegration=BZAdaptive(tol=0.01))
+function corrected_energy_per_site(swt::SpinWaveTheory; bz=nothing)
     # Vanishes in :SUN mode, where an onsite coupling enters the boson
     # Hamiltonian exactly and there is nothing to add.
-    return swt.classical_energy + zero_point_energy(harmonic(swt), bz) + anisotropy_correction(swt).δE
+    vacuum = harmonic(swt)
+    return swt.classical_energy + zero_point_energy(vacuum, static_bz(vacuum, bz)) + anisotropy_correction(swt).δE
 end
 
 """
-    gaussian_energy_per_site(swt::SpinWaveTheory; bz=default_bz(swt))
+    gaussian_energy_per_site(swt::SpinWaveTheory; bz=nothing)
 
 Expectation value of the Hamiltonian per site, through its four-boson term, in
 the Gaussian state of `swt`. This is a variational upper bound on the ground
@@ -494,12 +497,12 @@ self-consistent Hartree-Fock. In the harmonic vacuum it is the result of
 [`corrected_energy_per_site`](@ref) plus ``⟨H₄⟩``, i.e. less the `δE` of
 [`hartree_fock_correction`](@ref).
 
-Brillouin zone integrals are evaluated according to `bz`, either
-[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref).
 """
-function gaussian_energy_per_site(swt::SpinWaveTheory; bz::BZIntegration=default_bz(swt))
+function gaussian_energy_per_site(swt::SpinWaveTheory; bz=nothing)
     check_corrections_supported(swt)
-    check_grid(swt, bz)
+    bz = static_bz(swt, bz)
     terms4 = quartic_monomials(swt)
     (; correction) = swt.state
     g = contractions(swt, Iterators.flatten((correction, terms4)), bz)
@@ -530,7 +533,7 @@ function zero_point_energy(swt::SpinWaveTheory, bz)
 end
 
 """
-    boson_density(swt::SpinWaveTheory; bz=default_bz(swt))
+    boson_density(swt::SpinWaveTheory; bz=nothing)
 
 Zero-point density of Holstein-Primakoff bosons, ``n_i = Σ_α ⟨b^†_{iα}
 b_{iα}⟩``, summed over the flavors ``α`` carried by each site of the magnetic
@@ -548,12 +551,12 @@ no dipole at all, as for a quadrupolar state. Use
 [`corrected_magnetic_moments`](@ref) for the ordered moment itself, which is
 available in either mode.
 
-Brillouin zone integrals are evaluated according to `bz`, either
-[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref).
 """
-function boson_density(swt::SpinWaveTheory; bz::BZIntegration=default_bz(swt))
+function boson_density(swt::SpinWaveTheory; bz=nothing)
     is_entangled(swt.sys) && error("Corrections are not supported for entangled units")
-    check_grid(swt, bz)
+    bz = static_bz(swt, bz)
     L = nbands(swt)
     nf = nflavors(swt)
     # Bosons are laid out as (flavor, atom) with flavor fastest, so each site owns a
@@ -565,7 +568,7 @@ function boson_density(swt::SpinWaveTheory; bz::BZIntegration=default_bz(swt))
 end
 
 """
-    corrected_magnetic_moments(swt::SpinWaveTheory; bz=default_bz(swt))
+    corrected_magnetic_moments(swt::SpinWaveTheory; bz=nothing)
 
 Magnetic moments ``μ = -g 𝐒`` in units of the Bohr magneton, corrected at
 relative order ``1/s``, for each site of the magnetic cell. Compare to the
@@ -595,12 +598,12 @@ depletion is; see [`tadpole_correction`](@ref). Where it is unavailable the
 moments are returned depleted but untilted, which is still correct at this order
 for any structure the tilt would not move.
 
-Brillouin zone integrals are evaluated according to `bz`, either
-[`BZAdaptive`](@ref) parameters or an explicit [`BZGrid`](@ref).
+`bz` specifies a relative tolerance or an explicit grid for integration; see
+[`BZIntegration`](@ref).
 """
-function corrected_magnetic_moments(swt::SpinWaveTheory; bz::BZIntegration=default_bz(swt))
+function corrected_magnetic_moments(swt::SpinWaveTheory; bz=nothing)
     is_entangled(swt.sys) && error("Corrections are not supported for entangled units")
-    check_grid(swt, bz)
+    bz = static_bz(swt, bz)
     (; sys) = swt
     L = nbands(swt)
     Na = nsites(sys)
@@ -644,9 +647,9 @@ also the appropriate choice when the structure supports a Goldstone mode: an
 ``O(1/s)`` correction to a Hamiltonian with a protected zero mode produces a gap
 of order ``\\sqrt{1/s}`` upon rediagonalization, obscuring the cancellation
 between the terms that keeps the mode gapless. That cancellation is exact when
-`terms2` and [`cubic_self_energy`](@ref) are integrated with the same
-[`BZGrid`](@ref); otherwise each quadrature leaves its own error, and the mode
-is gapped by the larger of the two.
+`terms2` and [`cubic_self_energy`](@ref) are integrated with the same grid;
+otherwise each quadrature leaves its own error, and the mode is gapped by the
+larger of the two.
 """
 function static_self_energy(swt::SpinWaveTheory, qpts, terms2)
     L = nbands(swt)

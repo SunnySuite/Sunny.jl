@@ -4,41 +4,64 @@
 
 # ---- Brillouin-zone quadrature ----
 
-# A rule for integrating over the magnetic Brillouin zone
+"""
+    BZIntegration
+
+A rule for integrating over the magnetic Brillouin zone. Usually this will be
+inferred from the keyword argument `bz`. If `bz` is a tuple `(n1, n2, n3)`, then
+this provides the size of the uniform integration grid. If `bz` is a number,
+then this specifies a relative accuracy target, to be used with either
+adaptative quadrature, or a uniform integration grid, as appropriate to the
+solver. If left unspecified, `bz=nothing` typically implies a default relative
+accuracy of `bz=0.01`. An exception is when [`SpinWaveTheory`](@ref) must expand
+about a self-consistent Gaussian state; in such cases, the self-consistent
+state's grid will be reused for subsequent calculations.
+
+Adaptive quadrature is used by default for static corrections, e.g.
+[`boson_density`](@ref), and converges quickly because of the smooth integrands.
+Fequency-dependent calculations, e.g. [`corrected_intensities`](@ref), always
+require a uniform grid. It will be autoselected from the accuracy target and the
+``η``-regularization as described in [`auto_bzgrid`](@ref). A fixed grid, shared
+between between static and loop calculations, is a prerequisite for exact
+satisfaction of the Ward identity, as needed to keep Goldstone modes gapless.
+"""
 abstract type BZIntegration end
 
-"""
-    BZGrid(n1, n2, n3)
-
-A uniform grid of `n1×n2×n3` wavevectors in the magnetic Brillouin zone, offset
-by half a step from the zone centre. The frequency-dependent ``1/s``
-corrections, e.g. [`corrected_intensities`](@ref), approximate their loop
-integrals as a discrete sum over such a grid. The static corrections accept one
-as `bz`, in place of [`BZAdaptive`](@ref). A shared grid makes identities
-between static and loop terms exact grid by grid, e.g. the Ward identity that
-keeps a Goldstone mode gapless, and it gives results that are smooth in the
-model parameters, as fitting requires. For a grid sized automatically, see
-[`auto_bzgrid`](@ref).
-"""
+# A uniform grid of `n1×n2×n3` wavevectors in the magnetic Brillouin zone
 struct BZGrid <: BZIntegration
     dims :: NTuple{3, Int}
 end
 
 BZGrid(n1, n2, n3) = BZGrid((n1, n2, n3))
 
-"""
-    BZAdaptive(; tol)
-
-Adaptive cubature over the magnetic Brillouin zone to the relative accuracy
-`tol`, the default `bz` of the static 1/s corrections, e.g.
-[`boson_density`](@ref). Their integrands are smooth, so this converges far
-faster than a uniform [`BZGrid`](@ref).
-"""
+# Adaptive cubature over the magnetic Brillouin zone to the relative accuracy
+# `tol`
 struct BZAdaptive <: BZIntegration
     tol :: Float64
 end
 
-BZAdaptive(; tol) = BZAdaptive(tol)
+# The quadrature of the static corrections selected by the keyword `bz`, as
+# documented at `BZIntegration`
+function static_bz(swt, bz)
+    ret = to_bz(@something bz swt.state.grid 0.01)
+    check_grid(swt, ret)
+    return ret
+end
+
+# The loop grid of the frequency-dependent corrections selected by the keyword
+# `bz`, as documented at `BZIntegration`
+function loop_bz(swt, bz; η)
+    bz = @something bz swt.state.grid 0.01
+    ret = to_bz(bz isa Real ? auto_bzgrid(swt; η, tol=bz) : bz)
+    ret isa BZGrid || error("Loop integrals need grid dimensions `bz = (n1, n2, n3)` or a relative tolerance.")
+    check_grid(swt, ret)
+    return ret
+end
+
+to_bz(bz::BZIntegration) = bz
+to_bz(tol::Real) = BZAdaptive(tol)
+to_bz(dims::NTuple{3, Int}) = BZGrid(dims)
+to_bz(bz) = error("Expected `bz` to be a relative accuracy or grid dimensions (n1, n2, n3), got $bz.")
 
 # Scale of the error that the quadrature leaves in an identity that holds only
 # for exact integrals, against which such identities are asserted.
@@ -71,19 +94,8 @@ end
 function check_grid(swt, bz::BZIntegration)
     (; grid) = swt.state
     isnothing(grid) || grid == bz ||
-        error("The Gaussian state of `swt` was solved on `$grid`, but `$bz` was given. Omit it to use the state's grid.")
+        error("The Gaussian state of `swt` was solved on the grid $(grid.dims), but `bz` selects another. Omit `bz` to use the state's grid.")
 end
-
-"""
-    default_bz(swt::SpinWaveTheory)
-
-The default `bz` of the static ``1/s`` corrections, e.g.
-[`hartree_fock_correction`](@ref): the [`BZGrid`](@ref) on which the Gaussian
-state of `swt` was solved, if it was solved self-consistently, otherwise
-`BZAdaptive(tol=0.01)`. Every use of a self-consistent state must repeat its
-grid, so that the counterterm cancels the mean field exactly.
-"""
-default_bz(swt) = @something swt.state.grid BZAdaptive(tol=0.01)
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
 # integrand that pairs a line at 𝐩 with one at 𝐪-𝐩, carrying a multiplicity
@@ -134,14 +146,12 @@ end
 """
     auto_bzgrid(swt::SpinWaveTheory; η, tol)
 
-The [`BZGrid`](@ref) on which loop integrals with regulator `η`, e.g. those of
-[`corrected_intensities`](@ref), reach a relative accuracy of about `tol`. It
-resolves `η` along each direction in which the magnons of `swt` disperse, and
-the number of points grows as ``1/(η √tol)`` along each. If the Gaussian state
-of `swt` was solved on a grid, that grid is returned instead.
+Dimensions `(n1, n2, n3)` of the grid on which loop integrals with regulator
+`η`, e.g. those of [`corrected_intensities`](@ref), reach a relative accuracy of
+about `tol`. It resolves `η` along each direction in which the magnons of `swt`
+disperse, and the number of points grows as ``1/(η √tol)`` along each.
 """
 function auto_bzgrid(swt; η, tol)
-    isnothing(swt.state.grid) || return swt.state.grid
     # Every frequency-dependent integrand here is a function of the pair energy
     # x(𝐤) = ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so the grid must resolve x
     # to within η. The number of points along a direction therefore goes as the
@@ -168,11 +178,11 @@ function auto_bzgrid(swt; η, tol)
         view(ε, :, i, j, k) .= view(excitations_supercell!(ws, H, swt, q), 1:L)
     end
 
-    return BZGrid(ntuple(3) do d
+    return ntuple(3) do d
         r = maximum(maximum(ε; dims=d+1) - minimum(ε; dims=d+1))
         # The denominator is 0.8η at the default tolerance, and shrinks as √tol
         2r < η ? 1 : max(4, ceil(Int, 2r / (8η * √tol)))
-    end)
+    end
 end
 
 # Matrix-valued measure over a bath energy x of either sign, binned as described
