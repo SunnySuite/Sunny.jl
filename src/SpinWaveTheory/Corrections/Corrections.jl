@@ -88,7 +88,7 @@
 #
 #     Vacuum       to_hartree_fock_corrected_vacuum, to_self_consistent_vacuum,
 #                  GoldstonePin
-#     Spectra      corrected_intensities, corrected_intensities_bands
+#     Spectra      corrected_intensities
 #     Statics      corrected_energy_per_site, gaussian_energy_per_site,
 #                  boson_density, corrected_magnetic_moments
 #     Pieces       hartree_fock_correction, tadpole_correction,

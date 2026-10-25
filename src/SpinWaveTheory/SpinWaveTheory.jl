@@ -203,23 +203,6 @@ function dynamical_matrix(swt::SpinWaveTheory, q_supercell)
     return Hermitian(H)
 end
 
-# Matrix-free y = H x at many wavevectors, where row q of x and y belongs to
-# `qs_supercell[q]`
-function mul_dynamical_matrix!(swt, y, x, qs_supercell; phases=zeros(ComplexF64, length(qs_supercell)))
-    @assert size(x) == size(y) == (length(qs_supercell), 2nbands(swt))
-    isnothing(uncontracted_system(swt.sys).ewald) || error("Ewald not supported")
-    y .= 0
-    accum_mul!(y, x, swt.quadratic_table, qs_supercell, phases)
-    @. y += swt.regularization * x
-    return y
-end
-
-function mul_dynamical_matrix(swt, x, qs_supercell)
-    y = zero(x)
-    mul_dynamical_matrix!(swt, y, x, qs_supercell)
-end
-
-
 # The local frame of each site, in which the ordered state is the last basis
 # state. A vacant site gets a zero frame, which zeroes every operator rotated
 # into it.
@@ -365,12 +348,12 @@ function accum_observable_vectors!(u, sys::System, measure::MeasureSpec, C, q_gl
     return u
 end
 
-# Returns |1 + nB(ω)| where nB(ω) = 1 / (exp(βω) - 1) is the Bose function.
-# Equivalent to |1 / expm1(-βω)| where expm1(x) = e^x-1.
-function thermal_prefactor(ω; kT)
+# The thermal factor 1 + n_B(ω) = -1 / expm1(-ω/kT) of a pole at ω of either
+# sign, where n_B is the Bose function. At kT = 0 it is θ(ω).
+function thermal_factor(ω; kT)
     @assert kT >= 0
-    iszero(ω) && return Inf
-    return abs(1 / expm1(-ω/kT))
+    iszero(kT) && return ω > 0 ? 1.0 : 0.0
+    return -1 / expm1(-ω/kT)
 end
 
 """
@@ -459,26 +442,49 @@ end
 
 """
     intensities_bands(swt::SpinWaveTheory, qpts; kT=0, threaded=false)
+    intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=false)
 
 Calculate spin wave excitation bands for a set of ``𝐪``-points in reciprocal
 space. This calculation is analogous to [`intensities`](@ref), but does not
-perform line broadening of the bands. Use [`load_blas_for_threading`](@ref) and
-set `threaded=true` to parallelize the calculation using Julia threads.
+perform line broadening of the bands. The bands are the peaks at positive energy
+transfer. At `kT > 0`, [`intensities`](@ref) also includes the anti-Stokes
+scattering at negative energy transfer, which for a chiral measure is not given
+by the bands at ``-𝐪``. Use [`load_blas_for_threading`](@ref) and set
+`threaded=true` to parallelize the calculation using Julia threads.
+
+For [`SpinWaveTheorySpiral`](@ref), there are ``3L`` bands, the modes at ``𝐪``
+and ``𝐪 ± 𝐤`` of the spiral. If ``2𝐤`` or ``𝐤`` is a reciprocal lattice vector,
+the branches that coincide repeat their energies and share their intensity
+equally.
 """
-function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false, threaded=false)
-    num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
-    with_negative && error("Option `with_negative=true` not yet supported.")
-    # The fields `sys` and `measure` are abstract, to limit specialization, so
-    # the loop over wavevectors is behind a function barrier
-    return intensities_bands(swt, swt.sys, swt.measure, convert(AbstractQPoints, qpts); kT, threaded)
+function intensities_bands(swt::AbstractSpinWaveTheory, qpts; kT=0, threaded=false)
+    qpts = convert(AbstractQPoints, qpts)
+    (disp, data) = susceptibility_poles(swt, qpts; threaded)
+    # The poles at positive energy come first
+    n = size(disp, 1) ÷ 2
+    sz = (n, size(qpts.qs)...)
+    data = thermal_factor.(disp[1:n, :]; kT) .* data[1:n, :]
+    return BandIntensities(orig_crystal(underlying_system(swt)), qpts, reshape(disp[1:n, :], sz), reshape(data, sz))
 end
 
-function intensities_bands(swt::SpinWaveTheory, sys::System, measure::MeasureSpec, qpts::AbstractQPoints; kT, threaded)
+underlying_system(swt::SpinWaveTheory) = swt.sys
+
+function susceptibility_poles(swt::SpinWaveTheory, qpts; threaded)
+    num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
+    # The fields `sys` and `measure` are abstract, to limit specialization, so
+    # the loop over wavevectors is behind a function barrier
+    return susceptibility_poles(swt, swt.sys, swt.measure, qpts; threaded)
+end
+
+# All 2L poles εₖ of the dynamical susceptibility χ''(q, ω) at each wavevector,
+# with their residues, as (pole × wavevector) matrices. The first L eigenvalues
+# of the Bogoliubov problem are the positive energies at q. The next L are
+# negative, and their negations are the energies at -q.
+function susceptibility_poles(swt::SpinWaveTheory, sys::System, measure::MeasureSpec, qpts::AbstractQPoints; threaded)
     cryst = orig_crystal(sys)
 
     # Number of (magnetic) atoms in magnetic cell
     Na = nsites(sys)
-    # Number of chemical cells in magnetic cell
     Ncells = Na / natoms(cryst)
     # Number of quasiparticle modes
     L = nbands(swt)
@@ -489,8 +495,8 @@ function intensities_bands(swt::SpinWaveTheory, sys::System, measure::MeasureSpe
     Nobs = num_observables(measure)
     Ncorr = num_correlations(measure)
 
-    disp = zeros(Float64, L, Nq)
-    data = zeros(eltype(measure), L, Nq)
+    disp = zeros(Float64, 2L, Nq)
+    data = zeros(eltype(measure), 2L, Nq)
 
     newbuf() = (
         ws   = BogoliubovWorkspace(L),
@@ -506,13 +512,13 @@ function intensities_bands(swt::SpinWaveTheory, sys::System, measure::MeasureSpe
         q = qpts.qs[iq]
         q_supercell = to_supercell_rlu(sys, q)
         q_global = cryst.recipvecs * q
-        view(disp, :, iq) .= view(excitations_supercell!(ws, H, swt, q_supercell), 1:L)
+        view(disp, :, iq) .= excitations_supercell!(ws, H, swt, q_supercell)
 
         # Linearized observables Â_μ(q) in Holstein-Primakoff bosons
         observable_vectors!(u, swt, sys, measure, q_global)
 
         # Fill `intensity` array
-        for band in 1:L
+        for band in 1:2L
             for μ in 1:Nobs
                 # Left matrix amplitude ⟨0|Â_μ(q)†|n⟩
                 Avec[μ] = dot(view(u, :, μ), view(T, :, band))
@@ -521,37 +527,30 @@ function intensities_bands(swt::SpinWaveTheory, sys::System, measure::MeasureSpe
                 # Pair correlations ⟨0|Â_μ(q)†|n⟩⟨n|Â_ν(q)|0⟩
                 Avec[μ] * conj(Avec[ν]) / Ncells
             end
-            data[band, iq] = thermal_prefactor(disp[band, iq]; kT) * measure.combiner(q_global, corr)
+            # The residue of χ'' is odd under ω → -ω
+            data[band, iq] = sign(disp[band, iq]) * measure.combiner(q_global, corr)
         end
     end
 
     foreach_chunked(calc_iq!, newbuf, 1:Nq; threaded, warn_blas=true)
 
-    # Reassigning `disp` and `data` would box these captured variables
-    disp_reshaped = reshape(disp, L, size(qpts.qs)...)
-    data_reshaped = reshape(data, L, size(qpts.qs)...)
-
-    return BandIntensities(cryst, qpts, disp_reshaped, data_reshaped)
+    return (disp, data)
 end
 
 """
-    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, kT=0, threaded=false)
+    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
     intensities!(data, sc::SampledCorrelations, qpts; energies, kernel=nothing, kT=0)
 
 Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
 """
-function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0, threaded=false)
-    qpts = convert(AbstractQPoints, qpts)
-    @assert size(data) == (length(energies), size(qpts.qs)...)
-    bands = intensities_bands(swt, qpts; kT, threaded)
-    @assert eltype(bands) == eltype(data)
-    broaden!(data, bands; energies, kernel, threaded)
-    return Intensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
+function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
+    res = intensities(swt, qpts; energies, kernel, η, kT, threaded)
+    data .= res.data
+    return Intensities(res.crystal, res.qpts, res.energies, data)
 end
-
 """
-    intensities(swt::SpinWaveTheory, qpts; energies, kernel, kT=0, threaded=false)
+    intensities(swt::SpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
     intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
 
 Calculates dynamical pair correlation intensities for a set of ``𝐪``-points in
@@ -560,11 +559,21 @@ reciprocal space.
 Linear spin wave theory calculations are performed with an instance of
 [`SpinWaveTheory`](@ref). The alternative [`SpinWaveTheorySpiral`](@ref) allows
 to study generalized spiral orders with a single, incommensurate-``𝐤`` ordering
-wavevector. Another alternative [`SpinWaveTheoryKPM`](@ref) is favorable for
+wavevector. Another alternative [`SpinWaveTheoryLarge`](@ref) is favorable for
 calculations on large magnetic cells, and allows to study systems with disorder.
-An optional nonzero temperature `kT` will scale intensities by the quantum
-thermal occupation factor ``|1 + n_B(ω)|`` where ``n_B(ω) = 1/(e^{βω}-1)`` is
-the Bose function.
+
+Spin wave intensities are the structure factor ``(1 + n_B(ω)) χ''(𝐪, ω)`` at
+temperature `kT`, where ``n_B(ω) = 1/(e^{ω/kT}-1)`` is the Bose function, at
+energies of either sign. They require a `kernel`, an intrinsic broadening `η`,
+or both. The intrinsic broadening gives each excitation a Lorentzian line shape
+of half-width `η` in the dynamical susceptibility, ``χ''(𝐪, ω) =
+-\\mathrm{Im}\\, χ(𝐪, ω + iη)/π``. The instrumental `kernel`, e.g.,
+`gaussian(; fwhm)`, is applied after the thermal factor, and with `η > 0` must
+be analytic, i.e., it must accept complex energies, as do [`gaussian`](@ref) and
+[`lorentzian`](@ref). Near a Goldstone mode, linear spin wave theory predicts
+an intensity that diverges as ``ω → 0``, and that, in a finite magnetic cell,
+depends on the `regularization` of zero modes in [`SpinWaveTheory`](@ref). A
+small `η` removes this dependence.
 
 Intensities can also be calculated for `SampledCorrelations` associated with
 classical spin dynamics. In this case, thermal broadening will already be
@@ -579,8 +588,12 @@ convolution along the energy axis on top of any intrinsic broadening already
 present in the correlation data. In this case, `energies` must be an explicit
 list specifying the desired output energies, exactly as for `SpinWaveTheory`.
 """
-function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0, threaded=false)
-    return broaden(intensities_bands(swt, qpts; kT, threaded); energies, kernel, threaded)
+function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel=nothing, η=0, kT=0, threaded=false)
+    qpts = convert(AbstractQPoints, qpts)
+    (disp, residues) = susceptibility_poles(swt, qpts; threaded)
+    data = broaden_poles(disp, residues; energies, kernel, η, kT, threaded)
+    data = reshape(data, length(energies), size(qpts.qs)...)
+    return Intensities(orig_crystal(underlying_system(swt)), qpts, collect(Float64, energies), data)
 end
 
 """
@@ -595,7 +608,7 @@ correlations.
 
 In [`SpinWaveTheory`](@ref), the integral will be realized as a sum over
 discrete bands. Alternative calculation methods are
-[`SpinWaveTheorySpiral`](@ref) and [`SpinWaveTheoryKPM`](@ref).
+[`SpinWaveTheorySpiral`](@ref) and [`SpinWaveTheoryLarge`](@ref).
 
 Classical dynamics data in [`SampledCorrelations`](@ref) can also be used to
 calculate static intensities. In this case, the domain of integration will be a
@@ -608,20 +621,23 @@ dynamics-independent. Instead, instantaneous correlations sampled from the
 classical Boltzmann distribution will be reported.
 """
 function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kernel=nothing, kT=0, threaded=false)
-    res = intensities_bands(swt, qpts; kT, threaded)  # TODO: with_negative=true
-    data_reduced = zeros(eltype(res.data), size(res.data)[2:end])
-    for iq in CartesianIndices(data_reduced), ib in axes(res.data, 1)
-        ϵ = res.disp[ib, iq]
+    qpts = convert(AbstractQPoints, qpts)
+    (disp, residues) = susceptibility_poles(swt, qpts; threaded)
+    # Each pole, of either sign, is weighted by the thermal factor
+    weights = thermal_factor.(disp; kT) .* residues
+    data_reduced = zeros(eltype(weights), length(qpts.qs))
+    for iq in eachindex(data_reduced), ib in axes(disp, 1)
+        ϵ = disp[ib, iq]
         if isnothing(kernel) || bounds == (-Inf, Inf)
             if bounds[1] <= ϵ < bounds[2]
-                data_reduced[iq] += res.data[ib, iq]
+                data_reduced[iq] += weights[ib, iq]
             end
         else
             isnothing(kernel.integral) && error("Kernel must provide integral")
             ihi = kernel.integral(bounds[2] - ϵ)
             ilo = kernel.integral(bounds[1] - ϵ)
-            data_reduced[iq] += res.data[ib, iq] * (ihi - ilo)
+            data_reduced[iq] += weights[ib, iq] * (ihi - ilo)
         end
     end
-    StaticIntensities(res.crystal, res.qpts, data_reduced)
+    StaticIntensities(orig_crystal(underlying_system(swt)), qpts, reshape(data_reduced, size(qpts.qs)))
 end

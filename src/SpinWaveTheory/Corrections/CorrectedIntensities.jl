@@ -52,7 +52,7 @@
 # Gaussian state carries a correction does so, with a counterterm.
 
 """
-    corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, dyson=:nambu,
+    corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, kT=0, dyson=:nambu,
                           bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
 
 Dynamical spin structure factor at temperature ``T = 0``, including one-loop
@@ -65,7 +65,8 @@ The Green function is evaluated at ``ω + iη``, so `η` both regulates the loop
 integrals and broadens the result into Lorentzians. Choose it small compared to
 the linewidths of interest, but no smaller: the wavevector grid of the loop
 integrals grows as `1/η` in each dispersing dimension. An optional `kernel`,
-e.g. for instrumental resolution, can be used to postprocess the result.
+e.g. for instrumental resolution, is applied to the result. Only `kT = 0` is
+currently supported.
 
 `bz` specifies a relative tolerance or an explicit grid for integration; see
 [`BZIntegration`](@ref). The static mean fields are summed on the grid of the
@@ -112,16 +113,14 @@ The `dyson` option selects how the one-loop self-energy is resummed:
   energies have logarithmic singularities where a magnon crosses a saddle point
   of the two-magnon continuum.
 
-The returned data is the spectral function ``-\\mathrm{Im}\\, χ(𝐪, ω + iη)/π``
-of the retarded response ``χ``, which at ``T = 0`` and ``ω > 0`` is the
-structure factor ``\\mathcal{S}(𝐪, ω)``. It is odd under ``(𝐪, ω) → (-𝐪, -ω)``,
-so at ``ω < 0`` it is the negative of the structure factor at ``(-𝐪, |ω|)``, not
-zero. Integrate over ``ω > 0`` only to obtain spectral weight; over a window
-symmetric about ``ω = 0`` the weight cancels. At ``ω > 0`` the data includes the
-Lorentzian tails of the negative-frequency poles, which cancel the
-high-frequency tail of a Goldstone mode. As a consequence, a `kernel` mixes the
-two signs within its width of ``ω = 0``, and intensities there depend on whether
-`energies` extends below zero.
+The returned data is the structure factor at ``T = 0``, as for
+[`intensities`](@ref). This is ``\\mathcal{S}(𝐪, ω) = θ(ω) χ''(𝐪, ω)``, where
+the spectral function ``χ''(𝐪, ω) = -\\mathrm{Im}\\, χ(𝐪, ω + iη)/π`` of the
+retarded response ``χ`` is odd, and ``θ(0) = 1/2``. Intensities vanish at ``ω <
+0``. At ``ω > 0`` they include the Lorentzian tails of the negative-frequency
+poles, which cancel the high-frequency tail of a Goldstone mode. The `kernel` is
+applied after the thermal factor, so `energies` should be uniformly spaced, and
+extend a kernel width beyond the range of interest.
 
 With `:nambu`, a large one-loop correction can make the resummed propagator
 unstable: its static magnon Hamiltonian is no longer positive, and a pole may
@@ -169,44 +168,21 @@ progress bar and diagnostics.
     and the linearization assume that the anomalous coupling is small against the
     ``2ε`` that separates a pole from its mirror.
 """
-function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, dyson=:nambu,
+function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, kT=0, dyson=:nambu,
                                bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
     num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
+    iszero(kT) || error("Corrected intensities at kT > 0 are not yet supported.")
     (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
         corrected_channels(swt, qpts; energies, η, dyson, bz, threaded, verbose)
-    data = reshape(transverse + cross + direct, length(energies), size(qpts.qs)...)
+    # The structure factor at T = 0 from the spectral function χ'', which is odd
+    θ = [ω > 0 ? 1.0 : iszero(ω) ? 0.5 : 0.0 for ω in energies]
+    data = reshape(θ .* (transverse + cross + direct), length(energies), size(qpts.qs)...)
     res = Intensities(cryst, qpts, energies, data)
     isnothing(kernel) || (res = broaden(res; kernel))
     if mark_breakdown
         reshape(res.data, length(energies), :)[abs.(energies) .≤ η, breakdown] .*= NaN
     end
     return res
-end
-
-"""
-    corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, bz=nothing,
-                                threaded=false, verbose=false)
-
-Magnon bands at temperature ``T = 0`` with one-loop corrections, i.e., relative
-order ``1/s`` in dipole mode, for fitting a measured dispersion. These are the
-poles of the `dyson=:on_shell` option of [`corrected_intensities`](@ref), which
-describes the scheme and its limits; the two-magnon continuum is omitted.
-
-Each band carries a shifted energy and a half width at half maximum in the field
-`widths`, arising from decay into the two-magnon continuum, both correct at
-order ``1/s``. The intensity of each band is that of linear spin wave theory,
-for the observables corrected at order ``1/s``; it omits the redistribution of
-weight at that order. Here `η` regularizes the loop integrals only, and does not
-broaden the result. The widths are nonnegative, and the bands of ``𝐪`` mirror
-the hole poles at ``-𝐪`` exactly.
-"""
-function corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, bz=nothing,
-                                     threaded=false, verbose=false)
-    num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
-    (; cryst, qpts, bands) = corrected_channels(swt, qpts; energies=Float64[], η, dyson=:on_shell,
-                                                bz, threaded, verbose)
-    sz = (size(bands.disp, 1), size(qpts.qs)...)
-    return BandIntensities(cryst, qpts, reshape(bands.disp, sz), reshape(bands.data, sz), reshape(bands.widths, sz))
 end
 
 # Workhorse of `corrected_intensities`, returning the three terms of S

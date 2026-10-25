@@ -359,6 +359,16 @@ end
     (DD, DQ, QQ) = Cs
     C = [DD DQ; DQ' QQ]
     @test svdvals(C)[2] < 1e-12 * opnorm(C)
+
+    # Intrinsic broadening accepts any measured data type, here a `TupleVec`,
+    # including the poles at negative energy. Energies are scaled to the gap.
+    swt = SpinWaveTheory(sys_dip; measure=measure(sys_dip))
+    ϵ = only(disp_dip)
+    energies = ϵ .* [-1, 1]
+    res1 = intensities(swt, [q]; energies, η=0.02ϵ, kT=ϵ).data
+    res2 = intensities(SpinWaveTheoryLarge(sys_dip; measure=measure(sys_dip), tol=1e-8), [q];
+                       energies, η=0.02ϵ, kT=ϵ).data
+    @test all(isapprox.(res1, res2; rtol=1e-3))
 end
 
 
@@ -702,10 +712,16 @@ end
         swt = simple_swt(mode)
         H1 = Sunny.dynamical_matrix(swt, q)
 
-        # Construct Hamiltonian by sparse matrix-vector multiplies
+        # Construct Hamiltonian by sparse matrix-vector multiplies, as in
+        # SpinWaveTheoryLarge
         L = Sunny.nbands(swt)
-        x = Matrix{ComplexF64}(I, 2L, 2L)
-        H2 = transpose(Sunny.mul_dynamical_matrix(swt, x, fill(q, 2L)))
+        Hs = Sunny.SparseDynamicalMatrix(swt)
+        Hq = Sunny.values_at!(similar(Hs.vals), Hs, q)
+        H2 = mapreduce(hcat, 1:2L) do j
+            x = zeros(ComplexF64, 1, 2L)
+            x[j] = 1
+            vec(Sunny.mul_rows!(zero(x), Hs, x, Hq))
+        end
 
         @test H1 ≈ H2
 
