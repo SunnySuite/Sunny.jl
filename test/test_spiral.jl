@@ -282,7 +282,10 @@ end
     @test res.data[1:3, 2] ≈ res2.data[[1, 3, 4], 2]
 
     # The spiral calculation is invariant to enlarging the magnetic cell. Its
-    # folded bands carry no intensity, so compare broadened spectra.
+    # folded bands carry no intensity, so compare broadened spectra. The energy
+    # is independent of k₁ and k₂; with these zero, k is integer in the RLU of
+    # sys2, and all three branches coincide.
+    k = [0, 0, k[3]]
     swt3 = SpinWaveTheorySpiral(sys2; measure=ssf_trace(sys2; apply_g=false), k, axis)
     energies = range(0, 3, 20)
     kernel = gaussian(fwhm=0.2)
