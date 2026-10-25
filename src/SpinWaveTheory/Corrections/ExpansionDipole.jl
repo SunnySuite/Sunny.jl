@@ -123,29 +123,70 @@ function graded_spin_matrices(nmax::Int)
     return (Jx, Jy, Jz)
 end
 
-# Graded Stevens operators 𝒪_k^q for even k, ordered as in `stevens_matrices`, and
-# the reciprocals of the `rcs_factors` renormalizations. These depend on nothing,
-# and building them dominates the cost of `anisotropy_coefficients`, so they are built once
-# here. Only matrix elements between boson numbers ≤ 4 are ever read, and a Stevens
-# operator of order k ≤ 6 shifts the boson number by at most k while its diagonal
-# factors reach one further, so seven states suffice.
-const GRADED_STEVENS = let J = graded_spin_matrices(6)
-    map(k -> stevens_abstract_polynomials(; J, k), (0, 2, 4, 6))
-end
+# Graded spin matrices and Stevens operators 𝒪_k^q for even k, ordered as in
+# `stevens_matrices`, and the reciprocals of the `rcs_factors` renormalizations.
+# These depend on nothing, and building them dominates the cost of
+# `anisotropy_coefficients`, so they are built once here. Only matrix elements
+# between boson numbers ≤ 4 are ever read, and a Stevens operator of order k ≤ 6
+# shifts the boson number by at most k while its diagonal factors reach one
+# further, so seven states suffice.
+const GRADED_SPINS = graded_spin_matrices(6)
+const GRADED_STEVENS = map(k -> stevens_abstract_polynomials(; J=GRADED_SPINS, k), (0, 2, 4, 6))
 const GRADED_INV_RCS = map(inv, rcs_factors(monomial(2, 1/2)))
 
-# Holstein-Primakoff expansion of the onsite anisotropy of site i, as coefficients
-# of the normal-ordered words (b†)^{d+j} bʲ, keyed by (d, j) and truncated to
-# d + 2j ≤ 4. A single-site operator is block diagonal in the boson number up to a
-# shift,
+# Holstein-Primakoff words of a single-site operator `𝒪`, a graded matrix over
+# boson numbers, as coefficients of the normal-ordered words (b†)^{d+j} bʲ keyed
+# by (d, j), for d + 2j ≤ 4. The word of n = d + 2j bosons is read off at the
+# single power x^p(n) of x = √(2s), which is how the truncation rule at the top
+# of this file is imposed.
+#
+# A single-site operator is block diagonal in the boson number up to a shift,
 #
 #     𝒪 = g_0(n̂) + Σ_{d > 0} [(b†)^d g_d(n̂) + h.c.],   n̂ = b†b,
 #
-# and expanding each g_d in the Newton basis n̂(n̂-1)…(n̂-j+1) = (b†)ʲ bʲ gives those
-# words. The coefficients follow from finite differences of the matrix elements of
-# 𝒪, which are assembled over `Laurent` so that each word is obtained as a series
-# in 1/s rather than as a number. Note that the transverse components generate
-# words of every odd length, since S⁺ = σ√(1 - n̂/2s) b.
+# and expanding each g_d in the Newton basis n̂(n̂-1)…(n̂-j+1) = (b†)ʲ bʲ gives the
+# words. The coefficients follow from finite differences of the matrix elements
+# of 𝒪, which are assembled over `Laurent` so that each word is obtained as a
+# series in 1/s rather than as a number. Sunny lists the eigenvalues of Sᶻ in
+# descending order, so the boson number of basis state m is m-1, and
+# ⟨m+d|(b†)^d|m⟩ = √((m+d)!/m!) relates 𝒪 to g_d.
+function local_words!(words, 𝒪, x, p)
+    g(d, m) = 𝒪[m+d+1, m+1] / √prod(m+1:m+d; init=1)
+    for d in 0:4, j in 0:div(4-d, 2)
+        W = sum(m -> (-1)^(j-m) * binomial(j, m) * g(d, m), 0:j) / factorial(j)
+        words[(d, j)] = get(words, (d, j), 0.0im) + coefficient(W, p(d + 2j)) * x^p(d + 2j)
+    end
+    return words
+end
+
+# Monomials of exactly K bosons at site i among `words`: each word (b†)^{d+j} bʲ
+# and, unless it is self-adjoint, its adjoint (b†)ʲ b^{d+j}.
+function local_word_monomials(words, i, L, ::Val{K}) where K
+    ns = ntuple(_ -> zero(Vec3), Val{K}())
+    terms = BosonMonomial{K}[]
+    for d in K:-2:0
+        j = div(K - d, 2)
+        c = get(words, (d, j), 0.0im)
+        iszero(c) && continue
+        push!(terms, BosonMonomial(c, ntuple(t -> t <= d+j ? L+i : i, Val{K}()), ns))
+        iszero(d) && continue
+        push!(terms, BosonMonomial(conj(c), ntuple(t -> t <= j ? L+i : i, Val{K}()), ns))
+    end
+    return terms
+end
+
+# Words of the spin component 𝐫 ⋅ 𝐒 of site i, for a vector `r` in the local
+# frame, each at its leading power x^{2-n}. A spin component is exact in the
+# truncated Holstein-Primakoff expansion, which keeps every word at leading
+# order; see the truncation rule at the top of this file.
+function spin_component_words(r, x)
+    𝒪 = r[1] * GRADED_SPINS[1] + r[2] * GRADED_SPINS[2] + r[3] * GRADED_SPINS[3]
+    return local_words!(Dict{Tuple{Int, Int}, ComplexF64}(), 𝒪, x, n -> 2 - n)
+end
+
+# Holstein-Primakoff expansion of the onsite anisotropy of site i, as the words of
+# `local_words!`. Note that the transverse components generate words of every odd
+# length, since S⁺ = σ√(1 - n̂/2s) b.
 #
 # Returned is only what LSWT does not already contain, and only to the order that
 # the truncation rule at the top of this file prescribes. A word of n bosons has
@@ -197,16 +238,7 @@ function anisotropy_coefficients(swt::SpinWaveTheory, i::Int)
         if sys.mode == :dipole
             𝒪 = 𝒪 * GRADED_INV_RCS[k]
         end
-        # Sunny lists the eigenvalues of Sᶻ in descending order, so the boson
-        # number of basis state m is m-1, and ⟨m+d|(b†)^d|m⟩ = √((m+d)!/m!)
-        # relates 𝒪 to g_d.
-        g(d, m) = 𝒪[m+d+1, m+1] / √prod(m+1:m+d; init=1)
-        for (dj, _) in words
-            (d, j) = dj
-            W = sum(m -> (-1)^(j-m) * binomial(j, m) * g(d, m), 0:j) / factorial(j)
-            p = 2k - (d + 2j) - (d + 2j <= 2 ? 2 : 0)
-            words[dj] += coefficient(W, p) * x^p
-        end
+        local_words!(words, 𝒪, x, n -> 2k - n - (n <= 2 ? 2 : 0))
     end
 
     return words
@@ -225,23 +257,10 @@ function anisotropy_monomials(swt::SpinWaveTheory, ::Val{K}) where K
     L = nbands(swt)
     terms = BosonMonomial{K}[]
     swt.sys.mode == :SUN && return terms
-    ns = ntuple(_ -> zero(Vec3), Val{K}())
-
     for i in 1:L
         iszero(swt.sys.interactions_union[i].onsite) && continue
-        words = anisotropy_coefficients(swt, i)
-        for d in K:-2:0
-            j = div(K - d, 2)
-            c = words[(d, j)]
-            iszero(c) && continue
-            # The word (b†)^{d+j} bʲ and, unless it is self-adjoint, its adjoint
-            # (b†)ʲ b^{d+j}.
-            push!(terms, BosonMonomial(c, ntuple(t -> t <= d+j ? L+i : i, Val{K}()), ns))
-            iszero(d) && continue
-            push!(terms, BosonMonomial(conj(c), ntuple(t -> t <= j ? L+i : i, Val{K}()), ns))
-        end
+        append!(terms, local_word_monomials(anisotropy_coefficients(swt, i), i, L, Val{K}()))
     end
-
     return terms
 end
 

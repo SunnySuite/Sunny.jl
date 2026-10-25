@@ -64,8 +64,9 @@
 # the LSWT amplitude that `set_swt_observable_vectors!` builds.
 #
 # In mode :SUN an observable is a matrix on the same footing as a term of the
-# Hamiltonian, so its words are those of `local_monomials`. In the dipole modes the
-# expansion above gives the two families directly.
+# Hamiltonian, so its words are those of `local_monomials`. In the dipole modes it
+# is a spin component, whose words `spin_component_words` reads off the graded
+# expansion that the onsite anisotropy shares.
 function observable_monomials(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
     (; sys, data) = swt
     L = nbands(swt)
@@ -79,18 +80,8 @@ function observable_monomials(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
 
     @assert sys.mode in (:dipole, :dipole_uncorrected)
     (; sqrtS, observables) = data::SWTDataDipole
-    O = observables[μ, i]
-    if K == 2
-        # Sᶻ = s - b†b
-        return [BosonMonomial(ComplexF64(-O[3]), (L+i, i), (o, o))]
-    elseif K == 3
-        # Both cubic words carry -σ/4s = -1/2σ, that of S⁺ being b†bb and that of
-        # S⁻ its adjoint b†b†b.
-        σ = √2 * sqrtS[i]
-        (cp, cm) = ((O[1] - im*O[2])/2, (O[1] + im*O[2])/2)
-        return [BosonMonomial(-cp / 2σ, (L+i, i, i), (o, o, o)),
-                BosonMonomial(-cm / 2σ, (L+i, L+i, i), (o, o, o))]
-    end
+    words = spin_component_words(observables[μ, i], √2 * sqrtS[i])
+    return local_word_monomials(words, i, L, Val{K}())
 end
 
 # Every K-boson word of observable μ, over the sites of the magnetic cell.
@@ -125,19 +116,11 @@ function spin_monomials(swt::SpinWaveTheory, α, i, ::Val{K}) where K
 
     @assert sys.mode in (:dipole, :dipole_uncorrected)
     (; local_rotations, sqrtS) = data::SWTDataDipole
-    R = local_rotations[i]
-    if K == 0
-        # s ẑ, the classical dipole. Zero on a vacant site, where R vanishes.
-        return [BosonMonomial(ComplexF64(R[α, 3] * sqrtS[i]^2), (), ())]
-    elseif K == 1
-        # σ(Sˣ, Sʸ) with S⁺ = σ b, i.e. Sˣ = σ(b + b†)/2 and Sʸ = σ(b - b†)/2i
-        σ = √2 * sqrtS[i]
-        return [BosonMonomial(σ * (R[α, 1] - im*R[α, 2]) / 2, (i,), (o,)),
-                BosonMonomial(σ * (R[α, 1] + im*R[α, 2]) / 2, (L+i,), (o,))]
-    elseif K == 2
-        # -ẑ b†b, the depletion of Sᶻ = s - b†b
-        return [BosonMonomial(ComplexF64(-R[α, 3]), (L+i, i), (o, o))]
-    end
+    # Row α of R is the global component α in the local frame. The words are the
+    # classical dipole, the tilt, and the depletion. All vanish on a vacant site,
+    # where R does.
+    words = spin_component_words(local_rotations[i][α, :], √2 * sqrtS[i])
+    return local_word_monomials(words, i, L, Val{K}())
 end
 
 # The even words of each observable at one wavevector, as [`pair_amplitude`](@ref)
