@@ -58,8 +58,7 @@ Hamiltonian that can be passed to [`corrected_dispersion`](@ref), `δE` is a
 correction to the energy per site, `dipoles` are the corrected classical dipoles
 of the magnetic cell, and `v` is the underlying boson displacement, which
 [`observable_corrections`](@ref) needs. The `dipoles` are rotated but not
-shortened; the reduction of their magnitude is given by
-[`magnetization_lswt_correction`](@ref).
+shortened; [`corrected_dipoles`](@ref) applies both corrections at once.
 
 Equivalently, `dipoles` minimizes the classical energy plus the zero-point energy
 of [`energy_per_site_lswt_correction`](@ref), and `δE` is the resulting gain. The

@@ -17,7 +17,8 @@
 # resummation does not already carry. `corrected_channels` returns those as
 # three channels: `transverse`, the first term, holding the quasiparticle peak
 # together with the weight a decaying magnon sheds into the continuum; `direct`,
-# the two-magnon continuum of TwoMagnon.jl; and `cross`, their interference. The
+# the two-magnon continuum the observable creates on its own; and `cross`, their
+# interference. The
 # magnon-magnon block of the binned measure is absent from that formula because
 # broadening it to ω gives exactly -Im Σ/π, which the Dyson denominator of A
 # already contains; only the columns carrying a direct amplitude are needed
@@ -53,10 +54,10 @@ by the mean fields of [`hartree_fock_correction`](@ref) and
 [`cubic_self_energy`](@ref). They are broadened by minus its imaginary part,
 which is to say that magnons able to decay into two magnons have a finite
 lifetime, and the weight they lose appears in the continuum into which they
-decay. Included as well is the two-magnon continuum of
-[`intensities_two_magnon`](@ref), which the observable creates directly,
-together with its interference with the continuum a decaying magnon feeds. The
-two are not separately observable, a pair of magnons being reachable either way.
+decay. Included as well is the two-magnon continuum that the observable creates
+directly, together with its interference with the continuum a decaying magnon
+feeds. The two are not separately observable, a pair of magnons being reachable
+either way.
 
 The regulator `η`, with units of energy, is required. It gives every Dirac delta
 a finite width, so that the momentum integrals below can be performed on a
@@ -98,8 +99,8 @@ end
 
 # Workhorse of `intensities_corrected`, which returns the sum of the channels
 # described above. They are kept apart here because each is separately
-# meaningful: `transverse` is the resummed magnon pole, `direct` is what
-# `intensities_two_magnon` returns on its own, and `cross` is their
+# meaningful: `transverse` is the resummed magnon pole, `direct` is the
+# two-magnon continuum the observable creates on its own, and `cross` is their
 # interference. Each is a matrix over (energy, wavevector). Also returned are
 # `specfunc`, the magnon spectral matrix before contraction with observables,
 # and `disp`, the harmonic energies.
@@ -126,8 +127,8 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
 
     loop_grid = @something loop_grid auto_loop_grid(swt, η, tol)
     # Discretization of the pair energy, whose error is O((bin_width/η)²). The
-    # cap of η/16 is what `intensities_two_magnon` defaults to, and is already
-    # negligible.
+    # cap of η/16 is already negligible, so there is nothing to gain by refining
+    # it further as `tol` tightens.
     bin_width = η * min(1/16, sqrt(tol))
 
     # Sampling the frequency axis is cheap compared to the wavevector loop,
@@ -146,12 +147,24 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
     #
     #   hartree_fock_correction(swt; maxiters=100, damping=0.5, rtol=tol, ...)
 
-    tad = tadpole_correction(swt; rtol=tol, maxevals=mean_field_maxevals)
-    terms2 = [hartree_fock_correction(swt; maxiters=1, rtol=tol, maxevals=mean_field_maxevals).terms2
-              tad.terms2
-              anisotropy_correction(swt).terms2]
-    δc = observable_corrections(swt; v=tad.v, rtol=tol, maxevals=mean_field_maxevals)
+    # Everything the cubic vertex generates — the self-energy, its interference with
+    # the direct pair amplitude, and the tadpole — vanishes with it, as happens for a
+    # collinear structure. Discarding a negligible vertex outright, rather than
+    # carrying its round-off, is what lets every consumer below skip that work:
+    # `vertex!` is never called, so the magnon-magnon and interference blocks of the
+    # pair measure come out exactly zero, leaving only the direct two-magnon
+    # amplitude, which the observables supply and which is always live. Verified to
+    # leave `transverse` and `direct` bit-identical. See `cubic_vertex_vanishes`.
     terms3 = cubic_monomials(swt)
+    cubic = !cubic_vertex_vanishes(swt, terms3)
+    cubic || empty!(terms3)
+
+    tad = cubic ? tadpole_correction(swt; rtol=tol, maxevals=mean_field_maxevals) : nothing
+    terms2 = [hartree_fock_correction(swt; maxiters=1, rtol=tol, maxevals=mean_field_maxevals).terms2
+              isnothing(tad) ? BosonMonomial{2}[] : tad.terms2
+              anisotropy_correction(swt).terms2]
+    δc = observable_corrections(swt; v = isnothing(tad) ? nothing : tad.v,
+                                rtol=tol, maxevals=mean_field_maxevals)
 
     chans = (; transverse = zeros(eltype(measure), length(energies), length(qpts.qs)),
                cross = zeros(eltype(measure), length(energies), length(qpts.qs)),
@@ -201,7 +214,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         pair_amplitude_prefactors!(pref, swt, q_reshaped, q_global)
         ρ = Matrix{ComplexF64}[]
         Σsrc = accum_pair_measure!(ρ, swt, terms3, q_reshaped, ps; source_freqs=onshell, bin_width, pref)
-        pair_self_energy!(Σ3, ρ, Σsrc, energies .+ im*η, bin_width)
+        cubic && pair_self_energy!(Σ3, ρ, Σsrc, energies .+ im*η, bin_width)
 
         # Conjugated amplitudes conj(ũ) = T† u, including the 1/s correction to the
         # observables themselves. Their harmonic part, conj(ũ[n, μ]), is the
@@ -268,15 +281,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts; energies, η, tol=0.01, l
         end
     end
 
-    if threaded
-        Threads.@threads for iq in eachindex(qpts.qs)
-            calc_iq!(iq)
-        end
-    else
-        for iq in eachindex(qpts.qs)
-            calc_iq!(iq)
-        end
-    end
+    foreach_maybe_threaded(calc_iq!, threaded, eachindex(qpts.qs))
 
     if verbose
         # A regulator much larger than the calculated linewidths is dominating
