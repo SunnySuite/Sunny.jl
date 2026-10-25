@@ -391,7 +391,7 @@ end
 One-loop self-energy of the magnons at the wavevector `q` in RLU. Calling `Σ(z)`
 at a complex frequency `z` returns the ``2L×2L`` Nambu matrix of the static and
 cubic self-energies, counterterm included, in the quasi-particle basis of the
-Gaussian state. The magnon Green's function of `dyson=:nambu` is then
+Gaussian state. The magnon Green's function of `scheme=:one_loop` is then
 
     G(z) = inv(z * Ĩ - Diagonal(abs.(Σ.ε)) - Σ(z)),
 
@@ -402,7 +402,7 @@ Evaluating `Σ(z)` is cheap, so that e.g. a pole equation ``\\det G^{-1}(ω) = 0
 can be solved by root finding.
 
 With `ladder=true` the measures also carry the channels of the two-magnon
-interaction that `dyson=:ladder` resums. `Σ(z)` is then the one-loop
+interaction that `scheme=:two_magnon_ladder` resums. `Σ(z)` is then the one-loop
 self-energy still.
 """
 struct SelfEnergy
@@ -488,10 +488,10 @@ function ladder_transform(se::SelfEnergy, zs)
 end
 
 # The self-energy Σstat + K frozen on the shell of its two legs, ½[K_mn(ε_m) +
-# K_mn(ε_n)], plus the harmonic energies: a frequency-independent Nambu matrix in
-# the quasi-particle basis. It reduces to K_nn(ε_n) on the diagonal and is
-# Hermitian up to its absorptive part. The on-shell poles of `dyson=:on_shell`
-# diagonalize its particle and hole blocks.
+# K_mn(ε_n)], plus the harmonic energies: a frequency-independent Nambu matrix
+# in the quasi-particle basis. It reduces to K_nn(ε_n) on the diagonal and is
+# Hermitian up to its absorptive part. The on-shell poles of
+# `scheme=:one_loop_on_shell` diagonalize its particle and hole blocks.
 #
 # The dispersive part of K is taken at ω = 0 on the real axis, where it cancels
 # Σstat at a Goldstone mode, plus its change from ω = 0 to the shell, which is

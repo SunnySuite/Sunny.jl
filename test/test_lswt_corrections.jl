@@ -992,8 +992,8 @@ end
                       δE = [hf.δE, tad.δE],
                       εc = dispersion(Sunny.swt_with_vacuum(swt; correction=[hf.terms2; tad.terms2]), qs),
                       Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, bz=(8, 8, 1)),
-                      I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61),
-                                                      η=0.1, bz=(26, 26, 1)).data)
+                      I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61), η=0.1,
+                                                      scheme=:one_loop, bz=(26, 26, 1)).data)
         end
         for k in keys(rs[1])
             @test maximum(abs, getfield(rs[1], k) .- getfield(rs[2], k)) < 1e-5
@@ -1062,7 +1062,7 @@ end
     swt = SpinWaveTheory(canted_square(1, 3); measure=nothing)
     # Without a measure the one-loop pieces still build, and intensities refuse
     @test size(Sunny.OneLoop(swt; η=0.1, bz=(4, 4, 1)).δc) == (2Sunny.nbands(swt), 0)
-    @test_throws "No observables" Sunny.corrected_intensities(swt, [[0, 0, 0]]; energies=0:0.1:1, η=0.1)
+    @test_throws "No observables" Sunny.corrected_intensities(swt, [[0, 0, 0]]; energies=0:0.1:1, η=0.1, scheme=:one_loop)
     for bz in ((8, 8, 1), (16, 16, 1))
         t2 = [Sunny.hartree_fock_correction(swt; bz).terms2
               Sunny.tadpole_correction(swt; bz).terms2]
@@ -1079,7 +1079,7 @@ end
     # The on-shell bands take the cancelling static part at real ω = 0, so a
     # soft band does not move with η, even at ε ≈ η. At ε + iη it moved by 25%.
     let sys = canted_square(1/2, 1), swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-        soft(η) = minimum(Sunny.corrected_channels(swt, [[0.005, 0.005, 0]]; energies=Float64[], η, dyson=:on_shell, bz=(24, 24, 1)).bands.disp)
+        soft(η) = minimum(Sunny.corrected_channels(swt, [[0.005, 0.005, 0]]; energies=Float64[], η, scheme=:one_loop_on_shell, bz=(24, 24, 1)).bands.disp)
         @test soft(0.05) ≈ soft(0.02) rtol=1e-3
     end
 
@@ -1222,7 +1222,7 @@ end
     # the step is a fraction of η.
     η = 0.06
     energies = range(-20, 24, 1501)
-    chans = Sunny.corrected_channels(swt2, qs2; energies, η, bz)
+    chans = Sunny.corrected_channels(swt2, qs2; energies, η, scheme=:one_loop, bz)
     (; transverse) = chans
     pos = energies .> 0
     @test !any(chans.breakdown)
@@ -1234,24 +1234,24 @@ end
     # the negative-frequency poles
     @test 0.8 < minimum(vec(sum(transverse[pos, :]; dims=1)) * step(energies) ./ refs) < 0.95
 
-    # The public `SelfEnergy` is the propagator of `:nambu`, whose spectral
+    # The public `SelfEnergy` is the propagator of `:one_loop`, whose spectral
     # matrix it must reproduce
     let z = energies[800] + im*η, Σ = Sunny.SelfEnergy(Sunny.OneLoop(swt2; η, bz), qs2[1])
         Ĩ = Diagonal([ones(L); -ones(L)])
         G = inv(z * Ĩ - Diagonal(abs.(Σ.ε)) - Σ(z))
-        c = Sunny.corrected_channels(swt2, qs2[1:1]; energies=[real(z)], η, bz, spectral=true)
+        c = Sunny.corrected_channels(swt2, qs2[1:1]; energies=[real(z)], η, scheme=:one_loop, bz, spectral=true)
         @test ((G' - G) / (2π*im))[1:L, 1:L] ≈ c.specfunc[:, :, 1, 1]
     end
 
     # The reproduction schemes propagate the resolvent of a stable quadratic
     # model here, and assemble the magnon term and the continuum separately, so
-    # both are positive. The magnon term of `:particle` keeps the amplitudes and
-    # metric, so it satisfies the commutator sum rule; `:on_shell` keeps a
-    # unit-weight Lorentzian per pole.
-    for dyson in (:particle, :on_shell)
-        c = Sunny.corrected_channels(swt2, qs2; energies, η, dyson, bz, spectral=true)
+    # both are positive. The magnon term of `:one_loop_projected` keeps the
+    # amplitudes and metric, so it satisfies the commutator sum rule;
+    # `:one_loop_on_shell` keeps a unit-weight Lorentzian per pole.
+    for scheme in (:one_loop_projected, :one_loop_on_shell)
+        c = Sunny.corrected_channels(swt2, qs2; energies, η, scheme, bz, spectral=true)
         @test all(≥(0), (c.transverse + c.cross + c.direct)[pos, :])
-        if dyson == :particle
+        if scheme == :one_loop_projected
             @test maximum(abs, vec(sum(c.transverse; dims=1)) * step(energies) - comms) < 2e-3 * maximum(refs)
         else
             # Every pole decays forward in time, by construction
@@ -1272,7 +1272,7 @@ end
     # pair at x ≈ 0 contributes just half of its Lorentzian.
     qs4 = vec([[i, j, 0] ./ 3 for i in 0:2, j in 0:2])
     chans4 = Sunny.corrected_channels(swt2, qs4; energies=range(-4, 12, 161), η=0.3,
-                                      bz=(3, 3, 1))
+                                      scheme=:one_loop, bz=(3, 3, 1))
     @test abs(sum(chans4.cross)) < 1e-3 * sum(chans4.direct)
 
     # ---- Gauge invariance, where Σ̂ is genuinely off-diagonal ----
@@ -1308,14 +1308,14 @@ end
                                         η=0.05, bz=(6, 6, 1))[1:L, 1:L, 1]
     @test maximum(abs, Σ3 - Diagonal(diag(Σ3))) > 0.2 * maximum(abs, diag(Σ3))
     energies = range(0.2, 2.0, 25)
-    for dyson in (:nambu, :ladder, :particle, :on_shell)
-        spectral(swt, qs, energies) = let c = Sunny.corrected_channels(swt, qs; energies, η=0.15, dyson, bz=(4, 4, 1))
+    for scheme in (:one_loop, :two_magnon_ladder, :one_loop_projected, :one_loop_on_shell)
+        spectral(swt, qs, energies) = let c = Sunny.corrected_channels(swt, qs; energies, η=0.15, scheme, bz=(4, 4, 1))
             c.transverse + c.cross + c.direct
         end
         data = spectral(swts[1], qs3, energies)
         mirror = spectral(swts[2], -qs3, -reverse(energies))
         @test data ≈ -reverse(mirror; dims=1) rtol=1e-6
-        @test Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, dyson, bz=(4, 4, 1)).data ≈ data
+        @test Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, scheme, bz=(4, 4, 1)).data ≈ data
     end
 
     # ---- Quantum sum rule on the square lattice ----
@@ -1338,7 +1338,7 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(0, 10, 101), 0.2)
-        chans = Sunny.corrected_channels(swt, qs; energies, η, bz=(4, 4, 1))
+        chans = Sunny.corrected_channels(swt, qs; energies, η, scheme=:one_loop, bz=(4, 4, 1))
         @test maximum(abs, chans.direct) < 1e-25
         kernel = lorentzian(fwhm=2η)
         mirror = reverse(intensities(swt, -qs; energies=-reverse(energies), kernel).data)
@@ -1352,7 +1352,7 @@ end
         o = Sunny.Vec3(0, 0, 0)
         L = Sunny.nbands(swt)
         shift = [Sunny.BosonMonomial(0.3+0im, (L+1, 1), (o, o))]
-        c = Sunny.corrected_channels(Sunny.swt_with_vacuum(swt; correction=shift), qs; energies, η, bz=(4, 4, 1))
+        c = Sunny.corrected_channels(Sunny.swt_with_vacuum(swt; correction=shift), qs; energies, η, scheme=:one_loop, bz=(4, 4, 1))
         @test c.transverse + c.cross + c.direct ≈ chans.transverse + chans.cross + chans.direct atol=1e-12
         @test c.disp ≈ chans.disp .+ 0.3
     end
@@ -1384,7 +1384,7 @@ end
         @test vertex_scale(canted) > 1e-2
 
         chans = Sunny.corrected_channels(swt, [[0.3, 0.2, 0]]; energies=range(0, 12, 121),
-                                         η=0.2, bz=(8, 8, 1))
+                                         η=0.2, scheme=:one_loop, bz=(8, 8, 1))
         @test iszero(chans.cross) && !iszero(chans.direct)
     end
 
@@ -1396,13 +1396,13 @@ end
         sys = canted_square(1/2, 0)
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
         qs = [[0, 0, 0], [1/2, 1/2, 0], [0.05, 0, 0], [1/2, 0.45, 0]]
-        chans = Sunny.corrected_channels(swt, qs; energies=[1.0], η=0.1, dyson=:ladder, bz=(64, 64, 1))
+        chans = Sunny.corrected_channels(swt, qs; energies=[1.0], η=0.1, scheme=:two_magnon_ladder, bz=(64, 64, 1))
         @test chans.breakdown == [true, true, false, false]
 
         # A breakdown is marked by NaN in every component of a measure that
         # returns a vector
         swt = SpinWaveTheory(sys; measure=ssf_custom((q, ssf) -> diag(ssf), sys))
-        res = Sunny.corrected_intensities(swt, qs[1:1]; energies=[-0.05, 0.05], η=0.1, dyson=:ladder, bz=(64, 64, 1))
+        res = Sunny.corrected_intensities(swt, qs[1:1]; energies=[-0.05, 0.05], η=0.1, scheme=:two_magnon_ladder, bz=(64, 64, 1))
         @test all(x -> all(isnan, x), res.data)
     end
 
@@ -1454,7 +1454,7 @@ end
         # chemical cell this average is the longitudinal weight per site.
         qs2 = vec([[(a - 0.5)/3, (b - 0.5)/3, 0] for a in 1:3, b in 1:3])
         energies = range(-2, 16, 181)
-        direct = Sunny.corrected_channels(swt, qs2; energies, η=0.2, bz=(12, 12, 1)).direct
+        direct = Sunny.corrected_channels(swt, qs2; energies, η=0.2, scheme=:one_loop, bz=(12, 12, 1)).direct
         longitudinal = sum(direct) * step(energies) / length(qs2)
 
         return (; harm, transverse, elastic, longitudinal,
@@ -1528,9 +1528,9 @@ end
         end
         scaled(ts, x) = [Sunny.BosonMonomial(x * t.c, t.as, t.ns) for t in ts]
 
-        # Weight at ω > 0 of the :nambu response at q = 0, a finite sum of poles
-        # χ(z) = Σ rₙ/(z - ωₙ). It is (Σ rₙ + Σ rₙ sign ωₙ)/2, the second sum being
-        # -(1/π) ∫ χ(iy) dy, so that no broadening enters.
+        # Weight at ω > 0 of the :one_loop response at q = 0, a finite sum of
+        # poles χ(z) = Σ rₙ/(z - ωₙ). It is (Σ rₙ + Σ rₙ sign ωₙ)/2, the second
+        # sum being -(1/π) ∫ χ(iy) dy, so that no broadening enters.
         function corrected_weight(swt, ε)
             L = Sunny.nbands(swt)
             ol = Sunny.OneLoop(swt; η=1e-3, bz=(1, 1, 1))
@@ -1547,7 +1547,7 @@ end
             Ĩ = Diagonal([ones(L); -ones(L)])
             w = se.w[:, 1]
             function χ(zs)
-                (; Σ, K) = Sunny.dyson_model(se, :nambu, zs)
+                (; Σ, K) = Sunny.dyson_model(se, :one_loop, zs)
                 return map(eachindex(zs)) do i
                     Kz = K[:, :, i]
                     G = inv(zs[i] * Ĩ - E - Σ - Kz[p, p])
@@ -1641,14 +1641,15 @@ end
     #
     # Re-pinned when the mean fields moved onto the loop grid. The cluster is
     # 𝐪-independent, so one point already integrated them exactly and only
-    # `:on_shell` moved there, by its change of definition. On the square
-    # lattice every scheme moved by about 1%, the error of the mean fields on an
-    # 8×8 grid; that is the price of summing them where the self-energy is
-    # summed, and it is small against η. `:on_shell` on the cluster was
-    # re-pinned again, by 3e-6, when its static part moved to ω = 0.
-    # Each `dyson` scheme is pinned, as (sum, maximum) of the intensities.
-    function pinned(swt, qs, energies, η, dims, dyson)
-        res = Sunny.corrected_intensities(swt, qs; energies, η, dyson, bz=dims)
+    # `:one_loop_on_shell` moved there, by its change of definition. On the
+    # square lattice every scheme moved by about 1%, the error of the mean
+    # fields on an 8×8 grid; that is the price of summing them where the
+    # self-energy is summed, and it is small against η. `:one_loop_on_shell` on
+    # the cluster was re-pinned again, by 3e-6, when its static part moved to
+    # ω = 0.
+    # Each `scheme` is pinned, as (sum, maximum) of the intensities.
+    function pinned(swt, qs, energies, η, dims, scheme)
+        res = Sunny.corrected_intensities(swt, qs; energies, η, scheme, bz=dims)
         return [sum(res.data), maximum(res.data)]
     end
 
@@ -1656,21 +1657,21 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
         # Zero bond offsets make every vertex 𝐪-independent, so a single loop
         # wavevector integrates the self-energy exactly
-        refs = (; nambu = [134.7520268640052, 8.380503835798784],
-                  particle = [134.14976386847886, 8.359567327789398],
-                  on_shell = [134.0359610999244, 8.305436289136901])
-        for (dyson, ref) in pairs(refs)
-            @test pinned(swt, [[0.21, -0.33, 0.12], [0.5, 0, 0]], range(0.1, 6.0, 120), 0.1, (1, 1, 1), dyson) ≈ ref rtol=1e-6
+        refs = (; one_loop = [134.7520268640052, 8.380503835798784],
+                  one_loop_projected = [134.14976386847886, 8.359567327789398],
+                  one_loop_on_shell = [134.0359610999244, 8.305436289136901])
+        for (scheme, ref) in pairs(refs)
+            @test pinned(swt, [[0.21, -0.33, 0.12], [0.5, 0, 0]], range(0.1, 6.0, 120), 0.1, (1, 1, 1), scheme) ≈ ref rtol=1e-6
         end
     end
 
     let sys = anisotropic_square()
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
-        refs = (; nambu = [79.02848991053109, 3.8296352863687693],
-                  particle = [74.58444179829294, 3.146640845289903],
-                  on_shell = [74.7926152607717, 3.1485933083002178])
-        for (dyson, ref) in pairs(refs)
-            @test pinned(swt, [[0.3, 0.1, 0], [0.37, 0.22, 0]], range(0.2, 14.0, 200), 0.2, (8, 8, 1), dyson) ≈ ref rtol=1e-6
+        refs = (; one_loop = [79.02848991053109, 3.8296352863687693],
+                  one_loop_projected = [74.58444179829294, 3.146640845289903],
+                  one_loop_on_shell = [74.7926152607717, 3.1485933083002178])
+        for (scheme, ref) in pairs(refs)
+            @test pinned(swt, [[0.3, 0.1, 0], [0.37, 0.22, 0]], range(0.2, 14.0, 200), 0.2, (8, 8, 1), scheme) ≈ ref rtol=1e-6
         end
     end
 end
@@ -2203,8 +2204,8 @@ end
     @test maximum(abs, Σbin - Σloop) / maximum(abs, Σloop) < 1e-3
 
     # Reference for the bare two-magnon continuum K_dd, which is the whole
-    # `direct` channel under `dyson=:on_shell`. The reference is the same sum
-    # over pairs of magnons, both channels, but broadening each pair
+    # `direct` channel under `scheme=:one_loop_on_shell`. The reference is the
+    # same sum over pairs of magnons, both channels, but broadening each pair
     # individually instead of binning its energy first, and contracting the
     # three observable amplitudes β by `contract` rather than through a
     # `measure`. The binning is therefore the only approximation separating the
@@ -2251,7 +2252,7 @@ end
         (η, grid) = (0.15, (8, 8, 1))
         qs = [[0.3, 0.2, 0], [1/6, 1/6, 0]]
         energies = range(0, 4, 61)
-        direct = Sunny.corrected_channels(swt5, qs; energies, η, dyson=:on_shell, bz=grid).direct
+        direct = Sunny.corrected_channels(swt5, qs; energies, η, scheme=:one_loop_on_shell, bz=grid).direct
         ref = direct_unbinned(β -> imag(β[1] * conj(β[2])), swt5, qs, energies, η, grid)
         scale = maximum(abs, ref)
         @test scale > 1e-2   # the measure is not trivially zero
@@ -2271,7 +2272,7 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(-2, 16, 181), 0.2)
-        direct(grid) = Sunny.corrected_channels(swt, qs; energies, η, dyson=:on_shell,
+        direct(grid) = Sunny.corrected_channels(swt, qs; energies, η, scheme=:one_loop_on_shell,
                                                 bz=grid).direct
         ref = direct((32, 32, 1))
         scale = maximum(abs, ref)

@@ -3,9 +3,8 @@
 # Cs₂CuCl₄ at order 1/s.
 #
 # The paper defines the renormalized dispersion as the pole of the full Dyson
-# equation, their Eq. (40), which is what `dyson=:nambu` solves. It is read off
-# here as the peak of the spectral function, not from the first-order poles of
-# `dyson=:on_shell`, which differ at s = 1/2 by up to 0.02 meV.
+# equation, Eq. (40). Here, we read it off as the peak of the spectral function
+# calculated at full one-loop order.
 
 using Sunny, LinearAlgebra
 using GLMakie
@@ -57,11 +56,12 @@ function peaks(res)
     end
 end
 
-# A `:nambu` pole near ω = 0 at (010) is flagged as a breakdown of the
+# A `:one_loop` pole near ω = 0 at (010) is flagged as a breakdown of the
 # resummation. It belongs to a folded band far from the principal mode, so the
 # flag is disabled here.
 
-corrected = peaks(Sunny.corrected_intensities(swt, path; energies, η, mark_breakdown=false, threaded=true))
+corrected = peaks(Sunny.corrected_intensities(swt, path; energies, η, scheme=:one_loop,
+                                              mark_breakdown=false, threaded=true))
 
 fig = Figure()
 ax = Axis(fig[1, 1]; ylabel="Energy (meV)", xticks=path.xticks)

@@ -46,7 +46,8 @@ res = map([3, 4]) do B
     randomize_spins!(sys)
     minimize_energy!(sys)
     swt = SpinWaveTheory(sys; measure)
-    Sunny.corrected_intensities(swt, path; energies, η, threaded=true, verbose=true)
+    Sunny.corrected_intensities(swt, path; energies, η, scheme=:one_loop,
+                                threaded=true, verbose=true)
 end
 
 # Compare with the right-most panels of Fig. 3a,b of Bai et al., each
