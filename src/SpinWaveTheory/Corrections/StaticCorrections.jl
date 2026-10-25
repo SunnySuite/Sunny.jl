@@ -453,10 +453,12 @@ end
 # dependence survives.
 function observable_corrections(swt::SpinWaveTheory, w, g::Contractions)
     L = nbands(swt)
-    return stack(1:num_observables(swt.measure)) do μ
-        nambu_vector([wick_reduce(observable_monomials(swt, μ, Val{3}()), g, w, Val{1}());
-                      wick_reduce(observable_monomials(swt, μ, Val{2}()), g, w, Val{1}())], L, g.noise)
+    δc = zeros(ComplexF64, 2L, num_observables(swt.measure))
+    for μ in axes(δc, 2)
+        δc[:, μ] = nambu_vector([wick_reduce(observable_monomials(swt, μ, Val{3}()), g, w, Val{1}());
+                                 wick_reduce(observable_monomials(swt, μ, Val{2}()), g, w, Val{1}())], L, g.noise)
     end
+    return δc
 end
 
 """

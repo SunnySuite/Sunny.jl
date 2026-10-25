@@ -164,6 +164,7 @@ progress bar and diagnostics.
 """
 function corrected_intensities(swt::SpinWaveTheory, qpts; energies, η, kernel=nothing, dyson=:nambu,
                                bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
+    num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
         corrected_channels(swt, qpts; energies, η, dyson, bz, threaded, verbose)
     data = reshape(transverse + cross + direct, length(energies), size(qpts.qs)...)
@@ -194,6 +195,7 @@ the hole poles at ``-𝐪`` exactly.
 """
 function corrected_intensities_bands(swt::SpinWaveTheory, qpts; η, bz=nothing,
                                      threaded=false, verbose=false)
+    num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     (; cryst, qpts, bands) = corrected_channels(swt, qpts; energies=Float64[], η, dyson=:on_shell,
                                                 bz, threaded, verbose)
     sz = (size(bands.disp, 1), size(qpts.qs)...)
