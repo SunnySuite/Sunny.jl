@@ -1156,7 +1156,7 @@ end
     chans = Sunny.corrected_channels(swt2, qs2; energies, η, loop_grid)
     (; transverse) = chans
     pos = energies .> 0
-    @test !any(chans.unstable)
+    @test !any(chans.breakdown)
     @test all(≥(0), (transverse + chans.cross + chans.direct)[pos, :])
     # The commutator is small for a trace measure, so it is compared on the scale of
     # the static weight. The residual is the truncated Lorentzian tail.
