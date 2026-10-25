@@ -274,11 +274,7 @@ spin_component_words(r, x) = first(stevens_words(spin_component_coefs(r), x, fal
 # classical energy gradient, so an onsite anisotropy sources
 # `tadpole_correction` only away from the classical minimum.
 
-# Each local operator of the Hamiltonian as Stevens coefficients, in the local
-# frame: the onsite anisotropy of each site, which is time-reversal even, and
-# the quadrupoles 𝒪_2^q, ordered as in `stevens_matrices`.
-onsite_stevens_coefs(stvexp::StevensExpansion) =
-    ((0, stvexp.c0), (2, stvexp.c2), (4, stvexp.c4), (6, stvexp.c6))
+# The quadrupole 𝒪_2^q as Stevens coefficients, as in `stevens_words`
 quadrupole_coefs(q) = ((2, ntuple(p -> p == q ? 1.0 : 0.0, 5)),)
 
 # Monomials of the term of K bosons of the Hamiltonian in the dipole modes,
@@ -293,7 +289,7 @@ quadrupole_coefs(q) = ((2, ntuple(p -> p == q ? 1.0 : 0.0, 5)),)
 # field, which vanishes at a minimum exactly as H₁ does. These are retained
 # because tadpole relaxation moves the structure off that minimum.
 function monomials_dipole(sys::System, data::SWTDataDipole, ::Val{K}; beyond_lswt) where K
-    (; local_rotations, stevens_coefs, sqrtS, interactions) = data
+    (; local_rotations, sqrtS, interactions) = data
     L = nsites(sys)
     rcs = sys.mode == :dipole
 
@@ -331,7 +327,7 @@ function monomials_dipole(sys::System, data::SWTDataDipole, ::Val{K}; beyond_lsw
     for (i, int) in enumerate(interactions)
         B = local_rotations[i]' * (sys.gs[i]' * sys.extfield[i])
         add_local!(leading_only(words(spin_component_coefs(B), i)))
-        iszero(int.onsite) || add_local!(words(onsite_stevens_coefs(stevens_coefs[i]), i))
+        iszero(int.onsite) || add_local!(words(stevens_ranks(data.stevens_coefs[i]), i))
 
         for coupling in int.pair
             (; isculled, bond) = coupling

@@ -62,33 +62,24 @@ end
 
 function empty_anisotropy(mode, N)
     if mode in (:dipole, :dipole_uncorrected)
-        c = map(k -> zeros(2k+1), OffsetArray(0:6, 0:6))
-        return StevensExpansion(c)
+        return StevensExpansion(ntuple(k -> zero(SVector{2k-1, Float64}), 7))
     elseif mode == :SUN
         return Hermitian(zeros(ComplexF64, N, N))
     end
 end
 
-function Base.iszero(stvexp::StevensExpansion)
-    (; c0, kmax, odd) = stvexp
-    return iszero(c0) && iszero(kmax) && !odd
-end
+Base.iszero(stvexp::StevensExpansion) = iszero(stvexp.c0) && iszero(stvexp.kmax)
 
-# The coefficients of every rank, ordered by rank k = 0…6
-stevens_coefs_by_rank(s::StevensExpansion) = (s.c0, s.c1, s.c2, s.c3, s.c4, s.c5, s.c6)
-from_coefs_by_rank(c) = StevensExpansion(c[1], c[3], c[5], c[7], c[2], c[4], c[6])
-
-function Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion)
-    return all(map(≈, stevens_coefs_by_rank(stvexp), stevens_coefs_by_rank(stvexp′)))
-end
-
+Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion) =
+    all(map(≈, coefs_by_rank(stvexp), coefs_by_rank(stvexp′)))
 Base.:+(stvexp::StevensExpansion, stvexp′::StevensExpansion) =
-    from_coefs_by_rank(map(+, stevens_coefs_by_rank(stvexp), stevens_coefs_by_rank(stvexp′)))
-Base.:*(stvexp::StevensExpansion, x::Real) = from_coefs_by_rank(map(c -> c * x, stevens_coefs_by_rank(stvexp)))
+    StevensExpansion(map(+, coefs_by_rank(stvexp), coefs_by_rank(stvexp′)))
+Base.:*(stvexp::StevensExpansion, x::Real) = StevensExpansion(map(c -> c * x, coefs_by_rank(stvexp)))
 
+# Rank 0 is a scalar, and invariant
 function rotate_operator(stvexp::StevensExpansion, R)
-    (c0, cs...) = stevens_coefs_by_rank(stvexp)
-    return from_coefs_by_rank((c0, map(c -> typeof(c)(rotate_stevens_coefficients(c, R)), cs)...))
+    (c0, cs...) = coefs_by_rank(stvexp)
+    return StevensExpansion((c0, map(c -> typeof(c)(rotate_stevens_coefficients(c, R)), cs)...))
 end
 
 function operator_to_matrix(stvexp::StevensExpansion; N)
