@@ -85,6 +85,11 @@ function is_homogeneous(sys::System{N}) where N
     return sys.interactions_union isa Vector{Interactions}
 end
 
+# The interactions of the site with linear index i in `1:nsites(sys)`, stored
+# per sublattice in a homogeneous system
+interactions_at(sys::System, i::Int) =
+    is_homogeneous(sys) ? sys.interactions_union[to_atom(eachsite(sys)[i])] : sys.interactions_union[i]
+
 """
     to_inhomogeneous(sys::System)
 
