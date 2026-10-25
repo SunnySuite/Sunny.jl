@@ -133,19 +133,6 @@ function check_dipole_observables(sys::System, measure::MeasureSpec)
         error("General measurements not supported for spiral calculation")
 end
 
-# Classes of branches s ∈ (-1, 0, 1) whose shifts s k agree modulo the reciprocal
-# lattice. Branches of one class describe the same modes, and their amplitudes
-# add coherently.
-function branch_classes(k_supercell)
-    same(s, t) = norm((s - t) * k_supercell - round.((s - t) * k_supercell)) < 1e-8
-    classes = Vector{Int}[]
-    for s in (-1, 0, 1)
-        c = findfirst(c -> same(first(c), s), classes)
-        isnothing(c) ? push!(classes, [s]) : push!(classes[c], s)
-    end
-    return classes
-end
-
 """
     intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0)
 
@@ -164,14 +151,11 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
     L = nbands(swt)
     Nq = length(qpts.qs)
 
-    # Branch s carries the part of the observable that changes the angular
-    # momentum about the axis by s, as selected by the projector P[s+2]. The
-    # projectors sum to the identity.
-    nx = CMat3([0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0])
-    R2 = CMat3(axis * axis')
-    R1 = (1/2) .* CMat3(I - im .* nx - R2)
-    P = (R1, R2, conj(R1))
-    classes = branch_classes(to_supercell_rlu(sys, k))
+    # Branch s carries the part of the observable with angular momentum s about
+    # the axis. Branches of one class describe the same modes, and their
+    # amplitudes add coherently.
+    P = spiral_projectors(axis)
+    classes = spiral_classes(to_supercell_rlu(sys, k))
 
     disp = zeros(Float64, 3L, Nq)
     data = zeros(eltype(measure), 3L, Nq)
