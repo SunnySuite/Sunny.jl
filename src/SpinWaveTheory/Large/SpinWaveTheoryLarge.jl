@@ -128,7 +128,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     Nobs = num_observables(measure)
     rb = RetardedBroadening(energies; η, kernel, kT)
     # Lanczos steps per wavevector, for the `verbose` report
-    niters = zeros(Int, size(qpts.qs))
+    iters = zeros(Int, size(qpts.qs))
 
     newbuf() = (
         u    = zeros(ComplexF64, n, Nobs),
@@ -152,7 +152,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
         G = gram_rows(V, mul_Ĩ_rows!(similar(V), V))
         mulS!(W, X) = mul_rows!(W, H, X, Hq)
 
-        (C, niters[iq]) = try
+        (C, iters[iq]) = try
             lanczos_correlations(mulS!, V, G, rb; η, tol, maxiters)
         catch e
             e isa InstabilityError || rethrow()
@@ -182,11 +182,13 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     if verbose
         nthreads = threaded ? min(Threads.nthreads(), length(qpts.qs)) : 1
         per_q = number_to_simple_string(1000 * elapsed / length(qpts.qs); digits=2)
-        # Wavevectors where all observables vanish take no steps
-        ms = sort!(filter(>(0), vec(niters)))
         println("  elapsed         $(number_to_simple_string(elapsed; digits=2)) s on $nthreads \
                  thread$(nthreads == 1 ? "" : "s"), $per_q ms per 𝐪")
-        isempty(ms) || println("  Lanczos steps   median $(ms[cld(end, 2)]), max $(ms[end]), total $(sum(ms))")
+        if !isempty(iters)
+            mean = number_to_simple_string(Statistics.mean(iters); digits=3)
+            median = number_to_simple_string(Statistics.median(iters); digits=3)
+            println("  Lanczos steps   mean $mean, median $median, max $(maximum(iters))")
+        end
     end
     return data
 end
