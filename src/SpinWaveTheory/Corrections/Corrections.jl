@@ -85,7 +85,7 @@
 # resolving `η` for loop integrals, or the dimensions of a fixed grid. A state
 # produced by `self_consistent` records its grid, which subsequent calls use.
 #
-#     Vacuum       self_consistent, GoldstonePin, with_correction
+#     Vacuum       self_consistent, GoldstonePin, swt_with_correction
 #     Spectra      corrected_intensities, corrected_intensities_bands
 #     Statics      corrected_energy_per_site, gaussian_energy_per_site,
 #                  boson_density, corrected_magnetic_moments

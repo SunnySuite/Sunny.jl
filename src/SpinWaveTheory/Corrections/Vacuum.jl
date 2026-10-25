@@ -38,10 +38,10 @@
 # The same theory about the vacuum of the LSWT Hamiltonian plus `terms2`, which
 # replaces any correction that `swt` already carries. The result is not
 # self-consistent, so it records no grid.
-with_correction(swt::SpinWaveTheory, terms2) = SpinWaveTheory(swt, GaussianState(terms2, nothing, (;)))
+swt_with_correction(swt::SpinWaveTheory, terms2) = swt_with_state(swt, GaussianState(terms2, nothing, (;)))
 
 # The same theory about the harmonic vacuum, i.e. LSWT proper
-harmonic(swt::SpinWaveTheory) = with_correction(swt, BosonMonomial{2}[])
+swt_harmonic(swt::SpinWaveTheory) = swt_with_state(swt, GaussianState())
 
 # Adds the counterterm of the vacuum, minus its correction, to the Nambu matrix δH
 accum_counterterm!(δH, swt::SpinWaveTheory, q_supercell) =

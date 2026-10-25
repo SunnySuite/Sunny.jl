@@ -18,8 +18,8 @@ mean-field correction to the quadratic (LSWT) Hamiltonian, with mean fields
 taken in the Gaussian state of `swt`, by default the LSWT ground state. The
 correction is smaller than the LSWT Hamiltonian by a factor of order ``1/s``.
 Returns `(; terms2, δE)`, where `terms2` is a correction to the quadratic
-Hamiltonian, e.g. for `Sunny.with_correction`, and `δE` is a correction to the
-energy per site.
+Hamiltonian, e.g. for `Sunny.swt_with_correction`, and `δE` is a correction to
+the energy per site.
 
 The LSWT Hamiltonian need not be positive definite. If its frequencies are real,
 as for a structure that quantum fluctuations select from a classically
@@ -82,7 +82,7 @@ uniform_shift(c, L) = [BosonMonomial(complex(c), (L+a, a), (zero(Vec3), zero(Vec
 function constraint_terms(pin::GoldstonePin, swt, terms2)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H, with_correction(swt, terms2), to_supercell_rlu(swt.sys, pin.q))
+    dynamical_matrix!(H, swt_with_correction(swt, terms2), to_supercell_rlu(swt.sys, pin.q))
     μ = swt.regularization - eigmin(Hermitian(H))
     return (uniform_shift(μ, L), (; μ))
 end
@@ -124,11 +124,11 @@ function self_consistent(swt::SpinWaveTheory; bz, constraints=(), guess=nothing,
     # one, starting from the most negative eigenvalue on the grid. The shift
     # must vanish at the fixed point.
     check_corrections_supported(swt)
-    swt = harmonic(swt)
+    swt = swt_harmonic(swt)
     L = nbands(swt)
     terms4 = quartic_monomials(swt)
     probe = grid_points(grid)
-    shifted(terms2, s) = with_correction(swt, [terms2; uniform_shift(s, L)])
+    shifted(terms2, s) = swt_with_correction(swt, [terms2; uniform_shift(s, L)])
 
     # The mean field of `g` with the terms of each constraint, and their
     # multipliers
@@ -168,7 +168,7 @@ function self_consistent(swt::SpinWaveTheory; bz, constraints=(), guess=nothing,
         (terms2, info) = correction(g)
         (g′, s) = stabilized(terms2)
         r = g′.values - g.values
-        norm(r) < scf_tol && return iszero(s) ? SpinWaveTheory(swt, GaussianState(terms2, grid, (; method=:hartree_fock, iter, info...))) :
+        norm(r) < scf_tol && return iszero(s) ? swt_with_state(swt, GaussianState(terms2, grid, (; method=:hartree_fock, iter, info...))) :
             throw(InstabilityError("Quantum fluctuations do not stabilize the structure: the self-consistent \
                                     mean field leaves the quadratic Hamiltonian indefinite."))
         push!(xs, g.values)
@@ -234,11 +234,11 @@ function self_consistent_tadpole(swt::SpinWaveTheory; bz, constraints=(), guess=
     swt.sys.mode == :dipole || error("Self-consistent tadpole requires mode :dipole")
     frames = swt.frames
     for iter in 1:maxiters
-        sc = self_consistent(with_frames(swt, frames); bz=grid, constraints, guess, scf_tol, maxiters, memory)
+        sc = self_consistent(swt_build(swt.sys, swt.measure, swt.regularization; frames); bz=grid, constraints, guess, scf_tol, maxiters, memory)
         frames′ = relax_frames(sc, grid)
         δ = maximum(norm(R[:, 3] - R′[:, 3]) for (R, R′) in zip(frames, frames′))
-        δ < 10scf_tol && return SpinWaveTheory(sc, GaussianState(sc.state.correction, grid,
-                                                       Base.merge(sc.state.info, (; tadpole_iter=iter))))
+        δ < 10scf_tol && return swt_with_state(sc, GaussianState(sc.state.correction, grid,
+                                                     Base.merge(sc.state.info, (; tadpole_iter=iter))))
         (frames, guess) = (frames′, sc)
     end
     error("Self-consistent tadpole not converged in $maxiters iterations")
@@ -247,7 +247,7 @@ end
 # F of the comment above at `frames`, with contractions `g` of the labels of
 # `frame_labels`
 function frame_energy(swt::SpinWaveTheory, frames, g)
-    sw = with_frames(swt, frames)
+    sw = swt_build(swt.sys, swt.measure, swt.regularization; frames)
     E = wick_expectation(sw.monomials.quadratic, g, nothing) +
         wick_expectation(quartic_monomials(sw), g, nothing; nfactors=2)
     return sw.classical_energy + anisotropy_correction(sw).δE + real(E) / nsites(uncontracted_system(sw.sys))
@@ -269,20 +269,6 @@ function frame_labels(swt::SpinWaveTheory)
         end
     end
     return ret
-end
-
-# The theory of `swt` about the structure whose dipoles point along column 3 of
-# the local `frames`, in the harmonic vacuum. The frames are taken as given,
-# rather than rebuilt from the dipoles, so that the labels of the bosons, and
-# with them the phases of the anomalous contractions, continue smoothly as
-# `relax_frames` tilts each frame. The structure need not be a classical energy
-# minimum.
-function with_frames(swt::SpinWaveTheory, frames::Vector{Mat3})
-    sys = clone_system(swt.sys)
-    for (i, site) in enumerate(eachsite(sys))
-        iszero(frames[i]) || set_dipole!(sys, frames[i][:, 3], site)
-    end
-    return SpinWaveTheory(sys, frames, swt.measure, swt.regularization, energy_per_site(sys))
 end
 
 # The local frames of `swt` rotated by angles θ[2i-1], θ[2i] about the two
@@ -344,7 +330,7 @@ Computes the shift of the ordered magnetic structure caused by zero-point
 fluctuations, which appears at relative order ``1/s``. An example is the change
 in canting angle of an antiferromagnet in an applied field. Returns `(; terms2,
 δE, v)`, where `terms2` is a correction to the quadratic Hamiltonian that can be
-passed to `Sunny.with_correction`, `δE` is a correction to the energy per
+passed to `Sunny.swt_with_correction`, `δE` is a correction to the energy per
 site, and `v` is the boson displacement that realizes the shift, which
 [`observable_corrections`](@ref) and [`corrected_magnetic_moments`](@ref) need.
 The latter reads the shifted structure off `v`, together with the zero-point
@@ -403,7 +389,7 @@ function tadpole(swt::SpinWaveTheory, terms3, g::Contractions)
     # freedom unused. Its cutoff must also discard `swt.regularization`, which
     # would otherwise turn the Goldstone direction into a huge displacement.
     H = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H, harmonic(swt), zero(Vec3))
+    dynamical_matrix!(H, swt_harmonic(swt), zero(Vec3))
     w = -pinv(H; rtol=1e-6) * [ℓ[nambu_conj(a, L)] for a in 1:2L]
     @assert norm(w[L+1:2L] - conj(w[1:L])) < noise * max(norm(w), 1)
 
@@ -481,7 +467,7 @@ self-consistent state.
 function corrected_energy_per_site(swt::SpinWaveTheory; bz=nothing)
     # Vanishes in :SUN mode, where an onsite coupling enters the boson
     # Hamiltonian exactly and there is nothing to add.
-    vacuum = harmonic(swt)
+    vacuum = swt_harmonic(swt)
     return swt.classical_energy + zero_point_energy(vacuum, static_bz(vacuum, bz)) + anisotropy_correction(swt).δE
 end
 
@@ -637,9 +623,9 @@ including its counterterm, as returned by [`hartree_fock_correction`](@ref) or
 concatenated. The result has the same shape as [`dispersion`](@ref), to which it
 is to be added.
 
-Whereas `dispersion(Sunny.with_correction(swt, terms2), qpts)` rediagonalizes
-the corrected Hamiltonian, this function evaluates the correction to first
-order only. The two differ at relative order ``1/s²``, but only the latter can
+Whereas `dispersion(Sunny.swt_with_correction(swt, terms2), qpts)`
+rediagonalizes the corrected Hamiltonian, this function evaluates the correction
+to first order only. The two differ at relative order ``1/s²``, but only the latter can
 be combined with
 [`cubic_self_energy`](@ref), which is likewise a first-order energy shift. It is
 also the appropriate choice when the structure supports a Goldstone mode: an

@@ -822,7 +822,7 @@ end
         for s in ss
             swt = SpinWaveTheory(model(s); measure=nothing)
             (; terms2, δE) = Sunny.hartree_fock_correction(swt; bz)
-            Zc = dispersion(Sunny.with_correction(swt, terms2), qs) ./ dispersion(swt, qs)
+            Zc = dispersion(Sunny.swt_with_correction(swt, terms2), qs) ./ dispersion(swt, qs)
             @test maximum(abs, Zc .- Zc[1]) < 1e-6
             @test 2s * (Zc[1] - 1) ≈ ζ atol=1e-6
             @test δE ≈ δE₀ atol=1e-7
@@ -853,7 +853,7 @@ end
     grid32 = (32, 32, 1)
     Zcs = map((Sunny.hartree_fock_correction(swt; bz=grid32).terms2,
                Sunny.self_consistent(swt; bz=grid32, scf_tol=1e-7).state.correction)) do terms2
-        dispersion(Sunny.with_correction(swt, terms2), [[0.3, 0.1, 0]])
+        dispersion(Sunny.swt_with_correction(swt, terms2), [[0.3, 0.1, 0]])
     end
     @test Zcs[1] ≈ Zcs[2] atol=1e-7
     # The energy of a Gaussian state is stationary in the self-consistent
@@ -862,15 +862,15 @@ end
     # field the mean field only rescales H₂ and the two vacua coincide, so the
     # structure is canted.
     let bz = (16, 16, 1), swt = SpinWaveTheory(canted_square(1/2, 1.0); measure=nothing)
-        # `with_frames` at the frames already in `swt.data` must reproduce `swt`
+        # `swt_build` at the frames already in `swt` must reproduce `swt`
         # itself: those frames already carry its own gauge twist, so there is
         # no hidden rotation left for the labels to pick up.
-        let swt2 = Sunny.with_frames(swt, swt.frames)
+        let swt2 = Sunny.swt_build(swt.sys, swt.measure, swt.regularization; frames=swt.frames)
             @test dispersion(swt2, [[0.3, 0.1, 0]]) ≈ dispersion(swt, [[0.3, 0.1, 0]])
             @test swt2.classical_energy ≈ swt.classical_energy
         end
         sc = Sunny.self_consistent(swt; bz)
-        E(λ) = Sunny.gaussian_energy_per_site(Sunny.with_correction(swt, [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.state.correction]); bz)
+        E(λ) = Sunny.gaussian_energy_per_site(Sunny.swt_with_correction(swt, [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.state.correction]); bz)
         @test abs(E(1 + 1e-3) - E(1 - 1e-3)) / 2e-3 < 1e-6
         @test E(1) ≈ Sunny.gaussian_energy_per_site(sc) atol=1e-14
         @test E(0) ≈ Sunny.corrected_energy_per_site(swt; bz) - Sunny.hartree_fock_correction(swt; bz).δE atol=1e-12
@@ -902,7 +902,7 @@ end
         swtB = SpinWaveTheory(sysB; measure=nothing)
         @test_throws Sunny.InstabilityError dispersion(swtB, [[0.01, 0, 0]])
         hfB = Sunny.hartree_fock_correction(swtB; bz=grid32)
-        @test dispersion(Sunny.with_correction(swt, hfB.terms2), [[0.3, 0.1, 0]]) ≈ Zcs[1] atol=1e-7
+        @test dispersion(Sunny.swt_with_correction(swt, hfB.terms2), [[0.3, 0.1, 0]]) ≈ Zcs[1] atol=1e-7
     end
     # The tadpole vanishes term by term, at 1e-34, so `tol` is irrelevant to it
     tad = Sunny.tadpole_correction(swt; bz=1e-3)
@@ -991,7 +991,7 @@ end
                       E = Sunny.corrected_energy_per_site(swt; bz),
                       n = Sunny.boson_density(swt; bz),
                       δE = [hf.δE, tad.δE],
-                      εc = dispersion(Sunny.with_correction(swt, [hf.terms2; tad.terms2]), qs),
+                      εc = dispersion(Sunny.swt_with_correction(swt, [hf.terms2; tad.terms2]), qs),
                       Σ = Sunny.cubic_self_energy(swt, qs; η=0.05, bz=(8, 8, 1)),
                       I = Sunny.corrected_intensities(swt, qs; energies=range(0, 3, 61),
                                                       η=0.1, bz=(26, 26, 1)).data)
@@ -1341,7 +1341,7 @@ end
         o = Sunny.Vec3(0, 0, 0)
         L = Sunny.nbands(swt)
         shift = [Sunny.BosonMonomial(0.3+0im, (L+1, 1), (o, o))]
-        c = Sunny.corrected_channels(Sunny.with_correction(swt, shift), qs; energies, η, bz=(4, 4, 1))
+        c = Sunny.corrected_channels(Sunny.swt_with_correction(swt, shift), qs; energies, η, bz=(4, 4, 1))
         @test c.transverse + c.cross + c.direct ≈ chans.transverse + chans.cross + chans.direct atol=1e-12
         @test c.disp ≈ chans.disp .+ 0.3
     end
@@ -2120,18 +2120,19 @@ end
     # not depend on where the iteration starts. Both paths share the same
     # quadrature, so its accuracy is irrelevant here and a coarse grid keeps the
     # iterations cheap.
-    ress = map((nothing, Sunny.with_correction(swt, terms2))) do guess
+    ress = map((nothing, Sunny.swt_with_correction(swt, terms2))) do guess
         sc = Sunny.self_consistent(swt; bz=(8, 8, 1), guess)
         return (Sunny.gaussian_energy_per_site(sc), dispersion(sc, [[0.3, 0.1, 0]]))
     end
     @test ress[1][1] ≈ ress[2][1] atol=1e-8
     @test ress[1][2] ≈ ress[2][2] atol=1e-7
 
-    # `static_self_energy` is the term linear in the correction of the shift that
-    # `dispersion(with_correction(swt, terms2), q)` obtains by rediagonalizing.
+    # `static_self_energy` is the term linear in the correction of the shift
+    # that `dispersion(swt_with_correction(swt, terms2), q)` obtains by
+    # rediagonalizing.
     scaled(λ) = [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in terms2]
     q = [[0.3, 0.1, 0]]
-    δdisp = (dispersion(Sunny.with_correction(swt, scaled(1e-4)), q) - dispersion(Sunny.with_correction(swt, scaled(-1e-4)), q)) / 2e-4
+    δdisp = (dispersion(Sunny.swt_with_correction(swt, scaled(1e-4)), q) - dispersion(Sunny.swt_with_correction(swt, scaled(-1e-4)), q)) / 2e-4
     @test δdisp ≈ Sunny.static_self_energy(swt, q, terms2) atol=1e-6
 end
 
