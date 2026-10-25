@@ -119,7 +119,7 @@ function sun_monomials(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
     (; spin_ops, interactions) = data
     @assert allequal(sys.Ns)
     Nf = sys.Ns[1] - 1
-    L = Nf * natoms(sys.crystal)
+    L = Nf * nsites(sys)
     o = zero(Vec3)
 
     terms = BosonMonomial{K}[]
@@ -141,9 +141,9 @@ function sun_monomials(sys::System, data::SWTDataSUN, ::Val{K}, M=1) where K
         for coupling in int.pair
             (; isculled, bond) = coupling
             isculled && break
-            @assert i == bond.i
+            (j, n) = bond_target(sys, i, bond)
             for (A, B) in coupling.general.data
-                add_pair!(A, i, B, bond.j, Vec3(bond.n))
+                add_pair!(A, i, B, j, n)
             end
         end
     end

@@ -363,13 +363,6 @@ function map_atom_to_other_crystal(cryst::Crystal, i, other_cryst::Crystal)
     return position_to_atom(other_cryst, orig_r)
 end
 
-# Maps atom `i` in `cryst` to the corresponding site in `other_sys`
-function map_atom_to_other_system(cryst::Crystal, i, other_sys::System)
-    global_r = cryst.latvecs * cryst.positions[i]
-    other_r = orig_crystal(other_sys).latvecs \ global_r
-    return position_to_site(other_sys, other_r)
-end
-
 
 # Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
 # `other_cryst`. The new bond will begin at atom `other_i`.

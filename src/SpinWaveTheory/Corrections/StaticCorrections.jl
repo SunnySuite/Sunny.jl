@@ -480,16 +480,15 @@ function corrected_magnetic_moments(swt::SpinWaveTheory; bz::BZIntegration=defau
     # its depletion by one contraction. Every word acts on a single site, so
     # there is no wavevector dependence to keep.
     g = contractions(swt, (t for α in 1:3, i in 1:Na for t in spin_monomials(swt, α, i, Val{2}())), bz)
-    # Shaped like `magnetic_moments`, i.e. indexed by `Site`. The leading dims
-    # are (1, 1, 1) because `SpinWaveTheory` flattens any supercell into its
-    # cell. Each component is real, the spin operators being Hermitian.
+    # Shaped like `magnetic_moments`, i.e. indexed by `Site`. Each component is
+    # real, the spin operators being Hermitian.
     μs = map(1:Na) do i
         S = Vec3(ntuple(3) do α
             sum(K -> real(wick_expectation(spin_monomials(swt, α, i, K), g, w)), (Val{0}(), Val{1}(), Val{2}()))
         end)
-        return -sys.gs[1, 1, 1, i] * S
+        return -sys.gs[i] * S
     end
-    return reshape(μs, 1, 1, 1, Na)
+    return reshape(μs, size(sys.dipoles))
 end
 
 """

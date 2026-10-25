@@ -132,7 +132,7 @@ end
 function observable_pair_monomials(swt::SpinWaveTheory, q_reshaped, q_global)
     (; sys, measure) = swt
     return map(1:num_observables(measure)) do μ
-        [BosonMonomial(conj(observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)) * c, as, ns)
+        [BosonMonomial(conj(observable_prefactor(measure, μ, i, q_global, sys)) * c, as, ns)
          for i in 1:nsites(sys) for (; c, as, ns) in observable_monomials(swt, μ, i, Val{2}())]
     end
 end
@@ -172,7 +172,7 @@ function accum_observable_corrections!(u, swt::SpinWaveTheory, q_reshaped, q_glo
     Nf = nflavors(swt)
     for μ in 1:num_observables(measure), a in 1:L
         i = boson_site(a, L, Nf)
-        pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+        pref = observable_prefactor(measure, μ, i, q_global, sys)
         u[a, μ]   += pref * δc[L+a, μ]
         u[L+a, μ] += pref * δc[a, μ]
     end
