@@ -4,31 +4,45 @@
 
 # ---- Brillouin-zone quadrature ----
 
+# A rule for integrating over the magnetic Brillouin zone
+abstract type BZIntegration end
+
 """
     BZGrid(n1, n2, n3)
 
 A uniform grid of `n1×n2×n3` wavevectors in the magnetic Brillouin zone, offset
-by half a step from the zone centre, for use in place of a numeric `tol` by the
-1/s corrections, e.g. [`corrected_intensities`](@ref).
-
-Every 1/s correction is a momentum integral, and `tol` selects how it is done.
-A number is a relative accuracy target: static averages, e.g. mean fields and
-energies, use adaptive cubature, and the frequency-dependent loop integrals use
-a uniform grid that is fine enough to resolve the regulator `η`. A `BZGrid`
-instead fixes every integral, static and loop alike, to an average over these
-wavevectors. A shared grid makes identities between static and loop terms exact
-grid by grid, e.g. the Ward identity that keeps a Goldstone mode gapless, and
-it gives results that are smooth in the model parameters, as fitting requires.
+by half a step from the zone centre. The frequency-dependent ``1/s``
+corrections, e.g. [`corrected_intensities`](@ref), approximate their loop
+integrals as a discrete sum over such a grid. The static corrections accept one
+as `bz`, in place of [`BZAdaptive`](@ref). A shared grid makes identities
+between static and loop terms exact grid by grid, e.g. the Ward identity that
+keeps a Goldstone mode gapless, and it gives results that are smooth in the
+model parameters, as fitting requires. For a grid sized automatically, see
+[`auto_bzgrid`](@ref).
 """
-struct BZGrid
+struct BZGrid <: BZIntegration
     dims :: NTuple{3, Int}
 end
 
 BZGrid(n1, n2, n3) = BZGrid((n1, n2, n3))
 
+"""
+    BZAdaptive(; tol)
+
+Adaptive cubature over the magnetic Brillouin zone to the relative accuracy
+`tol`, the default `bz` of the static 1/s corrections, e.g.
+[`boson_density`](@ref). Their integrands are smooth, so this converges far
+faster than a uniform [`BZGrid`](@ref).
+"""
+struct BZAdaptive <: BZIntegration
+    tol :: Float64
+end
+
+BZAdaptive(; tol) = BZAdaptive(tol)
+
 # Scale of the error that the quadrature leaves in an identity that holds only
 # for exact integrals, against which such identities are asserted.
-quadrature_noise(tol::Real) = max(tol, 1e-8)
+quadrature_noise(bz::BZAdaptive) = max(bz.tol, 1e-8)
 quadrature_noise(::BZGrid) = 1e-3
 
 # Wavevectors of a uniform grid, offset by half a step to keep off the zone
@@ -47,20 +61,18 @@ end
 # equal to `tol` measures the accuracy against max(norm(val), 1), so that
 # averages vanishing by symmetry converge at once. The averages taken here,
 # correlations and energies per site, are of order one.
-bz_average(f, tol::Real) = first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=tol))
+function bz_average(f, bz::BZAdaptive)
+    (; tol) = bz
+    return first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=tol))
+end
 
-# The `tol` with which `vac` is to be used: its own, if it was solved on one,
-# otherwise `tol`, falling back to `default`
-function resolve_tol(swt, vac, tol, default=nothing)
+# A vacuum belongs to one `SpinWaveTheory`, and a self-consistent one was solved
+# on a grid, which every use of it must share. `name` is the keyword of the
+# caller that carries the integration rule.
+function check_vacuum(swt, vac, bz::BZIntegration, name)
     vac.swt === swt || error("Vacuum must be built on the same `SpinWaveTheory`")
-    if !isnothing(vac.tol)
-        isnothing(tol) || tol == vac.tol ||
-            error("Vacuum was solved with `tol = $(vac.tol)`, which `tol = $tol` would contradict")
-        return vac.tol
-    end
-    tol = @something tol default error("Must specify `tol` to control momentum-space integration; see `BZGrid`.")
-    tol isa Union{Real, BZGrid} || error("`tol` must be a number or a `BZGrid`")
-    return tol
+    isnothing(vac.grid) || vac.grid == bz ||
+        error("Vacuum was solved on `$(vac.grid)`, but `$name = $bz` was given. Pass `$name = vacuum.grid`.")
 end
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
@@ -109,44 +121,47 @@ function loop_wavevectors(dims, q_reshaped=zero(Vec3))
     return LoopGrid(ps, wts, prod(dims))
 end
 
-# Dimensions of the loop grid needed to reach a relative accuracy `tol` at
-# regulator `η`, for the internal lines of the vacuum `vac`. Every
-# frequency-dependent integrand here is a function of the pair energy x(𝐤) =
-# ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so the grid must resolve x to within
-# η. The number of points along a direction therefore goes as the range x sweeps
-# there divided by η, estimated below by the range each band sweeps along a
-# line, doubled for the two magnons; a non-dispersing direction needs no grid.
-#
-# The dependence on `tol` and the prefactor are calibrated rather than derived,
-# convergence being algebraic because the dispersion is non-analytic at the
-# Goldstone wavevectors. Measured on the triangular-lattice antiferromagnet, the
-# error in the integrated weight falls as n^-1.6 with a factor-of-two scatter,
-# since how closely the grid approaches a near-singular point depends on n
-# arithmetically. The prefactor carries margin accordingly. The cost grows as
-# 1/√tol per dimension, so a tenfold tighter tolerance is a tenfold longer
-# calculation in two dimensions.
-function auto_loop_grid(vac, η, tol)
+"""
+    auto_bzgrid(; η, vacuum::MagnonVacuum, tol)
+
+The [`BZGrid`](@ref) on which loop integrals with regulator `η`, e.g. those of
+[`corrected_intensities`](@ref), reach a relative accuracy of about `tol`. It
+resolves `η` along each direction in which the magnons of `vacuum` disperse, and
+the number of points grows as ``1/(η √tol)`` along each.
+"""
+function auto_bzgrid(; η, vacuum::MagnonVacuum, tol)
+    # Every frequency-dependent integrand here is a function of the pair energy
+    # x(𝐤) = ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so the grid must resolve x
+    # to within η. The number of points along a direction therefore goes as the
+    # range x sweeps there divided by η, estimated below by the range each band
+    # sweeps along a line, doubled for the two magnons; a non-dispersing
+    # direction needs no grid.
+    #
+    # The dependence on `tol` and the prefactor are calibrated rather than
+    # derived, convergence being algebraic because the dispersion is
+    # non-analytic at the Goldstone wavevectors. Measured on the
+    # triangular-lattice antiferromagnet, the error in the integrated weight
+    # falls as n^-1.6 with a factor-of-two scatter, since how closely the grid
+    # approaches a near-singular point depends on n arithmetically. The
+    # prefactor carries margin accordingly. The cost grows as 1/√tol per
+    # dimension, so a tenfold tighter tolerance is a tenfold longer calculation
+    # in two dimensions.
     ncoarse = 8
-    L = nbands(vac.swt)
+    L = nbands(vacuum.swt)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
     ε = zeros(L, ncoarse, ncoarse, ncoarse)
     for i in 1:ncoarse, j in 1:ncoarse, k in 1:ncoarse
         q = Vec3((i - 1/2)/ncoarse, (j - 1/2)/ncoarse, (k - 1/2)/ncoarse)
-        view(ε, :, i, j, k) .= view(vacuum_bogoliubov!(ws, H, vac, q), 1:L)
+        view(ε, :, i, j, k) .= view(vacuum_bogoliubov!(ws, H, vacuum, q), 1:L)
     end
 
-    return ntuple(3) do d
+    return BZGrid(ntuple(3) do d
         r = maximum(maximum(ε; dims=d+1) - minimum(ε; dims=d+1))
         # The denominator is 0.8η at the default tolerance, and shrinks as √tol
         2r < η ? 1 : max(4, ceil(Int, 2r / (8η * √tol)))
-    end
+    end)
 end
-
-# Dimensions of the loop grid that `tol` selects: those of a `BZGrid`, or for a
-# relative accuracy, those that resolve the regulator `η`
-loop_dims(vac, η, tol::Real) = auto_loop_grid(vac, η, tol)
-loop_dims(vac, η, grid::BZGrid) = grid.dims
 
 # Matrix-valued measure over a bath energy x of either sign, binned as described
 # above: bin j is centered at jΔ. Each channel gets its own measure. Bins are

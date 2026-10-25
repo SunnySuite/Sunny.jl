@@ -41,9 +41,9 @@ at the order neglected.
 struct MagnonVacuum
     swt        :: SpinWaveTheory
     correction :: Vector{BosonMonomial{2}}
-    # The quadrature on which a self-consistent correction was solved, and
-    # which every use of the vacuum then shares; `nothing` otherwise
-    tol        :: Union{Nothing, Float64, BZGrid}
+    # The grid on which a self-consistent correction was solved, which every
+    # use of the vacuum must repeat; `nothing` otherwise
+    grid       :: Union{Nothing, BZGrid}
 end
 
 MagnonVacuum(swt::SpinWaveTheory, correction) = MagnonVacuum(swt, correction, nothing)
@@ -70,7 +70,7 @@ function vacuum_bogoliubov!(ws::BogoliubovWorkspace, H, vac::MagnonVacuum, q_res
         err isa PosDefException || rethrow()
         rethrow(InstabilityError("Quadratic Hamiltonian of the vacuum not positive definite at reshaped wavevector \
                                   $(vec3_to_string(q_reshaped)). If quantum fluctuations stabilize the structure, \
-                                  pass `vacuum = Sunny.self_consistent_vacuum(swt; tol)`."))
+                                  see `Sunny.self_consistent_vacuum`."))
     end
 end
 
@@ -199,7 +199,7 @@ function vacuum_modes!(ws::BogoliubovWorkspace, H, vac::MagnonVacuum, q_reshaped
     tol = sqrt(eps()) * opnorm(H, 1)
     unstable() = InstabilityError("Quadratic Hamiltonian of the vacuum dynamically unstable at reshaped \
                                    wavevector $(vec3_to_string(q_reshaped)). If quantum fluctuations \
-                                   stabilize the structure, pass `vacuum = Sunny.self_consistent_vacuum(swt; tol)`.")
+                                   stabilize the structure, see `Sunny.self_consistent_vacuum`.")
     all(x -> abs(imag(x)) < tol, λ) || throw(unstable())
     # Within each cluster of degenerate frequencies, eigen returns an arbitrary
     # basis. The positive-norm part of an orthonormal basis of the cluster is a
