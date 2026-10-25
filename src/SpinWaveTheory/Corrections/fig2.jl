@@ -4,7 +4,7 @@
 # triangular-lattice Heisenberg antiferromagnet, along the path K-Γ-M-Y₁, with the
 # harmonic ε_𝐪 of their Eq. (11) overlaid.
 #
-#   julia --project=/tmp/fig2 -t auto -e 'include("/tmp/fig2/fig2.jl"); fig2()'
+#   julia --project=/tmp/fig2 -t auto -e 'include("<this directory>/fig2.jl"); fig2()'
 #
 #   fig2()                 # the published figure: fwhm = 0.03, ~30 s
 #   fig2(fwhm=0.12)        # quick look, a few seconds
@@ -34,8 +34,9 @@
 # block, and the source channel of the self-energy is frozen at its on-shell frequency.
 # Both are what keep A₁₁ non-negative and bounded by 1/πΓ; see the comments in
 # CorrectedIntensities.jl and SelfEnergy.jl. `compute` cross-checks itself against
-# `intensities_corrected` at two wavevectors, and with a shared loop grid the two agree
-# to round-off, so any drift in the duplication shows up immediately.
+# `intensities_corrected` at two wavevectors, and with a shared loop grid, bin width and
+# mean-field tolerance the two agree exactly, so any drift in the duplication shows up
+# immediately.
 
 using Sunny, LinearAlgebra, Printf, Statistics, Serialization
 using CairoMakie
@@ -53,7 +54,9 @@ CairoMakie.activate!(type="png")
 Sys.isapple() && @eval using AppleAccelerate
 
 const DIR = @__DIR__
-const OPTS = (; maxevals = 20000)   # momentum integrals for the mean fields
+# Momentum integrals for the mean fields. These are the values that `tol = 0.01` puts
+# into `intensities_corrected`, so the cross-check below compares like with like.
+const OPTS = (; rtol = 0.01, maxevals = 100_000)
 
 say(args...) = (println(args...); flush(stdout))
 
@@ -114,7 +117,7 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
               Sunny.anisotropy_correction(swt).terms2]
     δc = Sunny.observable_corrections(swt; v=tad.v, OPTS...)
     terms3 = Sunny.cubic_monomials(swt)
-    ps = Sunny.loop_grid((nk, nk, 1))
+    ps = Sunny.loop_wavevectors((nk, nk, 1))
 
     Asel = zeros(nw, npath)      # spectral function of the branch belonging to 𝐪
     Aall = zeros(nw, npath)      # trace over the folded bands, for the artifact detector
@@ -167,7 +170,8 @@ function compute(; s=1/2, fwhm=0.03, ωmax=3.0, npath=241,
 
     # Guard on the duplicated assembly: same loop grid, so agreement is to round-off
     dev = maximum([1 + npath ÷ 3, 1 + 2npath ÷ 3]) do iq
-        r = Sunny.intensities_corrected(swt, [qs[iq]]; energies, kernel, grid=(nk, nk, 1), OPTS...)
+        r = Sunny.intensities_corrected(swt, [qs[iq]]; energies, η=Γ, tol=OPTS.rtol,
+                                        loop_grid=(nk, nk, 1), mean_field_maxevals=OPTS.maxevals)
         mine = Strans[:, iq] + Slong[:, iq]
         maximum(abs, vec(r.data) - mine) / maximum(abs, mine)
     end
