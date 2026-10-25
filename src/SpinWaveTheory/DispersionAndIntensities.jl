@@ -152,18 +152,23 @@ end
 
 # Allocation-free variant that stores the transformation in `ws.T`. The returned
 # energies alias `ws.ε`.
-function excitations!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q)
-    q_reshaped = to_reshaped_rlu(swt.sys, q)
-    dynamical_matrix!(H, swt, q_reshaped)
+excitations!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q) =
+    excitations_reshaped!(ws, H, swt, to_reshaped_rlu(swt.sys, q))
 
+# The same at a wavevector in reshaped RLU. A quadratic Hamiltonian that is not
+# positive definite has no vacuum. For LSWT that means the structure is not an
+# energy minimum; for a corrected Gaussian state, the correction is to blame.
+function excitations_reshaped!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_reshaped)
+    dynamical_matrix!(H, swt, q_reshaped)
     try
         return bogoliubov!(ws, H)
     catch err
-        if err isa PosDefException
-            rethrow(InstabilityError("Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable."))
-        else
-            rethrow(err)
-        end
+        err isa PosDefException || rethrow()
+        q = vec3_to_string(to_standard_rlu(swt.sys, q_reshaped))
+        rethrow(InstabilityError(isempty(swt.state.correction) ?
+            "Not an energy-minimum; wavevector q = $q unstable." :
+            "Quadratic Hamiltonian of the Gaussian state is not positive definite at wavevector q = $q. If \
+             quantum fluctuations stabilize the structure, see `Sunny.self_consistent`."))
     end
 end
 

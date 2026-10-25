@@ -89,7 +89,7 @@ function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid::BZGrid=auto_bzgr
         # Each band is evaluated at its own frequency, so the matrices for all L
         # frequencies are built and only their diagonals are kept.
         k = to_reshaped_rlu(swt.sys, q)
-        ωs = vacuum_bogoliubov!(ws, H, swt, k)[1:L]
+        ωs = excitations_reshaped!(ws, H, swt, k)[1:L]
         Σ = cubic_self_energy_at(swt, terms3, k, ωs .+ im*η, loop_wavevectors(grid.dims, k), η)
         view(ret, :, iq) .= [Σ[n, n, n] for n in 1:L]
     end
@@ -139,7 +139,7 @@ function foreach_cubic_line(f, swt::SpinWaveTheory, terms3, k, grid::LoopGrid, M
     T3 = zeros(ComplexF64, 2L, 2L)
 
     let ws = BogoliubovWorkspace(L)
-        vacuum_bogoliubov!(ws, zeros(ComplexF64, 2L, 2L), swt, k)
+        excitations_reshaped!(ws, zeros(ComplexF64, 2L, 2L), swt, k)
         for b in 1:2L, a in 1:2L
             T3[a, b] = conj(ws.T[nambu_conj(a, L), nambu_conj(b, L)])
         end
@@ -548,7 +548,7 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     q_global = orig_crystal(sys).recipvecs * q
 
     ws = BogoliubovWorkspace(L)
-    ε = copy(vacuum_bogoliubov!(ws, zeros(ComplexF64, 2L, 2L), swt, q_reshaped))
+    ε = copy(excitations_reshaped!(ws, zeros(ComplexF64, 2L, 2L), swt, q_reshaped))
     T = ws.T
     Σstat = static_self_energy_matrix(swt, ol.terms2, q_reshaped, T)
 
