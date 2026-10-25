@@ -181,6 +181,12 @@ packed_index(n, n′) = n + n′ * (n′ - 1) ÷ 2
 # Element (n, n′) of packed Hermitian bin `v`, for any n, n′
 bin_entry(v, n, n′) = n ≤ n′ ? v[packed_index(n, n′)] : conj(v[packed_index(n′, n)])
 
+# Zeroth moment Σ_j ρ_j of the measure, as a dense matrix
+function zeroth_moment(ρ::PairMeasure)
+    v = sum(values(ρ.bins); init=zeros(ComplexF64, packed_index(ρ.dim, ρ.dim)))
+    return [bin_entry(v, n, n′) for n in 1:ρ.dim, n′ in 1:ρ.dim]
+end
+
 # Accumulates the rank-one masses c_i y_i y_i† at bath energies xs[i], with y_i
 # the columns of `Y`. Each mass is split linearly between its two nearest bins.
 # The weight c carries the sign σ of the channel, and would carry its thermal
