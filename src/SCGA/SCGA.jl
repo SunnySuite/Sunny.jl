@@ -299,7 +299,6 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
     data = map(qpts.qs) do q
         any(isnan, q) && return NaN * zero(eltype(measure))
 
-        q_supercell = to_supercell_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
         for i in 1:Na, μ in 1:Nobs
@@ -482,7 +481,6 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
 
             ### REPEAT FORWARD CALCULATION (no tape to avoid memory costs)
 
-            q_supercell = to_supercell_rlu(sys, q)
             q_global = cryst.recipvecs * q
 
             for i in 1:Na, μ in 1:Nobs
