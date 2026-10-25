@@ -70,12 +70,13 @@ that the expansion is converging, and ``n`` of order one means it is not.
 
 Use this as the health check for a spin-wave calculation. In `:dipole` mode
 there is one boson per site, and ``n_i`` is also the shortening of the classical
-dipole: ``⟨S^z_i⟩ = s - n_i`` is the ordered moment that sets the elastic Bragg
-intensity, as [`corrected_magnetic_moments`](@ref) uses it. In `:SUN` mode there
-are ``N-1`` bosons per site and the two readings part company, because the
-depletion of a general ``N``-level state is not a reduction of a dipole length;
-``n`` remains the controlled parameter, and is well defined even where the
-ordered state carries no dipole at all, as for a quadrupolar state.
+dipole: ``⟨S^z_i⟩ = s - n_i``. In `:SUN` mode there are ``N-1`` bosons per site
+and the two readings part company, because the depletion of a general
+``N``-level state is not a reduction of a dipole length; ``n`` remains the
+controlled parameter, and is well defined even where the ordered state carries
+no dipole at all, as for a quadrupolar state. Use
+[`corrected_magnetic_moments`](@ref) for the ordered moment itself, which is
+available in either mode.
 
 The Brillouin-zone integral is performed by adaptive cubature, controlled by at
 least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
@@ -104,27 +105,27 @@ classical [`magnetic_moments`](@ref), which this reduces to when the correction
 is switched off.
 
 Zero-point fluctuations act on the ordered structure in two independent ways at
-this order, and both are applied here: each dipole is shortened along its own
-direction by the boson depletion of [`boson_density`](@ref), and the structure
-is tilted by the zero-point pressure of [`tadpole_correction`](@ref), whose
-canonical example is the change in canting angle of an antiferromagnet in an
-applied field. Summing these moments over the magnetic cell gives the uniform
-magnetization, so a sweep over [`set_field!`](@ref) yields a corrected ``M`` vs.
-``H`` curve. Because an anisotropic ``g`` need not commute with the tilt, ``μ``
-and ``𝐒`` are corrected by different amounts; use `boson_density` for a
-statement about the spin magnitude itself.
+this order, and both are applied here: the moment is depleted by the bosons of
+[`boson_density`](@ref), and the structure is tilted by the zero-point pressure
+of [`tadpole_correction`](@ref), whose canonical example is the change in canting
+angle of an antiferromagnet in an applied field. Summing these moments over the
+magnetic cell gives the uniform magnetization, so a sweep over
+[`set_field!`](@ref) yields a corrected ``M`` vs. ``H`` curve. Because an
+anisotropic ``g`` need not commute with the tilt, ``μ`` and ``𝐒`` are corrected
+by different amounts; use `boson_density` for a statement about the boson count
+itself.
 
-The tilt vanishes for a collinear structure, and requires the cubic vertex,
-which is available for a narrower class of models than the shortening is; see
-[`tadpole_correction`](@ref). Where it is unavailable the moments are returned
-shortened but untilted, which is still correct at this order for any structure
-the tilt would not move.
+Both effects are read off the same expansion of ``𝐒`` in the local frame, the
+tilt from its one-boson word and the depletion from its two-boson word, and the
+two are summed. The result is thermodynamically consistent in either mode, ``Σ_i
+μ_i = -∂E/∂𝐁`` against the corrected energy of
+[`corrected_energy_per_site`](@ref).
 
-Unavailable in `:SUN` mode, where the local state is not maximal weight, so
-nothing constrains the correction to ``⟨𝐒⟩`` to lie along ``⟨𝐒⟩``: it acquires
-a transverse part that can reorient the dipole by degrees, and a radial
-shortening does not describe it. Use [`boson_density`](@ref) there to gauge the
-expansion.
+The tilt vanishes for a collinear structure in `:dipole` mode, and requires the
+cubic vertex, which is available for a narrower class of models than the
+depletion is; see [`tadpole_correction`](@ref). Where it is unavailable the
+moments are returned depleted but untilted, which is still correct at this order
+for any structure the tilt would not move.
 
 The Brillouin-zone integrals are performed by adaptive cubature, controlled by
 at least one of `tol` (a relative accuracy target) or `maxevals` (a budget of
@@ -134,27 +135,40 @@ function corrected_magnetic_moments(swt::SpinWaveTheory; tol=nothing, maxevals=n
     isnothing(tol) && isnothing(maxevals) && error("Must specify `tol` or `maxevals` to control momentum-space integration.")
 
     (; sys) = swt
-    sys.mode == :SUN && error("""`corrected_magnetic_moments` is unavailable in :SUN mode, where the \
-                                 correction to ⟨𝐒⟩ is not purely radial. Use `boson_density` to gauge \
-                                 the 1/s expansion.""")
-    @assert sys.mode in (:dipole, :dipole_uncorrected)
+    L = nbands(swt)
+    Na = nsites(sys)
 
-    # With one boson per site, the zero-point depletion of the dipole is the
-    # boson occupation itself: ⟨Sᶻ_i⟩ = s - ⟨b†_i b_i⟩.
-    δS = -boson_density(swt; tol, maxevals)
-    # `tadpole_correction` already returns dipoles of the classical magnitude,
-    # rotated but not shortened, so the two corrections compose by scaling. Its
-    # tilt is exactly norm-preserving, which is what makes the two operations
-    # commute.
-    dipoles = if isnothing(corrections_unsupported_reason(swt))
-        tadpole_correction(swt; tol, maxevals).dipoles
+    # The tilt needs the cubic vertex; without it the depletion below is still
+    # the whole correction for any structure the tilt would not move.
+    v = if isnothing(corrections_unsupported_reason(swt))
+        tadpole_correction(swt; tol, maxevals).v
     else
-        # One dipole per element of δS, which is a site of the magnetic cell
-        [sys.dipoles[1, 1, 1, i] for i in eachindex(δS)]
+        zeros(ComplexF64, L)
     end
+    # Nambu packing of the displacement, as `tadpole_correction` forms it
+    w = [v; conj(v)]
+
+    # The classical dipole, the tilt, and the depletion. Only onsite
+    # correlations appear, every word acting on a single site, so there is no
+    # wavevector dependence to keep.
+    (words0, words1, words2) = map(K -> [spin_words(swt, α, i, K) for α in 1:3, i in 1:Na],
+                                   (Val{0}(), Val{1}(), Val{2}()))
+    ckeys = correlation_keys(L, reduce(vcat, words2))
+    gs = nambu_correlations(swt, ckeys, BosonMonomial{2}[]; tol, maxevals)
+    g = correlation_lookup(ckeys, gs, L)
+
     # Shaped like `magnetic_moments`, i.e. indexed by `Site`. The leading dims
     # are (1, 1, 1) because `SpinWaveTheory` flattens any supercell into its
     # cell.
-    μs = map((g, d, δ) -> -g * (1 + δ/norm(d)) * d, vec(sys.gs), dipoles, δS)
-    return reshape(μs, 1, 1, 1, length(μs))
+    μs = map(1:Na) do i
+        # Each component is real, the spin operators being Hermitian
+        S = Vec3(ntuple(3) do α
+            total(f, ws) = sum(f, ws[α, i]; init=zero(ComplexF64))
+            real(total(t -> t.c, words0) +
+                 total(t -> t.c * w[t.as[1]], words1) +
+                 total(t -> t.c * g(t.as[1], t.as[2], t.ns[2] - t.ns[1]), words2))
+        end)
+        return -sys.gs[1, 1, 1, i] * S
+    end
+    return reshape(μs, 1, 1, 1, Na)
 end
