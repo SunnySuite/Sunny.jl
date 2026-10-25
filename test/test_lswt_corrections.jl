@@ -1239,7 +1239,7 @@ end
                                  η=0.05, grid=(6, 6, 1))[1:L, 1:L, 1, 1]
     @test maximum(abs, Σ3 - Diagonal(diag(Σ3))) > 0.2 * maximum(abs, diag(Σ3))
     energies = range(0.2, 2.0, 25)
-    for dyson in (:nambu, :particle, :on_shell)
+    for dyson in (:nambu, :ladder, :particle, :on_shell)
         data = Sunny.corrected_intensities(swts[1], qs3; energies, η=0.15, loop_grid=(4, 4, 1), dyson).data
         mirror = Sunny.corrected_intensities(swts[2], -qs3; energies=-reverse(energies), η=0.15,
                                              loop_grid=(4, 4, 1), dyson).data
@@ -1960,7 +1960,7 @@ end
     grid = Sunny.loop_wavevectors((12, 12, 1), k)
     τ₃ = Diagonal([ones(L); -ones(L)])
     Σloop = let Σ = zeros(ComplexF64, 2L, 2L, length(ωs))
-        Sunny.foreach_cubic_line(Sunny.MagnonVacuum(swt), terms3, k, grid, 2L) do a, _b, w, u, x, _T1, _T2
+        Sunny.foreach_cubic_line(Sunny.MagnonVacuum(swt), terms3, k, grid, 2L) do a, _b, w, u, x, _p, _T1, _T2
             for m′ in 1:2L, m in 1:2L, iω in eachindex(ωs)
                 Σ[m, m′, iω] += (a > L ? -18w : 18w) * τ₃[m, m] * conj(u[m]) * u[m′] / (ωs[iω] - x)
             end
