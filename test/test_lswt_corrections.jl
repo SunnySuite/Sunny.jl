@@ -852,7 +852,7 @@ end
     @test maximum(abs, Sunny.cubic_self_energy(swt, [[0.3, 0.1, 0]]; η=0.01, bz=(6, 6, 1))) < 1e-12
     grid32 = (32, 32, 1)
     Zcs = map((Sunny.hartree_fock_correction(swt; bz=grid32).terms2,
-               Sunny.self_consistent(swt; bz=grid32, scf_tol=1e-7).state.correction)) do terms2
+               Sunny.about_self_consistent_vacuum(swt; bz=grid32, scf_tol=1e-7).state.correction)) do terms2
         dispersion(Sunny.swt_with_correction(swt, terms2), [[0.3, 0.1, 0]])
     end
     @test Zcs[1] ≈ Zcs[2] atol=1e-7
@@ -869,7 +869,7 @@ end
             @test dispersion(swt2, [[0.3, 0.1, 0]]) ≈ dispersion(swt, [[0.3, 0.1, 0]])
             @test swt2.classical_energy ≈ swt.classical_energy
         end
-        sc = Sunny.self_consistent(swt; bz)
+        sc = Sunny.about_self_consistent_vacuum(swt; bz)
         E(λ) = Sunny.gaussian_energy_per_site(Sunny.swt_with_correction(swt, [Sunny.BosonMonomial(λ*t.c, t.as, t.ns) for t in sc.state.correction]); bz)
         @test abs(E(1 + 1e-3) - E(1 - 1e-3)) / 2e-3 < 1e-6
         @test E(1) ≈ Sunny.gaussian_energy_per_site(sc) atol=1e-14
@@ -879,19 +879,19 @@ end
         # wavevector, and a pin restores the harmonic one, which only the
         # regularization gaps
         gap(sw) = minimum(dispersion(sw, [[0, 0, 0]]))
-        pinned = Sunny.self_consistent(swt; bz, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
+        pinned = Sunny.about_self_consistent_vacuum(swt; bz, constraints=(Sunny.GoldstonePin([0, 0, 0]),))
         @test gap(sc) > 0.1
         @test gap(pinned) ≈ gap(swt) rtol=0.1
         # Relaxing the structure as well lowers the energy further, and makes
         # the state jointly stationary, so the magnetization is the expectation
         # value of the spin, ∂E/∂B = ⟨Sᶻ⟩ for g = 1. At zero field the
         # structure is collinear and does not move.
-        relaxed(B) = Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, B); measure=nothing); bz, scf_tol=1e-10)
+        relaxed(B) = Sunny.about_self_consistent_vacuum(SpinWaveTheory(canted_square(1/2, B); measure=nothing); bz, tadpole=true, scf_tol=1e-10)
         st = relaxed(1.0)
         Sz(sw) = sum((1/2 - n) * R[3, 3] for (n, R) in zip(Sunny.boson_density(sw), sw.frames)) / 2
         @test Sunny.gaussian_energy_per_site(st) < E(1)
         @test (Sunny.gaussian_energy_per_site(relaxed(1.001)) - Sunny.gaussian_energy_per_site(relaxed(0.999))) / 0.002 ≈ Sz(st) atol=1e-7
-        @test Sunny.self_consistent_tadpole(SpinWaveTheory(canted_square(1/2, 0); measure=nothing); bz).frames[1][3, 3] ≈ 0 atol=1e-12
+        @test Sunny.about_self_consistent_vacuum(SpinWaveTheory(canted_square(1/2, 0); measure=nothing); bz, tadpole=true).frames[1][3, 3] ≈ 0 atol=1e-12
     end
     # A field along the moments shifts the magnons by ±B without changing the
     # Bogoliubov transformation. It leaves the Néel state energetically
@@ -2121,7 +2121,7 @@ end
     # quadrature, so its accuracy is irrelevant here and a coarse grid keeps the
     # iterations cheap.
     ress = map((nothing, Sunny.swt_with_correction(swt, terms2))) do guess
-        sc = Sunny.self_consistent(swt; bz=(8, 8, 1), guess)
+        sc = Sunny.about_self_consistent_vacuum(swt; bz=(8, 8, 1), guess)
         return (Sunny.gaussian_energy_per_site(sc), dispersion(sc, [[0.3, 0.1, 0]]))
     end
     @test ress[1][1] ≈ ress[2][1] atol=1e-8
