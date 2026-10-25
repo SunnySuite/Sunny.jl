@@ -133,13 +133,11 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
 
     # See "spiral_energy.lyx" for derivation
     if !isnothing(sys.ewald)
-        (; μ, cache, A) = sys.ewald
+        (; μ) = sys.ewald
         μ .= magnetic_moments(sys)
 
-        A0 = reshape(A, Na, Na)
-
-        Ak = ewald_interaction_tensor(cache, k_reshaped)
-        Ak = reshape(Ak, Na, Na)
+        A0 = ewald_site_tensor(sys, zero(Vec3))
+        Ak = ewald_site_tensor(sys, k_reshaped)
 
         k_case = spiral_propagation_case(k_reshaped)
 

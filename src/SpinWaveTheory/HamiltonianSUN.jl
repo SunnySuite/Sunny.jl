@@ -66,29 +66,19 @@ function accum_ewald_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped
     H12 = reshape(view(H, 1:L, L+1:2L), blockdims)
     H21 = reshape(view(H, L+1:2L, 1:L), blockdims)
     H22 = reshape(view(H, L+1:2L, L+1:2L), blockdims)
-    (; gs, ewald) = usys
-    (; cache, A) = ewald
+    (; gs) = usys
 
-    # Interaction matrix of the cell at wavevector q. That at zero is `A`.
-    Aq = ewald_interaction_tensor(cache, q_reshaped)
-
-    # For an entangled system, `contract_ewald!` has already stripped
-    # intra-unit couplings in A and shifted them to an onsite coupling. The
-    # same stripping must be done for the freshly computed Aq.
-    if is_entangled(sys)
-        dims_A = size(A)[1:3]
-        for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(usys.crystal, get_entanglement(sys).units, cache.μ0_μB²)
-            Aq[CartesianIndex(Tuple(mod.(Δ, dims_A)) .+ 1), ai, aj] -= cis(2π * dot(q_reshaped, Vec3(fld.(Δ, dims_A)))) * Adir
-        end
-    end
+    # Interaction matrices between bare sites at wavevector q and at zero
+    Aq = ewald_site_tensor(sys, q_reshaped)
+    A0 = ewald_site_tensor(sys, zero(Vec3))
 
     for i in 1:Na, j in 1:Na
         for bi in bare_indices(sys, i), bj in bare_indices(sys, j)
             # An ordered pair of magnetic moments contribute (μₐ A μ_b)/2 to the
             # energy, where μ = - g S. A symmetric contribution will appear for
             # the bond reversal (a, b) → (b, a).
-            Jq = gs[bi]' * ewald_between(Aq, usys, q_reshaped, bi, bj) * gs[bj] / 2
-            J0 = gs[bi]' * ewald_between(A, usys, zero(Vec3), bi, bj) * gs[bj] / 2
+            Jq = gs[bi]' * Aq[bi, bj] * gs[bj] / 2
+            J0 = gs[bi]' * A0[bi, bj] * gs[bj] / 2
 
             for α in 1:3, β in 1:3
                 Ai = spin_ops[α, bi]
