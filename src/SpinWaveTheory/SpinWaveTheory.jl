@@ -449,13 +449,15 @@ space. This calculation is analogous to [`intensities`](@ref), but does not
 perform line broadening of the bands. The bands are the peaks at positive energy
 transfer. At `kT > 0`, [`intensities`](@ref) also includes the anti-Stokes
 scattering at negative energy transfer, which for a chiral measure is not given
-by the bands at ``-𝐪``. Use [`load_blas_for_threading`](@ref) and set
-`threaded=true` to parallelize the calculation using Julia threads.
+by the bands at ``-𝐪``.
 
 For [`SpinWaveTheorySpiral`](@ref), there are ``3L`` bands, the modes at ``𝐪``
-and ``𝐪 ± 𝐤`` of the spiral. If ``2𝐤`` or ``𝐤`` is a reciprocal lattice vector,
-the branches that coincide repeat their energies and share their intensity
-equally.
+and ``𝐪 ± 𝐤`` of the spiral. If ``2𝐤`` or ``𝐤`` is a reciprocal lattice
+vector, the branches that coincide repeat their energies and share their
+intensity equally.
+
+If `threaded=true`, the calculation will be parallelized over ``𝐪``; see also
+[`load_blas_for_threading`](@ref).
 """
 function intensities_bands(swt::AbstractSpinWaveTheory, qpts; kT=0, threaded=false)
     qpts = convert(AbstractQPoints, qpts)
@@ -557,7 +559,7 @@ end
 Calculates dynamical pair correlation intensities for a set of ``𝐪``-points in
 reciprocal space.
 
-Several spin-wave calculators `swt` are possible. [`SpinWaveTheory`](@ref)
+Several spin wave calculators `swt` are possible. [`SpinWaveTheory`](@ref)
 calculates the magnons using direct matrix diagonalization, and is appropriate
 for compact magnetic cells. [`SpinWaveTheorySpiral`](@ref) generalizes to
 incommensurate spiral order, but requires uniaxial symmetry in all model
@@ -578,8 +580,7 @@ via cancellations between poles at positive and negative frequency. The `kernel`
 defines the instrument resolution function, e.g., as a [`gaussian`](@ref). It is
 applied as a post-processing step.
 
-If `threaded=true`, the calculation will be parallelized over ``𝐪``. Direct
-solvers then benefit strongly from an appropriate BLAS backend; see
+If `threaded=true`, the calculation will be parallelized over ``𝐪``; see also
 [`load_blas_for_threading`](@ref).
 
 Intensities can also be calculated for `SampledCorrelations` associated with
@@ -608,9 +609,10 @@ Like [`intensities`](@ref), but integrates the dynamical correlations
 integration `bounds` are ``(-∞, ∞)``, yielding the instantaneous (equal-time)
 correlations.
 
-In [`SpinWaveTheory`](@ref), the integral will be realized as a sum over
-discrete bands. Alternative calculation methods are
-[`SpinWaveTheorySpiral`](@ref) and [`SpinWaveTheoryLarge`](@ref).
+In [`SpinWaveTheory`](@ref) and [`SpinWaveTheorySpiral`](@ref), the integral
+will be realized as a sum over discrete bands. If `threaded=true`, the
+calculation will be parallelized over ``𝐪``; see also
+[`load_blas_for_threading`](@ref).
 
 Classical dynamics data in [`SampledCorrelations`](@ref) can also be used to
 calculate static intensities. In this case, the domain of integration will be a
