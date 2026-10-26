@@ -1,18 +1,18 @@
-# OpenBLAS uses a global lock and doesn't work well when parallelizing over many
-# cheap calculations. This function recommends a BLAS alternative or `nothing`
-# if one cannot be recommended on this platform. As of Oct 2026:
+# OpenBLAS uses a global lock that kills parallel performance over many small
+# calculations. This function recommends an alternative or `nothing` if one
+# cannot be recommended on this platform. As of Oct 2026:
 #   * AppleAccelerate.jl is recommended on Apple ARM and fixes threaded
 #     scalability. There may be a slight performance penalty for single-threaded
 #     workloads.
 #   * MKL.jl is recommended for all x86 processors. Another candidate might be
 #     AOCL.jl. Empirical tests suggests that MKL is faster than AOCL on both
-#     Intel and AMD x86 processors for threaded SWT workloads.
-#   * NVPL BLAS is available for Nvidia ARM and fixes threaded scalability.
-#     There is no registered NVPL.jl package yet, but users may load it manually
-#     via libblastrampoline. Our empirical tests show significant slowdown
-#     relative to OpenBLAS for single-threaded workloads.
-#   * A prototype package ArmPL.jl for generic ARM is available but minimally
-#     maintained.
+#     Intel and AMD x86 processors for multi-threaded, small-matrix workloads.
+#   * NVPL BLAS fixes threaded scalability Nvidia ARM. There is a registered
+#     NVPL_ll package that users may load manually via libblastrampoline. Our
+#     empirical tests show significant slowdown relative to OpenBLAS for
+#     single-threaded workloads.
+#   * A prototype package ArmPL.jl for generic ARM is available on Github but
+#     not registered.
 threading_blas_backend() = Sys.isapple() ? :AppleAccelerate : Sys.ARCH === :x86_64 ? :MKL : nothing
 
 """
