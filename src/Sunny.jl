@@ -132,7 +132,7 @@ export minimize_spiral_energy!, spiral_energy, spiral_energy_per_site, SpinWaveT
 include("SpinWaveTheory/Large/SparseDynamicalMatrix.jl")
 include("SpinWaveTheory/Large/Lanczos.jl")
 include("SpinWaveTheory/Large/SpinWaveTheoryLarge.jl")
-export SpinWaveTheoryLarge, SpinWaveTheoryKPM
+export SpinWaveTheoryLarge
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
@@ -163,9 +163,6 @@ export squared_error, squared_error_fitted, squared_error_bands, make_loss_fn,
     with_hyperparams, uncertainty_matrix
 
 include("deprecated.jl")
-export set_external_field!, set_external_field_at!, dynamic_correlations,
-    instant_correlations, intensity_formula, reciprocal_space_path,
-    set_spiral_order_on_sublattice!, set_spiral_order!
 
 
 ### Initialize package extensions

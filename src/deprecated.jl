@@ -114,16 +114,13 @@ end
 struct SpinWaveTheoryKPM
     swt_large :: SpinWaveTheoryLarge
 end
-function SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol=nothing, niters=nothing, method=nothing, niters_bounds=nothing)
-    @warn "`SpinWaveTheoryKPM` is deprecated; use `SpinWaveTheoryLarge` instead"
-    tol = @something tol 1e-2
-    maxiters = max(something(niters, 0), 1000)
-    return SpinWaveTheoryKPM(SpinWaveTheoryLarge(sys; measure, regularization, tol=min(tol, 0.5), maxiters))
+Base.@deprecate SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol=1e-2, niters=nothing, method=nothing, niters_bounds=nothing) let
+    isnothing(niters) || error("SpinWaveTheoryKPM replaced by SpinWaveTheoryLarge, which no longer supports fixed niters")
+    @warn "SpinWaveTheoryKPM is deprecated; forwarding to SpinWaveTheoryLarge"
+    return SpinWaveTheoryKPM(SpinWaveTheoryLarge(sys; measure, regularization, tol))
 end
 function intensities(swt::SpinWaveTheoryKPM, qpts; energies, kernel, kT=0.0, verbose=false)
-    η = round(0.1 * kernel_fwhm(kernel, 0.0), digits=8)
-    @warn "Forwarding to `SpinWaveTheoryLarge` intensities calculator with η = $η" maxlog=10
-    return intensities(swt.swt_large, qpts; energies, η, kernel, kT, verbose)
+    return intensities(swt.swt_large, qpts; energies, kernel, kT, verbose)
 end
 
 # NOT LISTED HERE:
