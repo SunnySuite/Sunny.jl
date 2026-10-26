@@ -152,7 +152,7 @@ function dynamical_matrix!(H, swt::SpinWaveTheory, q_supercell)
     hermitian_from_lower!(H)
 
     if !isnothing(uncontracted_system(swt.sys).ewald)
-        swt.sys.mode == :SUN ? accum_ewald_SUN!(H, swt, q_supercell) : accum_ewald_dipole!(H, swt, q_supercell)
+        accum_ewald!(H, swt, q_supercell)
         # Hermitian up to round-off errors, then exactly
         @assert maxdiff(H, H') < 1e-12
         hermitianpart!(H)

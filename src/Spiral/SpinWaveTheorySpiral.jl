@@ -149,10 +149,12 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveThe
         H12[j, i] += P⁻
 
         # Interactions for Jᶻᶻ at wavevector (0,0,0).
-        H11[i, i] -= 0.5 * J0[3, 3]
-        H11[j, j] -= 0.5 * J0[3, 3]
-        H22[i, i] -= 0.5 * J0[3, 3]
-        H22[j, j] -= 0.5 * J0[3, 3]
+        # Each site feels the molecular field of the other's ordered moment
+        si, sj = sqrtS[i]^2, sqrtS[j]^2
+        H11[i, i] -= 0.5 * sj * J0zz
+        H11[j, j] -= 0.5 * si * J0zz
+        H22[i, i] -= 0.5 * sj * J0zz
+        H22[j, j] -= 0.5 * si * J0zz
      end
 
     # Add Zeeman term
