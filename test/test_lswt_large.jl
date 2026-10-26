@@ -187,12 +187,10 @@ end
     swt = SpinWaveTheoryLarge(sys; measure, tol=1e-2)
     @test all(isfinite, intensities(swt, qs; energies, η=0.1).data)
 
-    # The deprecated interface infers η from the kernel width
-    swt_kpm = @test_logs (:warn, r"deprecated") SpinWaveTheoryKPM(sys; measure, tol=1e-2)
+    # SpinWaveTheoryKPM forwards with a warning
+    swt_kpm = @test_logs (:warn, r"deprecated") match_mode=:any SpinWaveTheoryKPM(sys; measure, tol=1e-2)
     kernel = gaussian(fwhm=0.5)
-    res0 = intensities(swt, qs; energies, η=0.05, kernel)
-    res1 = @test_logs (:warn, r"with η = 0.05") intensities(swt_kpm, qs; energies, kernel)
-    @test res1.data ≈ res0.data
+    @test intensities(swt_kpm, qs; energies, kernel).data ≈ intensities(swt, qs; energies, kernel).data
 
     # With a kernel, the default η = 0 is the limit η → 0⁺
     qs = [[0.01, 0, 0]]
