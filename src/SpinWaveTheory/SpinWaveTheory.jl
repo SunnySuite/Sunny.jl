@@ -9,7 +9,6 @@ end
 struct SWTDataSUN
     local_unitaries  :: Vector{Matrix{ComplexF64}}    # Transformations from global to quantization frame
     observables      :: Array{HermitianC64, 3}        # Rotated observables (nobs × nunits × nparts)
-    observable_buf   :: Matrix{ComplexF64}            # Scratch buffer (N × N)
     spin_ops         :: Array{HermitianC64, 2}        # Spin dipoles in local frame (3 × nbareatoms)
 end
 
@@ -139,7 +138,6 @@ function swt_data!(sys::System{N}, measure) where N
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)
     observables = Array{HermitianC64}(undef, Nobs, Na, nparts)
-    observable_buf = zeros(ComplexF64, N, N)
     spin_ops = fill(Hermitian(zeros(ComplexF64, N, N)), 3, Nb)
 
     for i in 1:Na
@@ -208,7 +206,6 @@ function swt_data!(sys::System{N}, measure) where N
     return SWTDataSUN(
         local_unitaries,
         observables,
-        observable_buf,
         spin_ops,
     )
 end
@@ -305,18 +302,19 @@ function set_swt_observable_vectors!(u, swt::SpinWaveTheory, q_reshaped, q_globa
     L = Nf * Na
 
     if sys.mode == :SUN
-        (; observables, observable_buf) = data::SWTDataSUN
+        (; observables) = data::SWTDataSUN
         @assert allequal(sys.Ns)
         N = first(sys.Ns)
         for μ in 1:Nobs, i in 1:Na
-            fill!(observable_buf, 0)
+            view(u, (i-1)*Nf .+ (1:Nf), μ) .= 0
+            view(u, (i-1)*Nf .+ (1:Nf) .+ L, μ) .= 0
             for p in 1:num_parts_per_unit(measure)
                 pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys; part=p)
-                observable_buf .+= pref .* observables[μ, i, p]
-            end
-            for f in 1:Nf
-                u[f + (i-1)*Nf,     μ] = observable_buf[f, N]
-                u[f + (i-1)*Nf + L, μ] = observable_buf[N, f]
+                O = observables[μ, i, p]
+                for f in 1:Nf
+                    u[f + (i-1)*Nf,     μ] += pref * O[f, N]
+                    u[f + (i-1)*Nf + L, μ] += pref * O[N, f]
+                end
             end
         end
     else
