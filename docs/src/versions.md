@@ -9,8 +9,8 @@
   faster ([#496](@ref)).
 * New [Tutorial 12](@ref "12. Fitting to the dispersion of a dimerized magnet")
   illustrates fitting of the dimerized magnet Ba₃Mn₂O₈ to intensity bands data.
-* Large speedups of spin-wave theory with long-range dipole-dipole interactions
-  ([#514](@ref)).
+* Ewald summation for spin wave theory is greatly accelerated ([#514](@ref)).
+  Correctness fix when sites have different spin magnitudes ([#521](@ref)).
 * Energy kernel broadening supported in [`SampledCorrelations`](@ref)
   ([#507](@ref)).
 * One-dimensional paths supported in [`q_space_grid`](@ref). Labeling of plot
