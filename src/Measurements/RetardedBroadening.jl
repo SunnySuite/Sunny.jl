@@ -93,9 +93,14 @@ function RetardedBroadening(energies; η, kernel, kT, order=8, cutoff=1e-9)
         fhi = clamp(ωhi + 4width, lo, hi)
         flo = clamp(ωlo - 4width, lo, fhi)
 
-        # The path height s, lowered to lie halfway between Matsubara poles. The n
-        # poles of 1 + n_B below it, each with residue kT, are enclosed.
+        # The path height s, lowered to lie halfway between Matsubara poles. The
+        # n poles of 1 + n_B below it, each with residue kT, are enclosed. Their
+        # number, about width/8πkT, is unbounded as kT → 0.
         s = width / 4
+        if 0 < kT < 1e-4 * width
+            (kT_str, w_str) = number_to_simple_string.((kT, width); digits=3)
+            error("Temperature kT = $kT_str is too small relative to the kernel width $w_str; set kT = 0 or use a wider kernel")
+        end
         n = kT > 0 && lo < 0 < hi ? floor(Int, s / (2π*kT) - 1/2) : -1
         n >= 0 && (s = 2π*kT * (n + 1/2))
         occ(z) = iszero(kT) ? 1 : 1 / (1 - exp(-z/kT))
