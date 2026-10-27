@@ -19,6 +19,14 @@
 # u_j ≥ Im z, so that no pivot vanishes. The Krylov space is exhausted when the
 # residual vanishes, which makes the sums exact.
 #
+# Near z = 0, the terms of the sum for x₁ cancel, losing about ε (Λ/|z|)² of
+# relative accuracy for a spectrum in [-Λ, Λ] and machine precision ε. This
+# matters at kT > 0, where the pole of 1 + n_B at ω = 0 is evaluated close to
+# z = 0. Instead, x₁ = det(z - T′)/det(z - T), where T′ omits the first row and
+# column of T, is accumulated as a product of the ratios of pivots, x₁ = Πⱼ
+# u′ⱼ/uⱼ, with u′₁ = 1 and u′ⱼ = z - α_j - β_{j-1}² / u′_{j-1} for j ≥ 3. No
+# terms cancel.
+#
 # After m rows, x_m = g_m / u_m is the last entry of y. The further rows of T
 # couple to these only through β_m, so that by the Sherman–Morrison formula they
 # change x₁ by δx₁ = β_m² x_m² τ / (1 - β_m² τ / u_m), where τ is the leading
@@ -73,8 +81,10 @@ mutable struct LanczosResolvent{F}
     nrows        :: Int
     β            :: Float64
     βmax         :: Float64
-    # Per node, 1/u_m, g_m, and the sums x₁ and sₐ, with hₐₘ for each probe
+    # Per node, 1/u_m, g_m, and the sums x₁ and sₐ, with hₐₘ for each probe, and
+    # 1/u′_m of T′
     const invu   :: Vector{ComplexF64}
+    const invu′  :: Vector{ComplexF64}
     const g      :: Vector{ComplexF64}
     const x₁     :: Vector{ComplexF64}
     const h      :: Matrix{ComplexF64}
@@ -91,7 +101,7 @@ function LanczosResolvent(mulS!, v, probes, zs)
     (nz, np) = (length(zs), size(probes, 2))
     z(dims...) = zeros(ComplexF64, dims...)
     return LanczosResolvent(mulS!, probes, zs, β₀, G, v / β₀, zero(v), Sv / β₀, zero(v), zero(v),
-                            0, 0.0, 0.0, z(nz), ones(ComplexF64, nz), z(nz), z(np, nz), z(np, nz))
+                            0, 0.0, 0.0, z(nz), z(nz), ones(ComplexF64, nz), z(nz), z(np, nz), z(np, nz))
 end
 
 exhausted(r::LanczosResolvent) = r.nrows > 0 && iszero(r.β)
@@ -109,7 +119,7 @@ end
 # exhausted. Each row j is eliminated with α_j and the overlaps of q_j, and the
 # Lanczos step that follows gives the coupling β_j to the next row.
 function extend!(r::LanczosResolvent, m)
-    (; mulS!, probes, zs, invu, g, x₁, h, s) = r
+    (; mulS!, probes, zs, invu, invu′, g, x₁, h, s) = r
     n = length(r.q)
     L = n ÷ 2
     while r.nrows < m && !exhausted(r)
@@ -127,7 +137,11 @@ function extend!(r::LanczosResolvent, m)
                 g[i] *= β′ * invu[i]
             end
             invu[i] = 1 / (zs[i] - α - β′^2 * invu[i])
-            x₁[i] += g[i]^2 * invu[i]
+            # The pivot u′_j of T′ is 1 for j = 1, by convention, and has no
+            # coupling to row 1 for j = 2
+            u′ = j == 1 ? 1.0 : zs[i] - α - (j == 2 ? 0.0 : β′^2 * invu′[i])
+            invu′[i] = 1 / u′
+            x₁[i] = (j == 1 ? 1.0 : x₁[i]) * u′ * invu[i]
             for a in eachindex(d)
                 h[a, i] = (d[a] + β′ * h[a, i]) * invu[i]
                 s[a, i] += g[i] * h[a, i]
