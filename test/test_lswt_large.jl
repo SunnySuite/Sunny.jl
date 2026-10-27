@@ -16,8 +16,9 @@
     mulS!(y, x) = (y .= S * x)
     zs = [0.3 + 0.1im, -1.2 + 0.01im]
 
-    r = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, probes, zs), 4)
-    r_exact = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, probes, zs), n + 1)
+    Λ = opnorm(S)
+    r = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, probes, zs, Λ), 4)
+    r_exact = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, probes, zs, Λ), n + 1)
     @test (r.nrows, r_exact.nrows) == (4, n)
     @test Sunny.exhausted(r_exact)
     for (i, z) in enumerate(zs)
