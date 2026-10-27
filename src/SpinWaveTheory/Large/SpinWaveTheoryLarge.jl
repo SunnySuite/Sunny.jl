@@ -73,13 +73,20 @@ function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=0
     @assert size(data) == (length(energies), size(qpts.qs)...)
     η >= 0 || error("Require η ≥ 0")
     if iszero(η)
-        # The limit η → 0⁺, approximated by an η much smaller than the kernel
-        # width. Near ω = 0, the quadrature panels of the contour integral for
-        # kernel broadening shrink geometrically to the size η. A floor on η
-        # limits the FP64 roundoff error from cancellation in the retarded
-        # susceptibility χ(z) as z → 0.
+        # The limit η → 0⁺, approximated by η = √ε × kernel width, for machine
+        # precision ε. A Lorentzian of half width η biases intensities by about
+        # η/width relative to the peak, here √ε, below any attainable `tol`. The
+        # floor is needed because, at kT > 0, the pole of 1 + n_B at ω = 0 is
+        # evaluated at z = iη. There, χ(z) = (G + β₀² x₁)/z loses about ε |G|/η
+        # to cancellation, i.e., √ε |G|/width, which is negligible.
         isnothing(kernel) && error("Specify a `kernel`, a broadening `η`, or both.")
-        η = 1e-6 * minimum(ω -> kernel_fwhm(kernel, ω), energies)
+        # A measure that is not real-valued needs cross correlations between
+        # observables, which lose accuracy as z → 0, from cancellation in the
+        # probe sums of `LanczosResolvent`
+        if !(eltype(swt_large.swt.measure) <: Real) && kT > 0
+            error("Specify a broadening η > 0 for a measure that is not real-valued at nonzero kT")
+        end
+        η = sqrt(eps()) * minimum(ω -> kernel_fwhm(kernel, ω), energies)
     end
     intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded, verbose)
     return Intensities(orig_crystal(swt_large.swt.sys), qpts, collect(Float64, energies), data)

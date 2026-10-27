@@ -80,6 +80,13 @@ end
         res2 = intensities(swt_large, [q]; energies, η=0.05, kernel, kT=0.3)
         @test isapprox(res1.data, res2.data, rtol=1e-6)
 
+        # The limit η → 0⁺, including ω = 0 at kT > 0, where the pole of the
+        # thermal factor is evaluated close to z = 0
+        energies0 = range(-5, 5, 41)
+        res1 = intensities(swt, [q]; energies=energies0, kernel, kT=0.3)
+        res2 = intensities(swt_large, [q]; energies=energies0, kernel, kT=0.3)
+        @test maximum(abs, res1.data - res2.data) < 1e-6 * maximum(abs, res1.data)
+
         # A matrix-valued combiner needs all correlations, including the
         # off-diagonal ones
         measure = ssf_custom((q, ssf) -> ssf, sys; formfactors)
@@ -88,6 +95,7 @@ end
         res1 = intensities(swt, [q]; energies, η=0.05, kernel, kT=0.3)
         res2 = intensities(swt_large, [q]; energies, η=0.05, kernel, kT=0.3)
         @test isapprox(res1.data, res2.data, rtol=1e-6)
+        @test_throws "Specify a broadening η > 0" intensities(swt_large, [q]; energies, kernel, kT=0.3)
     end
 end
 
