@@ -340,6 +340,21 @@ end
         @test disp1 ≈ [1.3236778041378718, 0.9206655245623444]
         @test disp2 ≈ [0.9206655245623366]
     end
+
+    # Unequal spin magnitudes. Each site feels the molecular field of the other
+    # site's ordered moment, which scales with that moment's own magnitude.
+    begin
+        cryst = Crystal(lattice_vectors(1, 1.2, 1.4, 90, 90, 90), [[0, 0, 0], [1/2, 1/2, 1/2]], 1)
+        sys = System(cryst, [1 => Moment(s=1, g=2), 2 => Moment(s=3/2, g=2)], :dipole_uncorrected)
+        set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
+        set_exchange!(sys, -0.3, Bond(1, 1, [1, 0, 0]))
+        enable_dipole_dipole!(sys, 0.05)
+        set_dipole!(sys, [1, 0, 0], (1, 1, 1, 1))
+        set_dipole!(sys, [-1, 0, 0], (1, 1, 1, 2))
+        q = [0.1, 0.2, 0.3]
+        disp1 = dispersion(SpinWaveTheory(sys; measure=nothing), [q])
+        @test disp1 ≈ [1.048088346572452, 0.3483185617088442]
+    end
 end
 
 
