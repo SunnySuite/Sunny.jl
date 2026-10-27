@@ -48,6 +48,14 @@ end
 
 Base.size(H::SparseDynamicalMatrix, _) = length(H.rowptr) - 1
 
+# A bound on the spectral radius of ĨH(𝐪) at every 𝐪, by the Gershgorin theorem.
+# The phases of `values_at!` have unit magnitude.
+function spectral_bound(H::SparseDynamicalMatrix)
+    (; rowptr, vals, regularization) = H
+    rowsum(r) = sum(e -> abs(vals[e]), rowptr[r]:rowptr[r+1]-1; init=0.0)
+    return regularization + maximum(rowsum, 1:size(H, 1))
+end
+
 # The values of H(𝐪) itself, each entry multiplied by its phase exp(2πi 𝐪⋅𝐧).
 # Computed once per wavevector, and reused by every product.
 function values_at!(Hq, H::SparseDynamicalMatrix, q_supercell)

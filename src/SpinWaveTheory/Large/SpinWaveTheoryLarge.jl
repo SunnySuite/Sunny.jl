@@ -129,6 +129,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     Nobs = num_observables(measure)
     rb = RetardedBroadening(energies; η, kernel, kT)
     resolution = max(rb.width, 2η)
+    Λ = spectral_bound(H)
     # Lanczos steps per wavevector, summed over runs, for the `verbose` report
     iters = zeros(Int, size(qpts.qs))
 
@@ -162,7 +163,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
         end
 
         (As, m) = try
-            lanczos_correlations(mulS!, starts, rb; cross, resolution, tol, maxiters)
+            lanczos_correlations(mulS!, starts, rb; cross, resolution, Λ, tol, maxiters)
         catch err
             err isa InstabilityError || rethrow()
             throw(InstabilityError("Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable."))
@@ -239,12 +240,12 @@ end
 # T is symmetric under θ → -θ. An odd number of rows then forces a spurious Ritz
 # value at zero. The steps between checks grow by 25%, so that the overhead of
 # checks is a fixed fraction.
-function lanczos_correlations(mulS!, vs, rb; cross, resolution, tol, maxiters)
+function lanczos_correlations(mulS!, vs, rb; cross, resolution, Λ, tol, maxiters)
     probes = cross ? reduce(hcat, vs) : zeros(ComplexF64, length(vs[1]), 0)
     As = [zeros(ComplexF64, size(rb.W, 1), 1 + size(probes, 2)) for _ in vs]
     norms = [sqrt(real(dot_noblas(v, v))) for v in vs]
     ks = findall(>(sqrt(eps()) * maximum(norms)), norms)
-    rs = [LanczosResolvent(mulS!, vs[k], probes, rb.zs) for k in ks]
+    rs = [LanczosResolvent(mulS!, vs[k], probes, rb.zs, Λ) for k in ks]
     isempty(rs) && return (As, 0)
     # The largest H-norm of a probe, for the bound on cross terms
     pnorm = cross ? maximum(r -> r.β₀, rs) : 0.0
