@@ -302,7 +302,7 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0, threaded=fals
         end
 
         for branch in 1:3, band in 1:L
-            Avec = zero(CVec{3})
+            Avec = zero(CVec3)
             v = reshape(view(T, :, band, branch), Na, 2)
             for i in 1:Na
                 pref = observable_prefactor(measure, 1, i, q_reshaped, q_global, sys)

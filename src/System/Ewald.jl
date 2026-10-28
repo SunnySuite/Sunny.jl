@@ -9,20 +9,20 @@ function Ewald(sys::System{N}, μ0_μB², demag) where N
     # Build and store the interaction tensor A(q=0). The imaginary part cancels
     # in the symmetric sum over ±k, so keep only the real part.
     A = real.(ewald_interaction_tensor(cache, zero(Vec3)))
-    Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...) # dims: [α,β,cell,i,j]
-    FA = FFTW.rfft(Ar, 3:5) # FFT on cell indices
+    FA = FFTW.rfft(reinterpret(reshape, Float64, A), 2:4)
+    FA = collect(reinterpret(reshape, CMat3, FA))
 
     # Scratch space for calculating interactions in Fourier space
     na = natoms(crystal)
     μ = zeros(Vec3, dims..., na)
     ϕ = zeros(Vec3, dims..., na)
-    sz_rft = size(FA)[3:5]  # First FT dimension (dimension 3) will be ~ halved
-    Fμ = zeros(ComplexF64, 3, sz_rft..., na)
-    Fϕ = zeros(ComplexF64, 3, sz_rft..., na)
+    sz_rft = size(FA)[1:3]
+    Fμ = zeros(CVec3, sz_rft..., na)
+    Fϕ = zeros(CVec3, sz_rft..., na)
 
     mock_spins = zeros(3, dims..., na)
     plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
-    ift_plan = FFTW.plan_irfft(Fμ, dims[1], 2:4; flags=FFTW.MEASURE)
+    ift_plan = FFTW.plan_irfft(reinterpret(reshape, ComplexF64, Fμ), dims[1], 2:4; flags=FFTW.MEASURE)
 
     return Ewald(cache, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
 end
@@ -211,23 +211,22 @@ function ewald_energy(@nospecialize(sys::System))
 
     E = 0.0
     @. μ = - sys.gs * sys.dipoles # i.e., magnetic_moments(sys)
-    mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
+    mul!(reinterpret(reshape, ComplexF64, Fμ), plan, reinterpret(reshape, Float64, μ))
 
     # rfft() is missing half the elements of the first Fourier transformed
-    # dimension (here, dimension 2). Account for these missing values by scaling
-    # the output by 2.
+    # dimension. Account for these missing values by scaling the output by 2.
     if even_rft_size
-        @views Fμ[:, 2:end-1, :, :, :] .*= √2
+        @views Fμ[2:end-1, :, :, :] .*= √2
     else
-        @views Fμ[:, 2:end, :, :, :] .*= √2
+        @views Fμ[2:end, :, :, :] .*= √2
     end
 
     # In real space, E = μ (A ⋆ μ) / 2. In Fourier space, the convolution
     # becomes an ordinary product using Parseval's theorem.
-    (_, m1, m2, m3, na) = size(Fμ)
+    (m1, m2, m3, na) = size(Fμ)
     ms = CartesianIndices((m1, m2, m3))
-    @inbounds for j in 1:na, i in 1:na, m in ms, α in 1:3, β in 1:3
-        E += (1/2) * real(conj(Fμ[α, m, i]) * conj(FA[α, β, m, i, j]) * Fμ[β, m, j])
+    @inbounds for j in 1:na, i in 1:na, m in ms
+        E += (1/2) * real(dot(Fμ[m, i], conj(FA[m, i, j]) * Fμ[m, j]))
     end
     return E / prod(dims)
 end
@@ -241,20 +240,19 @@ function accum_ewald_grad!(∇E, dipoles, @nospecialize(sys::System))
 
     # Fourier transformed magnetic moments for the provided trial dipoles
     @. μ = - gs * dipoles
-    mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
+    mul!(reinterpret(reshape, ComplexF64, Fμ), plan, reinterpret(reshape, Float64, μ))
 
     # Calculate magneto-potential ϕ in Fourier space. Without @inbounds,
     # performance degrades by ~50%
-    fill!(Fϕ, 0.0)
-    (_, m1, m2, m3, na) = size(Fμ)
+    fill!(Fϕ, zero(CVec3))
+    (m1, m2, m3, na) = size(Fμ)
     ms = CartesianIndices((m1, m2, m3))
-    @inbounds for j in 1:na, i in 1:na, m in ms, α in 1:3, β in 1:3
-        Fϕ[α,m,i] += conj(FA[α,β,m,i,j]) * Fμ[β,m,j]
+    @inbounds for j in 1:na, i in 1:na, m in ms
+        Fϕ[m, i] += conj(FA[m, i, j]) * Fμ[m, j]
     end
 
     # Inverse Fourier transform to get ϕ in real space
-    ϕr = reinterpret(reshape, Float64, ϕ)
-    mul!(ϕr, ift_plan, Fϕ)
+    mul!(reinterpret(reshape, Float64, ϕ), ift_plan, reinterpret(reshape, ComplexF64, Fϕ))
 
     for site in eachsite(sys)
         ∇E[site] -= gs[site]' * ϕ[site]
