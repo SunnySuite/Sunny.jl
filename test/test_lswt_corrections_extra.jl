@@ -284,9 +284,9 @@ end
     # The sum rule, order by order. The weight of a correlation integrated over
     # ω > 0 equals the static weight ⟨Q†Q⟩ - |⟨Q⟩|², an identity that holds
     # separately at each order of the 1/s expansion. Scale every 1/s piece by a
-    # bookkeeping parameter ε: the cubic vertex by ε; the static self-energy, the
-    # amplitude corrections δc and δpair by ε²; and, because a K-boson word of
-    # an observable is smaller than its one-boson word by ε^(K-1), its pair
+    # bookkeeping parameter ε: the cubic vertex by ε; the static self-energy,
+    # the amplitude corrections δc and δpair by ε²; and, because a K-boson word
+    # of an observable is smaller than its one-boson word by ε^(K-1), its pair
     # amplitude by ε. Then the ε² coefficient of the integrated corrected
     # spectrum must equal that of the strict static weight, the ground state of
     # H₂ + εH₃ + ε²(H₄ + δH₂ + H₁) with Q = Σ_K ε^(K-1) W_K, computed in a
@@ -389,10 +389,35 @@ end
 
         # For an observable with no one-magnon part, the ε² term above is its
         # leading order, and its first correction is the ε⁴ term. Here the
-        # corrections do NOT satisfy the gate: the pair amplitude is taken in the
-        # harmonic vacuum, missing the shift of ⟨W₂†W₂⟩ that the vacuum takes at
-        # first order. The quadrupole 𝒪₂² of a collinear Néel dimer isolates it,
-        # since there H₃ = 0 and 𝒪₂² creates only pairs.
+        # corrections do NOT satisfy the gate: the pair amplitude is taken in
+        # the harmonic vacuum, missing the shift of ⟨W₂†W₂⟩ that the vacuum
+        # takes at first order. The quadrupole 𝒪₂² of a collinear Néel dimer
+        # isolates it, since there H₃ = 0 and 𝒪₂² creates only pairs.
+        #
+        # Measured, the ε⁴ coefficient is -4.0668 here and -2.5739 strict. The
+        # strict value splits into the words of the observable, -4.0668, which
+        # the code has exactly, and the vacuum shift, +1.4929, which it lacks.
+        # That shift is in turn a Gaussian part, +1.714, from the mean field of
+        # H₄ acting on the two lines of the pair, and a four-magnon admixture,
+        # -0.2215, from H₄ coupling the pair to two further magnons.
+        #
+        # Planned, and deferred: the four-magnon admixture needs a double loop
+        # over momenta, and it must come with the Gaussian part. Taking the
+        # Gaussian part alone, by building the bath from the magnons of H₂ plus
+        # the static mean field, closes it on this dimer exactly, but breaks the
+        # Casimir sum rule of the canted square lattice (1.6%, against < 1e-3)
+        # and leaves the dressed H₂ indefinite near Γ. Partial ε⁴ terms appear
+        # to spoil identities that hold at the order kept, so the fix is all or
+        # nothing. In a canted state the second order of H₃ enters too.
+        #
+        # The same order also takes the tilt of the pair amplitude, one
+        # displaced leg of the three-boson words of the observable, by analogy
+        # with the tilt of `observable_corrections`; see
+        # `observable_pair_corrections`. Its amplitude is O(ε³), so it reaches
+        # the weight only at ε⁴, and it vanishes here, where there is no
+        # tadpole. Gating it needs a pure pair creator about a canted state,
+        # e.g. 𝒪₂² in the local frame of each site of the canted dimer above.
+        # Once all three pieces are in, this becomes `@test`.
         sys = System(cryst, [1 => Moment(; s, g=1), 2 => Moment(; s, g=1)], :dipole)
         set_exchange!(sys, 1/s, Bond(1, 2, [0, 0, 0]))
         set_onsite_coupling!(sys, -0.15 * O[2, 0] / s, 1)

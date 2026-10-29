@@ -62,7 +62,9 @@
 # Not included is the analogue of the tilt in `observable_corrections`, one
 # displaced leg of the three-boson words, which is nonzero only where the
 # tadpole is. For an observable that also creates a single magnon it is beyond
-# the order kept, and for one that does not it has not been validated.
+# the order kept. For one that does not, it belongs to the first correction of
+# the pair weight, which is incomplete without the shift of the vacuum and is
+# deferred with it; see the `@test_broken` of the sum-rule derivation test.
 function observable_pair_corrections(swt::SpinWaveTheory, g)
     return [wick_reduce(observable_monomials(swt, μ, i, Val{4}()), g, nothing, Val{2}())
             for μ in 1:num_observables(swt.measure), i in 1:nsites(swt.sys)]
