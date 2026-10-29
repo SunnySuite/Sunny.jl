@@ -106,14 +106,17 @@ struct EwaldTensorCache
 end
 
 struct Ewald
-    cache    :: EwaldTensorCache      # q-independent pieces for building A(q)
-    A        :: Array{Mat3, 5}        # Interaction matrices in real-space         [offset+1,i,j]
-    μ        :: Array{Vec3, 4}        # Magnetic moments μ = g s                   [cell,i]
-    ϕ        :: Array{Vec3, 4}        # Cross correlation, ϕ = A⋆μ                 [cell,i]
-    # Space for Fourier transforms; compressed along first index m1
-    FA       :: Array{ComplexF64, 7}  # Transformed interactions F[A]              [α,β,m1,m2,m3,i,j]
-    Fμ       :: Array{ComplexF64, 5}  # Transformed spins F[s]                     [α,m1,m2,m3,i]
-    Fϕ       :: Array{ComplexF64, 5}  # Cross correlation, F[ϕ] = conj(F[A]) F[s]  [α,m1,m2,m3,i]
+    # q-independent pieces for rapidly building interaction tensor A(q)
+    cache    :: EwaldTensorCache
+    # Data in real space
+    A        :: Array{Mat3, 5}     # Interaction tensor          [offset+1,i,j]
+    μ        :: Array{Vec3, 4}     # Magnetic moments μ = -g s   [cell,i]
+    ϕ        :: Array{Vec3, 4}     # Cross correlation, ϕ = A⋆μ  [cell,i]
+    # Real → complex Fourier transforms, compressed along first spatial index
+    FA       :: Array{CMat3, 5}    # rfft(A)
+    Fμ       :: Array{CVec3, 4}    # rfft(μ)
+    Fϕ       :: Array{CVec3, 4}    # rfft(ϕ) = conj(FA) Fμ
+    # Forward and inverse plans
     plan     :: rFTPlan
     ift_plan :: rIFTPlan
 end

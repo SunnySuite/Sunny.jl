@@ -387,8 +387,7 @@ function contract_ewald!(sys::System, uncontracted::System, units)
     isempty(pairs) && return
 
     # Rebuild the Fourier space representation of A.
-    Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...)
-    FA .= FFTW.rfft(Ar, 3:5)
+    FA .= reinterpret(reshape, CMat3, FFTW.rfft(reinterpret(reshape, Float64, A), 2:4))
 
     # Move the subtracted intra-unit couplings into the onsite operator of the
     # entangled unit.
