@@ -51,22 +51,8 @@
 # Their keyword `bz` selects the Brillouin-zone grid, and the static corrections
 # take `tol` for adaptive cubature; see `BZIntegration`.
 
-# Why the 1/s corrections of this directory are unavailable for `swt`, or
-# `nothing` if they are available. Returned rather than thrown so that a caller
-# offering a correct but weaker result in the unsupported cases, such as
-# `corrected_magnetic_moments`, can ask without catching.
-function corrections_unsupported_reason(swt::SpinWaveTheory)
-    (; sys) = swt
-    @assert sys.mode in (:dipole, :dipole_uncorrected, :SUN)
-
-    is_entangled(sys) && return "are not supported for entangled units"
-    isnothing(sys.ewald) || return "do not yet support long-range dipole-dipole interactions"
-    return nothing
-end
-
-# Errors unless `swt` describes a model for which the 1/s corrections in this
-# directory are implemented.
+# Errors unless `swt` describes a model for which the corrections in this
+# directory are implemented
 function check_corrections_supported(swt::SpinWaveTheory)
-    reason = corrections_unsupported_reason(swt)
-    isnothing(reason) || error("1/s corrections $reason.")
+    isnothing(swt.sys.ewald) || error("Corrected spin wave theory does not yet support Ewald interactions")
 end
