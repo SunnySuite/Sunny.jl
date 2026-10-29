@@ -474,10 +474,8 @@ end
 """
     corrected_energy_per_site(swt::SpinWaveTheory; tol=0.01, bz=nothing)
 
-Energy per site of the magnetic structure, corrected at relative order ``1/s``,
-where ``s`` is the spin magnitude in dipole mode, or ``1/λ`` for the
-representation label ``λ`` in SU(N) mode. If the classical energy is ``J s²``,
-the correction appears at order ``J s``.
+Energy per site of the magnetic structure, including the leading quantum
+correction.
 
 The correction is the zero-point energy of the harmonic magnons, ``(1/2) Σ_n
 ∫d³q ω(𝐪, n)`` over the first magnetic Brillouin zone, less the constant that
@@ -487,9 +485,9 @@ vanishes identically in `:dipole` mode, where the renormalized Stevens
 coefficients already make the classical energy exact.
 
 Not included are the energy shifts of the tadpole and of the mean field of the
-four-boson term, which are smaller by a further power of ``1/s`` and so belong
-to the next order. See [`gaussian_energy_per_site`](@ref) for the energy of a
-Gaussian vacuum, which includes the latter.
+four-boson term, which appear at higher order in perturbation theory. See
+[`gaussian_energy_per_site`](@ref) for the energy of a Gaussian vacuum, which
+includes the latter.
 
 Integration over the Brillouin zone is by adaptive cubature to the relative
 tolerance `tol`, or on the uniform grid `bz = (n1, n2, n3)`; see
@@ -572,7 +570,6 @@ tolerance `tol`, or on the uniform grid `bz = (n1, n2, n3)`; see
 [`BZIntegration`](@ref).
 """
 function boson_density(swt::SpinWaveTheory; tol=0.01, bz=nothing)
-    is_entangled(swt.sys) && error("Corrections are not supported for entangled units")
     bz = static_bz(swt, bz; tol)
     L = nbands(swt)
     nf = nflavors(swt)
@@ -619,15 +616,17 @@ tolerance `tol`, or on the uniform grid `bz = (n1, n2, n3)`; see
 [`BZIntegration`](@ref).
 """
 function corrected_magnetic_moments(swt::SpinWaveTheory; tol=0.01, bz=nothing)
-    is_entangled(swt.sys) && error("Corrections are not supported for entangled units")
+    # The moments would be needed per bare atom (not per entangled site)
+    is_entangled(swt.sys) && error("Corrected magnetic moments unsupported for entangled systems")
     quad = static_bz(swt, bz; tol)
     (; sys) = swt
     L = nbands(swt)
     Na = nsites(sys)
 
-    # The tilt needs the cubic vertex; without it the depletion below is still
-    # the whole correction for any structure the tilt would not move.
-    v = isnothing(corrections_unsupported_reason(swt)) ? tadpole_correction(swt; tol, bz).v : zeros(ComplexF64, L)
+    # The tilt needs the cubic vertex, unavailable with Ewald interactions;
+    # without it the depletion below is still the whole correction for any
+    # structure the tilt would not move.
+    v = isnothing(sys.ewald) ? tadpole_correction(swt; tol, bz).v : zeros(ComplexF64, L)
     w = [v; conj(v)]
 
     # ⟨𝐒⟩ to O(1/s): the classical dipole, its tilt by one displaced leg, and

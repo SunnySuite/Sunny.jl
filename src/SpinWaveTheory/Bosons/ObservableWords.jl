@@ -42,7 +42,7 @@ end
 # The same for a measure of a single part, which is all that the 1/s corrections
 # support
 function observable_monomials(swt::SpinWaveTheory, μ, i, ::Val{K}) where K
-    @assert num_parts_per_unit(swt.measure) == 1  # Entangled units are rejected
+    num_parts_per_unit(swt.measure) == 1 || error("Multi-part observables unsupported in corrected spin wave theory")
     return observable_monomials(swt.sys, swt.vacuum.frames, swt.measure, μ, i, Val{K}())
 end
 
