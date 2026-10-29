@@ -45,10 +45,6 @@ function uncontracted_system(sys::System)
     is_entangled(sys) ? get_entanglement(sys).uncontracted : sys
 end
 
-function nbaresites(sys::System)
-    length(eachsite(uncontracted_system(sys)))
-end
-
 # Returns the (u, p) indices inverse to units[u][p].atom
 function unit_and_part(units, atom)
     for (u, parts) in enumerate(units)
@@ -61,9 +57,6 @@ end
 # Bare atom indices comprising a unit, ordered to match the units entries.
 function atoms_in_unit(units, u)
     [atom for (; atom) in units[u]]
-end
-function atoms_in_unit(sys::System, u)
-    is_entangled(sys) ? atoms_in_unit(get_entanglement(sys).units, u) : [u]
 end
 
 # Bare site of an entangled unit `part` in `cell` of the uncontracted system.
@@ -339,61 +332,55 @@ end
 ################################################################################
 
 # The local (home-image) direct dipole tensors that are folded out of the Ewald
-# sum for an entangled system. For each intra-unit inter-part pair (i ≠ j) this
-# yields `(; ai, aj, Δ, Adir)` with `Δ` the crystal cell offset from atom `ai`
-# to `aj` and `Adir = (μ0_μB²/4π)(I − 3r̂r̂)/r³` for the global displacement `r`
-# between bare atoms.
+# sum for an entangled system. For each intra-unit inter-part pair this yields
+# `(; bond, A_loc)`, with `A_loc = (μ0_μB²/4π)(I − 3r̂r̂)/r³` for the global
+# displacement `r` along the bond between bare atoms.
 function intra_unit_dipole_terms(crystal, units, μ0_μB²)
     function term(pi, pj)
-        Δ = pj.Δcell - pi.Δcell
-        r = global_displacement(crystal, Bond(pi.atom, pj.atom, Δ))
-        Adir = μ0_μB² * point_dipole_tensor(r)
-        return (; ai=pi.atom, aj=pj.atom, Δ, Adir)
+        bond = Bond(pi.atom, pj.atom, pj.Δcell - pi.Δcell)
+        A_loc = μ0_μB² * point_dipole_tensor(global_displacement(crystal, bond))
+        return (; bond, A_loc)
     end
     return [term(pi, pj) for parts in units for pi in parts for pj in parts if pi.atom != pj.atom]
 end
 
-# Replace the intra-unit dipole-dipole coupling with its onsite equivalent in
-# the entangled space, ⟨Sᵢ⟩ Jᵢⱼ ⟨Sⱼ⟩ → ⟨Sᵢ Jᵢⱼ Sⱼ⟩. Entanglement is spatially
-# local, so this replacement refers only to the _local_ coupling (μ0_μB²/4π)(I −
-# 3r̂r̂)/r³ between bare magnetic moments μᵢ = gSᵢ. The total effective Ewald
-# coupling A also includes interactions between periodic images (i, j) and these
+# Derives the dipole-dipole data of an entangled system from `sys.ewald`. The
+# intra-unit coupling is replaced with its onsite equivalent in the entangled
+# space, ⟨Sᵢ⟩ Jᵢⱼ ⟨Sⱼ⟩ → ⟨Sᵢ Jᵢⱼ Sⱼ⟩. Entanglement is spatially local, so this
+# replacement refers only to the _local_ coupling (μ0_μB²/4π)(I − 3r̂r̂)/r³
+# between bare magnetic moments μᵢ = gSᵢ. The total effective Ewald coupling A
+# also includes interactions between periodic images (i, j) and these
 # interactions must be kept unentangled.
-# 
+#
 # Operationally, this function:
-#   * Mutates uncontracted.ewald to remove direct intra-unit couplings.
+#   * Builds uncontracted.ewald without the direct intra-unit couplings.
 #   * Adds an :IntraUnitDipole param that folds these couplings into the
-#     entangled space.
-function contract_ewald!(sys::System, uncontracted::System, units)
+#     entangled space, and repopulates the couplings of `sys` from its params.
+function build_entangled_ewald!(sys::System)
+    (; uncontracted, units) = get_entanglement(sys)
+
     # Remove any previous special handling of Ewald interactions
     filter!(p -> p.label !== :IntraUnitDipole, sys.params)
+    uncontracted.ewald = nothing
 
-    # Continue only if Ewald is defined on the uncontracted system.
-    isnothing(uncontracted.ewald) && return
+    if !isnothing(sys.ewald)
+        (; gs, crystal) = uncontracted
+        (; μ0_μB², demag) = sys.ewald::EwaldDelegated
+        excluded = intra_unit_dipole_terms(crystal, units, μ0_μB²)
+        uncontracted.ewald = Ewald(uncontracted, μ0_μB², demag; excluded)
 
-    (; gs, crystal) = uncontracted
-    (; A, FA, cache) = uncontracted.ewald :: Ewald
-    (; μ0_μB²) = cache
-    dims_A = size(A)[1:3]
-
-    # Subtract intra-unit couplings from uncontracted interaction matrix A.
-    pairs = PairCoupling[]
-    for (; ai, aj, Δ, Adir) in intra_unit_dipole_terms(crystal, units, μ0_μB²)
-        cell = CartesianIndex(Tuple(mod.(Δ, dims_A)) .+ (1, 1, 1))
-        D = gs[1, 1, 1, ai]' * Adir * gs[1, 1, 1, aj]
-        push!(pairs, PairCoupling(Bond(ai, aj, Δ), 0.0, Mat3(D), 0.0, zero(TensorDecomposition)))
-        A[cell, ai, aj] -= Adir
+        # Move the excluded couplings into the onsite operator of the unit
+        pairs = map(excluded) do (; bond, A_loc)
+            D = gs[1, 1, 1, bond.i]' * A_loc * gs[1, 1, 1, bond.j]
+            PairCoupling(bond, 0.0, Mat3(D), 0.0, zero(TensorDecomposition))
+        end
+        if !isempty(pairs)
+            bare = ModelParam(:IntraUnitDipole, 1.0, Tuple{Int, OnsiteCoupling}[], pairs)
+            push!(sys.params, contract_model_param(bare, uncontracted.Ns, units))
+        end
     end
-    isempty(pairs) && return
 
-    # Rebuild the Fourier space representation of A.
-    Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...)
-    FA .= FFTW.rfft(Ar, 3:5)
-
-    # Move the subtracted intra-unit couplings into the onsite operator of the
-    # entangled unit.
-    bare = ModelParam(:IntraUnitDipole, 1.0, Tuple{Int, OnsiteCoupling}[], pairs)
-    push!(sys.params, contract_model_param(bare, uncontracted.Ns, units))
+    repopulate_couplings_from_params!(sys)
     return
 end
 
@@ -603,8 +590,17 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
         return sys
     end
 
-    # Make a clone that will be mutated and retained
+    # Make a clone that will be retained. It will store the bare dipoles and,
+    # for efficiency, it will handle interactions in the dipole-sector.
     uncontracted = clone_system(uncontracted)
+
+    # Long-range dipole-dipole interactions are so delegated
+    ewald = if isnothing(uncontracted.ewald)
+        nothing
+    else
+        (; μ0_μB², demag) = uncontracted.ewald.cache
+        EwaldDelegated(μ0_μB², demag)
+    end
 
     # Convert groupings data to a standardized format
     units = groupings_to_units(groupings)
@@ -634,7 +630,7 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
     dipoles   = fill(Vec3(NaN, NaN, NaN), dims..., nunits)
     coherents = zeros(CVec{N}, dims..., nunits)
     sys = System(nothing, :SUN, contracted_crystal, dims, Ns, κs, gs, ModelParam[],
-                 Symbol[], ints, nothing, extfield, dipoles, coherents, Array{Vec3, 4}[],
+                 Symbol[], ints, ewald, extfield, dipoles, coherents, Array{Vec3, 4}[],
                  Array{CVec{N}, 4}[], copy(uncontracted.rng),
                  Entanglement(units, uncontracted))
 
@@ -658,15 +654,14 @@ function entangle_system(uncontracted::System{M}, groupings::Vector{<: Vector{<:
         ModelParam(param.label, param.val, Tuple{Int, OnsiteCoupling}[], pairs)
     end
 
-    # Ewald interactions similarly decompose to an intra-unit part (on sys) and
-    # an inter-unit part (on uncontracted).
-    contract_ewald!(sys, uncontracted, units)
-
-    # Ensure interactions are synced with params.
+    # Repopulates from both sys.params and uncontracted.params
     repopulate_couplings_from_params!(sys)
-    repopulate_couplings_from_params!(uncontracted)
 
-    # Map uncontracted spin states to the product-space representations in sys.
+    # Ewald interactions similarly decompose to an intra-unit part (on sys) and
+    # an inter-unit part (on uncontracted)
+    build_entangled_ewald!(sys)
+
+    # Map uncontracted spin states to the product-space representations in sys
     sync_unit_coherents!(sys)
 
     return sys
@@ -724,16 +719,10 @@ function rebuild_entanglement_for_reshaping!(sys::System, old_sys::System)
     # would signal that centroid wrapping misrouted an atom to the wrong unit.
     @assert all(isassigned(parts, p) for parts in units for p in 1:nparts) "Failed to assign all unit parts"
 
-    # The effective Ewald interactions have been rebuilt under reshaping.
-    # Decompose again the intra- and inter-unit parts.
-    contract_ewald!(sys, uncontracted, units)
-
-    # Populate interactions from params
-    repopulate_couplings_from_params!(sys)
+    sys.entanglement = Entanglement(units, uncontracted)
     repopulate_couplings_from_params!(uncontracted)
 
-    # Update entanglement data
-    sys.entanglement = Entanglement(units, uncontracted)
+    build_entangled_ewald!(sys)
     return nothing
 end
 
@@ -788,21 +777,34 @@ end
 # Spin wave theory
 ################################################################################
 
+# The bare sites of unit i, as linear indices into the uncontracted system, each
+# paired with its cell before periodic wrapping. A site that is not entangled is
+# its own bare site.
+function bare_indices_and_cells(sys::System, i::Int)
+    site = eachsite(sys)[i]
+    is_entangled(sys) || return ((i, to_cell(site)),)
+    (; uncontracted, units) = get_entanglement(sys)
+    return map(units[to_atom(site)]) do part
+        bi = LinearIndices(uncontracted.dipoles)[bare_site(to_cell(site), part, uncontracted.dims)]
+        (bi, to_cell(site) .+ Tuple(part.Δcell))
+    end
+end
+
 # Enumerate the inter-unit bilinear exchange terms delegated to the uncontracted
-# system. Each term invokes `f(i, j, ai, aj, J, n)` to indicate that bare atoms
-# `ai, aj` belong to units `i, j`, have cell displacement `n`, and are coupled
-# with exchange J.
+# system. Each term invokes `f(i, j, bi, bj, J, n)` to indicate that bare sites
+# `bi, bj` of the uncontracted system belong to units `i, j` of `sys`, all as
+# linear site indices, are coupled with exchange J, and are separated by `n`
+# magnetic cells.
 function foreach_entangled_bilinear_term(f, sys::System)
-    (; units) = get_entanglement(sys)
-    for (ai, int) in enumerate(uncontracted_system(sys).interactions_union)
-        i, _ = unit_and_part(units, ai)
-        for pc in int.pair
+    (; uncontracted, units) = get_entanglement(sys)
+    for i in 1:nsites(sys), (bi, _) in bare_indices_and_cells(sys, i)
+        for pc in interactions_at(uncontracted, bi).pair
             pc.isculled && break
-            aj = pc.bond.j
-            j, _ = unit_and_part(units, aj)
+            # The bond between units, from the cell of the unit containing `bi`
+            (j, n) = bond_target(sys, i, contracted_bond(pc.bond, units))
+            (bj, _) = bond_target(uncontracted, bi, pc.bond)
             J = pc.bilin isa Number ? Mat3(pc.bilin*I) : Mat3(pc.bilin)
-            n = contracted_bond(pc.bond, units).n
-            f(i, j, ai, aj, J, n)
+            f(i, j, bi, bj, J, n)
         end
     end
 end

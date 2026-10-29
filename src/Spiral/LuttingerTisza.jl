@@ -1,39 +1,33 @@
 function fourier_exchange_matrix!(Jq::Matrix{ComplexF64}, sys::System; q)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
-    @assert sys.dims == (1, 1, 1) "System must have only a single cell"
-    q_reshaped = to_reshaped_rlu(sys, q)
+    q_supercell = to_supercell_rlu(sys, q)
 
-    Na = natoms(sys.crystal)
+    Na = nsites(sys)
     Jq .= 0
     Jq = reshape(Jq, 3, Na, 3, Na)
 
-    for (i, int) in enumerate(sys.interactions_union)
-        for coupling in int.pair
+    for i in 1:Na
+        for coupling in interactions_at(sys, i).pair
             (; isculled, bond, bilin, biquad) = coupling
             isculled && break
             iszero(biquad) || error("Biquadratic interactions not supported")
 
-            @assert i == bond.i
-            j = bond.j
-
-            J = exp(2π * im * dot(q_reshaped, bond.n)) * Mat3(bilin*I)
+            (j, n) = bond_target(sys, i, bond)
+            J = exp(2π * im * dot(q_supercell, n)) * Mat3(bilin*I)
             view(Jq, :, i, :, j) .+= J
             view(Jq, :, j, :, i) .+= J'
         end
     end
 
     if !isnothing(sys.ewald)
-        (; cache) = sys.ewald
-        Aq = ewald_interaction_tensor(cache, q_reshaped)
-        Aq = reshape(Aq, Na, Na)
+        Aq = ewald_interaction_tensor(sys, q_supercell)
         for i in 1:Na, j in 1:Na
-            view(Jq, :, i, :, j) .+= sys.gs[i]' * Aq[i, j] * sys.gs[j]
+            view(Jq, :, i, :, j) .+= ewald_coupling(Aq, sys, q_supercell, i, j)
         end
     end
 
     for i in 1:Na
-        onsite_coupling = sys.interactions_union[i].onsite
-        (; c2, c4, c6) = onsite_coupling
+        (; c2, c4, c6) = interactions_at(sys, i).onsite
         iszero(c4) && iszero(c6) || error("Single-ion anisotropy beyond quadratic order not supported")
         anisotropy = SA[c2[1]-c2[3]        c2[5] 0.5c2[2];
                               c2[5] -c2[1]-c2[3] 0.5c2[4];
@@ -49,7 +43,7 @@ end
 function fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
     @assert sys.mode in (:dipole, :dipole_uncorrected) "SU(N) mode not supported"
     @assert sys.dims == (1, 1, 1) "System must have only a single cell"
-    q_reshaped = to_reshaped_rlu(sys, q)
+    q_supercell = to_supercell_rlu(sys, q)
 
     Na = natoms(sys.crystal)
     Jq .= 0
@@ -65,7 +59,7 @@ function fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
 
         (; i, j, n) = bond
 
-        J = exp(2π * im * dot(q_reshaped, n)) * Mat3(bilin*I)
+        J = exp(2π * im * dot(q_supercell, n)) * Mat3(bilin*I)
         view(Jq, :, i, :, j) .+= J
         view(Jq, :, j, :, i) .+= J'
     end
@@ -85,7 +79,7 @@ function fourier_exchange_matrix_sensitivity!(Jq, sys, label; q)
 end
 
 function fourier_exchange_matrix(sys::System; q)
-    Na = natoms(sys.crystal)
+    Na = nsites(sys)
     Jq = zeros(ComplexF64, 3Na, 3Na)
     return fourier_exchange_matrix!(Jq, sys; q)
 end
@@ -102,7 +96,7 @@ end
 # energy E = (1/2) Sₖ† Jₖ Sₖ, where Sₖ is some length-3Nₐ vector and Jₖ is the
 # 3Nₐ×3Nₐ exchange matrix. Given a minimum energy eigenpair (ϵₖ, Sₖ) the
 # LT-predicted energy is |Sₖ|² ϵₖ / 2 with normalization |Sₖ|² = ∑ᵢ|Sᵢ|², where
-# index i denotes spin sublattice of the chemical cell. If the components of Sₖ
+# index i denotes a site of the magnetic cell. If the components of Sₖ
 # satisfy local spin normalization constraints, then the LT energy minimized
 # over k is physically correct for the spiral ground state. In practice, the
 # eigenvector Sₖ may violate local spin normalization and the LT-predicted

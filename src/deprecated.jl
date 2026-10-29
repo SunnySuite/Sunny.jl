@@ -111,7 +111,19 @@ Base.@deprecate squared_error_with_rescaling(d, m; weights=nothing) let
 end
 
 
-# REMEMBER TO ALSO DELETE:
+struct SpinWaveTheoryKPM
+    swt_large :: SpinWaveTheoryLarge
+end
+Base.@deprecate SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, tol=1e-2, niters=nothing, method=nothing, niters_bounds=nothing) let
+    isnothing(niters) || error("SpinWaveTheoryKPM replaced by SpinWaveTheoryLarge, which no longer supports fixed niters")
+    @warn "SpinWaveTheoryKPM is deprecated; forwarding to SpinWaveTheoryLarge"
+    return SpinWaveTheoryKPM(SpinWaveTheoryLarge(sys; measure, regularization, tol))
+end
+function intensities(swt::SpinWaveTheoryKPM, qpts; energies, kernel, kT=0.0, verbose=false)
+    return intensities(swt.swt_large, qpts; energies, kernel, kT, verbose)
+end
+
+# NOT LISTED HERE:
 #
 # * view_crystal(cryst, max_dist)
 # * dims argument in view_crystal and plot_spins

@@ -1,0 +1,222 @@
+# The Gaussian state about which the bosons are expanded, and Wick's theorem
+# about it. Every static correction in this directory is one operation: a boson
+# polynomial P, whether the Hamiltonian, an observable or a spin component, is
+# re-expanded about a Gaussian state. Split each operator as O_a = w_a + δO_a, a
+# c-number displacement plus a fluctuation whose pairs contract to the connected
+# correlations of the state. Wick's theorem then writes P as a sum over the ways
+# of displacing some of its slots and contracting others in pairs, the remaining
+# slots standing in a product normal ordered with respect to the state.
+#
+# THE ORDER RULE. A word of K bosons in the expansion of a spin polynomial of
+# degree d carries s^(d-K/2), and a displacement is of order s^(-1/2), so a term
+# with d displacements and c contractions left standing with k bosons is smaller
+# than the k-boson word itself by s^-(d+c). Each displacement and each
+# contraction is a factor of 1/s. Keeping at most one factor is therefore
+# exactly the O(1/s) correction to every word: the mean field (one contraction
+# of H₄), the tadpole (one of H₃), the quadratic Hamiltonian of the displaced
+# structure (one displacement of H₃), the corrected one-magnon amplitude, and
+# the depletion and tilt of the ordered moment. Keeping more would inject a
+# partial set of the next order, which a protected zero mode amplifies to the
+# order kept; see the truncation rule in ExpansionDipole.jl.
+
+# ---- The vacuum ----
+
+# The Gaussian state about which the 1/s corrections expand the bosons is the
+# `vacuum` of the `SpinWaveTheory`: the vacuum of the LSWT quadratic Hamiltonian
+# plus its `correction`, a list of quadratic monomials such as the mean-field
+# corrections return. Its quasi-particles are the internal lines of every loop
+# and the basis of the Dyson equation, and the mean fields are contractions in
+# it. Without a correction this is the 1/s expansion proper. A correction
+# resums some class of higher-order terms; since the full Hamiltonian does not
+# depend on that choice, it is subtracted again as a counterterm in the static
+# self-energy, so results differ from the 1/s expansion only at the order
+# neglected. A theory about another vacuum is `swt_with_vacuum`.
+
+# ---- Contractions ----
+
+# Canonical label (a, a′, Δ) for the correlation ⟨δO_a(𝐫) δO_{a′}(𝐫+Δ)⟩,
+# together with a flag indicating that the stored value is to be conjugated.
+# Taking the adjoint of a correlation reverses and bars it,
+#
+#     conj⟨O_a(𝐫) O_{a′}(𝐫+Δ)⟩ = ⟨O_{ā′}(𝐫) O_{ā}(𝐫-Δ)⟩,
+#
+# and keeping only one representative of each such pair makes a mean-field
+# Hamiltonian exactly Hermitian, not just to within the quadrature error. Cell
+# offsets are labeled by integers, which compare exactly.
+function correlation_key(a, a′, Δ::Vec3, L)
+    Δ′ = round.(Int, Tuple(Δ))
+    @assert Vec3(Δ′) ≈ Δ
+    k = (a, a′, Δ′)
+    kadj = (nambu_conj(a′, L), nambu_conj(a, L), .-Δ′)
+    return kadj < k ? (kadj, true) : (k, false)
+end
+
+# Connected two-point correlations of the vacuum of a quadratic Hamiltonian, at
+# the labels needed to contract the given monomials, and callable as `g(a, a′,
+# Δ)` in either convention of `correlation_key`. A displacement leaves connected
+# correlations unchanged, so only the quadratic Hamiltonian matters here. The
+# `noise` is that of the quadrature; see `quadrature_noise`.
+struct Contractions
+    L      :: Int
+    index  :: Dict{Tuple{Int, Int, NTuple{3, Int}}, Int}
+    values :: Vector{ComplexF64}
+    noise  :: Float64
+end
+
+function (g::Contractions)(a, a′, Δ)
+    (k, conjugate) = correlation_key(a, a′, Δ, g.L)
+    v = g.values[g.index[k]]
+    return conjugate ? conj(v) : v
+end
+
+# The same labels with new values, e.g. a damped self-consistent update.
+Contractions(g::Contractions, values) = Contractions(g.L, g.index, values, g.noise)
+
+# Contractions of every pair of slots in `terms`, any iterable of monomials, in
+# the vacuum. In momentum space,
+#
+#     ⟨x_𝐪[a] x_{-𝐪}[a′]⟩ = Σ_{n ≤ L} T_𝐪[a,n] conj(T_𝐪[ā′,n]),
+#
+# where the identity x_{-𝐪}[ā′] = x_𝐪[a′]† avoids a second diagonalization at
+# -𝐪 (see the phase convention in Corrections.jl). Averaging over the zone with
+# the phase exp(-2πi 𝐪⋅Δ) gives the real-space result.
+#
+# All requested labels share one quadrature, a single pass over the zone. On the
+# loop grid of the cubic self-energy, these averages satisfy the Ward identity
+# against that integrand point by point; see `BZIntegration`.
+function contractions(swt::SpinWaveTheory, terms, tol)
+    L = nbands(swt)
+    index = Dict{Tuple{Int, Int, NTuple{3, Int}}, Int}()
+    for (; as, ns) in terms, p in eachindex(as), q in p+1:lastindex(as)
+        (k, _) = correlation_key(as[p], as[q], ns[q] - ns[p], L)
+        get!(index, k, length(index) + 1)
+    end
+    keys = first.(sort!(collect(index); by=last))
+    noise = quadrature_noise(tol)
+    isempty(keys) && return Contractions(L, index, ComplexF64[], noise)
+
+    H = zeros(ComplexF64, 2L, 2L)
+    ws = BogoliubovWorkspace(L)
+    values = bz_average(tol) do q_supercell
+        U = vacuum_modes!(ws, H, swt, q_supercell)
+        return ComplexF64[cis(-2π * dot(q_supercell, Vec3(Δ))) * dot(view(U, nambu_conj(a′, L), :), view(U, a, :))
+                          for (a, a′, Δ) in keys]
+    end
+    return Contractions(L, index, values, noise)
+end
+
+# Columns U of the quasi-particle annihilators of the vacuum at `q_supercell`,
+# normalized as U†ĨU = 1, which fix its correlations ⟨x x†⟩ = UU†. Normally
+# these are the particle columns of `bogoliubov!`. A quadratic Hamiltonian that
+# is not positive definite has no ground state, but if its frequencies are real
+# and each mode has a definite sign of the para-norm t†Ĩt, its positive-norm
+# modes still define a Gaussian state, annihilated by every quasi-particle. One
+# or more of them then has negative energy. This occurs for a structure that
+# quantum fluctuations select from a classically degenerate family (order by
+# disorder), e.g. the up-up-down plateau of the Heisenberg triangular AFM. It is
+# the zeroth order about which the mean field is computed, and for a family
+# related by a symmetry of the quadratic Hamiltonian it is the vacuum of every
+# member. A complex frequency, or a mode of null para-norm, is a dynamical
+# instability, and no vacuum exists.
+function vacuum_modes!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_supercell)
+    L = nbands(swt)
+    try
+        excitations_supercell!(ws, H, swt, q_supercell)
+        return view(ws.T, :, 1:L)
+    catch err
+        err isa InstabilityError || rethrow()
+    end
+    dynamical_matrix!(H, swt, q_supercell)
+    Ĩ = Diagonal([ones(L); -ones(L)])
+    (λ, V) = eigen(Ĩ * H; sortby=real)
+    tol = sqrt(eps()) * opnorm(H, 1)
+    unstable() = InstabilityError("Quadratic Hamiltonian of the vacuum dynamically unstable at supercell \
+                                   wavevector $(vec3_to_string(q_supercell)). If quantum fluctuations \
+                                   stabilize the structure, see `Sunny.to_self_consistent_vacuum`.")
+    all(x -> abs(imag(x)) < tol, λ) || throw(unstable())
+    # Within each cluster of degenerate frequencies, eigen returns an arbitrary
+    # basis. The positive-norm part of an orthonormal basis of the cluster is a
+    # bounded choice, and unique unless the cluster mixes both signs. Para-norms
+    # of unit vectors are dimensionless, and small near a Goldstone mode.
+    U = zeros(ComplexF64, 2L, 0)
+    i = 1
+    while i <= 2L
+        j = i
+        while j < 2L && real(λ[j+1] - λ[i]) < tol
+            j += 1
+        end
+        W = Matrix(qr(V[:, i:j]).Q)[:, 1:j-i+1]
+        (g, X) = eigen(Hermitian(W' * Ĩ * W))
+        all(x -> abs(x) > sqrt(eps()), g) || throw(unstable())
+        U = [U (W * X[:, g .> 0]) ./ sqrt.(g[g .> 0])']
+        i = j + 1
+    end
+    size(U, 2) == L || throw(unstable())
+    return U
+end
+
+# ---- Wick's theorem ----
+
+# Every way to re-expand K slots leaving the k slots `S` standing, displacing
+# the slots `D` and contracting the pairs `P`, with at most `nfactors`
+# displacements and contractions in all. Each slot set is increasing, which
+# keeps standing and contracted slots in their operator order.
+function wick_patterns(K, k, nfactors)
+    matchings(r) = isempty(r) ? [Tuple{Int, Int}[]] :
+        [[(r[1], r[j]); m] for j in 2:length(r) for m in matchings(r[[2:j-1; j+1:end]])]
+    subsets(r) = [r[findall(digits(Bool, m; base=2, pad=length(r)))] for m in 0:2^length(r)-1]
+
+    ret = Tuple{Vector{Int}, Vector{Int}, Vector{Tuple{Int, Int}}}[]
+    for S in subsets(collect(1:K))
+        length(S) == k || continue
+        for D in subsets(setdiff(1:K, S))
+            R = setdiff(1:K, S, D)
+            iseven(length(R)) && length(D) + length(R) ÷ 2 <= nfactors || continue
+            append!(ret, (S, D, P) for P in matchings(R))
+        end
+    end
+    return ret
+end
+
+# The coefficients of the normal-ordered products of k fluctuations into which
+# each monomial re-expands about the Gaussian state of displacement `w`,
+# Nambu-packed, and contractions `g`, keeping at most `nfactors` displacements
+# and contractions per term; see the order rule above. A contracted pair (p, q),
+# p < q, contributes ⟨δO_p δO_q⟩ in operator order. Passing `nothing` for `w`
+# means no displacement, and for `g` no contraction.
+#
+# As an operator, :δO_r δO_s: differs from δO_r δO_s by a constant only, so a
+# quadratic result may be used as a correction to the quadratic Hamiltonian of
+# the fluctuations; for k = 0 the result is the expectation value in the state.
+function wick_reduce(terms::Vector{BosonMonomial{K}}, g, w, ::Val{k}; nfactors=1) where {K, k}
+    ret = BosonMonomial{k}[]
+    for (S, D, P) in wick_patterns(K, k, nfactors)
+        (isnothing(w) && !isempty(D) || isnothing(g) && !isempty(P)) && continue
+        for (; c, as, ns) in terms
+            for d in D
+                c *= w[as[d]]
+            end
+            for (p, q) in P
+                c *= g(as[p], as[q], ns[q] - ns[p])
+            end
+            iszero(c) || push!(ret, BosonMonomial(c, ntuple(i -> as[S[i]], Val{k}()), ntuple(i -> ns[S[i]], Val{k}())))
+        end
+    end
+    return merge_monomials(ret)
+end
+
+# Expectation value of the sum of the monomials
+wick_expectation(terms, g, w; nfactors=1) = sum(t -> t.c, wick_reduce(terms, g, w, Val{0}(); nfactors); init=0.0im)
+
+# Coefficients ℓ[a] of a one-boson operator Σ_a ℓ[a] Σ_𝐫 O_a(𝐫), given as
+# monomials. Cell offsets drop out, the operator being summed over all cells.
+# Hermiticity of the operator, ℓ[ā] = conj(ℓ[a]), is asserted to within `noise`,
+# absolute as well as relative because symmetry can make ℓ vanish identically.
+function nambu_vector(terms::Vector{BosonMonomial{1}}, L, noise)
+    ℓ = zeros(ComplexF64, 2L)
+    for (; c, as) in terms
+        ℓ[as[1]] += c
+    end
+    @assert norm(ℓ[L+1:2L] - conj(ℓ[1:L])) < noise * max(norm(ℓ), 1)
+    return ℓ
+end

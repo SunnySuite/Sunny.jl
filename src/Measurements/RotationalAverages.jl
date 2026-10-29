@@ -123,10 +123,10 @@ plot_intensities(res)
 function powder_average(f, cryst, radii, n::Int; seed=0)
     res = f([Vec3(0,0,0)]) # Dummy call to learn types
     if res isa Intensities
-        data = zeros(length(res.energies), length(radii))
+        data = zeros(eltype(res.data), length(res.energies), length(radii))
         ret = PowderIntensities(cryst, collect(radii), res.energies, data)
     elseif res isa StaticIntensities
-        data = zeros(length(radii))
+        data = zeros(eltype(res.data), length(radii))
         ret = PowderStaticIntensities(cryst, collect(radii), data)
     else
         error("Provided function must call `intensities` or `intensities_static`.")
@@ -210,14 +210,17 @@ function domain_average(f, cryst, qpts; rotations, weights)
         # For bands data, domain average is a concatenation of weighted data.
         disps = [res.disp]
         datas = [(weights[1] / wsum) .* res.data]
+        widths = [res.widths]
         for (R, w) in zip(Rs[2:end], weights[2:end])
             qpts.qs .= Ref(R) .* qs0
             res = f(qpts)
             push!(disps, res.disp)
             push!(datas, (w / wsum) .* res.data)
+            push!(widths, res.widths)
         end
         qpts.qs .= qs0
-        return BandIntensities(cryst, res.qpts, reduce(vcat, disps), reduce(vcat, datas))
+        widths = any(isnothing, widths) ? nothing : reduce(vcat, widths)
+        return BandIntensities(cryst, res.qpts, reduce(vcat, disps), reduce(vcat, datas), widths)
     else
         # For continuum intensities, domain averaging can happen in-place.
         res.data .*= weights[1] / wsum

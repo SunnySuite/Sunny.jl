@@ -2,13 +2,13 @@ mutable struct SampledCorrelations
     # 𝒮^{αβ}(q,ω) data and metadata
     const data           :: Array{ComplexF64, 7}              # Raw correlation data (ncorrs × natoms × natoms × qdims × nω)
     const M              :: Union{Nothing, Array{Float64, 7}} # Running estimate of (nsamples-1)*σ² (where σ² is the variance of intensities)
-    const recipvecs      :: Mat3                              # Reshaped recipvecs, sys.crystal.recipvecs
+    const recipvecs_supercell :: Mat3                         # Reciprocal vectors of the supercell, sys.dims cells of sys.crystal
     const origin_crystal :: Crystal                           # Original chemical cell, orig_crystal(sys)
     const Δω             :: Float64                           # Energy step size 
 
     # Observables
     measure            :: MeasureSpec                         # Mutation must only change formfactors and combiner
-    const positions    :: Vector{Vec3}                        # Fractional positions in reshaped cell (natoms = nunits × nparts)
+    const positions_supercell :: Vector{Vec3}                 # Fractional positions in the supercell (natoms = nunits × nparts)
 
     # Trajectory specs
     const integrator   :: AbstractIntegrator                  # Integrator for calculating sample trajectories.
@@ -108,8 +108,8 @@ function clone_correlations(sc::SampledCorrelations)
     corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations(
-        copy(sc.data), M, sc.recipvecs, sc.origin_crystal, sc.Δω, sc.measure,
-        copy(sc.positions), copy(sc.integrator), sc.measperiod, sc.nsamples,
+        copy(sc.data), M, sc.recipvecs_supercell, sc.origin_crystal, sc.Δω, sc.measure,
+        copy(sc.positions_supercell), copy(sc.integrator), sc.measperiod, sc.nsamples,
         copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
     )
 end
@@ -172,8 +172,8 @@ function adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
 end
 
 
-function to_reshaped_rlu(sc::SampledCorrelations, q)
-    return sc.recipvecs \ sc.origin_crystal.recipvecs * q
+function to_supercell_rlu(sc::SampledCorrelations, q)
+    return sc.recipvecs_supercell \ sc.origin_crystal.recipvecs * q
 end
 
 """
@@ -195,7 +195,7 @@ appropriate classical-to-quantum correction factors. See also
 [`intensities_static`](@ref), which integrates over energy.
 """
 function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, integrator=ImplicitMidpoint())
-    recipvecs = sys.crystal.recipvecs
+    recipvecs_supercell = sys.crystal.recipvecs / diagm(Vec3(sys.dims))
     origin_crystal = orig_crystal(sys)
     if isnothing(energies)
         n_all_ω = 1
@@ -217,13 +217,15 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     integrator.dt = dt
 
     measure = isnothing(measure) ? ssf_trace(sys) : measure
+    measure isa MeasureSpec{StevensExpansion} && error("SampledCorrelations in dipole mode requires dipole observables")
     validate_formfactors(measure)
 
-    # Flatten the "bare" observable positions of the cell. Column-major order
-    # (atom index varies fastest) matches the layout of `measure.offsets`.
+    # Flatten the "bare" observable positions of the cell, in fractional
+    # coordinates of the supercell. Column-major order (atom index varies
+    # fastest) matches the layout of `measure.offsets`.
     nunits, nparts = size(measure.offsets)
-    positions = [sys.crystal.positions[u] + measure.offsets[u, p] for p in 1:nparts for u in 1:nunits]
-    natoms = length(positions)
+    positions_supercell = [(sys.crystal.positions[u] + measure.offsets[u, p]) ./ Vec3(sys.dims) for p in 1:nparts for u in 1:nunits]
+    natoms = length(positions_supercell)
 
     samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., natoms, n_all_ω)
     corrbuf = zeros(ComplexF64, sys.dims..., n_all_ω)
@@ -247,8 +249,8 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     # without making struct mutable.
     nsamples = 0 
 
-    sc = SampledCorrelations(data, M, recipvecs, origin_crystal, Δω, measure,
-                             positions, integrator, measperiod, nsamples, samplebuf,
+    sc = SampledCorrelations(data, M, recipvecs_supercell, origin_crystal, Δω, measure,
+                             positions_supercell, integrator, measperiod, nsamples, samplebuf,
                              corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
     return sc
