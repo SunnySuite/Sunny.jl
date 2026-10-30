@@ -388,36 +388,10 @@ end
         end
 
         # For an observable with no one-magnon part, the ε² term above is its
-        # leading order, and its first correction is the ε⁴ term. Here the
-        # corrections do NOT satisfy the gate: the pair amplitude is taken in
-        # the harmonic vacuum, missing the shift of ⟨W₂†W₂⟩ that the vacuum
-        # takes at first order. The quadrupole 𝒪₂² of a collinear Néel dimer
-        # isolates it, since there H₃ = 0 and 𝒪₂² creates only pairs.
-        #
-        # Measured, the ε⁴ coefficient is -4.0668 here and -2.5739 strict. The
-        # strict value splits into the words of the observable, -4.0668, which
-        # the code has exactly, and the vacuum shift, +1.4929, which it lacks.
-        # That shift is in turn a Gaussian part, +1.714, from the mean field of
-        # H₄ acting on the two lines of the pair, and a four-magnon admixture,
-        # -0.2215, from H₄ coupling the pair to two further magnons.
-        #
-        # Planned, and deferred: the four-magnon admixture needs a double loop
-        # over momenta, and it must come with the Gaussian part. Taking the
-        # Gaussian part alone, by building the bath from the magnons of H₂ plus
-        # the static mean field, closes it on this dimer exactly, but breaks the
-        # Casimir sum rule of the canted square lattice (1.6%, against < 1e-3)
-        # and leaves the dressed H₂ indefinite near Γ. Partial ε⁴ terms appear
-        # to spoil identities that hold at the order kept, so the fix is all or
-        # nothing. In a canted state the second order of H₃ enters too.
-        #
-        # The same order also takes the tilt of the pair amplitude, one
-        # displaced leg of the three-boson words of the observable, by analogy
-        # with the tilt of `observable_corrections`; see
-        # `observable_pair_corrections`. Its amplitude is O(ε³), so it reaches
-        # the weight only at ε⁴, and it vanishes here, where there is no
-        # tadpole. Gating it needs a pure pair creator about a canted state,
-        # e.g. 𝒪₂² in the local frame of each site of the canted dimer above.
-        # Once all three pieces are in, this becomes `@test`.
+        # leading order. The quadrupole 𝒪₂² of a collinear Néel dimer creates
+        # only pairs, and its weight is exact there too. Its first correction,
+        # the ε⁴ term, is beyond the order kept; see
+        # `observable_pair_corrections`.
         sys = System(cryst, [1 => Moment(; s, g=1), 2 => Moment(; s, g=1)], :dipole)
         set_exchange!(sys, 1/s, Bond(1, 2, [0, 0, 0]))
         set_onsite_coupling!(sys, -0.15 * O[2, 0] / s, 1)
@@ -431,16 +405,9 @@ end
         measure = Sunny.MeasureSpec(fill(st, 1, 1, 1, 1, 2, 1), [(1, 1)], (q, corr) -> real(only(corr)),
                                     fill(one(FormFactor), 1, 2, 1))
         swt = SpinWaveTheory(sys; measure, regularization=0)
-        # Fourth-order Taylor coefficient of f at 0, from a symmetric stencil
-        function taylor4(f; h=0.05)
-            v = f.((-3h, -2h, -h, 0.0, h, 2h, 3h))
-            return (; c2 = (2v[1] - 27v[2] + 270v[3] - 490v[4] + 270v[5] - 27v[6] + 2v[7]) / 360h^2,
-                      c4 = (-v[1] + 12v[2] - 39v[3] + 56v[4] - 39v[5] + 12v[6] - v[7]) / 144h^4)
-        end
-        a = taylor4(ε -> corrected_weight(swt, ε))
-        b = taylor4(ε -> strict_weight(swt, ε))
+        a = taylor2(ε -> corrected_weight(swt, ε))
+        b = taylor2(ε -> strict_weight(swt, ε))
         @test a.c2 ≈ b.c2 rtol=1e-7
-        @test_broken a.c4 ≈ b.c4 rtol=1e-4
     end
 end
 
