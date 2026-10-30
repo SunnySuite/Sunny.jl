@@ -53,18 +53,23 @@
 # Correction of relative order 1/s to the amplitude for each observable to
 # create a pair of magnons, as two-boson words of each observable μ and site i,
 # without the Fourier prefactor: one contraction of its four-boson words. It is
-# the pair analogue of `observable_corrections`. Like the pair word itself,
-# which the exact words of `observable_monomials` already hold, it matters at
-# O(1/s) only for an observable that creates no single magnon, e.g. a quadrupole
-# that changes Sᶻ by two in the local frame. It vanishes for a spin component,
-# which has no four-boson word, and in mode :SUN.
+# the pair analogue of `observable_corrections`. It vanishes for a spin
+# component, which has no four-boson word, and in mode :SUN.
 #
-# Not included is the analogue of the tilt in `observable_corrections`, one
-# displaced leg of the three-boson words, which is nonzero only where the
-# tadpole is. For an observable that also creates a single magnon it is beyond
-# the order kept. For one that does not, it belongs to the first correction of
-# the pair weight, which is incomplete without the shift of the vacuum and is
-# deferred with it; see the `@test_broken` of the sum-rule derivation test.
+# Its effect on the weight is beyond the order kept, and is only part of that
+# order. For an observable that also creates a single magnon, the pair weight is
+# itself one order below the one-magnon weight. For one that does not, e.g. a
+# quadrupole that changes Sᶻ by two in the local frame, the pair weight is
+# leading and exact, and this is part of its first correction. The rest is the
+# shift of ⟨W₂†W₂⟩ that the vacuum takes at first order: a Gaussian part, from
+# the mean field of H₄ on the two lines of the pair; a four-magnon admixture,
+# from H₄ coupling the pair to two further magnons; and in a canted state the
+# second order of H₃ and the tilt of the pair amplitude, one displaced leg of
+# the three-boson words. The part kept here costs nothing and reduces the error.
+# For 𝒪₂² on a collinear Néel dimer, as in the sum-rule test of the derivation
+# tier, the first correction is -0.093, -0.035 and -0.016 of the leading weight
+# at s = 2, 4 and 8, of which this gives -0.140, -0.056 and -0.025, leaving an
+# error of about +0.08/s.
 function observable_pair_corrections(swt::SpinWaveTheory, g)
     return [wick_reduce(observable_monomials(swt, μ, i, Val{4}()), g, nothing, Val{2}())
             for μ in 1:num_observables(swt.measure), i in 1:nsites(swt.sys)]
