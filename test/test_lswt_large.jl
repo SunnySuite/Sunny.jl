@@ -28,7 +28,7 @@
         @test Sunny.error_estimates(r_exact, i) == (0, 0)
 
         (δx, δe) = Sunny.error_estimates(r, i)
-        @test 0.1 < δx / abs(r_exact.x₁[i] - r.x₁[i]) < 10
+        @test 0.1 < abs(δx) / abs(r_exact.x₁[i] - r.x₁[i]) < 10
         for a in 1:2
             normS = sqrt(real(probes[:, a]' * S * probes[:, a]))
             @test abs(r_exact.s[a, i] - r.s[a, i]) <= 2 * normS * δe
