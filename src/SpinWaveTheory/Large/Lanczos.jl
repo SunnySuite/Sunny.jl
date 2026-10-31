@@ -34,10 +34,12 @@
 # change x₁ by δx₁ = β_m² x_m² τ / (1 - β_m² τ / u_m), where τ is the leading
 # entry of the resolvent of the further rows, and the denominator accounts for
 # their coupling back to the rows so far. The estimate takes τ ≈ 1/u_m, as if
-# the further rows resembled those so far, and neglects the coupling back, |δx₁|
-# ≈ β_m² |x_m|² |τ|. With τ ≈ 1/u_m, the denominator could vanish spuriously.
-# The estimate is large near any mode that T has seen but not yet resolved,
-# i.e., where the resolvent has not decayed along the Krylov basis.
+# the further rows resembled those so far, and neglects the coupling back, δx₁ ≈
+# β_m² x_m² τ. With τ ≈ 1/u_m, the denominator could vanish spuriously. The
+# estimate keeps its phase, so that a kernel can average the estimates at nearby
+# nodes, as it averages x₁. It is large near any mode that T has seen but not
+# yet resolved, i.e., where the resolvent has not decayed along the Krylov
+# basis.
 #
 # No estimate from T alone can be a guarantee. The m rows and β_m are fixed by
 # the first 2m+1 moments of the spectral weight of v, so they cannot distinguish
@@ -47,9 +49,15 @@
 # overestimating by orders of magnitude at small η. Misses are most likely at
 # low energy, because the weight of a mode in the moments is its intensity times
 # its energy λ, e.g., for a soft mode a few Im z below another soft mode. They
-# are also most likely in short runs, where few moments are known, which is why
-# `lanczos_correlations` also requires enough rows to resolve the energy scale
-# of the output.
+# are also most likely in short runs, where few moments are known.
+#
+# The moments do bound the weight that can hide near λ = 0. By the
+# Chebyshev–Markov–Stieltjes inequalities, the largest weight at λ = 0 of any
+# spectrum consistent with them is β₀² / Σ_{j≤m} pⱼ(0)², the Christoffel
+# function [2], for the orthonormal polynomials pⱼ of the spectral measure of v.
+# These follow the recurrence of T, β_j pⱼ(0) = -α_j p_{j-1}(0) - β_{j-1}
+# p_{j-2}(0), at O(1) cost per row. In a gap at zero, pⱼ(0) grows exponentially,
+# and the bound vanishes.
 #
 # The probe sums converge more slowly, because a probe lies mostly outside the
 # Krylov space. In full space, the error of Q y is e = β_m x_m (z - ĨS)⁻¹
@@ -65,6 +73,7 @@
 #
 # 1. T. Chen, The Lanczos algorithm for matrix functions: a handbook for
 #    scientists (2024), Sec. 3.
+# 2. G. Szegő, Orthogonal Polynomials (1939), Sec. 3.41.
 mutable struct LanczosResolvent{F}
     const mulS!  :: F
     const probes :: Matrix{ComplexF64}
@@ -84,6 +93,11 @@ mutable struct LanczosResolvent{F}
     nrows        :: Int
     β            :: Float64
     βmax         :: Float64
+    # The orthonormal polynomials p_m(0) and p_{m-1}(0), and the sum Σ_{j≤m}
+    # p_j(0)², by which the Christoffel function bounds the weight at λ = 0
+    p₀           :: Float64
+    p₀prev       :: Float64
+    p₀sum        :: Float64
     # Per node, 1/u_m, g_m, and the sums x₁ and sₐ, with hₐₘ for each probe, and
     # 1/u′_m of T′
     const invu   :: Vector{ComplexF64}
@@ -105,12 +119,12 @@ function LanczosResolvent(mulS!, v, probes, zs, Λ)
     z(dims...) = zeros(ComplexF64, dims...)
     near_zero = BitVector(abs.(zs) .< eps()^(1/4) * Λ)
     return LanczosResolvent(mulS!, probes, zs, near_zero, β₀, G, v / β₀, zero(v), Sv / β₀, zero(v), zero(v),
-                            0, 0.0, 0.0, z(nz), z(nz), ones(ComplexF64, nz), z(nz), z(np, nz), z(np, nz))
+                            0, 0.0, 0.0, 1.0, 0.0, 1.0, z(nz), z(nz), ones(ComplexF64, nz), z(nz), z(np, nz), z(np, nz))
 end
 
 exhausted(r::LanczosResolvent) = r.nrows > 0 && iszero(r.β)
 
-# x† y, written out because BLAS scales poorly under Julia threads
+# x† y, written out because OpenBLAS conflicts with Julia threading
 function dot_noblas(x, y)
     acc = zero(ComplexF64)
     @inbounds for k in eachindex(x, y)
@@ -180,6 +194,12 @@ function extend!(r::LanczosResolvent, m)
         r.β = β² <= sqrt(eps()) * scale ? 0.0 : sqrt(β²)
         r.βmax = max(r.βmax, r.β)
         exhausted(r) && break
+        # The recurrence for p_j(0). Once the sum is large, in a gap at zero,
+        # the bound it implies is negligible.
+        if r.p₀sum < 1e100
+            (r.p₀, r.p₀prev) = ((-α * r.p₀ - β′ * r.p₀prev) / r.β, r.p₀)
+            r.p₀sum += r.p₀^2
+        end
         # The next vector. The current one becomes the previous one by swapping
         # buffers.
         (r.q, r.qprev, r.w, r.Sq, r.Sw) = (w, q, qprev, Sw, Sq)
@@ -189,8 +209,8 @@ function extend!(r::LanczosResolvent, m)
     return r
 end
 
-# The estimates of |δx₁| and ‖e‖ at node i
+# The estimates of δx₁, with its phase, and of ‖e‖ at node i
 function error_estimates(r::LanczosResolvent, i)
     (τ, xm) = (r.invu[i], r.g[i] * r.invu[i])
-    return (r.β^2 * abs2(xm) * abs(τ), r.β * abs(xm) * sqrt(-imag(τ) / imag(r.zs[i])))
+    return (r.β^2 * xm^2 * τ, r.β * abs(xm) * sqrt(-imag(τ) / imag(r.zs[i])))
 end

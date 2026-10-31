@@ -108,7 +108,7 @@ function mode_to_str(sys::System{N}) where N
 end
 
 function supercell_to_str(dims, cryst)
-    return "Supercell (" * join(dims, "×") * ")×" * string(natoms(cryst))
+    return "(" * join(dims, "×") * ")×" * string(natoms(cryst))
 end
 
 function energy_to_str(sys::System)
@@ -120,12 +120,12 @@ function energy_to_str(sys::System)
 end
 
 function Base.show(io::IO, sys::System{N}) where N
-    print(io, "System($(mode_to_str(sys)), $(supercell_to_str(sys.dims, sys.crystal)), $(energy_to_str(sys)))")
+    print(io, "System($(mode_to_str(sys)), Supercell $(supercell_to_str(sys.dims, sys.crystal)), $(energy_to_str(sys)))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     printstyled(io, "System $(mode_to_str(sys))\n"; bold=true, color=:underline)
-    println(io, supercell_to_str(sys.dims, sys.crystal))
+    println(io, "Supercell ", supercell_to_str(sys.dims, sys.crystal))
     if !isnothing(sys.origin) && cell_shape(sys) != cell_shape(sys.origin)
         shape = number_to_math_string.(cell_shape(sys))
         println(io, formatted_matrix(shape; prefix="Reshaped cell "))

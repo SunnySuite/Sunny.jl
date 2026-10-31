@@ -1,5 +1,5 @@
 """
-    SpinWaveTheoryLarge(sys::System; measure, tol=1e-2, regularization=1e-8, maxiters=1000)
+    SpinWaveTheoryLarge(sys::System; measure, tol=1e-3, regularization=1e-8, maxiters=1000)
 
 A variant of [`SpinWaveTheory`](@ref) optimized for calculations on large
 magnetic cells. This method avoids direct matrix diagonalization, and thereby
@@ -11,11 +11,14 @@ The [`intensities`](@ref) are estimated independently per ``𝐪`` using the
 Lanczos method [1, 2]. Lanczos iterations continue until a heuristic error
 estimate is below `tol` relative to the max intensity at ``𝐪``. The number of
 iterations scales like ``(Δϵ/w) \\log(1/\\mathrm{tol})``, where ``Δϵ`` is the
-spectral bandwidth of excitations and ``w ≥ η`` is the required energy
-resolution. Small ``w`` may arise from nearly degenerate soft modes; here,
-consider using the intrinsic broadening ``η`` as a regulator. Exceeding
-`maxiters` iterations will throw an error. Pass `verbose=true` to `intensities`
-to print a progress bar and the iteration statistics.
+spectral bandwidth of excitations and ``w`` is the required energy resolution.
+If the spectrum is near-gapless, the energy scale of soft modes can then
+determine ``w``. Such soft modes are detected on a best-effort basis, but may be
+missed at energies much below the `kernel` width. If an intrinsic broadening ``η
+> 0`` is present, it will effectively regularize the calculation by damping soft
+mode intensity. Exceeding `maxiters` iterations will throw an error. Pass
+`verbose=true` to `intensities` to print a progress bar and the iteration
+statistics.
 
 !!! tip "Consider `SampledCorrelations` when calculating powder averages"
 
@@ -48,7 +51,7 @@ struct SpinWaveTheoryLarge
     maxiters :: Int
 
     function SpinWaveTheoryLarge(sys::System; measure::Union{Nothing, MeasureSpec},
-                                 regularization=1e-8, tol=1e-2, maxiters=1000)
+                                 regularization=1e-8, tol=1e-3, maxiters=1000)
         0 < tol < 1 || error("Require 0 < tol < 1")
         maxiters > 0 || error("Require maxiters > 0")
         swt = SpinWaveTheory(sys; measure, regularization)
@@ -128,10 +131,9 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     n = size(H, 1)
     Nobs = num_observables(measure)
     rb = RetardedBroadening(energies; η, kernel, kT)
-    resolution = max(rb.width, 2η)
     Λ = spectral_bound(H)
-    # Lanczos steps per wavevector, summed over runs, for the `verbose` report
-    iters = zeros(Int, size(qpts.qs))
+    # Lanczos steps of each run per wavevector, for the `verbose` report
+    iters = [Int[] for _ in qpts.qs]
 
     newbuf() = (
         u    = zeros(ComplexF64, n, Nobs),
@@ -162,8 +164,8 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
             cross = true
         end
 
-        (As, m) = try
-            lanczos_correlations(mulS!, starts, rb; cross, resolution, Λ, tol, maxiters)
+        (As, nrows) = try
+            lanczos_correlations(mulS!, starts, rb; cross, Λ, tol, maxiters)
         catch err
             err isa InstabilityError || rethrow()
             throw(InstabilityError("Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable."))
@@ -172,7 +174,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
             error("Exceeded maxiters = $maxiters at wavevector q = $(vec3_to_string(q)); \
                    consider increasing η or maxiters")
         end
-        iters[iq] = m
+        iters[iq] = nrows
 
         # The structure factor -(χ - χ†)/2πi per chemical cell. For a real
         # combiner, from the start of each run, and otherwise from the probes,
@@ -189,19 +191,22 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
         end
     end
 
-    verbose && println("SpinWaveTheoryLarge intensities\n  dimension       $n, $Nobs observables")
-    desc = verbose ? "  wavevectors     " : nothing
+    verbose && println("SpinWaveTheoryLarge intensities\n  Supercell       $(supercell_to_str(sys.dims, sys.crystal)), $(n ÷ 2) bosons")
+    desc = verbose ? "  Wavevectors     " : nothing
     elapsed = @elapsed foreach_chunked(calc_iq!, newbuf, CartesianIndices(qpts.qs); threaded, desc)
 
     if verbose
         nthreads = threaded ? min(Threads.nthreads(), length(qpts.qs)) : 1
         per_q = number_to_simple_string(1000 * elapsed / length(qpts.qs); digits=2)
-        println("  elapsed         $(number_to_simple_string(elapsed; digits=2)) s on $nthreads \
+        println("  Elapsed         $(number_to_simple_string(elapsed; digits=2)) s on $nthreads \
                  thread$(nthreads == 1 ? "" : "s"), $per_q ms per 𝐪")
-        if !isempty(iters)
-            mean = number_to_simple_string(Statistics.mean(iters); digits=3)
-            median = number_to_simple_string(Statistics.median(iters); digits=3)
-            println("  Lanczos steps   mean $mean, median $median, max $(maximum(iters))")
+        (lo, hi) = extrema(length, iters)
+        println("  Lanczos runs    $(lo == hi ? lo : "$lo to $hi") per 𝐪")
+        steps = reduce(vcat, iters)
+        if !isempty(steps)
+            mean = number_to_simple_string(Statistics.mean(steps); digits=3)
+            median = number_to_simple_string(Statistics.median(steps); digits=3)
+            println("  Lanczos steps   mean $mean, median $median, max $(maximum(steps)) per run")
         end
     end
     return data
@@ -213,40 +218,27 @@ end
 # column 1 + a is the cross term with start a. Starts that are negligible
 # relative to the largest, e.g., that vanish at this wavevector, give zero,
 # rather than iterating on roundoff. Returns also the number of Lanczos steps
-# taken, summed over runs, or `nothing` for As if not converged within
-# `maxiters` steps.
+# taken by each run, or `nothing` for As if not converged within `maxiters`
+# steps.
 #
-# Iteration stops when both:
-# 1. Every run has enough rows to resolve the energy scale `resolution` = w, the
-#    larger of the kernel width and the line width 2η, unless its Krylov space
-#    is exhausted. Like the nodes of Gauss quadrature, the m Ritz values of T
-#    are spaced by about πΛ/m near the center of a spectrum in [-Λ, Λ], i.e.,
-#    near ω = 0, where soft modes are. Before m ≥ πΛ/w, the rows so far say
-#    little about modes a distance w apart, and the error estimate, which
-#    assumes that the further rows resemble those so far, cannot be trusted.
-#    Here Λ is estimated by 2 max β_j, which bounds the Ritz values when α_j =
-#    0, by the Gershgorin theorem.
-# 2. Every error estimate of `LanczosResolvent`, for the start and the probes,
-#    broadened by the magnitudes of the same weights, is below `tol/2` relative
-#    to the largest intensity -Im χ / π of the starts, a factor 2 margin for the
-#    estimates.
-#
-# The runs advance together, because this largest intensity is itself an
-# estimate, which can fall by orders of magnitude while some run is unconverged,
-# e.g., at a soft mode as η → 0.
+# Iteration stops when every error estimate of `resolvent_and_error!` is below
+# `tol/2` relative to the largest intensity -Im χ / π of the starts, a factor 2
+# margin for the estimates. The runs advance together, because this largest
+# intensity is itself an estimate, which can fall by orders of magnitude while
+# some run is unconverged, e.g., at a soft mode as η → 0.
 #
 # Checks are at even numbers of rows of T. For a real combination of Hermitian
 # observables, the weights at ±λ are equal, so that α_j = 0, and the spectrum of
 # T is symmetric under θ → -θ. An odd number of rows then forces a spurious Ritz
 # value at zero. The steps between checks grow by 25%, so that the overhead of
 # checks is a fixed fraction.
-function lanczos_correlations(mulS!, vs, rb; cross, resolution, Λ, tol, maxiters)
+function lanczos_correlations(mulS!, vs, rb; cross, Λ, tol, maxiters)
     probes = cross ? reduce(hcat, vs) : zeros(ComplexF64, length(vs[1]), 0)
     As = [zeros(ComplexF64, size(rb.W, 1), 1 + size(probes, 2)) for _ in vs]
     norms = [sqrt(real(dot_noblas(v, v))) for v in vs]
     ks = findall(>(sqrt(eps()) * maximum(norms)), norms)
     rs = [LanczosResolvent(mulS!, vs[k], probes, rb.zs, Λ) for k in ks]
-    isempty(rs) && return (As, 0)
+    isempty(rs) && return (As, Int[])
     # The largest H-norm of a probe, for the bound on cross terms
     pnorm = cross ? maximum(r -> r.β₀, rs) : 0.0
     errs = zeros(length(rs))
@@ -254,34 +246,56 @@ function lanczos_correlations(mulS!, vs, rb; cross, resolution, Λ, tol, maxiter
     while true
         for (k, r) in enumerate(rs)
             extend!(r, m)
-            errs[k] = broaden!(As[ks[k]], r, pnorm, rb)
+            errs[k] = resolvent_and_error!(As[ks[k]], r, pnorm, rb)
         end
         scale = maximum(A -> maximum(x -> abs(imag(x)), view(A, :, 1)), As) / π
-        steps = sum(r -> r.nrows, rs)
-        resolved = all(r -> exhausted(r) || r.nrows >= 2π * r.βmax / resolution, rs)
-        resolved && 2 * maximum(errs) <= tol * scale && return (As, steps)
-        m >= maxiters && return (nothing, steps)
+        nrows = [r.nrows for r in rs]
+        2 * maximum(errs) <= tol * scale && return (As, nrows)
+        m >= maxiters && return (nothing, nrows)
         m += max(2, m ÷ 4)
         m += isodd(m)
     end
 end
 
-# Writes into the columns of A the broadened χ = (G₁ + β₀² x₁) / z of the
-# start, and χₐ = (G₁₊ₐ + β₀ sₐ) / z of each probe a. Returns the largest
-# broadened error estimate, which for probes of H-norm up to `pnorm` includes
-# the bound on cross terms.
-function broaden!(A, r::LanczosResolvent, pnorm, rb::RetardedBroadening)
+# Writes into the columns of A the broadened χ = (G₁ + β₀² x₁) / z of the start,
+# and χₐ = (G₁₊ₐ + β₀ sₐ) / z of each probe a. Returns the largest broadened
+# error estimate, which for probes of H-norm up to `pnorm` includes the bound on
+# cross terms.
+#
+# The estimate is the change of the intensity -Im A / π by two corrections to χ
+# of the start, broadened with their phases:
+# 1. The correction δx₁ of `error_estimates`, for the rows of T not yet
+#    computed. The corrections at nearby nodes largely cancel under the kernel,
+#    and their magnitudes would overestimate by orders of magnitude.
+# 2. Spectral weight near ω = 0 that T has not resolved. The residue of a mode
+#    in χ'' is its weight divided by its energy λ, and the thermal factor 1 +
+#    n_B adds about kT/λ, so that a soft mode can be bright although it has
+#    negligible weight in the moments that T matches. Here the largest such
+#    weight ν = β₀² / Σⱼ pⱼ(0)², by the Christoffel function (see
+#    `LanczosResolvent`), is a pair at ±δ, for the smallest energy δ that T
+#    resolves, about πβ/m for m rows and Ritz values in [-2β, 2β], with χ = ν /
+#    (z² - δ²). Its broadening by the same weights includes the thermal factor.
+# These are a best effort. The intensity of a mode far below δ, with weight much
+# less than ν, may be missed. A broadening η suppresses the intensity of modes
+# below η, which changes the target itself, but reproducibly. The cross terms of
+# probes have a bound without a phase, and enter by magnitude.
+function resolvent_and_error!(A, r::LanczosResolvent, pnorm, rb::RetardedBroadening)
     (; zs, W, ranges) = rb
     (; β₀, G, x₁, s) = r
     fill!(A, 0)
-    err = zeros(size(A, 1))
+    err = zeros(ComplexF64, size(A, 1))
+    errabs = zeros(size(A, 1))
+    ν = exhausted(r) ? 0.0 : β₀^2 / r.p₀sum
+    δ = π * r.βmax / max(r.nrows, 1)
     @inbounds for j in eachindex(zs)
-        (δx, δe) = error_estimates(r, j)
-        δχ = max(β₀^2 * δx, β₀ * pnorm * δe) / abs(zs[j])
         χ = (G[1] + β₀^2 * x₁[j]) / zs[j]
+        (δx₁, δe) = error_estimates(r, j)
+        δχ = (β₀^2 * δx₁ + ν * zs[j] / (zs[j]^2 - δ^2)) / zs[j]
+        δχabs = β₀ * pnorm * δe / abs(zs[j])
         for i in ranges[j]
             A[i, 1] += W[i, j] * χ
-            err[i] += abs(W[i, j]) * δχ
+            err[i] += W[i, j] * δχ
+            errabs[i] += abs(W[i, j]) * δχabs
         end
         for a in axes(s, 1)
             χ = (G[1+a] + β₀ * s[a, j]) / zs[j]
@@ -290,5 +304,5 @@ function broaden!(A, r::LanczosResolvent, pnorm, rb::RetardedBroadening)
             end
         end
     end
-    return maximum(err; init=0.0) / π
+    return maximum(i -> abs(imag(err[i])) + errabs[i], eachindex(err); init=0.0) / π
 end
