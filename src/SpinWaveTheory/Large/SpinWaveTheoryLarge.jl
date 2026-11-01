@@ -2,23 +2,31 @@
     SpinWaveTheoryLarge(sys::System; measure, tol=1e-3, regularization=1e-8, maxiters=1000)
 
 A variant of [`SpinWaveTheory`](@ref) optimized for calculations on large
-magnetic cells. This method avoids direct matrix diagonalization, and thereby
-reduces computational cost from cubic- to linear-scaling in the system size.
-Large supercells can be useful for modeling, e.g., quenched chemical disorder or
-magnetic states with long-wavelength modulations.
+magnetic cells. By avoiding direct matrix diagonalization, the computational
+cost is reduced from cubic- to linear-scaling in the system size. Large
+supercells can be useful for modeling quenched chemical disorder or magnetic
+states with long-wavelength modulations.
 
-The [`intensities`](@ref) are estimated independently per ``𝐪`` using the
-Lanczos method [1, 2]. Lanczos iterations continue until a heuristic error
-estimate is below `tol` relative to the max intensity at ``𝐪``. The number of
-iterations scales like ``(Δϵ/w) \\log(1/\\mathrm{tol})``, where ``Δϵ`` is the
-spectral bandwidth of excitations and ``w`` is the required energy resolution.
-If the spectrum is near-gapless, the energy scale of soft modes can then
-determine ``w``. Such soft modes are detected on a best-effort basis, but may be
-missed at energies much below the `kernel` width. If an intrinsic broadening ``η
-> 0`` is present, it will effectively regularize the calculation by damping soft
-mode intensity. Exceeding `maxiters` iterations will throw an error. Pass
-`verbose=true` to `intensities` to print a progress bar and the iteration
+At each ``𝐪``, the [`intensities`](@ref) are estimated using iterated
+matrix-vector multiplications. Iterations continue until the estimated error is
+below `tol` relative to the max intensity for the given `energies` grid. The
+number of iterations scales like ``(Δϵ/w) \\log(1/\\mathrm{tol})``, where ``Δϵ``
+is the spectral bandwidth of excitations and ``w`` is the required energy
+resolution. Exceeding `maxiters` iterations will throw an error.
+
+Pass `verbose=true` to `intensities` to print a progress bar and calculation
 statistics.
+
+!!! tip "Numerical challenges with near-gapless spectra"
+
+    If the spectrum is near-gapless, and if the requested `energies` grid extends
+    towards zero, then the soft mode energies may set a vanishing scale for the
+    required energy resolution ``w``. To reduce computational cost, one may consider
+    lifting the `energies` window or introducing an intrinsic broadening ``η > 0``
+    to damp soft-mode intensity. Otherwise, increasing the `maxiters` budget may be
+    necessary. Soft modes (or instabilities of the magnetic order) will be detected
+    on a best-effort basis. In particular, spectral features that are significantly
+    below the `kernel` width may be missed.
 
 !!! tip "Consider `SampledCorrelations` when calculating powder averages"
 
@@ -30,18 +38,16 @@ statistics.
     commensurate ``𝐪``-vectors in one shot. This may provide a considerable speedup
     at the cost of limited ``𝐪``-space resolution and statistical sampling error.
 
-Lanczos is near optimal at a fixed number of iterations [2]. A related scheme is
-the Kernel Polynomial Method [3], which Sunny had previously implemented as
-`SpinWaveTheoryKPM`.
+This calculator uses the Lanczos method [1], which exhibits a near-optimal
+convergence rate in the number of iterations. Lanczos may be viewed as a
+refinement of the kernel polynomial method, which was previously implemented as
+`SpinWaveTheoryKPM` [2].
 
 ## References
 
 1. [T. Chen, _The Lanczos algorithm for matrix functions: a handbook for
    scientists_ (2024) [arXiv:2410.11090]](https://arxiv.org/abs/2410.11090).
-2. [N. Amsel, T. Chen, A. Greenbaum, C. Musco, C. Musco, _Near-Optimal
-   Approximation of Matrix Functions by the Lanczos Method_ (2023)
-   [arXiv:2303.03358]](https://arxiv.org/abs/2303.03358).
-3. [H. Lane et al., _Kernel Polynomial Method for Linear Spin Wave Theory_
+2. [H. Lane et al., _Kernel Polynomial Method for Linear Spin Wave Theory_
    (2023) [arXiv:2312.08349]](https://arxiv.org/abs/2312.08349).
 """
 struct SpinWaveTheoryLarge
