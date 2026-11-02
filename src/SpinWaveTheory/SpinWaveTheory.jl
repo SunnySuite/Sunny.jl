@@ -491,10 +491,10 @@ function susceptibility_poles(swt::SpinWaveTheory, qpts; threaded)
     return susceptibility_poles(swt, swt.sys, swt.measure, qpts; threaded)
 end
 
-# All 2L poles εₖ of the dynamical susceptibility χ''(q, ω) at each wavevector,
-# with their residues, as (pole × wavevector) matrices. The first L eigenvalues
-# of the Bogoliubov problem are the positive energies at q. The next L are
-# negative, and their negations are the energies at -q.
+# All 2L poles εₖ of the susceptibility χ(q, z) = Σₖ rₖ/(εₖ - z) at each
+# wavevector, with their weights rₖ, as (pole × wavevector) matrices. The first
+# L eigenvalues of the Bogoliubov problem are the positive energies at q. The
+# next L are negative, and their negations are the energies at -q.
 function susceptibility_poles(swt::SpinWaveTheory, sys::System, measure::MeasureSpec, qpts::AbstractQPoints; threaded)
     cryst = orig_crystal(sys)
 
@@ -542,7 +542,8 @@ function susceptibility_poles(swt::SpinWaveTheory, sys::System, measure::Measure
                 # Pair correlations ⟨0|Â_μ(q)†|n⟩⟨n|Â_ν(q)|0⟩
                 Avec[μ] * conj(Avec[ν]) / Ncells
             end
-            # The residue of χ'' is odd under ω → -ω
+            # χ″ is a commutator, so a pole at negative energy has a
+            # negative weight
             data[band, iq] = sign(disp[band, iq]) * measure.combiner(q_global, corr)
         end
     end
@@ -581,10 +582,10 @@ an iterative calculation method that scales well to large system sizes; this can
 be useful for studying disordered systems or magnetic structures with
 approximately incommensurate ordering wavevectors.
 
-The target is the dynamical structure factor ``π^{-1} (1 + n_B(ω)) χ''(𝐪, ω +
+The target is the dynamical structure factor ``π^{-1} (1 + n_B(ω)) χ″(𝐪, ω +
 iη)``. The thermal prefactor involves the Bose function ``n_B(ω) =
 1/(e^{ω/kT}-1)`` at temperature ``kT`` and energy transfer ``ω``. The symbol
-``χ'' = (χ - χ^†)/2i`` denotes the anti-Hermitian part of the retarded
+``χ″ = (χ - χ^†)/2i`` denotes the anti-Hermitian part of the retarded
 susceptibility matrix ``χ``.
 
 At least one of `η` or `kernel` is required. The intrinsic broadening `η > 0` is

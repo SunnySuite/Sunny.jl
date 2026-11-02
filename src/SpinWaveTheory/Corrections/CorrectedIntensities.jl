@@ -1,22 +1,23 @@
-# Dynamical structure factor at O(1/s), S = (χ' - χ)/2πi at z = ω + iη. The
+# Dynamical structure factor at O(1/s), S = (χ - χ†)/2πi at z = ω + iη. The
 # docstring of `corrected_intensities` states what each `scheme` gives; these
 # notes describe the construction and justify its claims. References [n] are to
 # the docstring's list.
 #
 # Collect the quasi-particles into y_𝐪 = [α_𝐪; α†_{-𝐪}], with metric Ĩ =
-# diagm([ones(L); -ones(L)]), and write w = T†u for the observable amplitudes
-# (u from `observable_vectors!`, corrected by ObservableCorrections.jl). LSWT
-# gives the retarded response χ = w'G₀w, with G₀(z) = (zĨ - |ε|)⁻¹, including
-# the mirror poles at ω < 0.
+# diagm([ones(L); -ones(L)]), and write w = T†u for the observable amplitudes (u
+# from `observable_vectors!`, corrected by ObservableCorrections.jl). LSWT gives
+# the retarded susceptibility χ = -w†G₀w, with the magnon resolvent G₀(z) = (zĨ
+# - |ε|)⁻¹, including the mirror poles at ω < 0.
 #
 # At O(1/s) the static corrections add Σstat = T†δH T. The cubic vertex couples
 # each magnon to pairs of magnons, and the observable creates pairs directly too
 # (Sᶻ = s - b†b). Both are captured by an auxiliary quadratic model: magnons
-# coupled to a bath of free two-magnon states. Each pair of internal lines (𝐩 a,
-# 𝐪-𝐩 b) at pair energy x enters through y = [√18 U[a, b, :]; β], its vertex to
-# the 2L Nambu legs and the amplitudes β for each observable to create it
-# (`pair_amplitude`). Forward lines (x > 0) are bath particles, backward lines
-# (x < 0) bath holes of the opposite metric sign. Integrating out the bath gives
+# coupled to a bath of free two-magnon states. Each pair of internal lines, (a,
+# 𝐩) and (b, 𝐪 - 𝐩), with pair energy x = ε_a(𝐩) + ε_b(𝐪 - 𝐩), enters
+# through y = [√18 U[a, b, :]; β], its vertex to the 2L Nambu legs and the
+# amplitudes β for each observable to create it (`pair_amplitude`). Forward
+# lines (x > 0) are bath particles, backward lines (x < 0) bath holes of the
+# opposite metric sign. Integrating out the bath gives
 #
 #     K(z) = Σ_pairs ± y y† / (z - x),
 #
@@ -24,13 +25,13 @@
 # K_dm and K_dd (the direct two-magnon continuum). The response of the model is
 # the Schur complement of its resolvent onto the observables,
 #
-#     χ = w'Gw + K_dm G w + w'G K_md + K_dm G K_md + K_dd,
+#     χ = -(w†Gw + K_dm G w + w†G K_md + K_dm G K_md + K_dd),
 #     G = (zĨ - |ε| - Σstat - K_mm)⁻¹.
 #
 # This is `:one_loop`. Exact at O(1/s) and the resolvent of a quadratic model,
 # it inherits that structure: Nambu symmetry, Goldstone protection (the static
 # and dynamic 1/ε divergences cancel in the full 2L inverse), η as a pure
-# Lorentzian, and the sum rule ∫dω S = w'Ĩw. It is positive at ω > 0, up to the
+# Lorentzian, and the sum rule ∫dω S = w†Ĩw. It is positive at ω > 0, up to the
 # O(η) tails of the mirror poles, whenever the model is stable, i.e. its static
 # magnon matrix |ε| + Σstat + K_mm, evaluated at iη, is positive semidefinite.
 # Where it is not, the 1/s correction to some mode is comparable to its harmonic
@@ -41,16 +42,16 @@
 # [4, Sec. VI]. For a trace measure they cancel in a zone sum, but not
 # pointwise.
 #
-# The schemes make three independent choices: which blocks of the self-energy
-# to keep, whether to invert the resolvent or take its first-order poles, and
-# how much of the response to assemble. `:two_magnon_ladder` adds the pair
+# The schemes make three independent choices: which blocks of the self-energy to
+# keep, whether to invert the resolvent or take its first-order poles, and how
+# much of the response to assemble. `:two_magnon_ladder` adds the pair
 # interaction of H₄ to the bath (see `ladder_transform`), solved exactly, and so
 # keeps all of the structure above. Its static counterterm, which pins the
 # Goldstone modes, removes a physical shift in a gapped magnet, so there it
 # departs slightly from the exact ladder. Near a Goldstone mode its results are
 # sensitive to the loop grid in three dimensions, and in two it binds soft pairs
 # below ω = 0 (see SelfEnergy.jl). The other two schemes assemble only the
-# magnon term w'Gw and the bare continuum K_dd.
+# magnon term w†Gw and the bare continuum K_dd.
 #
 # `:one_loop_projected` is the rotating-wave truncation. Each bath couples only
 # to the legs it resonates with, decay pairs to particles and source pairs to
@@ -204,7 +205,7 @@ function corrected_intensities(swt::SpinWaveTheory, qpts, scheme; energies, η, 
     iszero(kT) || error("Corrected intensities at kT > 0 are not yet supported.")
     (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
         corrected_channels(swt, qpts, scheme; energies, η, bz, threaded, verbose)
-    # The structure factor at T = 0 from the spectral function χ'', which is odd
+    # The structure factor at T = 0 from the spectral function χ″, which is odd
     θ = [ω > 0 ? 1.0 : iszero(ω) ? 0.5 : 0.0 for ω in energies]
     data = reshape(θ .* (transverse + cross + direct), length(energies), size(qpts.qs)...)
     res = Intensities(cryst, qpts, energies, data)
@@ -216,12 +217,12 @@ function corrected_intensities(swt::SpinWaveTheory, qpts, scheme; energies, η, 
 end
 
 # Workhorse of `corrected_intensities`, returning the three terms of S
-# separately as (energy × wavevector) matrices: `transverse` from w'Gw, `cross`
+# separately as (energy × wavevector) matrices: `transverse` from w†Gw, `cross`
 # from the terms linear in K_md, and `direct` from the rest. Also returns
 # `disp`, the energies of the vacuum; `breakdown`, a mask over wavevectors at
 # which the resummed model is unstable; for `:one_loop_on_shell`, `bands`, the
 # energies, half widths and intensities of the poles; and if `spectral=true`
-# then `specfunc`, the particle block of the magnon spectral matrix (G' -
+# then `specfunc`, the particle block of the magnon spectral matrix (G† -
 # G)/2πi.
 function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
                             bz=nothing, threaded=false, verbose=false, spectral=false)
@@ -285,9 +286,9 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
         E = Diagonal(abs.(ε))
         (; Σ, K, poles, stable) = dyson_model(se, scheme, zs)
 
-        # Contracts an Nobs×Nobs χ through the measure, taking S = (χ' - χ)/2πi
+        # Contracts an Nobs×Nobs χ through the measure, taking S = (χ - χ†)/2πi
         function accum_channel!(accum, iω, χ)
-            map!(((μ, ν),) -> (conj(χ[ν, μ]) - χ[μ, ν]) / (2π*im*Ncells), corr, measure.corr_pairs)
+            map!(((μ, ν),) -> (χ[μ, ν] - conj(χ[ν, μ])) / (2π*im*Ncells), corr, measure.corr_pairs)
             accum[iω, iq] = measure.combiner(q_global, corr)
         end
 
@@ -295,15 +296,15 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
             Kz = view(K, :, :, iω)
             (Kmd, Kdm, Kdd) = (Kz[p, d], Kz[d, p], Kz[d, d])
             G = inv(zs[iω]*Ĩ - E - Σ - Kz[p, p])
-            accum_channel!(chans.transverse, iω, w' * G * w)
+            accum_channel!(chans.transverse, iω, -w' * G * w)
             # The routes through the bath complete the resolvent of the full
             # model. The other schemes assemble only the magnon term and the
             # bare continuum.
             if scheme in (:one_loop, :two_magnon_ladder)
-                accum_channel!(chans.cross, iω, Kdm * G * w + w' * G * Kmd)
-                accum_channel!(chans.direct, iω, Kdd + Kdm * G * Kmd)
+                accum_channel!(chans.cross, iω, -(Kdm * G * w + w' * G * Kmd))
+                accum_channel!(chans.direct, iω, -(Kdd + Kdm * G * Kmd))
             else
-                accum_channel!(chans.direct, iω, Kdd)
+                accum_channel!(chans.direct, iω, -Kdd)
             end
             isnothing(specfunc) || (view(specfunc, :, :, iω, iq) .= ((G' - G) / (2π*im))[1:L, 1:L])
         end

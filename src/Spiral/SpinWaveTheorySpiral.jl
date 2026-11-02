@@ -123,9 +123,10 @@ function check_dipole_observables(sys::System, measure::MeasureSpec)
         error("General measurements not supported for spiral calculation")
 end
 
-# All 6L poles of χ''(q, ω), 2L from each of the three branches, with their
-# residues, as (pole × wavevector) matrices. In descending order of energy, the
-# 3L poles at positive energy come first.
+# All 6L poles of χ(q, z), 2L from each of the three branches, with their
+# weights, as (pole × wavevector) matrices; see `susceptibility_poles` of
+# SpinWaveTheory. In descending order of energy, the 3L poles at positive energy
+# come first.
 function susceptibility_poles(sswt::SpinWaveTheorySpiral, qpts; threaded)
     (; swt, k_supercell, axis) = sswt
     (; sys, measure) = swt
@@ -165,7 +166,8 @@ function susceptibility_poles(sswt::SpinWaveTheorySpiral, qpts; threaded)
             for band in 1:2L
                 A = Pc * CVec{3}(ntuple(μ -> dot(view(u, :, μ), view(ws.T, :, band)), 3))
                 corr = map(((μ, ν),) -> A[μ] * conj(A[ν]) / Ncells, measure.corr_pairs)
-                # The residue of χ'' is odd under ω → -ω
+                # χ″ is a commutator, so a pole at negative energy has a
+                # negative weight
                 val = sign(energies[band]) * measure.combiner(q_global, corr) / length(class)
                 for s in class
                     disp[band + (s+1)*2L, iq] = energies[band]

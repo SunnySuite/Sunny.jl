@@ -80,7 +80,8 @@ mutable struct LanczosResolvent{F}
     const zs     :: Vector{ComplexF64}
     const near_zero :: BitVector        # Nodes close to z = 0 use the product for x₁
     const β₀     :: Float64
-    const G      :: Vector{ComplexF64}  # v† Ĩ v, then vₐ† Ĩ v for each probe
+    const c₀     :: ComplexF64          # v† Ĩ v
+    const c₀ₐ    :: Vector{ComplexF64}  # vₐ† Ĩ v for each probe
     # The current and previous Lanczos vectors, the current vector times S, and
     # the residual and its image under S
     q            :: Vector{ComplexF64}
@@ -114,11 +115,12 @@ function LanczosResolvent(mulS!, v, probes, zs, Λ)
     β₀² > 0 || throw(InstabilityError("S is not positive definite"))
     β₀ = sqrt(β₀²)
     Ĩv = mul_Ĩ!(similar(v), v)
-    G = [dot_noblas(v, Ĩv); [dot_noblas(view(probes, :, a), Ĩv) for a in axes(probes, 2)]]
+    c₀ = dot_noblas(v, Ĩv)
+    c₀ₐ = [dot_noblas(view(probes, :, a), Ĩv) for a in axes(probes, 2)]
     (nz, np) = (length(zs), size(probes, 2))
     z(dims...) = zeros(ComplexF64, dims...)
     near_zero = BitVector(abs.(zs) .< eps()^(1/4) * Λ)
-    return LanczosResolvent(mulS!, probes, zs, near_zero, β₀, G, v / β₀, zero(v), Sv / β₀, zero(v), zero(v),
+    return LanczosResolvent(mulS!, probes, zs, near_zero, β₀, c₀, c₀ₐ, v / β₀, zero(v), Sv / β₀, zero(v), zero(v),
                             0, 0.0, 0.0, 1.0, 0.0, 1.0, z(nz), z(nz), ones(ComplexF64, nz), z(nz), z(np, nz), z(np, nz))
 end
 

@@ -1,11 +1,11 @@
-# Instrumental broadening of the structure factor (1 + n_B(ω)) χ''(ω + iη), for
-# a retarded susceptibility χ(z) that is analytic above the real axis, at each
-# of the output `energies`. Used by SpinWaveTheoryLarge, and by dense spin wave
-# theory when both η and a kernel are given. Here χ'' = -(χ - χ†)/2πi, and the
-# result at energy ωᵢ is a linear combination of χ at complex nodes zⱼ, shared
-# by all wavevectors,
+# Instrumental broadening of the structure factor (1 + n_B(ω)) χ″(ω + iη)/π, at
+# each of the output `energies`, for a retarded susceptibility χ(z) that is
+# analytic above the real axis. Used by SpinWaveTheoryLarge, and by dense spin
+# wave theory when both η and a kernel are given. Here χ″ = (χ - χ†)/2i, and
+# the result at energy ωᵢ is a linear combination of χ at complex nodes zⱼ,
+# shared by all wavevectors,
 #
-#     Cᵢ = -(Aᵢ - Aᵢ†)/2πi,    Aᵢ = Σⱼ Wᵢⱼ χ(zⱼ).
+#     Cᵢ = (Aᵢ - Aᵢ†)/2πi,    Aᵢ = Σⱼ Wᵢⱼ χ(zⱼ).
 #
 # With a kernel K, the integral ∫ K(ω′, ω) (1 + n_B(ω′)) χ(ω′ + iη) dω′ over
 # real ω′ would need a grid of spacing η, to resolve the poles of χ a distance η
@@ -58,8 +58,8 @@ function RetardedBroadening(energies; η, kernel, kT, order=8, cutoff=1e-9)
         for (i, ω) in enumerate(ωs)
             e(c) = [j == i ? complex(c) : 0im for j in eachindex(ωs)]
             if iszero(ω) && kT > 0
-                # The thermal factor diverges like kT/ω, but χ'' is odd and
-                # smooth, so the product is kT ∂χ''/∂ω, by a centered difference
+                # The thermal factor diverges like kT/ω, but χ″ is odd and
+                # smooth, so the product is kT ∂χ″/∂ω, by a centered difference
                 δ = 1e-4 * η
                 add_node!(δ, e(kT/2δ))
                 add_node!(-δ, e(-kT/2δ))

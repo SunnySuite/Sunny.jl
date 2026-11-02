@@ -154,7 +154,7 @@ end
 # Nambu self-energy Σ̂(z) of the cubic vertex at wavevector `k` and each of the
 # complex frequencies `zs`, as a `2L×2L×length(zs)` array. It is the Cauchy
 # transform of the binned measures of `pair_measures`, oriented there to
-# contract as w' G w and so related to Σ̂ by the metric and a transpose. The
+# contract as w† G w and so related to Σ̂ by the metric and a transpose. The
 # bins are sparse, so a width far below η costs nothing and makes the binning
 # error negligible.
 function cubic_self_energy_at(swt::SpinWaveTheory, terms3, k, zs, grid::LoopGrid, η)
@@ -182,7 +182,7 @@ end
 # and R takes them to the eigenchannels of the pair interaction. The decay
 # channel has x > 0 and a plus sign; the source channel x < 0 and a minus sign.
 # Their Cauchy transforms, summed, give the cubic self-energy in the `[1:2L,
-# 1:2L]` block, in the orientation that contracts as w' G w. Pairs are binned in
+# 1:2L]` block, in the orientation that contracts as w† G w. Pairs are binned in
 # batches of `batch`, so that the projection R and the accumulation of each bin
 # are matrix products.
 function pair_measures(swt::SpinWaveTheory, terms3, k, grid::LoopGrid; bin_width, words2, chans=nothing, batch=4096)

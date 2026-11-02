@@ -130,10 +130,11 @@ end
     qs = [[1/3, 1/3, 0], [0.2, 0.05, 0]]
     kT = 0.5
 
-    # Without a kernel, both calculators give the poles of χ'' of either sign
-    # their Lorentzian line shapes, times 1 + n_B(ω). The poles at negative energy
-    # describe the opposite wavevector, so this tests detailed balance. The result
-    # is insensitive to the gap that the regularization opens at the zero modes.
+    # Without a kernel, both calculators give the poles of χ″ of either sign
+    # their Lorentzian line shapes, times 1 + n_B(ω). The poles at negative
+    # energy describe the opposite wavevector, so this tests detailed balance.
+    # The result is insensitive to the gap that the regularization opens at the
+    # zero modes.
     swt = SpinWaveTheory(sys; measure)
     swt_large = SpinWaveTheoryLarge(sys; measure, tol=1e-8)
     res1 = intensities(swt, qs; energies, η=0.1, kT).data

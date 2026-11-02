@@ -86,8 +86,8 @@ function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=0
         # precision ε. A Lorentzian of half width η biases intensities by about
         # η/width relative to the peak, here √ε, below any attainable `tol`. The
         # floor is needed because, at kT > 0, the pole of 1 + n_B at ω = 0 is
-        # evaluated at z = iη. There, χ(z) = (G + β₀² x₁)/z loses about ε |G|/η
-        # to cancellation, i.e., √ε |G|/width, which is negligible.
+        # evaluated at z = iη. There, χ(z) = -(c₀ + β₀² x₁)/z loses about ε
+        # |c₀|/η to cancellation, i.e., √ε |c₀|/width, which is negligible.
         isnothing(kernel) && error("Specify a `kernel`, a broadening `η`, or both.")
         # A measure that is not real-valued needs cross correlations between
         # observables, which lose accuracy as z → 0, from cancellation in the
@@ -106,22 +106,22 @@ end
 # observable vectors. The susceptibility of u at complex energy z follows from a
 # partial-fraction identity,
 #
-#     χ(z) = Σₖ |wₖ|² / (λₖ (z - λₖ)) = (G + β₀² [(z - T)⁻¹]₁₁) / z,
+#     χ(z) = Σₖ |wₖ|² / (λₖ (λₖ - z)) = -(c₀ + β₀² [(z - T)⁻¹]₁₁) / z,
 #
 # where the sum runs over eigenpairs of ĨH with weights wₖ, β₀² = v† H v, and
-# the commutator G = Σₖ |wₖ|²/λₖ = v† Ĩ v is known exactly. Lanczos
+# the commutator c₀ = Σₖ |wₖ|²/λₖ = v† Ĩ v is known exactly. Lanczos
 # approximates only the resolvent, which is analytic within a distance Im z of
 # the real axis. Pairs of exact zero modes at ±λ, e.g., of a finite magnetic
-# cell with continuous symmetry, cancel inside χ'' as λ → 0.
+# cell with continuous symmetry, cancel inside χ″ as λ → 0.
 #
-# A run from v_b also gives the cross terms χ_ab(z) = (G_ab + β₀ dₐᵀ (z - T)⁻¹ e₁)
-# / z, with the overlaps dₐⱼ = vₐ† H q_j of probes vₐ, and G_ab = vₐ† Ĩ v_b. A
-# general combiner needs all correlations C, from one run per observable, with
-# all observables as probes. A real-valued `combiner` is real-linear, so that it
-# is tr(M C) for a Hermitian matrix M, found by probing. With the eigenpairs M =
-# Σₖ μₖ eₖ eₖ†, the intensity is Σₖ μₖ eₖ† C eₖ, which needs only one run per
-# nonzero eigenvalue, from u = Σₐ eₖₐ uₐ, and no probes, e.g., 2 runs for
-# `ssf_perp`.
+# A run from v_b also gives the cross terms χ_ab(z) = -(c₀_ab + β₀ dₐᵀ (z - T)⁻¹
+# e₁) / z, with the overlaps dₐⱼ = vₐ† H q_j of probes vₐ, and c₀_ab = vₐ† Ĩ
+# v_b. A general combiner needs all correlations C, from one run per observable,
+# with all observables as probes. A real-valued `combiner` is real-linear, so
+# that it is tr(M C) for a Hermitian matrix M, found by probing. With the
+# eigenpairs M = Σₖ μₖ eₖ eₖ†, the intensity is Σₖ μₖ eₖ† C eₖ, which needs only
+# one run per nonzero eigenvalue, from u = Σₐ eₖₐ uₐ, and no probes, e.g., 2
+# runs for `ssf_perp`.
 #
 # 1. T. Chen, The Lanczos algorithm for matrix functions: a handbook for
 #    scientists (2024), Sec. 5.
@@ -182,15 +182,15 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
         end
         iters[iq] = nrows
 
-        # The structure factor -(χ - χ†)/2πi per chemical cell. For a real
+        # The structure factor (χ - χ†)/2πi per chemical cell. For a real
         # combiner, from the start of each run, and otherwise from the probes,
         # where run b gives χ[:, b].
         for iω in axes(data, 1)
             data[iω, iq] = if eltype(measure) <: Real
-                sum(-μs[k] * imag(As[k][iω, 1]) / π for k in eachindex(μs)) / Ncells
+                sum(μs[k] * imag(As[k][iω, 1]) / π for k in eachindex(μs)) / Ncells
             else
                 χ = [As[b][iω, 1+a] for a in 1:Nobs, b in 1:Nobs]
-                C = -(χ - χ') / (2π*im*Ncells)
+                C = (χ - χ') / (2π*im*Ncells)
                 map!(((a, b),) -> C[a, b], corr, measure.corr_pairs)
                 measure.combiner(q_global, corr)
             end
@@ -228,7 +228,7 @@ end
 # steps.
 #
 # Iteration stops when every error estimate of `resolvent_and_error!` is below
-# `tol/2` relative to the largest intensity -Im χ / π of the starts, a factor 2
+# `tol/2` relative to the largest intensity Im χ / π of the starts, a factor 2
 # margin for the estimates. The runs advance together, because this largest
 # intensity is itself an estimate, which can fall by orders of magnitude while
 # some run is unconverged, e.g., at a soft mode as η → 0.
@@ -263,40 +263,40 @@ function lanczos_correlations(mulS!, vs, rb; cross, Λ, tol, maxiters)
     end
 end
 
-# Writes into the columns of A the broadened χ = (G₁ + β₀² x₁) / z of the start,
-# and χₐ = (G₁₊ₐ + β₀ sₐ) / z of each probe a. Returns the largest broadened
-# error estimate, which for probes of H-norm up to `pnorm` includes the bound on
-# cross terms.
+# Writes into the columns of A the broadened χ = -(c₀ + β₀² x₁) / z of the
+# start, and χₐ = -(c₀ₐ + β₀ sₐ) / z of each probe a. Returns the largest
+# broadened error estimate, which for probes of H-norm up to `pnorm` includes
+# the bound on cross terms.
 #
-# The estimate is the change of the intensity -Im A / π by two corrections to χ
+# The estimate is the change of the intensity Im A / π by two corrections to χ
 # of the start, broadened with their phases:
 # 1. The correction δx₁ of `error_estimates`, for the rows of T not yet
 #    computed. The corrections at nearby nodes largely cancel under the kernel,
 #    and their magnitudes would overestimate by orders of magnitude.
 # 2. Spectral weight near ω = 0 that T has not resolved. The residue of a mode
-#    in χ'' is its weight divided by its energy λ, and the thermal factor 1 +
+#    in χ″ is its weight divided by its energy λ, and the thermal factor 1 +
 #    n_B adds about kT/λ, so that a soft mode can be bright although it has
 #    negligible weight in the moments that T matches. Here the largest such
 #    weight ν = β₀² / Σⱼ pⱼ(0)², by the Christoffel function (see
 #    `LanczosResolvent`), is a pair at ±δ, for the smallest energy δ that T
 #    resolves, about πβ/m for m rows and Ritz values in [-2β, 2β], with χ = ν /
-#    (z² - δ²). Its broadening by the same weights includes the thermal factor.
+#    (δ² - z²). Its broadening by the same weights includes the thermal factor.
 # These are a best effort. The intensity of a mode far below δ, with weight much
 # less than ν, may be missed. A broadening η suppresses the intensity of modes
 # below η, which changes the target itself, but reproducibly. The cross terms of
 # probes have a bound without a phase, and enter by magnitude.
 function resolvent_and_error!(A, r::LanczosResolvent, pnorm, rb::RetardedBroadening)
     (; zs, W, ranges) = rb
-    (; β₀, G, x₁, s) = r
+    (; β₀, c₀, c₀ₐ, x₁, s) = r
     fill!(A, 0)
     err = zeros(ComplexF64, size(A, 1))
     errabs = zeros(size(A, 1))
     ν = exhausted(r) ? 0.0 : β₀^2 / r.p₀sum
     δ = π * r.βmax / max(r.nrows, 1)
     @inbounds for j in eachindex(zs)
-        χ = (G[1] + β₀^2 * x₁[j]) / zs[j]
+        χ = -(c₀ + β₀^2 * x₁[j]) / zs[j]
         (δx₁, δe) = error_estimates(r, j)
-        δχ = (β₀^2 * δx₁ + ν * zs[j] / (zs[j]^2 - δ^2)) / zs[j]
+        δχ = -(β₀^2 * δx₁ + ν * zs[j] / (zs[j]^2 - δ^2)) / zs[j]
         δχabs = β₀ * pnorm * δe / abs(zs[j])
         for i in ranges[j]
             A[i, 1] += W[i, j] * χ
@@ -304,7 +304,7 @@ function resolvent_and_error!(A, r::LanczosResolvent, pnorm, rb::RetardedBroaden
             errabs[i] += abs(W[i, j]) * δχabs
         end
         for a in axes(s, 1)
-            χ = (G[1+a] + β₀ * s[a, j]) / zs[j]
+            χ = -(c₀ₐ[a] + β₀ * s[a, j]) / zs[j]
             for i in ranges[j]
                 A[i, 1+a] += W[i, j] * χ
             end

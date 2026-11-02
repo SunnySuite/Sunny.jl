@@ -912,12 +912,12 @@ end
     # grid by grid and needs no converged integral.
     #
     # The rotated side is evaluated at -𝐪 and negative frequency, which the
-    # retarded response relates to +𝐪 by χ''(𝐪, ω) = -χ''(-𝐪, -ω). The structure is
-    # non-reciprocal, S(𝐪, ω) and S(-𝐪, ω) differing by 50%, so this also pins
-    # the hole block of the Dyson equation to the energies and eigenvectors of
-    # -𝐪 rather than to mirror images of those at 𝐪. Taking the bare hole
-    # energies from ε(𝐪) violates it by 20%, a mistake the rotation alone and
-    # every reciprocal model are blind to.
+    # retarded response relates to +𝐪 by χ″(𝐪, ω) = -χ″(-𝐪, -ω). The
+    # structure is non-reciprocal, S(𝐪, ω) and S(-𝐪, ω) differing by 50%, so
+    # this also pins the hole block of the Dyson equation to the energies and
+    # eigenvectors of -𝐪 rather than to mirror images of those at 𝐪. Taking
+    # the bare hole energies from ε(𝐪) violates it by 20%, a mistake the
+    # rotation alone and every reciprocal model are blind to.
     swts = map(φ -> let sys3 = triangular(; Δ=0.6, field=[0.7, 0, 1.2], φ, g=1)
                         SpinWaveTheory(sys3; measure=ssf_trace(sys3; apply_g=false))
                     end, (0.0, 0.9))

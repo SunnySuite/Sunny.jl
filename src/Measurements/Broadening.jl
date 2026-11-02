@@ -104,9 +104,10 @@ function broaden_peaks!(data, disp, weights; energies, kernel, threaded)
     return data
 end
 
-# The structure factor ∫ K(ω′, ω) (1 + n_B(ω′)) χ''(ω′ + iη) dω′ of the poles
-# of χ'', i.e., an intrinsic Lorentzian line shape of half width η, followed by
-# the thermal factor, and then the kernel K for instrument resolution
+# The structure factor ∫ K(ω′, ω) (1 + n_B(ω′)) χ″(ω′ + iη)/π dω′, where χ″ is
+# the dissipative part of the retarded susceptibility (a sum of Lorentzians of
+# half width η). The thermal factor follows, and then the kernel K for
+# instrument resolution.
 function broaden_poles(disp, residues; energies, η, kernel, kT, threaded)
     η >= 0 || error("Require η ≥ 0")
     iszero(η) && isnothing(kernel) && error("Specify a `kernel`, a broadening `η`, or both.")
@@ -121,20 +122,20 @@ function broaden_poles(disp, residues; energies, η, kernel, kT, threaded)
         broaden_peaks!(data, disp, residues; energies, kernel=lorentzian_times_thermal, threaded)
     else
         # Lorentzian times thermal factor, then the kernel, by the contour
-        # quadrature of SpinWaveTheoryLarge with χ(z) = Σ r/(z - ε). The result at
-        # energy ωᵢ is Σ r cᵢ(ε), with real coefficients cᵢ(ε) = -Im Σⱼ Wᵢⱼ/(zⱼ -
-        # ε) / π. The residues r may be complex, so the real and imaginary parts
-        # of 1/(zⱼ - ε) multiply r separately. Summing over poles at each node
-        # first makes the cost independent of the number of bands. The quadrature
-        # order and cutoff give a relative accuracy of about 1e-12.
+        # quadrature of `RetardedBroadening` with χ(z) = Σ r/(ε - z). The result
+        # at energy ωᵢ is Σ r cᵢ(ε), with real coefficients cᵢ(ε) = Im Σⱼ Wᵢⱼ/(ε
+        # - zⱼ) / π. The residues r may be complex, so the real and imaginary
+        # parts of 1/(ε - zⱼ) multiply r separately. Summing over poles at each
+        # node first makes the cost independent of the number of bands. The
+        # quadrature order and cutoff give a relative accuracy of about 1e-12.
         (; zs, W, ranges) = RetardedBroadening(energies; η, kernel, kT, order=16, cutoff=1e-16)
-        (Wr, Wi) = (-real(W) / π, -imag(W) / π)
+        (Wr, Wi) = (real(W) / π, imag(W) / π)
         T = eltype(residues)
         foreach_chunked(() -> (zeros(T, length(zs)), zeros(T, length(zs))), axes(disp, 2); threaded) do (χr, χi), iq
             fill!(χr, zero(T))
             fill!(χi, zero(T))
             for (ε, r) in zip(view(disp, :, iq), view(residues, :, iq)), j in eachindex(zs)
-                g = 1 / (zs[j] - ε)
+                g = 1 / (ε - zs[j])
                 χr[j] += real(g) * r
                 χi[j] += imag(g) * r
             end
@@ -148,7 +149,7 @@ end
 
 # The thermal factor 1 + n_B(ω) at an output energy ω, for a Lorentzian of half
 # width η about the pole ε. At ω = 0 and finite temperature the factor diverges
-# like kT/ω, but χ'' is odd, so the product is the limit kT ∂L/∂ω / L.
+# like kT/ω, but χ″ is odd, so the product is the limit kT ∂L/∂ω / L.
 function thermal_factor_at(ω, ε, η; kT)
     iszero(kT) && return ω > 0 ? 1.0 : iszero(ω) ? 0.5 : 0.0
     iszero(ω) && return 2kT * ε / (ε^2 + η^2)
