@@ -757,15 +757,16 @@ function set_energy_grad_coherents_aux!(∇E, Z::Array{CVec{N}, 4}, int::Interac
     end
 end
 
-# Extract a characteristic energy scale from the magnitude of the energy
-# gradient on a typical site. This works well because ∇E retains a component
-# parallel to the spin (or coherent state).
-function characteristic_energy_scale(sys::System{0})
+# A characteristic magnitude for the energy gradient ∇E, which sets a scale for
+# the g_abstol in energy minimization. Note that ∇E is typically non-vanishing
+# even at a stationary point, because it will retain a component parallel to the
+# spin (or coherent state) direction.
+function characteristic_gradient_scale(sys::System{0})
     ∇Es, = get_dipole_buffers(sys, 1)
     set_energy_grad_dipoles!(∇Es, sys.dipoles, sys)
     return norm(∇E*κ for (∇E, κ) in zip(∇Es, sys.κs)) / sqrt(length(∇Es))
 end
-function characteristic_energy_scale(sys::System{N}) where N
+function characteristic_gradient_scale(sys::System{N}) where N
     ∇Es, = get_coherent_buffers(sys, 1)
     set_energy_grad_coherents!(∇Es, sys.coherents, sys)
     return norm(∇E*sqrt(κ) for (∇E, κ) in zip(∇Es, sys.κs)) / sqrt(length(∇Es))

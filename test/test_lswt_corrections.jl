@@ -519,7 +519,7 @@ end
     # effective field that vanishes at a classical minimum.
     swt = SpinWaveTheory(canted_square(1/2, 0); measure=nothing)
     @test Sunny.boson_density(swt; tol=1e-4)[1] ≈ 0.19656 atol=1e-5
-    @test norm(Sunny.corrected_magnetic_moments(swt; tol=1e-4)[1]) ≈ 0.303437 atol=1e-6
+    @test norm(Sunny.corrected_magnetic_moments(swt; tol=1e-5)[1]) ≈ 0.303430 atol=1e-6
     # Para-unitarity of the Bogoliubov transform: ⟨bᵢb†ᵢ⟩ - ⟨b†ᵢbᵢ⟩ = 1
     L = Sunny.nbands(swt)
     o = Sunny.Vec3(0, 0, 0)
@@ -562,6 +562,22 @@ end
         st = Sunny.to_self_consistent_vacuum(swt; bz, relax_spins=true)
         @test Sunny.gaussian_energy_per_site(st) < E(1)
     end
+    # A spin in the plane of an easy-plane anisotropy feels no classical field,
+    # but its zero-point energy is nonzero. A fully polarized ferromagnet has
+    # none, and adaptive cubature must still terminate.
+    let sys = System(square_cryst, [1 => Moment(s=1, g=1)], :dipole)
+        set_onsite_coupling!(sys, S -> 0.5*S[3]^2, 1)
+        polarize_spins!(sys, [1, 0, 0])
+        swt = SpinWaveTheory(sys; measure=nothing)
+        @test Sunny.corrected_energy_per_site(swt) - swt.classical_energy ≈ -0.124965 atol=1e-6
+    end
+    let sys = System(square_cryst, [1 => Moment(s=1, g=1)], :dipole)
+        set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
+        polarize_spins!(sys, [0, 0, 1])
+        swt = SpinWaveTheory(sys; measure=nothing)
+        @test Sunny.corrected_energy_per_site(swt) ≈ swt.classical_energy atol=1e-12
+        @test Sunny.boson_density(swt) ≈ [0] atol=1e-12
+    end
     # A field along the moments shifts the magnons by ±B without changing the
     # Bogoliubov transformation. It leaves the Néel state energetically
     # unstable, but its positive-norm modes still define the same vacuum, so
@@ -588,7 +604,7 @@ end
         swt = SpinWaveTheory(sys; measure=nothing)
         corrected = Sunny.corrected_magnetic_moments(swt; tol=1e-5)
         @test size(corrected) == size(magnetic_moments(sys)) == (1, 1, 1, 2)
-        @test vec(corrected) ≈ [[-0.8244219, 0, 0.3256618], [0.8244219, 0, 0.3256618]] atol=1e-6
+        @test vec(corrected) ≈ [[-0.8244203, 0, 0.3256614], [0.8244203, 0, 0.3256614]] atol=1e-6
     end
 
     # Maximal-weight coherent states make this SU(N) system equivalent to the

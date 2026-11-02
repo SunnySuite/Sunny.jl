@@ -137,7 +137,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     n = size(H, 1)
     Nobs = num_observables(measure)
     rb = RetardedBroadening(energies; η, kernel, kT)
-    Λ = spectral_bound(H)
+    Λ = spectral_bound(swt)
     # Lanczos steps of each run per wavevector, for the `verbose` report
     iters = [Int[] for _ in qpts.qs]
 

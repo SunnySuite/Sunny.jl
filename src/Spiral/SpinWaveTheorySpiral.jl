@@ -25,6 +25,7 @@ implemented in the [SpinW code](https://spinw.org/).
 """
 struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     swt :: SpinWaveTheory
+    sys :: System          # The same as swt.sys
     k :: Vec3              # Propagation wavevector
     k_supercell :: Vec3    # The same in RLU of the magnetic cell
     axis :: Vec3           # Axis for polarization plane
@@ -42,7 +43,7 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
 
         swt = SpinWaveTheory(sys; measure, regularization)
         k_supercell = to_supercell_rlu(sys, k)
-        return new(swt, k, k_supercell, axis, spiral_table(swt, k_supercell, axis))
+        return new(swt, swt.sys, k, k_supercell, axis, spiral_table(swt, k_supercell, axis))
     end
 end
 
@@ -87,7 +88,7 @@ end
 
 # Bogoliubov transform of branch s at wavevector q, in the workspace `ws`
 function excitations!(ws::BogoliubovWorkspace, H, sswt::SpinWaveTheorySpiral, q; branch)
-    dynamical_matrix!(H, sswt, to_supercell_rlu(sswt.swt.sys, q); branch)
+    dynamical_matrix!(H, sswt, to_supercell_rlu(sswt.sys, q); branch)
     return bogoliubov_or_throw!(() -> "Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable.", ws, H)
 end
 
@@ -121,8 +122,6 @@ function check_dipole_observables(sys::System, measure::MeasureSpec)
     measure isa MeasureSpec{Vec3} && any(apply_g -> vec(measure.observables) ≈ vec(all_dipole_observables(sys; apply_g)), (true, false)) ||
         error("General measurements not supported for spiral calculation")
 end
-
-underlying_system(sswt::SpinWaveTheorySpiral) = sswt.swt.sys
 
 # All 6L poles of χ''(q, ω), 2L from each of the three branches, with their
 # residues, as (pole × wavevector) matrices. In descending order of energy, the

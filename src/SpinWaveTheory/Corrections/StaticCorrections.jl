@@ -538,11 +538,12 @@ function zero_point_energy(swt::SpinWaveTheory, bz)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
-    return bz_average(bz) do q_supercell
+    E₀ = spectral_bound(swt)
+    return E₀ * bz_average(bz) do q_supercell
         dynamical_matrix!(H, swt, q_supercell)
         trA = real(tr(view(H, 1:L, 1:L)))
         ωs = bogoliubov!(ws, H)
-        return (sum(view(ωs, 1:L)) - trA) / 2Nsites
+        return (sum(view(ωs, 1:L)) - trA) / (2Nsites * E₀)
     end
 end
 

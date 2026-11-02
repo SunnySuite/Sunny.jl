@@ -203,6 +203,21 @@ function dynamical_matrix(swt::SpinWaveTheory, q_supercell)
     return Hermitian(H)
 end
 
+# A bound on the spectral radius of ĨH(𝐪) at every 𝐪, for the dynamical matrix
+# H(𝐪) of `dynamical_matrix!`: the largest Gershgorin row sum of the quadratic
+# table, whose phases have unit magnitude, plus the regularization. An entry of
+# the lower triangle also stands for its conjugate.
+function spectral_bound(swt::SpinWaveTheory)
+    isnothing(uncontracted_system(swt.sys).ewald) || error("Spectral bound does not yet support dipole-dipole interactions")
+    t = swt.quadratic_table
+    rowsums = zeros(2nbands(swt))
+    for (r, c, v) in zip(t.rows, t.cols, t.vals)
+        rowsums[r] += abs(v)
+        r == c || (rowsums[c] += abs(v))
+    end
+    return maximum(rowsums; init=0.0) + swt.regularization
+end
+
 # The local frame of each site, in which the ordered state is the last basis
 # state. A vacant site gets a zero frame, which zeroes every operator rotated
 # into it.
@@ -466,10 +481,8 @@ function intensities_bands(swt::AbstractSpinWaveTheory, qpts; kT=0, threaded=fal
     n = size(disp, 1) ÷ 2
     sz = (n, size(qpts.qs)...)
     data = thermal_factor.(disp[1:n, :]; kT) .* data[1:n, :]
-    return BandIntensities(orig_crystal(underlying_system(swt)), qpts, reshape(disp[1:n, :], sz), reshape(data, sz))
+    return BandIntensities(orig_crystal(swt.sys), qpts, reshape(disp[1:n, :], sz), reshape(data, sz))
 end
-
-underlying_system(swt::SpinWaveTheory) = swt.sys
 
 function susceptibility_poles(swt::SpinWaveTheory, qpts; threaded)
     num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
@@ -596,7 +609,7 @@ function intensities(swt::AbstractSpinWaveTheory, qpts; energies, η=0, kernel=n
     (disp, residues) = susceptibility_poles(swt, qpts; threaded)
     data = broaden_poles(disp, residues; energies, η, kernel, kT, threaded)
     data = reshape(data, length(energies), size(qpts.qs)...)
-    return Intensities(orig_crystal(underlying_system(swt)), qpts, collect(Float64, energies), data)
+    return Intensities(orig_crystal(swt.sys), qpts, collect(Float64, energies), data)
 end
 
 """
@@ -643,5 +656,5 @@ function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf
             data_reduced[iq] += weights[ib, iq] * (ihi - ilo)
         end
     end
-    StaticIntensities(orig_crystal(underlying_system(swt)), qpts, reshape(data_reduced, size(qpts.qs)))
+    StaticIntensities(orig_crystal(swt.sys), qpts, reshape(data_reduced, size(qpts.qs)))
 end

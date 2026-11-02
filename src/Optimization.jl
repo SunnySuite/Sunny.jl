@@ -151,7 +151,7 @@ function minimize_energy!(sys::System{N}; maxiters=1000, jitter=1e-8, kwargs...)
     # dimensionless spin variables x. The checks x_abstol and g_abstol are in
     # the p=Inf norm (largest vector component).
     x_abstol = 1e-12
-    g_abstol = 1e-12 * characteristic_energy_scale(sys)
+    g_abstol = 1e-12 * characteristic_gradient_scale(sys)
     manifold = SpinManifold(iszero(N) ? 3 : N, nsites(sys))
     method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10.0), manifold)
     options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)

@@ -246,7 +246,7 @@ function minimize_spiral_energy!(sys, axis; maxiters=1000, k_guess=randn(sys.rng
 
     # See `minimize_energy!` for discussion of the tolerance settings.
     x_abstol = 1e-12
-    g_abstol = 1e-12 * characteristic_energy_scale(sys)
+    g_abstol = 1e-12 * characteristic_gradient_scale(sys)
     manifold = SpinManifold(3, nsites(sys))
     method = Optim.ConjugateGradient(; alphaguess=LineSearches.InitialHagerZhang(; αmax=10.0), manifold)
     options_args = (; g_abstol, x_abstol, x_reltol=NaN, f_reltol=NaN, f_abstol=NaN, kwargs...)

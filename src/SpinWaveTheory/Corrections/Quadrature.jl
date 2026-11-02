@@ -81,12 +81,13 @@ function bz_average(f, dims::NTuple{3, Int})
 end
 
 # The same by adaptive cubature to the relative tolerance `tol`. HCubature stops
-# once `err ≤ max(atol, rtol * norm(val))`. Setting `atol` equal to `tol`
-# measures the accuracy against max(norm(val), 1), so that averages vanishing by
-# symmetry converge at once. The averages taken here, correlations and energies
-# per site, are of order one.
+# once `err ≤ max(atol, rtol * norm(val))`. The integrand must be dimensionless
+# and at most of order one, e.g. boson correlations. The absolute floor √ε then
+# lets an average that vanishes, e.g. in a fully polarized state, terminate at
+# roundoff, without loosening the relative tolerance of a small but nonzero
+# average, e.g. a weak boson depletion.
 function bz_average(f, tol::Real)
-    return first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=tol))
+    return first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=sqrt(eps())))
 end
 
 # A self-consistent vacuum was solved on a grid, which every use of it must
