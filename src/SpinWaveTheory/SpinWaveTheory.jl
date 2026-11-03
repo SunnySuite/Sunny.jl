@@ -588,11 +588,11 @@ iη)``. The thermal prefactor involves the Bose function ``n_B(ω) =
 ``χ'' = (χ - χ^†)/2i`` denotes the anti-Hermitian part of the retarded
 susceptibility matrix ``χ``.
 
-At least one of `η` or `kernel` is required. The intrinsic broadening `η > 0` is
-the half width of a Lorentzian line shape. For soft modes, it may damp intensity
-via cancellations between poles at positive and negative frequency. The `kernel`
-defines the instrument resolution function, e.g., as a [`gaussian`](@ref). It is
-applied as a post-processing step.
+At least one of `η` or `kernel` is required. A positive ``η`` defines the
+half-width for intrinsic Lorentzian broadening of `χ''``. For soft modes, ``η >
+0``` additionally damps intensity via cancellations between poles at positive
+and negative frequency. The `kernel` defines the instrument resolution function,
+e.g., as a [`gaussian`](@ref). It is applied as a post-processing step.
 
 If `threaded=true`, the calculation will be parallelized over ``𝐪``; see also
 [`load_blas_for_threading`](@ref).

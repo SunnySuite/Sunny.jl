@@ -34,28 +34,27 @@ Sunny reports the normalized structure factor in units of inverse energy,
 
 It is normalized by $N_\mathrm{cells}$, the number of chemical cells in the
 macroscopic sample. Observe that the scale of $𝒮^{αβ}$ depends on the chemical
-cell convention. To avoid confusion, it is strongly recommended to build the
-[`System`](@ref) from a chemical cell that follows ITA crystallographic
-standards. For example, use a cubic cell to model a fcc or bcc crystal. The
-chemical cell convention will be preserved throughout the calculation,
-independent of subsequent calls to [`reshape_supercell`](@ref).
+cell convention, which is set by [`Crystal`](@ref). To avoid confusion, Sunny
+will warn if the chemical cell deviates from ITA crystallographic standards. For
+example, to model fcc or bcc, one should begin with a cubic cell. Any subsequent
+calls to [`reshape_supercell`](@ref) (e.g., to build a primitive cell) will
+preserve the original chemical cell convention.
 
-Each [`intensities`](@ref) calculator accepts a `measure` argument that
-determines how $𝒮^{αβ}(𝐪, ω)$ is contracted:
+Each intensities calculator accepts a `measure` argument that determines how
+$𝒮^{αβ}(𝐪, ω)$ is contracted:
 
-- [`ssf_trace`](@ref) contracts with $δ^{αβ}$, yielding the trace $\sum_α
-  𝒮^{αα}$.
-- [`ssf_perp`](@ref) contracts with the polarization factor $δ^{αβ} - q^α
-  q^β/q^2$.
+- [`ssf_trace`](@ref) contracts with $δ^{αβ}$, yielding the trace of $𝒮$.
+- [`ssf_perp`](@ref) contracts with the projector $δ^{αβ} - q^α q^β/q^2$, as
+  relevant to unpolarized neutron scattering.
 - [`ssf_custom`](@ref) accepts a user-provided $𝐪$-dependent contraction
-  function. As one option, it may return the full 3×3 matrix.
+  function. It may return off-diagonal elements or the full 3×3 matrix itself.
 - [`ssf_custom_bm`](@ref) is similarly flexible, but expects $𝐪$ in the
   Blume-Maleev axis system.
 
-The default form factors are $f_j(𝐪) = 1$. Pass `formfactors` to select the
-[`FormFactor`](@ref) appropriate to each magnetic ion. Pass `apply_g=false` to
-replace the magnetic moments $\hat{𝐌}$ by the spin operators $\hat{𝐒}$ as the
-fundamental observables.
+The default form factors are $f_j(𝐪) = 1$, which model purely localized
+dipoles. Pass `formfactors` to select the [`FormFactor`](@ref) appropriate to
+each magnetic ion. Pass `apply_g=false` to replace the magnetic moments
+$\hat{𝐌}$ by the spin operators $\hat{𝐒}$ as the fundamental observables.
 
 A temperature `kT` passed to [`intensities`](@ref) sets the thermal occupation
 of excitations. An energy `kernel` models the instrument resolution function
@@ -82,8 +81,7 @@ Here $𝐪$ and $ω$ denote momentum and energy transferred _to_ the sample. The
 prefactor $q_f/q_i$ for $𝐪 = 𝐪_i - 𝐪_f$ is provided experimentally. The
 characteristic magnetic scattering length is $γ r_0 / 2 ≈ 2.69×10^{-5}
 \mathrm{Å}$, where $γ = 1.913…$ is the neutron gyromagnetic ratio and $r_0$ is
-the classical electron radius. Contraction with the polarization factor can be
-obtained with a  measure.
+the classical electron radius.
 
 ### Quantum sum rule
 
@@ -105,8 +103,7 @@ are only approximate, and may not recover this exact total.
 
 ## Dissipation and the retarded susceptibility
 
-Generalizing the structure factor to arbitrary observables $\hat{A}$ and
-$\hat{B}$, consider the dynamical correlation
+A general dynamical correlation is,
 
 ```math
 \begin{equation}
@@ -222,10 +219,11 @@ evaluate it.
   systems with long-wavelength structures, or systems with quenched chemical
   disorder.
 
-Spin wave calculators also accept a regulator $η > 0$, which evaluates $χ$ at
-$ω+iη$ rather than $ω + i0^+$. Finite $η$ defines a half width for intrinsic
-Lorentzian broadening and damps intensity of soft modes with excitation energy
-$ϵ ≲ η$.
+Spin wave calculators also accept a regulator $η > 0$, which evaluates $χ$ at $z
+= ω + iη$ rather than $ω + i0^+$. By the Kramers-Kronig relation, the
+anti-Hermitian part of $χ(z)$ is the convolution of $χ''$ with a Lorentzian of
+half width $η$. Because $χ''$ is odd, the broadened poles at $±ϵ$ partially
+cancel near $ω = 0$, which damps the intensity of soft modes with $ϵ ≲ η$.
 
 ### Classical spin dynamics
 

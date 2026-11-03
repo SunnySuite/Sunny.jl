@@ -116,10 +116,10 @@ Two additional options are included for historical comparison:
   space.
 
 Keyword arguments are as in [`intensities`](@ref), but an intrinsic broadening
-`η` is required and only `kT = 0` is currently supported. The parameter `η` also
-acts as a regulator for loop integrals over the Brillouin zone. These integrals
-are evaluated by discrete grid summation. Explicit grid dimensions `bz = (n1,
-n2, n3)` may be provided. Otherwise, a scalar `bz` sets the grid density, with
+`η` is required and `kT` must currently remain zero. The parameter `η` also acts
+as a regulator for loop integrals over the Brillouin zone. These integrals are
+evaluated by discrete grid summation. Explicit grid dimensions `bz = (n1, n2,
+n3)` may be provided. Otherwise, a scalar `bz` sets the grid density, with
 two-magnon energies stepping by about `η / bz` between neighboring points. The
 cost therefore grows as ``η^{-D}`` for ``D`` dispersing dimensions. See
 [`BZIntegration`](@ref) for details.
