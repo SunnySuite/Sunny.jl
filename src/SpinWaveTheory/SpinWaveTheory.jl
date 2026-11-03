@@ -582,10 +582,10 @@ an iterative calculation method that scales well to large system sizes; this can
 be useful for studying disordered systems or magnetic structures with
 approximately incommensurate ordering wavevectors.
 
-The target is the dynamical structure factor ``π^{-1} (1 + n_B(ω)) χ″(𝐪, ω +
+The target is the dynamical structure factor ``π^{-1} (1 + n_B(ω)) χ''(𝐪, ω +
 iη)``. The thermal prefactor involves the Bose function ``n_B(ω) =
 1/(e^{ω/kT}-1)`` at temperature ``kT`` and energy transfer ``ω``. The symbol
-``χ″ = (χ - χ^†)/2i`` denotes the anti-Hermitian part of the retarded
+``χ'' = (χ - χ^†)/2i`` denotes the anti-Hermitian part of the retarded
 susceptibility matrix ``χ``.
 
 At least one of `η` or `kernel` is required. The intrinsic broadening `η > 0` is

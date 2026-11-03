@@ -302,9 +302,8 @@ This release brings significant support for model fitting ([#471](@ref)).
   conventions") demonstrates a model system where momentum transfers $±𝐪$ are
   inequivalent.
 * Dynamical structure factor intensities now have a [precisely defined
-  scale](@ref "Conventions for the Sunny-calculated structure factor"),
-  independent of the calculator ([#264](@ref)). Consequently, color ranges in
-  plots may need to be rescaled.
+  scale](@ref "Structure Factor Conventions"), independent of the calculator
+  ([#264](@ref)). Consequently, color ranges in plots may need to be rescaled.
 * [`Crystal`](@ref) can now infer a chemical unit cell from an mCIF file.
   `System` now supports [`set_dipoles_from_mcif!`](@ref). Through spglib, one
   can now [`standardize`](@ref) any `Crystal`, with an option to idealize site

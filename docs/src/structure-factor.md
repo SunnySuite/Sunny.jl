@@ -1,83 +1,125 @@
 # Structure Factor Conventions
 
-## Dynamical correlations
+## What Sunny calculates
 
-Dynamical correlations are a fundamental observable in condensed matter systems,
-and facilitate comparison between theory and experimental data.
-
-Frequently, spin-spin correlations are of interest. More generally, one may
-consider correlations between arbitrary operator fields $\hat{A}$ and $\hat{B}$.
-In the Heisenberg picture, operators evolve in time. Consider the dynamical
-correlation as an equilibrium expectation value,
+The magnetic structure factor is the Fourier transform of the dynamical
+correlations between magnetic moments,
 
 ```math
 \begin{equation}
-C(𝐫, t) = \int_V ⟨\hat{B}^†(𝐫₀, 0) \hat{A}(𝐫₀ + 𝐫, t)⟩ d𝐫₀,
+\mathcal{S}^{αβ}(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} ⟨\hat{M}_𝐪^{α†}(0) \hat{M}_𝐪^β(t)⟩ dt.
 \end{equation}
 ```
 
-where the integral runs over some macroscopic volume $V → ∞$. By construction,
-$C(𝐫, t)$ is an extensive quantity. Ignoring surface effects, the correlation
-becomes an ordinary product in momentum-space,
+The Fourier-transformed magnetic moment density is
 
 ```math
 \begin{equation}
-C(𝐪, t) = ⟨\hat{B}_𝐪^†(0) \hat{A}_𝐪(t)⟩.
+\hat{𝐌}_𝐪 ≡ - μ_B \sum_j f_j(𝐪) g_j \hat{𝐒}_{𝐪,j}, \quad \hat{𝐒}_{𝐪,j} ≡ \sum_𝐦 e^{i 𝐪⋅𝐫_{𝐦,j}} \hat{𝐒}_{𝐦,j}.
 \end{equation}
 ```
 
-Our convention for the Fourier transform from position $𝐫$ to momentum $𝐪$ is,
+Here $\hat{𝐒}_{𝐦,j}$ is the spin dipole operator at position $𝐫_{𝐦,j}$ for
+cell $𝐦$ and sublattice $j$ of the chemical cell, the $g_j$-tensor maps
+effective spin to magnetic moment, $μ_B$ is the Bohr magneton, and $f_j(𝐪)$ is
+the magnetic form factor.
+
+Sunny reports the normalized structure factor in units of inverse energy,
 
 ```math
 \begin{equation}
-\hat{A}_𝐪 ≡ \int_V e^{+ i 𝐪⋅𝐫} \hat{A}(𝐫) d𝐫.
+𝒮^{αβ}(𝐪, ω) ≡ \frac{1}{N_\mathrm{cells} μ_B^2} \mathcal{S}^{αβ}(𝐪, ω).
 \end{equation}
 ```
 
-For a Hermitian operator $\hat{A}^†(𝐫) = \hat{A}(𝐫)$, it follows that
-$\hat{A}_𝐪^† ≡ (\hat{A}_𝐪)^† = \hat{A}_{-𝐪}$ in momentum space. 
+It is normalized by $N_\mathrm{cells}$, the number of chemical cells in the
+macroscopic sample. Observe that the scale of $𝒮^{αβ}$ depends on the chemical
+cell convention. To avoid confusion, it is strongly recommended to build the
+[`System`](@ref) from a chemical cell that follows ITA crystallographic
+standards. For example, use a cubic cell to model a fcc or bcc crystal. The
+chemical cell convention will be preserved throughout the calculation,
+independent of subsequent calls to [`reshape_supercell`](@ref).
 
+Each [`intensities`](@ref) calculator accepts a `measure` argument that
+determines how $𝒮^{αβ}(𝐪, ω)$ is contracted:
 
-## Lehmann representation in frequency space
+- [`ssf_trace`](@ref) contracts with $δ^{αβ}$, yielding the trace $\sum_α
+  𝒮^{αα}$.
+- [`ssf_perp`](@ref) contracts with the polarization factor $δ^{αβ} - q^α
+  q^β/q^2$.
+- [`ssf_custom`](@ref) accepts a user-provided $𝐪$-dependent contraction
+  function. As one option, it may return the full 3×3 matrix.
+- [`ssf_custom_bm`](@ref) is similarly flexible, but expects $𝐪$ in the
+  Blume-Maleev axis system.
 
-Dynamical correlations are most conveniently calculated in frequency space. We
-use the convention,
+The default form factors are $f_j(𝐪) = 1$. Pass `formfactors` to select the
+[`FormFactor`](@ref) appropriate to each magnetic ion. Pass `apply_g=false` to
+replace the magnetic moments $\hat{𝐌}$ by the spin operators $\hat{𝐒}$ as the
+fundamental observables.
+
+A temperature `kT` passed to [`intensities`](@ref) sets the thermal occupation
+of excitations. An energy `kernel` models the instrument resolution function
+$K(\omega, \omega')$. Sunny will use it to calculate broadened intensities,
 
 ```math
 \begin{equation}
-C(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} C(𝐪, t) dt.
+I(𝐪, ω) = \int K(ω, ω') 𝒮(𝐪, ω') dω'.
 \end{equation}
 ```
 
-On the right-hand side, substitute the definition of Heisenberg time evolution,
+### Unpolarized neutron scattering
+
+Use [`ssf_perp`](@ref) to calculate the differential cross section for an
+unpolarized neutron beam. Within the dipole approximation,
 
 ```math
 \begin{equation}
-\hat{A}(t) ≡ e^{i t \hat{H}} \hat{A} e^{-i t \hat{H}},
+\frac{d^2 σ(𝐪, ω)}{dω dΩ} = \frac{q_f}{q_i} \left(\frac{γ r_0}{2}\right)^2 N_\mathrm{cells} \sum_{α,β} \left(δ_{α,β} - \frac{q^α q^β}{q^2}\right) 𝒮^{αβ}(𝐪, ω).
 \end{equation}
 ```
 
-and the definition of the thermal average,
+Here $𝐪$ and $ω$ denote momentum and energy transferred _to_ the sample. The
+prefactor $q_f/q_i$ for $𝐪 = 𝐪_i - 𝐪_f$ is provided experimentally. The
+characteristic magnetic scattering length is $γ r_0 / 2 ≈ 2.69×10^{-5}
+\mathrm{Å}$, where $γ = 1.913…$ is the neutron gyromagnetic ratio and $r_0$ is
+the classical electron radius. Contraction with the polarization factor can be
+obtained with a  measure.
+
+### Quantum sum rule
+
+Use [`ssf_trace`](@ref) with `apply_g=false` to validate the quantum sum rule.
+For pure spin correlations, the trace of the exact $𝒮^{αβ}(𝐪, ω)$, integrated
+over all energies and averaged over momenta, satisfies
 
 ```math
 \begin{equation}
-⟨\hat{O}⟩ ≡ \frac{1}{\mathcal{Z}}\mathrm{tr}\, e^{-β \hat{H}} \hat{O}, \quad \mathcal{Z} ≡ \mathrm{tr}\, e^{-β \hat{H}}.
+\left\langle \int_{-∞}^∞ \sum_α 𝒮^{αα}(𝐪, ω) dω \right\rangle_𝐪 = \sum_j s_j (s_j + 1).
 \end{equation}
 ```
 
-Let $ϵ_μ$ and $|μ⟩$ denote the exact eigenvalues and eigenstates of the
-full Hamiltonian $\hat{H}$. The eigenstates comprise a complete, orthonormal
-basis. The operator trace can be evaluated as a sum over eigenbasis states
-$|ν⟩$. Insert a resolution of the identity, $|μ⟩⟨μ| = 1$, with implicit
-summation on the repeated $μ$ index. Then, collecting results and applying,
+The sum runs over sublattices $j$ of the chemical cell, each carrying quantum
+spin $s_j$. The momentum average runs over many Brillouin zones, as detailed in
+the [derivation](@ref "Derivation of the quantum sum rule"). Sunny's calculators
+are only approximate, and may not recover this exact total.
+
+
+## Dissipation and the retarded susceptibility
+
+Generalizing the structure factor to arbitrary observables $\hat{A}$ and
+$\hat{B}$, consider the dynamical correlation
 
 ```math
 \begin{equation}
-\int_{-∞}^{∞} e^{-iωt} dt = 2πδ(ω),
+C(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} ⟨\hat{B}_𝐪^†(0) \hat{A}_𝐪(t)⟩ dt.
 \end{equation}
 ```
 
-the result is the Lehmann representation of dynamical correlations,
+The choice $\hat{A} = \hat{M}^β$ and $\hat{B} = \hat{M}^α$ gives
+$\mathcal{S}^{αβ}(𝐪, ω)$. Operators evolve in the Heisenberg picture,
+$\hat{A}(t) ≡ e^{i t \hat{H}} \hat{A} e^{-i t \hat{H}}$, and $⟨\hat{O}⟩ ≡
+\mathrm{tr}\, e^{-β \hat{H}} \hat{O} / \mathcal{Z}$ is the thermal average. Let
+$ϵ_μ$ and $|μ⟩$ denote the exact eigenvalues and eigenstates of $\hat{H}$. In
+the Lehmann representation,
 
 ```math
 \begin{equation}
@@ -85,303 +127,107 @@ C(𝐪,ω) = \frac{1}{\mathcal{Z}} e^{-β ϵ_ν} δ(ϵ_μ - ϵ_ν - ω) ⟨ν|\h
 \end{equation}
 ```
 
-with implicit summation over eigenbasis indices $μ$ and $ν$. This representation
-is the usual starting point for quantum calculations such as linear spin wave
-theory and its various generalizations.
-
-Using the Lehmann representation, it can be shown that positive and negative
-frequencies are linked through a detailed balance condition,
+with implicit summation over $μ$ and $ν$. Each term is a transition $|ν⟩ →
+|μ⟩$ that absorbs energy $ω$, weighted by the thermal population of the initial
+state. This weight carries a universal dependence on temperature. On the
+support of the delta function, $e^{-β ϵ_μ} = e^{-β ω} e^{-β ϵ_ν}$, so the
+weight factors as $e^{-β ϵ_ν} = [1 + n_B(ω)] (e^{-β ϵ_ν} - e^{-β ϵ_μ})$, where
+$n_B(ω) ≡ 1 / (e^{β ω} - 1)$ is the Bose function. The result is the
+fluctuation-dissipation theorem,
 
 ```math
 \begin{equation}
-C_{⟨BA^†⟩}(𝐪,-ω) = e^{-β ω}  C_{⟨B^†A⟩}(𝐪, ω)^*.
+C(𝐪, ω) = \frac{1}{π} \left[1 + n_B(ω)\right] χ''(𝐪, ω),
 \end{equation}
 ```
 
-This subscript notation indicates that the left-hand side is a correlation of
-Hermitian-conjugated operators. Typically $\hat{A}$ and $\hat{B}$ will be
-Hermitian in real-space, and then detailed balance becomes $C(-𝐪,-ω) = e^{-β ω}
-C(𝐪, ω)^*$.
-
-
-## Discrete sums on the lattice
-
-A chemical (crystallographic) unit cell is associated with three lattice vectors
-$𝐚_{\{1,2,3\}}$. Site positions are
+where
 
 ```math
 \begin{equation}
-𝐫_{𝐦,j} ≡ m_1 𝐚_1 + m_2 𝐚_2 + m_3 𝐚_3 + δ𝐫_j,
+χ''(𝐪, ω) ≡ \frac{π}{\mathcal{Z}} \left(e^{-β ϵ_ν} - e^{-β ϵ_μ}\right) δ(ϵ_μ - ϵ_ν - ω) ⟨ν|\hat{B}^†_𝐪|μ⟩⟨μ|\hat{A}_𝐪 |ν⟩.
 \end{equation}
 ```
 
-for integers $𝐦 = \{m_1, m_2, m_3\}$. If the crystal is decorated, then $δ𝐫_j$
-denotes the relative displacement of the Bravais sublattice $j$. 
+The population difference counts absorption minus stimulated emission, i.e., the
+energy dissipated in the sample. It makes $χ''$ odd: for Hermitian $\hat{A}$ and
+$\hat{B}$, $χ''(-𝐪, -ω) = -χ''(𝐪, ω)^*$. All asymmetry between positive and
+negative $ω$ resides in the thermal factor, which satisfies $1 + n_B(-ω) =
+-e^{-βω} [1 + n_B(ω)]$. This yields detailed balance, $C(-𝐪, -ω) = e^{-βω}
+C(𝐪, ω)^*$. At zero temperature, the thermal factor becomes the step function
+$θ(ω)$.
 
-Let $\hat{A}(𝐫)$ be decomposed into discrete contributions $\hat{A}_{𝐦,j}
-δ(𝐫-𝐫_{𝐦,j})$ at each lattice point $𝐫_{𝐦,j}$. The Fourier transform
-becomes a discrete sum,
+The dissipation is the anti-Hermitian part, $χ'' = (χ - χ^†)/2i$, of the retarded
+susceptibility,
 
 ```math
 \begin{equation}
-\hat{A}_𝐪 = \sum_j \sum_𝐦 e^{i 𝐪⋅𝐫_{𝐦,j}} \hat{A}_{𝐦,j} ≡ \sum_j \hat{A}_{𝐪,j}.
+χ(𝐪, z) = \frac{1}{\mathcal{Z}} \frac{e^{-β ϵ_ν} - e^{-β ϵ_μ}}{ϵ_μ - ϵ_ν - z} ⟨ν|\hat{B}^†_𝐪|μ⟩⟨μ|\hat{A}_𝐪 |ν⟩,
 \end{equation}
 ```
 
-The second equality above introduces $\hat{A}_{𝐪,j}$ as the Fourier transform
-of $\hat{A}_{𝐦,j}$ for _single_ sublattice $j$. It can also be written,
+evaluated at $z → ω + i0^+$. In the time domain, the population difference
+arises from a commutator,
 
 ```math
 \begin{equation}
-\hat{A}_{𝐪,j} = e^{i 𝐪⋅δ𝐫_j} \sum_𝐦 e^{i 2π \tilde{𝐪}⋅𝐦} \hat{A}_{𝐦,j},
+χ(𝐪, z) = i \int_0^∞ e^{izt} ⟨[\hat{B}_𝐪^†(t), \hat{A}_𝐪(0)]⟩ dt.
 \end{equation}
 ```
 
-where $\tilde{𝐪}$ expresses momentum in dimensionless reciprocal lattice units
-(RLU),
+By the Kubo formula, $χ$ is the linear response of $⟨\hat{B}_𝐪^†⟩$ to a field
+that couples to $\hat{A}_𝐪$. Causality makes it analytic in the upper
+half-plane, which implies the Kramers-Kronig relation,
 
 ```math
 \begin{equation}
-𝐪 = \tilde{q}_1 𝐛_1 + \tilde{q}_2 𝐛_2 + \tilde{q}_3 𝐛_3,
-\end{equation}
-```
-
-and $𝐛_{\{1,2,3\}}$ are the reciprocal lattice vectors. Equivalently,
-$\tilde{q}_μ ≡ 𝐪 ⋅ 𝐚_μ / 2π$.
-
-It will be convenient to introduce a dynamical correlation for the operators on
-sublattices $i$ and $j$ only,
-
-```math
-\begin{equation}
-C_{ij}(𝐪,t) ≡ ⟨\hat{B}^†_{𝐪,i}(0) \hat{A}_{𝐪,j}(t)⟩.
-\end{equation}
-```
-
-By the linearity of expectation values,
-
-```math
-\begin{equation}
-C(𝐪, t) = \sum_{ij} C_{ij}(𝐪,t).
+χ(𝐪, z) = \frac{1}{π} \int_{-∞}^∞ \frac{χ''(𝐪, ω')}{ω' - z} dω'.
 \end{equation}
 ```
 
 
-## Quantum sum rule
+## Calculator details
 
-Integrating over all frequencies $ω$ yields the instant correlation at real-time
-$t = 0$,
+Each of Sunny's calculators estimates $χ''(𝐪, ω)$, multiplies by the thermal
+factor $[1 + n_B(ω)]/π$, and convolves with the `kernel`. They differ in how
+$χ''$ is obtained.
 
-```math
-\begin{equation}
-\int_{-∞}^∞ C(𝐪,ω) dω = C(𝐪, t=0) = \sum_{ij} C_{ij}(𝐪, t=0).
-\end{equation}
-```
+### Spin wave theory
 
-Here, we will investigate spin-spin correlations. For this, select
-$\hat{B}_{𝐪,i} = \hat{𝐒}_{𝐪,i}$ and $A_{𝐪,j} = \hat{𝐒}_{𝐪,j}$,
-such that the dynamical correlations become tensor valued,
+In linear spin wave theory, quantum spin operators are expressed with
+Holstein-Primakoff bosons, and the Hamiltonian is expanded to quadratic order,
+i.e., to leading order in inverse powers of the quantum spin-$s$. For systems
+constructed with `mode = :SUN`, Sunny automatically switches to a multi-flavor
+boson variant of spin wave theory, which captures more single-ion physics.
 
-```math
-\begin{equation}
-C_{ij}^{αβ}(𝐪, t=0) = ⟨\hat{S}_{𝐪,i}^{α†} \hat{S}_{𝐪,j}^{β}⟩.
-\end{equation}
-```
+The population difference $e^{-β ϵ_ν} - e^{-β ϵ_μ}$ in $χ''$ arises from a
+commutator, and the commutator of two bosons is a c-number. In linear spin wave
+theory, $χ$ is therefore independent of temperature, and the temperature
+dependence of the intensity enters only through $1 + n_B(ω)$. The susceptibility
+$χ(𝐪, z)$ is a finite sum of magnon poles. The calculators differ in how they
+evaluate it.
 
-In the quantum spin-$s$ representation, the spin dipole on one site satisfies
+- [`SpinWaveTheory`](@ref) diagonalizes the quadratic Hamiltonian at each $𝐪$,
+  which gives every pole and its residue. [`intensities_bands`](@ref) returns
+  these directly, and [`intensities`](@ref) broadens them.
+- [`SpinWaveTheorySpiral`](@ref) studies generalized spiral phases, which allow
+  for an incommensurate propagation wavevector $𝐤$. The magnons at $𝐪$ combine
+  three branches, at $𝐪$ and $𝐪 ± 𝐤$ of the co-rotating frame.
+- [`SpinWaveTheoryLarge`](@ref) uses iterated matrix-vector multiplication to
+  achieve linear-scaling cost in the magnetic cell size. The Lanczos method
+  produces $χ(𝐪, z)$ as a continued fraction, which is evaluated at complex
+  energies without resolving individual poles. Iterations stop when the
+  estimated error is below `tol` relative to the largest intensity at each $𝐪$.
+  It can be useful for studying systems with large magnetic cells, including
+  systems with long-wavelength structures, or systems with quenched chemical
+  disorder.
 
-```math
-\begin{equation}
-|\hat{𝐒}|^2 = \hat{S}^α \hat{S}^α = s(s+1),
-\end{equation}
-```
+Spin wave calculators also accept a regulator $η > 0$, which evaluates $χ$ at
+$ω+iη$ rather than $ω + i0^+$. Finite $η$ defines a half width for intrinsic
+Lorentzian broadening and damps intensity of soft modes with excitation energy
+$ϵ ≲ η$.
 
-with implicit summation on the repeated $α$ index.
-
-Suppose that each site of sublattice $j$ carries quantum spin of magnitude
-$s_j$. Then there is a quantum sum rule of the form,
-
-```math
-\begin{equation}
-\int_{\tilde{V}_\mathrm{BZ}} \frac{C_{jj}^{αα}(𝐪, t=0)}{N_\mathrm{cells}} d\tilde{𝐪} = s_j (s_j + 1),
-\end{equation}
-```
-
-with summation on $α$, but not $j$, implied. The integral runs over the cubic
-volume in reciprocal lattice units $\tilde{𝐪}$,
-
-```math
-\begin{equation}
-\tilde{V}_\mathrm{BZ} ≡ [0,1]^3.
-\end{equation}
-```
-
-This volume represents one unit cell on the reciprocal lattice, and has the
-shape of a parallelepiped in physical momentum units $𝐪$. This volume is
-equivalent to the first Brillouin zone because of the reciprocal-space
-periodicity inherent to the Bravais sublattice. Note that the integral over
-$\tilde{𝐪} ∈ \tilde{V}_\mathrm{BZ}$ could be converted to an integral over
-physical momentum $𝐪$ by applying a Jacobian transformation factor, $d
-\tilde{𝐪} = d𝐪 V_\mathrm{cell} / (2π)^3$, where $V_\mathrm{cell} = |𝐚_1 ⋅
-(𝐚_2 × 𝐚_3)|$ is the volume of the chemical unit cell. The scaling factor
-
-```math
-\begin{equation}
-N_\mathrm{cells} ≡ V / V_\mathrm{cell}
-\end{equation}
-```
-
-denotes the number of chemical unit cells in the macroscopic volume $V$.
-
-The derivation of the sum rule proceeds as follows. Substitute twice the
-definition,
-
-```math
-\begin{equation}
-\hat{S}^α_{𝐪,j} ≡ e^{i 𝐪⋅δ𝐫_j} \sum_𝐦 e^{i 2π \tilde{𝐪}⋅𝐦} \hat{S}^α_{𝐦,j}.
-\end{equation}
-```
-
-Accounting for complex conjugation, the two phase factors $e^{i 𝐪⋅δ𝐫_j}$
-cancel. The remaining $𝐪$-dependence can be integrated to yield a
-Kronecker-$δ$,
-
-```math
-\begin{equation}
-\int_{\tilde{V}_\mathrm{BZ}} e^{2πi \tilde{𝐪} ⋅ (𝐦 - 𝐦') } d\tilde{𝐪} = δ_{𝐦, 𝐦'}.
-\end{equation}
-```
-
-Note that $⟨\hat{S}_{𝐦,j}^α \hat{S}_{𝐦,j}^α⟩ = s_j(s_j+1)$ is constant,
-independent of the cell $𝐦$. This leaves a double sum over integers $𝐦$, which
-evaluates to $\sum_{𝐦, 𝐦'} δ_{𝐦, 𝐦'} = N_\mathrm{cells}$. Combined, these
-results verify the above-stated quantum sum rule for the sublattice $j$.
-
-One can also derive a quantum sum rule on the full dynamical correlation $C^{α,
-β}(𝐪, ω)$. Contributions from distinct sublattices $i ≠ j$ introduce a phase
-factor $e^{- i 𝐪⋅(δ𝐫_i - δ𝐫_j)}$ that cancels when the momentum $𝐪$ is
-averaged over a large number $N_\mathrm{BZ} → ∞$ of Brillouin zones. The final
-result is a sum over contributions $C_{jj}(𝐪, t=0)$ for each sublattice $j$,
-
-```math
-\begin{equation}
-\frac{1}{N_\mathrm{BZ}} \int_{N_\mathrm{BZ} × \tilde{V}_\mathrm{BZ}} \int_{-∞}^∞ \frac{C^{αα}(𝐪, ω)}{ N_\mathrm{cells}} dω d\tilde{𝐪} = \sum_j s_j (s_j + 1).
-\end{equation}
-```
-
-## Neutron scattering cross section
-
-The magnetic moment of a neutron is $\hat{\boldsymbol{μ}}_\mathrm{neutron} = - 2
-γ μ_N \hat{𝐒}_\mathrm{neutron}$, where $γ = 1.913…$, $μ_N$ is the nuclear
-magneton, and $\hat{𝐒}_\mathrm{neutron}$ is spin-1/2 angular momentum. Neutrons
-interact with the magnetic moments of a material. These have the form
-$\hat{\boldsymbol{μ}} = -μ_B g \hat{𝐒}$, where $μ_B$ is the Bohr magneton and
-$\hat{𝐒}$ is the effective angular momentum. For a single electron, $g =
-2.0023…$ is known to high precision. Within a crystal, however, the appropriate
-$g_j$ for each sublattice $j$ may be any $3×3$ matrix consistent with point
-group symmetries.
-
-Each idealized magnetic moment $\hat{\boldsymbol{μ}}_{𝐦,j}$ is, in reality,
-smoothly distributed around the site position $𝐫_{𝐦, j}$. This can be modeled
-through convolution with a density function $f_j(𝐫)$. Fourier transform the
-full magnetic density field $𝐌(𝐫)$ to obtain
-
-```math
-\begin{equation}
-\hat{𝐌}_𝐪 ≡ \sum_j \hat{𝐌}_{𝐪,j},
-\end{equation}
-```
-
-where,
-
-```math
-\begin{equation}
-\hat{𝐌}_{𝐪,j} ≡ - μ_B e^{i 𝐪⋅δ𝐫_j} g_j \sum_𝐦 e^{i 2π \tilde{𝐪}⋅𝐦} \hat{𝐒}_{𝐦,j} f_j(𝐪).
-\end{equation}
-```
-
-In Fourier space, $f_j(𝐪)$ is called the _magnetic form factor_. Frequently, it
-will be approximated as an isotropic function of $q = |𝐪|$. Tabulated formula,
-for various magnetic ions and charge states, are available in Sunny via the
-[`FormFactor`](@ref) function. The idealized case $f_j(𝐪) = 1$ would describe
-completely localized magnetic moments.
-
-Neutron scattering intensities are given by the total differential
-cross-section, $d^2 σ(𝐪, ω)/dωdΩ$, where $𝐪 = 𝐪_i - 𝐪_f$ is the momentum
-transfer to the sample, $ω$ is the energy transfer to the sample, and $Ω$ is the
-solid angle. Experimental intensity data will typically be provided in units of
-$q_f / q_i$. Within the dipole approximation, the result for an unpolarized
-neutron beam is,
-
-```math
-\begin{equation}
-\frac{d^2 σ(𝐪, ω)}{dω dΩ} = \frac{q_f}{q_i} \left(\frac{γ r_0}{2}\right)^2 \sum_{α,β} \left(δ_{α,β} - \frac{q^α q^β}{q^2}\right) \frac{\mathcal{S}^{αβ}(𝐪, ω)}{μ_B^2}.
-\end{equation}
-```
-
-The prefactor $q_f/q_i$ will be provided experimentally. Dimensions of area
-arise from the characteristic scattering length, $γ r_0 / 2 ≈ 2.69×10^{-5}
-\mathrm{Å}$, where $r_0$ is the classical electron radius.
-
-The structure factor is of central importance to neutron scattering,
-
-```math
-\begin{equation}
-\mathcal{S}^{αβ}(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} ⟨\hat{M}_𝐪^{α†}(0) \hat{M}_𝐪^β(t)⟩ dt,
-\end{equation}
-```
-
-and describes dynamical correlations of magnetic moments. It will differ
-nontrivially from the spin-spin correlations if the $g_j$-tensor varies with
-sublattice $j$.
-
-## Conventions for the Sunny-calculated structure factor
-
-Calculating the structure factor involves several steps, with various possible
-settings. Sunny provides tools to facilitate this calculation and to extract
-information from the results. For details, please see our [tutorials](@ref "1.
-Spin wave simulations of CoRh₂O₄") as well as the complete [Library
-Reference](@ref).
-
-Through [`ssf_custom`](@ref) and related functions, Sunny will calculate the
-spin structure factor as a 3×3 matrix in dimensionless units,
-
-```math
-\begin{equation}
-𝒮^{αβ}(𝐪, ω) ≡ \frac{1}{N_\mathrm{cells} μ_B^2} \mathcal{S}^{αβ}(𝐪, ω),
-\end{equation}
-```
-
-This is an intensive quantity because $N_\mathrm{cells}$, the number of chemical
-cells in the macroscopic sample, is extensive. Note that the Sunny-calculated
-intensity will depend on the chemical cell convention: intensity scales linearly
-with chemical cell size.
-
-Use [`ssf_perp`](@ref) to contract with $δ_{α,β} - q^α q^β/q^2$, i.e., to
-project in the direction perpendicular to momentum transfer $𝐪$.
-
-Set `apply_g = false` to calculate the correlation $C_{⟨𝐒𝐒⟩}(𝐪, ω) /
-N_\mathrm{cells}$ between pure spin operators, rather than between magnetic
-moments. In this special case that $g$ is a uniform scalar, this is equivalent
-to $𝒮(𝐪, ω) / g^2$
-
-## Calculations with spin wave theory
-
-Calculating the dynamical structure factor with linear [`SpinWaveTheory`](@ref)
-is relatively direct. In the traditional approach, quantum spin operators are
-expressed with Holstein-Primakoff bosons, and dynamical correlations are
-calculated to leading order in inverse powers of the quantum spin-$s$. For
-systems constructed with `mode = :SUN`, Sunny automatically switches to a
-multi-flavor boson variant of spin wave theory, which captures more single-ion
-physics. Use [`SpinWaveTheorySpiral`](@ref) to study generalized spiral phases,
-which allow for an incommensurate propagation wavevector. The module
-[`SpinWaveTheoryLarge`](@ref) uses iterated matrix-vector multiplication to
-achieve linear-scaling cost in the magnetic cell size. It can be useful for
-studying systems with large magnetic cells, including systems with
-long-wavelength structures, or systems with quenched chemical disorder.
-
-
-## Calculations with classical spin dynamics
+### Classical spin dynamics
 
 Finite temperature structure factor intensities can be estimated from the
 dynamical correlations of classical spin dynamics (e.g. Landau-Lifshitz, or its
@@ -393,7 +239,7 @@ extracted.
 
 Creating a `SampledCorrelations` requires specifying three keyword arguments.
 These will determine the dynamics used to calculate samples and, consequently,
-the $ω$ information that will be available. 
+the $ω$ information that will be available.
 
 1. `energies`: A uniform range of resolved energies.
 2. `dt`: The step size for dynamical time-integration. Larger may reduce
@@ -425,43 +271,41 @@ for _ in 1:nsamples
 end
 ```
 
-### Extracting intensities sampled correlation data 
-
-Like in spin wave theory, the basic function for extracting intensities
-information from a `SampledCorrelations` is [`intensities`](@ref). It takes a
-`SampledCorrelations`, a collection of ``𝐪``-vectors, a collection of
-`energies`, and possible other options.
-
-Since classical dynamics simulation take place on a finite lattice, the
-fundamental intensities measurements are only available at a discrete grid of
-wave vectors. In reciprocal lattice units, available grid points are $𝐪 =
+Like in spin wave theory, intensities are extracted with
+[`intensities`](@ref). Since classical dynamics simulation take place on a
+finite lattice, intensities are only available at a discrete grid of wave
+vectors. In reciprocal lattice units, available grid points are $𝐪 =
 [\frac{n_1}{L_1}, \frac{n_2}{L_2}, \frac{n_3}{L_3}]$, where $n_i$ runs from
 $(\frac{-L_i}{2}+1)$ to $\frac{L_i}{2}$ and $L_i$ is the linear dimension of the
 lattice used in the calculation. (An internal function
 `Sunny.available_wave_vectors` provides access to this grid.) By default
 [`intensities`](@ref) will adjust each wavevector $𝐪$ to the nearest available
-grid point. 
+grid point.
 
-Similarly, the resolution in `energies` is controlled the dynamical trajectory
-length in real-time. Because the dynamical trajectory is not periodic in time,
-some blurring between neighboring energy bins is unavoidable. Sunny's algorithm
-for estimating the structure factor from real-time dynamics is [specified
+Similarly, the resolution in `energies` is controlled by the dynamical
+trajectory length in real-time. Because the dynamical trajectory is not periodic
+in time, some blurring between neighboring energy bins is unavoidable. Sunny's
+algorithm for estimating the structure factor from real-time dynamics is
+[specified
 here](https://github.com/SunnySuite/Sunny.jl/pull/246#issuecomment-2119294846).
 
-The temperature parameter `kT` is required for `SampledCorrelations`
-calculations, and will be used to perform classical-to-quantum rescaling of
-intensities. If `kT = nothing`, then intensities will be provided according to
-the classical Boltzmann distribution.
+Classical trajectories sample the classical correlation $C_\mathrm{cl}$, for
+which the fluctuation-dissipation theorem reads $C_\mathrm{cl}(𝐪, ω) = (kT/πω)
+χ''(𝐪, ω)$. That is, the thermal factor $1 + n_B(ω)$ is replaced by its
+high-temperature limit $kT/ω$. Given `kT`, [`intensities`](@ref) multiplies
+$C_\mathrm{cl}$ by $βω [1 + n_B(ω)]$, which is equivalent to extracting $χ''$
+and applying the quantum thermal factor. This classical-to-quantum rescaling
+makes the result comparable with spin wave theory. If `kT = nothing`, the factor
+is omitted, and intensities follow the classical Boltzmann distribution.
 
-### The instantaneous structure factor
+### Static correlations
 
-Use [`intensities_static`](@ref) to calculate $\mathcal{S}(𝐪)$, i.e.,
- correlations that are "instantaneous" in real-time. Mathematically,
-$\mathcal{S}(𝐪)$ denotes an integral of the dynamical structure factor
-$\mathcal{S}(𝐪, ω)$ over all energies $ω$. In [`SpinWaveTheory`](@ref), the
-energy integral becomes a discrete sum over bands. In
-[`SampledCorrelations`](@ref), a classical-to-quantum correction factor will be
-applied within [`intensities`](@ref) prior to energy integration.
+Use [`intensities_static`](@ref) to calculate $𝒮(𝐪)$, i.e., correlations that
+are "instantaneous" in real-time. Mathematically, $𝒮(𝐪)$ denotes an integral
+of the dynamical structure factor $𝒮(𝐪, ω)$ over all energies $ω$. In
+[`SpinWaveTheory`](@ref), the energy integral becomes a discrete sum over bands.
+In [`SampledCorrelations`](@ref), a classical-to-quantum correction factor will
+be applied within [`intensities`](@ref) prior to energy integration.
 
 Sunny also supports a mechanism to calculate static correlations without any
 spin dynamics. To collect such statistics, construct a
@@ -469,3 +313,47 @@ spin dynamics. To collect such statistics, construct a
 return static correlations sampled from the classical Boltzmann distribution.
 This dynamics-free approach is faster, but may miss important features that
 derive from the quantum mechanical excitation spectrum.
+
+
+## Derivation of the quantum sum rule
+
+Integrating over all energies yields the equal-time correlation,
+
+```math
+\begin{equation}
+\int_{-∞}^∞ \mathcal{S}^{αα}(𝐪, ω) dω = ⟨\hat{M}_𝐪^{α†} \hat{M}_𝐪^α⟩,
+\end{equation}
+```
+
+with summation on $α$ implied. For pure spin correlations, $\hat{𝐌}_𝐪$ is
+replaced by $\hat{𝐒}_𝐪 = \sum_{𝐦,j} e^{i 𝐪⋅𝐫_{𝐦,j}} \hat{𝐒}_{𝐦,j}$, and
+the right-hand side becomes a double sum over sites,
+
+```math
+\begin{equation}
+⟨\hat{𝐒}_𝐪^† ⋅ \hat{𝐒}_𝐪⟩ = \sum_{𝐦,j} \sum_{𝐦',j'} e^{i 𝐪⋅(𝐫_{𝐦',j'} - 𝐫_{𝐦,j})} ⟨\hat{𝐒}_{𝐦,j} ⋅ \hat{𝐒}_{𝐦',j'}⟩.
+\end{equation}
+```
+
+Averaging over momenta $𝐪$ eliminates every term with $𝐫_{𝐦',j'} ≠
+𝐫_{𝐦,j}$. Within a single Brillouin zone, the phases cancel between distinct
+cells $𝐦 ≠ 𝐦'$. Between distinct sublattices $j ≠ j'$ of the same cell, the
+average must extend over many Brillouin zones. Only the on-site terms survive,
+and each contributes $⟨\hat{𝐒}^2⟩ = s_j(s_j+1)$. There are $N_\mathrm{cells}$
+such terms for each sublattice $j$, and the normalization of $𝒮$ divides by
+$N_\mathrm{cells}$. This recovers the sum rule stated
+[above](@ref "Quantum sum rule").
+
+The calculators recover this total only in part.
+
+- Spin wave theory omits the elastic Bragg weight from its band intensities.
+  For a polarized ferromagnet, the inelastic weight per spin is exactly $s$,
+  and adding the elastic weight $s^2$ recovers $s(s+1)$. For a Néel
+  antiferromagnet, the inelastic weight is $s + δ$, where $δ$ is the zero-point
+  reduction of the ordered moment. The sum rule then holds only to leading
+  order in $1/s$.
+- Classical spin dynamics conserves the classical magnitude $|𝐒|^2 = s^2$,
+  which is the total obtained with `kT = nothing`. With finite `kT`, the
+  classical-to-quantum rescaling of [`intensities`](@ref) modifies the total.
+  For static correlations, [`set_spin_rescaling_for_static_sum_rule!`](@ref)
+  enforces the quantum value $s(s+1)$.
