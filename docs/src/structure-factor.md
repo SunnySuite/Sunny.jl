@@ -73,7 +73,7 @@ unpolarized neutron beam. Within the dipole approximation,
 
 ```math
 \begin{equation}
-\frac{d^2 σ(𝐪, ω)}{dω dΩ} = \frac{q_f}{q_i} \left(\frac{γ r_0}{2}\right)^2 N_\mathrm{cells} \sum_{α,β} \left(δ_{α,β} - \frac{q^α q^β}{q^2}\right) 𝒮^{αβ}(𝐪, ω).
+\frac{d^2 σ(𝐪, ω)}{dω dΩ} = \frac{q_f}{q_i} \left(\frac{γ r_0}{2}\right)^2 N_\mathrm{cells} \sum_{α,β} \left(δ^{αβ} - \frac{q^α q^β}{q^2}\right) 𝒮^{αβ}(𝐪, ω).
 \end{equation}
 ```
 
@@ -185,9 +185,9 @@ half-plane, which implies the Kramers-Kronig relation,
 
 ## Calculator details
 
-Each of Sunny's calculators estimates $χ''(𝐪, ω)$, multiplies by the thermal
-factor $[1 + n_B(ω)]/π$, and convolves with the `kernel`. They differ in how
-$χ''$ is obtained.
+Each of Sunny's dynamical calculators estimates $χ''(𝐪, ω)$, multiplies by the
+thermal factor $[1 + n_B(ω)]/π$, and convolves with the `kernel`. They differ in
+how $χ''$ is obtained.
 
 ### Spin wave theory
 
@@ -227,91 +227,66 @@ cancel near $ω = 0$, which damps the intensity of soft modes with $ϵ ≲ η$.
 
 ### Classical spin dynamics
 
-Finite temperature structure factor intensities can be estimated from the
-dynamical correlations of classical spin dynamics (e.g. Landau-Lifshitz, or its
-SU($N$) generalization). This is fundamentally a Monte Carlo approach, as the
-trajectories must be initialized to a spin configuration that is sampled from
-the finite-temperature thermal equilibrium. Samples are accumulated into a
-[`SampledCorrelations`](@ref), from which intensity information may be
-extracted.
+[`SampledCorrelations`](@ref) estimates $𝒮(𝐪, ω)$ at finite temperature from
+classical spin dynamics (Landau-Lifshitz, or its SU($N$) generalization). Each
+call to [`add_sample!`](@ref) collects statistics from a dynamical trajectory
+initialized to the current spin configuration. That configuration should be
+drawn from thermal equilibrium, e.g., via [`Langevin`](@ref) sampling.
+Statistical error decreases with the number of decorrelated samples.
 
-Creating a `SampledCorrelations` requires specifying three keyword arguments.
-These will determine the dynamics used to calculate samples and, consequently,
-the $ω$ information that will be available.
-
-1. `energies`: A uniform range of resolved energies.
-2. `dt`: The step size for dynamical time-integration. Larger may reduce
-   simulation time, but the choice will be limited by the stability and accuracy
-   requirements of the [`ImplicitMidpoint`](@ref) integration method. The
-   function [`suggest_timestep`](@ref) can recommend a good value. The timestep
-   may be adjusted downward so that the specified `energies` are sampled
-   exactly.
-3. `measure`: Specification of the pair correlations. This will frequently be
-   reduced from the spin structure factor using one of [`ssf_trace`](@ref),
-   [`ssf_perp`](@ref), or [`ssf_custom_bm`](@ref).
-
-A sample may be added by calling [`add_sample!`](@ref). The input `sys` must be
-a spin configuration in good thermal equilibrium, e.g., using the continuous
-[`Langevin`](@ref) dynamics or using single spin flip trials with
-[`LocalSampler`](@ref). The statistical quality of the $𝒮(𝐪,ω)$ can be
-improved by repeatedly generating decorrelated spin configurations in `sys` and
-calling `add_sample!` on each configuration.
-
-The outline of typical use case might look like this:
-```
-# Make a `SampledCorrelations`
-sc = SampledCorrelations(sys; dt=0.05, energies=range(0.0, 10.0, 100))
-
-# Add samples
+```julia
+sc = SampledCorrelations(sys; measure, dt, energies=range(0, 10, 100))
 for _ in 1:nsamples
-   decorrelate_system(sys) # Perform some type of Monte Carlo simulation
-   add_sample!(sc, sys)    # Use spins to calculate trajectory and accumulate new sample of 𝒮(𝐪,ω)
+    for _ in 1:ndecorr
+        step!(sys, langevin)
+    end
+    add_sample!(sc, sys)
 end
+res = intensities(sc, qpts; energies=:available, kT)
 ```
 
-Like in spin wave theory, intensities are extracted with
-[`intensities`](@ref). Since classical dynamics simulation take place on a
-finite lattice, intensities are only available at a discrete grid of wave
-vectors. In reciprocal lattice units, available grid points are $𝐪 =
-[\frac{n_1}{L_1}, \frac{n_2}{L_2}, \frac{n_3}{L_3}]$, where $n_i$ runs from
-$(\frac{-L_i}{2}+1)$ to $\frac{L_i}{2}$ and $L_i$ is the linear dimension of the
-lattice used in the calculation. (An internal function
-`Sunny.available_wave_vectors` provides access to this grid.) By default
-[`intensities`](@ref) will adjust each wavevector $𝐪$ to the nearest available
-grid point.
-
-Similarly, the resolution in `energies` is controlled by the dynamical
-trajectory length in real-time. Because the dynamical trajectory is not periodic
-in time, some blurring between neighboring energy bins is unavoidable. Sunny's
-algorithm for estimating the structure factor from real-time dynamics is
-[specified
+The `energies` must be a uniform range starting at zero. Its spacing sets the
+trajectory length, and its maximum sets the sampling interval. A good choice of
+`dt` can be estimated from [`suggest_timestep`](@ref). Trajectories are finite,
+so some blurring between neighboring energy bins is unavoidable. Details of the
+estimator are [specified
 here](https://github.com/SunnySuite/Sunny.jl/pull/246#issuecomment-2119294846).
 
-Classical trajectories sample the classical correlation $C_\mathrm{cl}$, for
-which the fluctuation-dissipation theorem reads $C_\mathrm{cl}(𝐪, ω) = (kT/πω)
-χ''(𝐪, ω)$. That is, the thermal factor $1 + n_B(ω)$ is replaced by its
-high-temperature limit $kT/ω$. Given `kT`, [`intensities`](@ref) multiplies
-$C_\mathrm{cl}$ by $βω [1 + n_B(ω)]$, which is equivalent to extracting $χ''$
-and applying the quantum thermal factor. This classical-to-quantum rescaling
-makes the result comparable with spin wave theory. If `kT = nothing`, the factor
-is omitted, and intensities follow the classical Boltzmann distribution.
+The simulation volume is periodic, so intensities are available only on a
+discrete grid of wavevectors. For a system of $L_1 × L_2 × L_3$ chemical cells,
+these are $q_i = n_i / L_i$ in reciprocal lattice units. The
+[`intensities`](@ref) function rounds each requested $𝐪$ to the nearest grid
+point.
+
+Classical trajectories sample the classical correlation, for which the
+fluctuation-dissipation theorem reads $C_\mathrm{cl}(𝐪, ω) = (kT/πω) χ''(𝐪,
+ω)$. The quantum thermal factor $1 + n_B(ω)$ is replaced by its high-temperature
+limit $kT/ω$. Given `kT`, [`intensities`](@ref) multiplies by $βω [1 + n_B(ω)]$,
+which restores the quantum factor and makes the result comparable with spin wave
+theory. With `kT = nothing`, the classical correlations are reported unchanged.
 
 ### Static correlations
 
-Use [`intensities_static`](@ref) to calculate $𝒮(𝐪)$, i.e., correlations that
-are "instantaneous" in real-time. Mathematically, $𝒮(𝐪)$ denotes an integral
-of the dynamical structure factor $𝒮(𝐪, ω)$ over all energies $ω$. In
-[`SpinWaveTheory`](@ref), the energy integral becomes a discrete sum over bands.
-In [`SampledCorrelations`](@ref), a classical-to-quantum correction factor will
-be applied within [`intensities`](@ref) prior to energy integration.
+The static structure factor $𝒮(𝐪) = \int 𝒮(𝐪, ω) dω$ is the equal-time
+correlation. Sunny's [`intensities_static`](@ref) obtains it in one of two ways.
 
-Sunny also supports a mechanism to calculate static correlations without any
-spin dynamics. To collect such statistics, construct a
-`SampledCorrelationsStatic` object. In this case, `intensities_static` will
-return static correlations sampled from the classical Boltzmann distribution.
-This dynamics-free approach is faster, but may miss important features that
-derive from the quantum mechanical excitation spectrum.
+Frequency-dependent calculators evaluate the $ω$ integral, with optional
+restriction to energy `bounds`. For [`SpinWaveTheory`](@ref) and
+[`SpinWaveTheorySpiral`](@ref), the integral becomes a sum over bands, and omits
+the elastic Bragg weight. For [`SampledCorrelations`](@ref), it is a sum over
+the energy grid, which retains the elastic line at $ω = 0$. With finite `kT`,
+the sum is taken after the classical-to-quantum factor. With `kT = nothing`, it
+gives the classical equal-time correlations.
 
+The [`SampledCorrelationsStatic`](@ref) calculator skips the dynamics and
+instead samples $𝒮(𝐪)$ directly from the _classical_ Boltzmann distribution.
+This accelerates the calculation, but reflects classical rather than quantum
+thermal statistics. It is most accurate at higher temperatures, where the
+fluctuations become effectively classical. The [`SCGA`](@ref) calculator runs
+even faster, and makes the additional approximation that spin fluctuations are
+effectively Gaussian. SCGA can often be quite good when deep in the paramagnetic
+phase. For both calculators, it is recommended to first call
+[`set_spin_rescaling_for_static_sum_rule!`](@ref).
 
 ## Derivation of the quantum sum rule
 
