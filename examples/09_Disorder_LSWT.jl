@@ -1,4 +1,4 @@
-# # 9. Spin waves in disordered supercells
+# # 9. Spin waves in disordered magnets
 #
 # This example uses [`to_inhomogeneous`](@ref) and [`SpinWaveTheoryLarge`](@ref)
 # to calculate the spectrum of Rb₂Mn``_c``Mg``_{1-c}``F₄, a disordered quasi-2D
