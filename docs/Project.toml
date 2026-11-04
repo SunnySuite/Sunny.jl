@@ -18,6 +18,5 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 Sunny = {path = ".."}
 
 [compat]
-# FFTA v0.3.2 (loaded via Makie → KernelDensity) makes `rfft` ambiguous with
-# FFTW. https://github.com/JuliaMath/FFTA.jl/issues/146
+# Avoid FFTA v0.3.2 due to https://github.com/JuliaMath/FFTA.jl/issues/146
 FFTA = "< 0.3.2, ≥ 0.3.3"
