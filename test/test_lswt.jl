@@ -582,7 +582,11 @@ end
         disp_ref = dispersion(SpinWaveTheory(sys_ref; measure=nothing), q)
         disp = dispersion(SpinWaveTheory(sys; measure=nothing), q)
         L = length(disp_ref)
-        @test disp[1:L] ≈ disp_ref
+        # The vacancy block of the dynamical matrix is only the regularization
+        # 1e-8, so the transformed eigenproblem has norm ~1e8 and the physical
+        # bands carry a relative round-off of ~1e-8 that varies across BLAS
+        # builds.
+        @test isapprox(disp[1:L], disp_ref; rtol=1e-6)
         @test all(<(1e-6), disp[L+1:end])
 
         # Likewise for the 1/s corrections, whose vertices must not divide by
