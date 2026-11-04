@@ -30,10 +30,9 @@
     enable_dipole_dipole!(sys, 1.0; demag=0)
     @test isapprox(energy_per_site(sys), -1/6; atol=1e-13)
 
-    # Create a random box. Slight shifts away from zero to quiet Ewalder
-    # warnings about coordinates that wrap to -ϵ.
-    latvecs = lattice_vectors(1.1,0.9,0.8,92,85,95)
-    positions = [[0, 0.01, 0.01], [0.1, 0.01, 0.01], [0.6,0.4,0.5]]
+    # Create a random box
+    latvecs = lattice_vectors(1.1, 0.9, 0.8, 92, 85, 95)
+    positions = [[0, 0, 0], [0.1, 0, 0], [0.6, 0.4, 0.5]]
     cryst = Crystal(latvecs, positions)
     Random.seed!(0) # Don't have sys.rng yet
     moments = [
@@ -86,7 +85,7 @@ end
     # will require an enlarged dynamical matrix D, with matrix-free projection
     # onto the quantization axis).
     latvecs = lattice_vectors(1.1, 0.9, 0.8, 92, 85, 95)
-    cryst = Crystal(latvecs, [[0, 0.01, 0.01], [0.3, 0.1, 0.2]], 1)
+    cryst = Crystal(latvecs, [[0, 0, 0], [0.3, 0.1, 0.2]], 1)
     dims = (3, 2, 2)
     sys = System(cryst, [1 => Moment(s=1,g=2), 2 => Moment(s=1,g=2)], :dipole; dims)
     R = randn(3, 3); enable_dipole_dipole!(sys, 1.3; demag=R'R)
