@@ -3,6 +3,7 @@ CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
 DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+FFTA = "b86e33f2-c0db-4aa1-a6e0-ab43e668529e" # See compat entry below
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 IOCapture = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -15,3 +16,8 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [sources]
 Sunny = {path = ".."}
+
+[compat]
+# Implicit dependency via Makie → KernelDensity. Must avoid v0.3.2 due to
+# https://github.com/JuliaMath/FFTA.jl/issues/146
+FFTA = "< 0.3.2, ≥ 0.3.3"

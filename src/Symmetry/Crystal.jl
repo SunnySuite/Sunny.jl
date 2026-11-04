@@ -135,23 +135,13 @@ end
 
 
 # Sunny crystal specification is agnostic to length units. Spglib, however,
-# expects lattice vector magnitudes to be order one. The wrappers below do the
-# following: (1) Non-dimensionalize the lattice vectors using a natural length
-# scale, (2) Perform Spglib symmetry analysis, (3) Re-introduce length
-# dimensions in the appropriate return values.
-function dimensionless_spg_cell(cell)
-    (; lattice, positions, atoms, magmoms) = cell
+# expects lattice vector magnitudes to be order one, so non-dimensionalize the
+# lattice vectors using a natural length scale a0. Only dimensionless fields of
+# the returned dataset are used.
+function spg_get_dataset_scaled(latvecs, positions, types, symprec)
     # See https://github.com/spglib/spglib/issues/595 for discussion of a0
-    a0 = minimum(svdvals(Mat3(lattice)))
-    cell = Spglib.Cell(lattice/a0, positions, atoms, magmoms)
-    return (; cell, a0)
-end
-function spg_get_dataset_scaled(cell, symprec)
-    (; cell, a0) = dimensionless_spg_cell(cell)
-    ret = Spglib.get_dataset(cell, symprec)
-    ret.std_lattice .*= a0
-    ret.primitive_lattice .*= a0
-    return ret
+    a0 = minimum(svdvals(latvecs))
+    return Spglib.get_dataset(Spglib.Cell(latvecs/a0, positions, types), symprec)
 end
 
 
@@ -300,7 +290,7 @@ end
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec, suppress_warnings=false)
     validate_positions(positions; symprec)
 
-    d = spg_get_dataset_scaled(Spglib.Cell(latvecs, positions, types), symprec)
+    d = spg_get_dataset_scaled(latvecs, positions, types, symprec)
     classes = d.crystallographic_orbits
     # classes = d.equivalent_atoms
     symops = SymOp.(d.rotations, d.translations)
