@@ -66,6 +66,7 @@ include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
+include("System/FourierExchange.jl")
 export Moment, System, Site, clone_system, eachsite, nsites, position_to_site, global_positions,
     magnetic_moments, set_coherent!, set_dipole!, polarize_spins!, copy_spins!, randomize_spins!,
     set_spin_rescaling!, set_spin_s_at!, set_spin_rescaling_for_static_sum_rule!,
@@ -84,8 +85,10 @@ export entangle_system
 include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!, suggest_timestep
 
-include("Optimization.jl")
-export minimize_energy!
+include("Minimization/MinimizeEnergy.jl")
+include("Minimization/MinimizeSpiralEnergy.jl")
+include("Minimization/LuttingerTisza.jl")
+export minimize_energy!, minimize_spiral_energy!, spiral_energy, spiral_energy_per_site
 
 include("MagneticOrdering.jl")
 export print_wrapped_intensities, suggest_magnetic_supercell
@@ -114,6 +117,17 @@ include("SpinWaveTheory/Bosons/ExpansionDipole.jl")
 include("SpinWaveTheory/Bosons/ExpansionSUN.jl")
 include("SpinWaveTheory/Bosons/ObservableWords.jl")
 include("SpinWaveTheory/DipoleDipole.jl")
+export SpinWaveTheory, excitations, excitations!, dispersion, intensities,
+    intensities_bands, intensities_static
+
+include("SpinWaveTheory/SpinWaveTheorySpiral.jl")
+export SpinWaveTheorySpiral
+
+include("SpinWaveTheory/Large/SparseDynamicalMatrix.jl")
+include("SpinWaveTheory/Large/Lanczos.jl")
+include("SpinWaveTheory/Large/SpinWaveTheoryLarge.jl")
+export SpinWaveTheoryLarge
+
 include("SpinWaveTheory/Corrections/Corrections.jl")
 include("SpinWaveTheory/Corrections/Quadrature.jl")
 include("SpinWaveTheory/Corrections/ObservableCorrections.jl")
@@ -121,18 +135,6 @@ include("SpinWaveTheory/Corrections/Vacuum.jl")
 include("SpinWaveTheory/Corrections/StaticCorrections.jl")
 include("SpinWaveTheory/Corrections/SelfEnergy.jl")
 include("SpinWaveTheory/Corrections/CorrectedIntensities.jl")
-export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands,
-    intensities_static
-
-include("Spiral/LuttingerTisza.jl")
-include("Spiral/SpiralEnergy.jl")
-include("Spiral/SpinWaveTheorySpiral.jl")
-export minimize_spiral_energy!, spiral_energy, spiral_energy_per_site, SpinWaveTheorySpiral
-
-include("SpinWaveTheory/Large/SparseDynamicalMatrix.jl")
-include("SpinWaveTheory/Large/Lanczos.jl")
-include("SpinWaveTheory/Large/SpinWaveTheoryLarge.jl")
-export SpinWaveTheoryLarge
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
