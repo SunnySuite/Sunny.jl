@@ -94,7 +94,7 @@
 
 """
     corrected_intensities(swt::SpinWaveTheory, qpts, scheme; energies, η, kernel=nothing, kT=0,
-                          bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
+                          grid=auto_grid(swt, η), mark_breakdown=true, threaded=false, verbose=false)
 
 Dynamical spin structure factor with corrections beyond the linear spin wave
 level. The type of approximation depends on `scheme`:
@@ -118,11 +118,10 @@ Two additional options are included for historical comparison:
 Keyword arguments are as in [`intensities`](@ref), but an intrinsic broadening
 `η` is required and `kT` must currently remain zero. The parameter `η` also acts
 as a regulator for loop integrals over the Brillouin zone. These integrals are
-evaluated by discrete grid summation. Explicit grid dimensions `bz = (n1, n2,
-n3)` may be provided. Otherwise, a scalar `bz` sets the grid density, with
-two-magnon energies stepping by about `η / bz` between neighboring points. The
-cost therefore grows as ``η^{-D}`` for ``D`` dispersing dimensions. See
-[`BZIntegration`](@ref) for details.
+evaluated by discrete summation over uniform `grid` dimensions `(n1, n2, n3)`.
+The [`auto_grid`](@ref) default steps two-magnon energies by about `η` between
+neighboring points, so the cost grows as ``η^{-D}`` for ``D`` dispersing
+dimensions.
 
 Where corrections are large, the resummed propagator can become unstable,
 signaling that perturbation theory has broken down at that wavevector. This is
@@ -200,11 +199,11 @@ Set `verbose=true` to print a progress bar and diagnostics.
 7. [Zhang et al. (2025) [arXiv:2508.21142]](https://arxiv.org/abs/2508.21142).
 """
 function corrected_intensities(swt::SpinWaveTheory, qpts, scheme; energies, η, kernel=nothing, kT=0,
-                               bz=nothing, mark_breakdown=true, threaded=false, verbose=false)
+                               grid=auto_grid(swt, η), mark_breakdown=true, threaded=false, verbose=false)
     num_observables(swt.measure) == 0 && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     iszero(kT) || error("Corrected intensities at kT > 0 are not yet supported.")
     (; cryst, qpts, energies, transverse, cross, direct, breakdown) =
-        corrected_channels(swt, qpts, scheme; energies, η, bz, threaded, verbose)
+        corrected_channels(swt, qpts, scheme; energies, η, grid, threaded, verbose)
     # The structure factor at T = 0 from the spectral function χ″, which is odd
     θ = [ω > 0 ? 1.0 : iszero(ω) ? 0.5 : 0.0 for ω in energies]
     data = reshape(θ .* (transverse + cross + direct), length(energies), size(qpts.qs)...)
@@ -225,7 +224,7 @@ end
 # then `specfunc`, the particle block of the magnon spectral matrix (G† -
 # G)/2πi.
 function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
-                            bz=nothing, threaded=false, verbose=false, spectral=false)
+                            grid=auto_grid(swt, η), threaded=false, verbose=false, spectral=false)
     scheme in (:one_loop, :two_magnon_ladder, :one_loop_projected, :one_loop_on_shell) ||
         error("Unknown scheme :$scheme; use :one_loop, :two_magnon_ladder, :one_loop_projected or :one_loop_on_shell.")
 
@@ -253,7 +252,7 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
                      adds little cost."""
         end
     end
-    ol = OneLoop(swt; energies, η, bz)
+    ol = OneLoop(swt; energies, η, grid)
 
     chans = (; transverse = zeros(eltype(measure), length(energies), length(qpts.qs)),
                cross = zeros(eltype(measure), length(energies), length(qpts.qs)),

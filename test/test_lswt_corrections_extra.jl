@@ -255,7 +255,7 @@ end
         # chemical cell this average is the longitudinal weight per site.
         qs2 = vec([[(a - 0.5)/3, (b - 0.5)/3, 0] for a in 1:3, b in 1:3])
         energies = range(-2, 16, 181)
-        direct = Sunny.corrected_channels(swt, qs2, :one_loop; energies, η=0.2, bz=(12, 12, 1)).direct
+        direct = Sunny.corrected_channels(swt, qs2, :one_loop; energies, η=0.2, grid=(12, 12, 1)).direct
         longitudinal = sum(direct) * step(energies) / length(qs2)
 
         return (; harm, transverse, elastic, longitudinal,
@@ -334,7 +334,7 @@ end
         # sum being -(1/π) ∫ χ(iy) dy, so that no broadening enters.
         function corrected_weight(swt, ε)
             L = Sunny.nbands(swt)
-            ol = Sunny.OneLoop(swt; η=1e-3, bz=(1, 1, 1))
+            ol = Sunny.OneLoop(swt; η=1e-3, grid=(1, 1, 1))
             ol = Sunny.OneLoop(ol.swt, ol.η, ol.loop_grid, ol.bin_width, scaled(ol.terms3, ε), ol.terms4,
                                scaled(ol.terms2, ε^2), ε^2 * ol.δc, map(ts -> scaled(ts, ε^2), ol.δpair))
             se = Sunny.SelfEnergy(ol, [0, 0, 0])
@@ -493,14 +493,14 @@ end
     # magnitude above this tolerance.
     ωs = [0.5 + 0.3im, -1.1 + 0.25im]
     Σed = cluster_self_energy(H2, H3, bop, T0, ε, 0.06, ωs)
-    Σm = Sunny.cubic_self_energy_matrix(swt, [0, 0, 0], ωs; η=1e-10, bz=(1, 1, 1))
+    Σm = Sunny.cubic_self_energy_matrix(swt, [0, 0, 0], ωs; η=1e-10, grid=(1, 1, 1))
     @test collect(eachslice(Σm; dims=3)) ≈ Σed atol=3e-4
     @test maximum(abs, Σm[:, :, 1] - Diagonal(diag(Σm[:, :, 1]))) > 0.2 * maximum(abs, diag(Σm[:, :, 1]))
 
     # Below the three-magnon threshold, unitarity requires τ₃Σ̂ to be Hermitian,
     # which is what makes the Dyson equation preserve spectral weight. The
     # broadening η is what breaks it, by an amount η ∂Σ/∂ω.
-    Σh = Sunny.cubic_self_energy_matrix(swt, [0, 0, 0], [0.5 + 1e-10im]; η=1e-10, bz=(1, 1, 1))[:, :, 1]
+    Σh = Sunny.cubic_self_energy_matrix(swt, [0, 0, 0], [0.5 + 1e-10im]; η=1e-10, grid=(1, 1, 1))[:, :, 1]
     @test τ₃ * Σh ≈ (τ₃ * Σh)' atol=1e-9
 
     # Second-order perturbation theory in H₃, evaluated exactly in the truncated
@@ -519,7 +519,7 @@ end
         return [E[1]; [ΔE[argmin(abs.(ΔE .- ε[n]))] for n in 1:L]]
     end
     shifts = ((levels(0.01) + levels(-0.01))/2 - levels(0)) / 0.01^2
-    Σ = Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=1e-10, bz=(1, 1, 1))
+    Σ = Sunny.cubic_self_energy(swt, [[0, 0, 0]]; η=1e-10, grid=(1, 1, 1))
     @test real(vec(Σ)) ≈ shifts[2:L+1] atol=1e-3
     @test maximum(abs, imag(Σ)) < 1e-8
     U3 = vertex(swt, terms3, ntuple(_ -> zero(Sunny.Vec3), 3))
@@ -869,8 +869,8 @@ end
     # quadrature, so its accuracy is irrelevant here and a coarse grid keeps the
     # iterations cheap.
     ress = map((swt, Sunny.swt_with_vacuum(swt; correction=terms2))) do start
-        sc = Sunny.to_self_consistent_vacuum(start; bz=(8, 8, 1))
-        return (Sunny.gaussian_energy_per_site(sc), dispersion(sc, [[0.3, 0.1, 0]]))
+        sc = Sunny.to_self_consistent_vacuum(start; grid=(8, 8, 1))
+        return (Sunny.gaussian_energy_per_site(sc; sc.vacuum.grid), dispersion(sc, [[0.3, 0.1, 0]]))
     end
     @test ress[1][1] ≈ ress[2][1] atol=1e-8
     @test ress[1][2] ≈ ress[2][2] atol=1e-7
@@ -901,7 +901,7 @@ end
     # dominates the integral. Nothing about this 𝐪 is singular, so grids on either side
     # of it must agree; a fixed half-step offset instead gave +1.07 - 0.23im for the
     # first band, wrong even in sign, and -2.82 for the second.
-    Σgrid = [Sunny.cubic_self_energy(swt, [[0, 1/4, 0]]; η=0.02, bz=(nk, nk, 1))[:] for nk in (24, 26)]
+    Σgrid = [Sunny.cubic_self_energy(swt, [[0, 1/4, 0]]; η=0.02, grid=(nk, nk, 1))[:] for nk in (24, 26)]
     @test all(Σ -> isapprox(Σ, [-0.655 - 0.086im, -0.996 - 0.040im, -0.996 - 0.040im]; atol=0.012), Σgrid)
 
     # Binning the measure in the pair energy is a choice of quadrature, so it
@@ -987,7 +987,7 @@ end
         (η, grid) = (0.15, (8, 8, 1))
         qs = [[0.3, 0.2, 0], [1/6, 1/6, 0]]
         energies = range(0, 4, 61)
-        direct = Sunny.corrected_channels(swt5, qs, :one_loop_on_shell; energies, η, bz=grid).direct
+        direct = Sunny.corrected_channels(swt5, qs, :one_loop_on_shell; energies, η, grid).direct
         ref = direct_unbinned(β -> imag(β[1] * conj(β[2])), swt5, qs, energies, η, grid)
         scale = maximum(abs, ref)
         @test scale > 1e-2   # the measure is not trivially zero
@@ -1007,7 +1007,7 @@ end
         swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
         qs = [[0.3, 0.2, 0]]
         (energies, η) = (range(-2, 16, 181), 0.2)
-        direct(grid) = Sunny.corrected_channels(swt, qs, :one_loop_on_shell; energies, η, bz=grid).direct
+        direct(grid) = Sunny.corrected_channels(swt, qs, :one_loop_on_shell; energies, η, grid).direct
         ref = direct((32, 32, 1))
         scale = maximum(abs, ref)
         @test 1e-3 < maximum(abs, direct((16, 16, 1)) - ref) / scale < 1e-2

@@ -83,7 +83,7 @@ Contractions(g::Contractions, values) = Contractions(g.L, g.index, values, g.noi
 #
 # All requested labels share one quadrature, a single pass over the zone. On the
 # loop grid of the cubic self-energy, these averages satisfy the Ward identity
-# against that integrand point by point; see `BZIntegration`.
+# against that integrand point by point; see `to_self_consistent_vacuum`.
 function contractions(swt::SpinWaveTheory, terms, tol)
     L = nbands(swt)
     index = Dict{Tuple{Int, Int, NTuple{3, Int}}, Int}()

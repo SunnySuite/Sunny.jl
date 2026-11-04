@@ -47,9 +47,6 @@
 #                  observable_corrections, anisotropy_correction,
 #                  static_self_energy, cubic_self_energy
 #     Internals    OneLoop, SelfEnergy, corrected_channels
-#
-# Their keyword `bz` selects the Brillouin-zone grid, and the static corrections
-# take `tol` for adaptive cubature; see `BZIntegration`.
 
 # Errors unless `swt` describes a model for which the corrections in this
 # directory are implemented

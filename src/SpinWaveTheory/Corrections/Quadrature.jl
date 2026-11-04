@@ -4,61 +4,20 @@
 
 # ---- Brillouin-zone quadrature ----
 
-"""
-    bz :: BZIntegration
+# The quadrature of the static corrections: the dimensions `grid`, or else
+# adaptive cubature to the relative tolerance `tol`
+static_quadrature(swt, grid; tol) = isnothing(grid) && isnothing(swt.vacuum.grid) ? tol : checked_grid(swt, grid)
 
-The keyword `bz` of the spin wave correction functions specifies the integration
-over the magnetic Brillouin zone.
-
-- A tuple `bz = (n1, n2, n3)` selects a uniform grid of these dimensions.
-- For frequency-dependent calculations, e.g. [`corrected_intensities`](@ref), a
-  number `bz` selects a uniform grid that resolves the broadening `η`. Along
-  each reciprocal axis, the number of points is `bz` times ``2W/η``, where ``W``
-  is the largest energy range of a single magnon band along that axis; see
-  [`auto_bzgrid`](@ref). A pair of magnons spans at most ``2W``, so the default
-  `bz = 1` samples it in steps of ``η`` on average. Doubling `bz` doubles the
-  points per axis, which costs 4× in two dimensions and 8× in three.
-- Static corrections, e.g. [`boson_density`](@ref), default to adaptive cubature
-  with customizable relative tolerance `tol`. This choice is appropriate for
-  smooth integrands.
-
-For frequency-dependent calculations, spectral features that are smooth on the
-scale `η` converge exponentially fast in the grid density. The slowest
-convergence comes from Goldstone modes. On an internal magnon line their
-amplitude diverges as ``ε^{-1/2}``, so that the error falls only as `1/bz` in
-two dimensions, and as `1/bz²` in three. In two dimensions it is about 1–2% at
-the default. Off-scale intensity near a soft mode converges more slowly still.
-
-A vacuum from [`to_self_consistent_vacuum`](@ref) records the grid on which it
-was solved, which every calculation about it then uses. In general, a uniform
-grid shared between static and frequency-dependent calculations is required for
-the Ward identity to hold exactly, as needed to keep Goldstone modes gapless.
-"""
-const BZIntegration = Union{Nothing, Real, NTuple{3, Integer}}
-
-# The quadrature of the static corrections: the grid of `bz` or of the vacuum,
-# or else adaptive cubature to the relative tolerance `tol`
-function static_bz(swt, bz; tol)
-    bz isa Real && error("A number `bz` sets the loop grid relative to η. For the relative tolerance of a \
-                          static correction, use the keyword `tol`.")
-    quad = @something check_bz(bz) swt.vacuum.grid tol
-    check_grid(swt, quad)
-    return quad
+# Grid dimensions normalized to `Int`. A self-consistent vacuum was solved on a
+# grid, which every use of it must share so that the counterterm cancels its
+# mean field exactly.
+function checked_grid(swt, grid)
+    vgrid = swt.vacuum.grid
+    isnothing(vgrid) || vgrid == grid ||
+        error("Grid mismatch; use `grid = swt.vacuum.grid` for this self-consistent vacuum")
+    grid isa NTuple{3, Integer} || error("Expected `grid` to be dimensions (n1, n2, n3), got $grid. See `auto_grid`.")
+    return Int.(grid)
 end
-
-# The dimensions of the loop grid selected by `bz`
-function loop_bz(swt, bz; η)
-    bz = @something check_bz(bz) swt.vacuum.grid 1.0
-    dims = bz isa Real ? auto_bzgrid(swt; η, bz) : bz
-    check_grid(swt, dims)
-    return dims
-end
-
-# Grid dimensions are normalized to `Int`
-check_bz(::Nothing) = nothing
-check_bz(bz::Real) = 0 < bz < Inf ? bz : error("Numeric `bz` must be positive and finite, got $bz.")
-check_bz(dims::NTuple{3, Integer}) = Int.(dims)
-check_bz(bz) = error("Expected `bz` to be grid dimensions (n1, n2, n3) or a number, got $bz.")
 
 # Scale of the error that the quadrature leaves in an identity that holds only
 # for exact integrals, e.g. Hermiticity of a mean field. Such identities are
@@ -88,14 +47,6 @@ end
 # average, e.g. a weak boson depletion.
 function bz_average(f, tol::Real)
     return first(hcubature(q -> f(Vec3(q)), (0, 0, 0), (1, 1, 1); rtol=tol, atol=sqrt(eps())))
-end
-
-# A self-consistent vacuum was solved on a grid, which every use of it must
-# share so that the counterterm cancels its mean field exactly
-function check_grid(swt, bz)
-    (; grid) = swt.vacuum
-    isnothing(grid) || grid == bz ||
-        error("The vacuum of `swt` was solved on the grid $grid, but `bz` selects another. Omit `bz` to use the vacuum's grid.")
 end
 
 # Wavevectors 𝐩 of the loop integrals over the magnetic Brillouin zone, for an
@@ -163,28 +114,35 @@ function foreach_magnon_pair(f, swt::SpinWaveTheory, q_supercell, grid::LoopGrid
 end
 
 """
-    auto_bzgrid(swt::SpinWaveTheory; η, bz=1)
+    auto_grid(swt::SpinWaveTheory, Δε)
 
-Dimensions `(n1, n2, n3)` of the uniform grid that a number `bz` selects for
-frequency-dependent calculations with broadening `η`; see
-[`BZIntegration`](@ref). Along each reciprocal axis of the magnetic cell, let
-``W`` be the largest energy range of a single band of `swt` on a line parallel
-to that axis, estimated on an ``8×8×8`` grid. The number of points is `bz`
-times ``2W/η``, rounded up and at least 4, or a single point if this product is
-below one.
+Dimensions `(n1, n2, n3)` of a uniform momentum-space grid on which two-magnon
+energies step by about `Δε` between neighboring points. A reasonable default is
+``Δε = 1.0 × η``, where ``η`` is the regulator that broadens the retarded
+susceptibility.
+
+Along each reciprocal axis of the magnetic cell, let ``W`` be the largest energy
+range of a single band of `swt` on a line parallel to that axis. A pair of
+magnons spans at most ``2W``, so the number of points is ``2W/Δε``, rounded up
+and at least 4, or a single point if this ratio is below one. Halving ``Δε``
+doubles the points per axis, which costs 4× in two dimensions and 8× in three.
+
+Spectral features that are smooth on the scale ``η`` converge exponentially fast
+as ``Δε/η`` decreases. The slowest convergence comes from Goldstone modes. On an
+internal magnon line their amplitude diverges as ``ε^{-1/2}``, so that the error
+falls only as `Δε/η` in two dimensions, and as `(Δε/η)^2` in three. In two
+dimensions it is about 1–2% at `Δε = η`. Off-scale intensity near a soft mode
+converges more slowly still.
 """
-function auto_bzgrid(swt; η, bz=1)
+function auto_grid(swt, Δε)
+    check_corrections_supported(swt)
+    0 < Δε < Inf || error("Grid resolution (by default `η`) must be positive, got $Δε")
     # Every frequency-dependent integrand here is a function of the pair energy
     # x(𝐤) = ε_𝐤 + ε_{𝐪-𝐤} smoothed on the scale η, so the grid must resolve
-    # x to within η. The range x sweeps along a direction is estimated below by
+    # x to within Δε ≲ η. The range x sweeps along a direction is estimated by
     # the range each band sweeps along a line, doubled for the two magnons; a
-    # non-dispersing direction needs no grid.
-    #
-    # The convergence argument is in the docstring of `BZIntegration`. Going
-    # beyond bz = 1 has negligible visual effect on the panels of
-    # examples/extra/SWT_Corrections. The worst cases are 2D magnets with
-    # Goldstone modes, already converged to within a few percent; gapped
-    # magnets are converged to about 1e-5.
+    # non-dispersing direction needs no grid. The band ranges are sampled on a
+    # fixed coarse grid, independent of the one being chosen.
     ncoarse = 8
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
@@ -196,7 +154,9 @@ function auto_bzgrid(swt; η, bz=1)
     end
 
     return ntuple(3) do d
-        n = 2bz * maximum(maximum(ε; dims=d+1) - minimum(ε; dims=d+1)) / η
+        n = 2 * maximum(maximum(ε; dims=d+1) - minimum(ε; dims=d+1)) / Δε
+        # The floor of 4 still resolves the 𝐩-dependence of the vertices when
+        # Δε is comparable to the bandwidth
         n < 1 ? 1 : max(4, ceil(Int, n))
     end
 end

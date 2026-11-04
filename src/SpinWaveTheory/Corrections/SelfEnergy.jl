@@ -38,7 +38,7 @@
 # point integrate the loop exactly.
 
 """
-    cubic_self_energy(swt::SpinWaveTheory, qpts; η, bz=nothing)
+    cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid=auto_grid(swt, η))
 
 On-shell self-energy of each magnon due to the cubic term of the
 Holstein-Primakoff expansion, ``Σ_n(𝐪, ε_{𝐪n})``, where ``ε`` are the energies
@@ -66,18 +66,16 @@ surface and the imaginary part comes out far too small; a width that halves when
 more readily, and only its frequency dependence is regularized by `η`, so that a
 soft band does not shift with `η`.
 
-The loop integral is summed on a uniform grid in the Brillouin zone. An explicit
-grid `bz = (n1, n2, n3)` may be provided. Otherwise, a scalar `bz` sets the grid
-density, with two-magnon energies stepping by about `η / bz` between neighboring
-points. See [`BZIntegration`](@ref) for details.
+The loop integral is summed on a uniform `grid`, set by default as
+[`auto_grid`](@ref).
 
 Because only the diagonal part of the self-energy is returned, the result is
 unreliable where two bands are degenerate.
 """
-function cubic_self_energy(swt::SpinWaveTheory, qpts; η, bz=nothing)
+function cubic_self_energy(swt::SpinWaveTheory, qpts; η, grid=auto_grid(swt, η))
     check_corrections_supported(swt)
     η > 0 || error("Broadening η must be positive")
-    grid = loop_bz(swt, bz; η)
+    grid = checked_grid(swt, grid)
 
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
@@ -104,10 +102,10 @@ end
 # the derivation above. Returns an array of size (2L, 2L, length(zs)). The
 # internal lines are the quasi-particles of the Gaussian state of `swt`, which
 # are also the basis of the external legs.
-function cubic_self_energy_matrix(swt::SpinWaveTheory, q, zs; η, bz=nothing)
+function cubic_self_energy_matrix(swt::SpinWaveTheory, q, zs; η, grid=auto_grid(swt, η))
     check_corrections_supported(swt)
     η > 0 || error("Broadening η must be positive")
-    grid = loop_bz(swt, bz; η)
+    grid = checked_grid(swt, grid)
     k = to_supercell_rlu(swt.sys, q)
     return cubic_self_energy_at(swt, cubic_monomials(swt), k, zs, loop_wavevectors(grid, k), η)
 end
@@ -302,7 +300,7 @@ function pair_channels(terms4::Vector{BosonMonomial{4}}, q_supercell, L)
 end
 
 """
-    OneLoop(swt::SpinWaveTheory; energies=nothing, η, bz=nothing)
+    OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid=auto_grid(swt, η))
 
 The one-loop expansion about the Gaussian state of `swt`, with everything that
 is common to all wavevectors: the mean-field, tadpole and anisotropy corrections
@@ -341,10 +339,10 @@ struct OneLoop
     end
 end
 
-function OneLoop(swt::SpinWaveTheory; energies=nothing, η, bz=nothing)
+function OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid=auto_grid(swt, η))
     check_corrections_supported(swt)
     η > 0 || error("Regulator `η` must be positive.")
-    loop_grid = loop_bz(swt, bz; η)
+    loop_grid = checked_grid(swt, grid)
 
     # A negligible cubic vertex is dropped outright, e.g. collinear order in
     # dipole mode, so that everything it generates is exactly zero
