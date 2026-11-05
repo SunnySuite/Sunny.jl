@@ -164,23 +164,11 @@ function clone_system(sys::System{N}) where N
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
-    entanglement_clone = clone_entanglement(entanglement)
-
     ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
-                 params_clone, copy(active_labels), interactions_clone, nothing,
+                 params_clone, copy(active_labels), interactions_clone, clone_ewald(ewald),
                  copy(extfield), copy(dipoles), copy(coherents),
-                 empty_dipole_buffers, empty_coherent_buffers, copy(rng), entanglement_clone)
-
-    if ewald isa Ewald
-        # At the moment, clone_ewald is unavailable, so instead rebuild the
-        # Ewald data structures from scratch. This might be fixed eventually.
-        # See https://github.com/JuliaMath/FFTW.jl/issues/261.
-        (; μ0_μB², demag, excluded) = ewald.cache
-        ret.ewald = Ewald(ret, μ0_μB², demag; excluded)
-    else
-        @assert ewald isa Union{Nothing, EwaldDelegated}
-        ret.ewald = ewald
-    end
+                 empty_dipole_buffers, empty_coherent_buffers, copy(rng),
+                 clone_entanglement(entanglement))
 
     return ret
 end

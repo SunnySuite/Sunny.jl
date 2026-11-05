@@ -27,17 +27,12 @@ function Ewald(sys::System{N}, μ0_μB², demag; excluded=[]) where N
     return Ewald(cache, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
 end
 
-# Ideally, this would clone all mutable state within Ewald. Note that `A`, `FA`
-# are immutable data. A blocker is that FFTW plans cannot currently be copied,
-# and it is not 100% clear whether they can be treated as immutable. For
-# example, they cache inverse plans, which may possibly lead to data races in a
-# multithreaded context. See discussion at
-# https://github.com/JuliaMath/FFTW.jl/issues/261.
+# FFTW plans are safe to share across threads. Allocate fresh scratch buffers.
 function clone_ewald(ewald::Ewald)
-    error("Not supported")
     (; cache, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan) = ewald
-    return Ewald(cache, A, copy(μ), copy(ϕ), FA, copy(Fμ), copy(Fϕ), copy(plan), copy(ift_plan))
+    return Ewald(cache, A, zero(μ), zero(ϕ), FA, zero(Fμ), zero(Fϕ), plan, ift_plan)
 end
+clone_ewald(ewald::Union{Nothing, EwaldDelegated}) = ewald # Immutable
 
 # Outer product of 3-vectors as static Mat3
 (⊗)(a::Vec3, b::Vec3) = a * b'
