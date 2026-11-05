@@ -208,19 +208,12 @@ end
         for s in (3, Inf)
             O = stevens_matrices(s)
 
-            # Cannot use [O[2, q] for q in 2:-1:-2] because:
-            # https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/149
-            Q = [O[2, 2], O[2, 1], O[2, 0], O[2, -1], O[2, -2]]
+            Q = [O[2, q] for q in 2:-1:-2]
 
             V = Sunny.operator_for_stevens_rotation(2, R)
             A = V * Q
             A′ = rotate_operator.(Q, Ref(R))
-
-            # Cannot use A ≈ A′ because:
-            # https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/148
-            for (Aq, Aq′) in zip(A, A′)
-                @test Aq ≈ Aq′
-            end
+            @test all(A .≈ A′)
         end
     end
 

@@ -71,9 +71,7 @@ const spin_monomial_to_stevens_expansion_dict = let
 
         M_inv = rationalize.(inv(M); tol=1e-14)
         @assert M_inv * M == I
-        # TODO: Diagnose DynamicPolynomials bug in line below, appearing for order=0.
-        # @assert all_monomials == expand_as_spin_polynomial.(M_inv * ops_expanded))
-        @assert iszero(all_monomials .- expand_as_spin_polynomial.(M_inv * ops_expanded))
+        @assert all_monomials == expand_as_spin_polynomial.(M_inv * ops_expanded)
 
         push!.(Ref(ret), all_monomials .=> M_inv * ops)
     end
@@ -94,12 +92,7 @@ end
 function operator_to_stevens_coefficients(p::DP.AbstractPolynomialLike, S²)
     p = expand_in_stevens_operators(p)
     p = DP.subs(p, spin_squared_symbol => S²)
-    return map(stevens_symbols) do 𝒪ₖ
-        map(𝒪ₖ) do 𝒪kq
-            j = findfirst(==(𝒪kq), DP.monomials(p))
-            isnothing(j) ? 0.0 : DP.coefficients(p)[j]
-        end
-    end
+    return map(𝒪ₖ -> Float64.(DP.coefficient.(p, 𝒪ₖ)), stevens_symbols)
 end
 
 function rotate_operator(p::DP.AbstractPolynomialLike, R)
@@ -139,5 +132,5 @@ function print_stevens_expansion(op::DP.AbstractPolynomialLike)
     X = spin_squared_symbol
     S = spin_magnitude_symbol
     O = stevens_symbols
-    pretty_print_operator(DP.subs(expand_in_stevens_operators(op), X => 1S^2, only(O[0]) => 1))
+    pretty_print_operator(DP.subs(expand_in_stevens_operators(op), X => S^2, only(O[0]) => 1))
 end
