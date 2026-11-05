@@ -118,8 +118,9 @@ end
 
 Dimensions `(n1, n2, n3)` of a uniform momentum-space grid on which two-magnon
 energies step by about `Δε` between neighboring points. A reasonable default is
-``Δε = 1.0 × η``, where ``η`` is the regulator that broadens the retarded
-susceptibility.
+``Δε = 1.0 × η``, where ``η`` is the regulator for the retarded susceptibility.
+If intensities will be convolved with an instrument resolution `kernel` much
+broader than ``η``, then a larger ``Δε`` may also suffice.
 
 Along each reciprocal axis of the magnetic cell, let ``W`` be the largest energy
 range of a single band of `swt` on a line parallel to that axis. A pair of
