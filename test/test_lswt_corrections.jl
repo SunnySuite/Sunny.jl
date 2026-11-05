@@ -152,13 +152,13 @@
         return a -> ComplexF64.(a <= n ? op(b(a), a) : op(b(a-n)', a-n))
     end
 
-    # Normal-ordered quadratic Hamiltonian, read off from Sunny's own dynamical
-    # matrix at 𝐪 = 0, together with that matrix. Any `terms2` are added to it,
-    # which is how the anisotropy correction to H₂ enters.
+    # Normal-ordered quadratic Hamiltonian, read off from Sunny's own
+    # Hamiltonian matrix at 𝐪 = 0, together with that matrix. Any `terms2` are
+    # added to it, which is how the anisotropy correction to H₂ enters.
     function fock_quadratic(swt, bop, dim; terms2=nothing)
         L = Sunny.nbands(swt)
         H = zeros(ComplexF64, 2L, 2L)
-        Sunny.dynamical_matrix!(H, swt, zero(Sunny.Vec3))
+        Sunny.hamiltonian_matrix!(H, swt, zero(Sunny.Vec3))
         isnothing(terms2) || Sunny.accum_quadratic!(H, terms2, zero(Sunny.Vec3))
         H2 = spzeros(ComplexF64, dim, dim)
         for i in 1:L, j in 1:L
@@ -177,7 +177,7 @@
         H = zeros(ComplexF64, 2L, 2L)
         return map(qs) do q
             T = zeros(ComplexF64, 2L, 2L)
-            Sunny.dynamical_matrix!(H, swt, q)
+            Sunny.hamiltonian_matrix!(H, swt, q)
             Sunny.bogoliubov!(T, H)
             return T
         end
@@ -636,7 +636,7 @@ end
     # Only gauge-invariant output may be compared. `bogoliubov!` fixes the phase
     # of each band independently, and the dipole `local_frames` puts a
     # deliberate rotation into each local frame, so the vertex tensors, the
-    # Bogoliubov matrices and the dynamical matrices themselves all differ
+    # Bogoliubov matrices and the Hamiltonian matrices themselves all differ
     # between the two modes by phases.
     #
     # The tolerance below is loose because `hcubature` decides how finely to
@@ -994,7 +994,7 @@ end
         function vertex_scale(swt)
             L = Sunny.nbands(swt)
             H = zeros(ComplexF64, 2L, 2L)
-            Sunny.dynamical_matrix!(H, swt, Sunny.Vec3(0, 0, 0))
+            Sunny.hamiltonian_matrix!(H, swt, Sunny.Vec3(0, 0, 0))
             terms3 = Sunny.cubic_monomials(swt)
             @test length(terms3) == 26
             return maximum(abs(t.c) for t in terms3) / norm(H)

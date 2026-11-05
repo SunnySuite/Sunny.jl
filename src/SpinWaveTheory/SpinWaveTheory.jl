@@ -55,7 +55,7 @@ curves. Eigenvectors describing the Bogoliubov bosons are available in
 
 The magnetic structure in `sys` must be energy minimized, otherwise the Cholesky
 step of the Bogoliubov diagonalization procedure will fail. The parameter
-`regularization` adds a small positive shift to the diagonal of the dynamical
+`regularization` adds a small positive shift to the diagonal of the Hamiltonian
 matrix to avoid numerical issues with quasi-particle modes of vanishing energy.
 Physically, this shift can be interpreted as application of an inhomogeneous
 field aligned with the magnetic ordering.
@@ -74,9 +74,11 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
 
     # Energy for `vacuum.frames`
     classical_energy :: Float64
-    # The quadratic Hamiltonian of `vacuum`, Ewald excluded
+    # The quadratic Hamiltonian of `vacuum`. Of the Ewald term, it includes
+    # only the molecular field, and `ewald` applies the rest.
     quadratic_table  :: QuadraticTable
     bare_table       :: QuadraticTable
+    ewald            :: Union{Nothing, QuadraticEwald}
     monomials        :: MonomialCache
 
     # Observables encoded as one-boson words
@@ -105,11 +107,12 @@ end
 # `frames`, with classical energy per site `E`. Compiles everything that depends
 # on the structure.
 function swt_build(sys::System, frames, E, measure, regularization)
-    terms2 = hamiltonian_monomials(sys, frames, Val{2}())
+    (ewald, field) = quadratic_ewald(sys, frames)
+    terms2 = [hamiltonian_monomials(sys, frames, Val{2}()); field]
     table = QuadraticTable(terms2, nbands(sys))
     coefs = observable_coefficients(sys, frames, measure)
     vacuum = GaussianVacuum(frames, BosonMonomial{2}[], nothing, (;))
-    return SpinWaveTheory(sys, measure, regularization, vacuum, E, table, table, MonomialCache(terms2), coefs)
+    return SpinWaveTheory(sys, measure, regularization, vacuum, E, table, table, ewald, MonomialCache(terms2), coefs)
 end
 
 # The same model about the vacuum with the given fields, in place of the vacuum
@@ -128,11 +131,11 @@ function swt_with_vacuum(swt::SpinWaveTheory; frames=swt.vacuum.frames, correcti
         end
         swt = swt_build(sys, frames, energy_per_site(tilted), measure, regularization)
     end
-    (; classical_energy, bare_table, monomials, observable_coefs) = swt
+    (; classical_energy, bare_table, ewald, monomials, observable_coefs) = swt
     table = isempty(vacuum.correction) ? bare_table :
         QuadraticTable([monomials.quadratic; vacuum.correction], nbands(swt))
     return SpinWaveTheory(sys, measure, regularization, vacuum, classical_energy, table, bare_table,
-                          monomials, observable_coefs)
+                          ewald, monomials, observable_coefs)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
@@ -175,17 +178,16 @@ function to_supercell_rlu(sys::System, q)
     return Vec3(sys.dims) .* (sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q))
 end
 
-# The quadratic table, then the Ewald term, which is dense in q and so not
+# The quadratic table, then the Ewald pair term, which is dense in q and so not
 # compiled, then a small constant shift for positive-definiteness
-function dynamical_matrix!(H, swt::SpinWaveTheory, q_supercell)
+function hamiltonian_matrix!(H, swt::SpinWaveTheory, q_supercell)
     L = nbands(swt)
     @assert size(H) == (2L, 2L)
     H .= 0
-    accum_lower!(H, swt.quadratic_table, q_supercell)
-    hermitian_from_lower!(H)
+    accum_table!(H, swt.quadratic_table, q_supercell)
 
-    if !isnothing(uncontracted_system(swt.sys).ewald)
-        accum_ewald!(H, swt, q_supercell)
+    if !isnothing(swt.ewald)
+        accum_ewald!(H, swt.ewald, q_supercell)
         # Hermitian up to round-off errors, then exactly
         @assert maxdiff(H, H') < 1e-12
         hermitianpart!(H)
@@ -196,26 +198,22 @@ function dynamical_matrix!(H, swt::SpinWaveTheory, q_supercell)
     end
 end
 
-function dynamical_matrix(swt::SpinWaveTheory, q_supercell)
+function hamiltonian_matrix(swt::SpinWaveTheory, q_supercell)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H, swt, q_supercell)
+    hamiltonian_matrix!(H, swt, q_supercell)
     return Hermitian(H)
 end
 
-# A bound on the spectral radius of ĨH(𝐪) at every 𝐪, for the dynamical matrix
-# H(𝐪) of `dynamical_matrix!`: the largest Gershgorin row sum of the quadratic
-# table, whose phases have unit magnitude, plus the regularization. An entry of
-# the lower triangle also stands for its conjugate.
-function spectral_bound(swt::SpinWaveTheory)
-    isnothing(uncontracted_system(swt.sys).ewald) || error("Spectral bound does not yet support dipole-dipole interactions")
-    t = swt.quadratic_table
-    rowsums = zeros(2nbands(swt))
-    for (r, c, v) in zip(t.rows, t.cols, t.vals)
-        rowsums[r] += abs(v)
-        r == c || (rowsums[c] += abs(v))
-    end
-    return maximum(rowsums; init=0.0) + swt.regularization
+# A rough estimate of the spectral radius of ĨH(𝐪) over all 𝐪, for the
+# Hamiltonian matrix H(𝐪) of `hamiltonian_matrix!`, i.e., of the largest magnon
+# energy. It serves as a characteristic energy scale, and only its order of
+# magnitude matters. The quadratic table contributes its Gershgorin bound,
+# which may overestimate, and the Ewald pair term contributes the dimensional
+# estimate `ewald_scale`.
+function spectral_scale(swt::SpinWaveTheory)
+    Λ = gershgorin_bound(swt.quadratic_table) + swt.regularization
+    return isnothing(swt.ewald) ? Λ : Λ + ewald_scale(uncontracted_system(swt.sys))
 end
 
 # The local frame of each site, in which the ordered state is the last basis
@@ -413,7 +411,7 @@ excitations!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q) =
 # positive definite has no vacuum. For LSWT that means the structure is not an
 # energy minimum; for a corrected Gaussian vacuum, the correction is to blame.
 function excitations_supercell!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_supercell)
-    dynamical_matrix!(H, swt, q_supercell)
+    hamiltonian_matrix!(H, swt, q_supercell)
     return bogoliubov_or_throw!(ws, H) do
         q = vec3_to_string(from_supercell_rlu(swt.sys, q_supercell))
         isempty(swt.vacuum.correction) ? "Not an energy-minimum; wavevector q = $q unstable." :

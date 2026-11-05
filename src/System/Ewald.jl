@@ -209,6 +209,32 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_supercell::Vec3)
     return A
 end
 
+# The Fourier-space coupling gᵢᵀ Aᵢⱼ gⱼ between the spins of site i and site j,
+# and all of its periodic images, where A = ewald_interaction_tensor(sys,
+# q_supercell). Sites (i, j) are by linear index. The cell offset Δ determines
+# both Aᵢⱼ and the supercell winding number w = fld(Δ, dims).
+# 
+# Typically Δ will be inferred from (i, j), but entangled systems require an
+# override. Here, Bloch phases follow the cells of the units rather than the
+# wrapped bare sites. This phase convention is a gauge choice for entangled
+# systems and must be applied consistently.
+function ewald_coupling(A, @nospecialize(sys::System), q_supercell, i, j, Δ=nothing)
+    (; dims, gs) = sys
+    (ci, ai) = to_cell_atom(eachsite(sys)[i])
+    (cj, aj) = to_cell_atom(eachsite(sys)[j])
+    Δ = something(Δ, cj .- ci)
+    return gs[i]' * ewald_tensor_at(A, dims, q_supercell, ai, aj, Δ) * gs[j]
+end
+
+# The Ewald tensor between atoms a and b at the cell displacement Δ, for A =
+# ewald_interaction_tensor(sys, q_supercell). The displacement wraps into the
+# cell Δ mod dims of A, with a winding fld(Δ, dims) of magnetic cells.
+function ewald_tensor_at(A, dims, q_supercell, a, b, Δ)
+    cell = CartesianIndex(mod.(Δ, dims) .+ 1)
+    w = Vec3(fld.(Δ, dims))
+    return cis(-2π * dot(q_supercell, w)) * A[cell, a, b]
+end
+
 # The Ewald interaction tensor Ac[cell, a, b] of `sys` at a wavevector in the
 # RLU of its magnetic cell. For an entangled system, this is the tensor of the
 # uncontracted system, which excludes the couplings within each unit.

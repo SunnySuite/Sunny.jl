@@ -111,9 +111,9 @@ end
 # its uncontracted system, and expands in the local-frame spin operators of the
 # bare atoms.
 #
-# The K = 2 term is the LSWT Hamiltonian itself, which `QuadraticTable`
-# compiles for `dynamical_matrix!`. There is no remainder beyond LSWT at K ≤ 2,
-# as explained above.
+# The K = 2 term is the LSWT Hamiltonian itself, which `QuadraticTable` compiles
+# for `hamiltonian_matrix!`. There is no remainder beyond LSWT at K ≤ 2, as
+# explained above.
 function hamiltonian_monomials(sys::System, frames::Vector{Matrix{ComplexF64}}, ::Val{K}; beyond_lswt=false, M=1) where K
     beyond_lswt && K <= 2 && return BosonMonomial{K}[]
     @assert allequal(sys.Ns)

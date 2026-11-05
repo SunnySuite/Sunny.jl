@@ -26,8 +26,10 @@
 # first row and column of T, is instead accumulated as a product of the ratios
 # of pivots, x₁ = Πⱼ u′ⱼ/uⱼ, with u′₁ = 1 and u′ⱼ = z - α_j - β_{j-1}²/u′_{j-1}
 # for j ≥ 3, in which no terms cancel. The sum is used elsewhere, because it is
-# cheaper. The product is used for |z| < ε^{1/4} Λ, given a bound Λ on the
-# spectral radius of ĨS, so that the loss of the sum stays below √ε.
+# cheaper. The product is used for |z| < ε^{1/4} Λ, given an estimate Λ of the
+# spectral radius of ĨS, so that the loss of the sum stays near √ε. Only the
+# order of magnitude of Λ matters: an overestimate merely uses the product at a
+# few more nodes, and an underestimate by a factor f loosens the loss to f² √ε.
 #
 # After m rows, x_m = g_m / u_m is the last entry of y. The further rows of T
 # couple to these only through β_m, so that by the Sherman–Morrison formula they
@@ -126,6 +128,14 @@ end
 
 exhausted(r::LanczosResolvent) = r.nrows > 0 && iszero(r.β)
 
+# Y = Ĩ X for each column of X, where Ĩ = diag(I, -I) is the Bogoliubov identity
+function mul_Ĩ!(Y, X)
+    L = size(X, 1) ÷ 2
+    @views Y[1:L, :] .= X[1:L, :]
+    @views Y[L+1:2L, :] .= .-X[L+1:2L, :]
+    return Y
+end
+
 # x† y, written out because OpenBLAS conflicts with Julia threading
 function dot_noblas(x, y)
     acc = zero(ComplexF64)
@@ -187,7 +197,7 @@ function extend!(r::LanczosResolvent, m)
             w[k] -= c * q[k]
         end
         mulS!(Sw, w)
-        # A residual of negative norm means that S, the dynamical matrix, is
+        # A residual of negative norm means that S, the Hamiltonian matrix, is
         # not positive definite, so that the magnetic structure is unstable. A
         # residual small relative to Ĩ S q exhausts the space.
         β² = real(dot_noblas(w, Sw))

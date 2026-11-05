@@ -56,24 +56,23 @@ all_observable_monomials(swt::SpinWaveTheory, ::Val{K}) where K =
     reduce(vcat, (observable_monomials(swt, μ, Val{K}()) for μ in 1:num_observables(swt.measure)); init=BosonMonomial{K}[])
 
 # Monomials of `K` bosons in the expansion of the spin component α of site i, in
-# the local frame. Unlike `observable_monomials`, which describes what `measure`
-# reads out and so only needs the words that create a magnon, this is the full
-# expansion of 𝐒 itself, whose expectation value `corrected_magnetic_moments`
-# takes. The words of K = 0, 1, 2 are respectively the classical dipole, the
-# tadpole tilt, and the zero-point depletion.
+# the local frame. For an entangled system, `bi` selects a bare site of the unit
+# i. Unlike `observable_monomials`, which describes what `measure` reads out and
+# so only needs the words that create a magnon, this is the full expansion of 𝐒
+# itself, whose expectation value `corrected_magnetic_moments` takes. The words
+# of K = 0, 1, 2 are respectively the classical dipole, the tadpole tilt, and
+# the zero-point depletion.
 #
 # In mode :SUN the spin components are matrices on the same footing as a term of
 # the Hamiltonian, so their words are those of `local_monomials`. In the dipole
 # modes the Holstein-Primakoff expansion of ExpansionDipole.jl gives the words
 # directly, ⟨𝐒⟩ = R (σ Re v, σ Im v, s - ⟨b†b⟩) in a local frame whose ẑ is the
 # classical dipole.
-function spin_monomials(swt::SpinWaveTheory, α, i, ::Val{K}) where K
-    (; sys) = swt
-    (; frames) = swt.vacuum
-    L = nbands(swt)
+function spin_monomials(sys::System, frames, α, i, ::Val{K}; bi=i) where K
+    L = nbands(sys)
     if sys.mode == :SUN
-        S = local_spin_ops(sys, frames[i], i)[α]
-        return local_monomials(S, i, zero(Vec3), Val{K}(), nflavors(swt), L)
+        S = local_spin_ops(sys, frames[i], bi)[α]
+        return local_monomials(S, i, zero(Vec3), Val{K}(), nflavors(sys), L)
     end
 
     @assert sys.mode in (:dipole, :dipole_uncorrected)
@@ -83,3 +82,5 @@ function spin_monomials(swt::SpinWaveTheory, α, i, ::Val{K}) where K
     words = spin_component_words(frames[i][α, :], √(2sys.κs[i]))
     return local_word_monomials(words, i, L, Val{K}())
 end
+
+spin_monomials(swt::SpinWaveTheory, α, i, ::Val{K}) where K = spin_monomials(swt.sys, swt.vacuum.frames, α, i, Val{K}())

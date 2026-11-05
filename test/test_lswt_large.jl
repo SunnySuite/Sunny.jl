@@ -98,6 +98,16 @@ end
         @test isapprox(res1.data, res2.data, rtol=1e-6)
         @test_throws "Specify a broadening η > 0" intensities(swt_large, [q]; energies, kernel, kT=0.3)
 
+        # Dipole-dipole interactions, which the matrix-free products apply by
+        # FFT over the cells of a 2×2 supercell
+        sys_dd = repeat_periodically(sys, (2, 2, 1))
+        enable_dipole_dipole!(sys_dd, 0.05)
+        minimize_energy!(sys_dd)
+        measure_dd = ssf_perp(sys_dd; formfactors)
+        res1 = intensities(SpinWaveTheory(sys_dd; measure=measure_dd), [q]; energies, η=0.05, kernel, kT=0.3)
+        res2 = intensities(SpinWaveTheoryLarge(sys_dd; measure=measure_dd, tol=1e-10), [q]; energies, η=0.05, kernel, kT=0.3)
+        @test isapprox(res1.data, res2.data, rtol=1e-6)
+
         # A temperature far below the kernel width would enclose too many
         # Matsubara poles
         @test_throws "too small relative to the kernel width" intensities(swt_large, [q]; energies, η=0.05, kernel, kT=1e-9)

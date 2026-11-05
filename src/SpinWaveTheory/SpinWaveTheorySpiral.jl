@@ -74,13 +74,12 @@ end
 
 ## Dispersion and intensities
 
-function dynamical_matrix!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_supercell; branch)
+function hamiltonian_matrix!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_supercell; branch)
     (; swt, k_supercell, table) = sswt
     L = nbands(swt)
     @assert size(H) == (2L, 2L)
     H .= 0
-    accum_lower!(H, table, q_supercell + (branch - 2) * k_supercell)
-    hermitian_from_lower!(H)
+    accum_table!(H, table, q_supercell + (branch - 2) * k_supercell)
     for i in 1:2L
         H[i, i] += swt.regularization
     end
@@ -88,7 +87,7 @@ end
 
 # Bogoliubov transform of branch s at wavevector q, in the workspace `ws`
 function excitations!(ws::BogoliubovWorkspace, H, sswt::SpinWaveTheorySpiral, q; branch)
-    dynamical_matrix!(H, sswt, to_supercell_rlu(sswt.sys, q); branch)
+    hamiltonian_matrix!(H, sswt, to_supercell_rlu(sswt.sys, q); branch)
     return bogoliubov_or_throw!(() -> "Not an energy-minimum; wavevector q = $(vec3_to_string(q)) unstable.", ws, H)
 end
 

@@ -663,7 +663,7 @@ end
 
         # LSWT's own coefficients: A₁ of the word b†b and A₂ of the anomalous b†b†
         H = zeros(ComplexF64, 2, 2)
-        Sunny.dynamical_matrix!(H, swt, zero(Sunny.Vec3))
+        Sunny.hamiltonian_matrix!(H, swt, zero(Sunny.Vec3))
         (; terms2, δE) = Sunny.anisotropy_correction(swt)
         coef(as) = sum(t.c for t in terms2 if t.as == as; init=0.0im)
 
@@ -855,7 +855,7 @@ end
     let q = Sunny.Vec3(0.23, -0.41, 0.17)
         Hq = zeros(ComplexF64, 2L, 2L)
         T = zeros(ComplexF64, 2L, 2L)
-        Sunny.dynamical_matrix!(Hq, swt, q)
+        Sunny.hamiltonian_matrix!(Hq, swt, q)
         Sunny.bogoliubov!(T, Hq)
         Tm = [conj(T[bar(a), bar(m)]) for a in 1:2L, m in 1:2L]
         U = Sunny.vertex!(zeros(ComplexF64, 2L, 2L), terms2, (q, -q), (T, Tm))

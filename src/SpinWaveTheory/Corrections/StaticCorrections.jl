@@ -102,13 +102,14 @@ uniform_shift(c, L) = [BosonMonomial(complex(c), (L+a, a), (zero(Vec3), zero(Vec
 
 # Terms that the constraint `pin` adds to the correction `terms2` of the
 # harmonic `swt`, and the multiplier that fixes them. A uniform shift moves
-# every eigenvalue of the dynamical matrix equally, so one evaluation at `q`
+# every eigenvalue of the Hamiltonian matrix equally, so one evaluation at `q`
 # solves for it exactly. The zero mode is left at `swt.regularization`, like any
 # Goldstone mode of LSWT.
 function constraint_terms(pin::GoldstonePin, swt, terms2)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H, swt_with_vacuum(swt; correction=terms2), to_supercell_rlu(swt.sys, pin.q))
+    q_supercell = to_supercell_rlu(swt.sys, pin.q)
+    hamiltonian_matrix!(H, swt_with_vacuum(swt; correction=terms2), q_supercell)
     μ = swt.regularization - eigmin(Hermitian(H))
     return (uniform_shift(μ, L), (; μ))
 end
@@ -215,7 +216,7 @@ function to_self_consistent_vacuum_aux(swt::SpinWaveTheory, grid::NTuple{3, Int}
                 err isa InstabilityError || rethrow()
                 sw = shifted(terms2, s)
                 λ = minimum(probe) do q
-                    dynamical_matrix!(H, sw, q)
+                    hamiltonian_matrix!(H, sw, q)
                     eigmin(Hermitian(H))
                 end
                 s += max(-1.1λ, 1e-3)
@@ -417,7 +418,7 @@ function tadpole(swt::SpinWaveTheory, terms3, g::Contractions)
     # freedom unused. Its cutoff must also discard `swt.regularization`, which
     # would otherwise turn the Goldstone direction into a huge displacement.
     H = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H, swt_with_vacuum(swt), zero(Vec3))
+    hamiltonian_matrix!(H, swt_with_vacuum(swt), zero(Vec3))
     w = -pinv(H; rtol=1e-6) * [ℓ[nambu_conj(a, L)] for a in 1:2L]
     @assert norm(w[L+1:2L] - conj(w[1:L])) < noise * max(norm(w), 1)
 
@@ -535,9 +536,9 @@ function zero_point_energy(swt::SpinWaveTheory, grid)
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
     ws = BogoliubovWorkspace(L)
-    E₀ = spectral_bound(swt)
+    E₀ = spectral_scale(swt)
     return E₀ * bz_average(grid) do q_supercell
-        dynamical_matrix!(H, swt, q_supercell)
+        hamiltonian_matrix!(H, swt, q_supercell)
         trA = real(tr(view(H, 1:L, 1:L)))
         ωs = bogoliubov!(ws, H)
         return (sum(view(ωs, 1:L)) - trA) / (2Nsites * E₀)
@@ -683,7 +684,6 @@ static_table(swt::SpinWaveTheory, terms2) =
 # basis `T` of the vacuum at `q_supercell`
 function static_self_energy_matrix(table::QuadraticTable, q_supercell, T)
     δH = zeros(ComplexF64, size(T))
-    accum_lower!(δH, table, q_supercell)
-    hermitian_from_lower!(δH)
+    accum_table!(δH, table, q_supercell)
     return T' * δH * T
 end

@@ -126,7 +126,7 @@ function vacuum_modes!(ws::BogoliubovWorkspace, H, swt::SpinWaveTheory, q_superc
     catch err
         err isa InstabilityError || rethrow()
     end
-    dynamical_matrix!(H, swt, q_supercell)
+    hamiltonian_matrix!(H, swt, q_supercell)
     Ĩ = Diagonal([ones(L); -ones(L)])
     (λ, V) = eigen(Ĩ * H; sortby=real)
     tol = sqrt(eps()) * opnorm(H, 1)

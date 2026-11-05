@@ -111,19 +111,19 @@ export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_gri
 include("SpinWaveTheory/Bogoliubov.jl")
 include("SpinWaveTheory/Bosons/Monomials.jl")
 include("SpinWaveTheory/Bosons/QuadraticTable.jl")
+include("SpinWaveTheory/Bosons/QuadraticEwald.jl")
 include("SpinWaveTheory/Bosons/StevensWords.jl")
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/Bosons/ExpansionDipole.jl")
 include("SpinWaveTheory/Bosons/ExpansionSUN.jl")
 include("SpinWaveTheory/Bosons/ObservableWords.jl")
-include("SpinWaveTheory/DipoleDipole.jl")
 export SpinWaveTheory, excitations, excitations!, dispersion, intensities,
     intensities_bands, intensities_static
 
 include("SpinWaveTheory/SpinWaveTheorySpiral.jl")
 export SpinWaveTheorySpiral
 
-include("SpinWaveTheory/Large/SparseDynamicalMatrix.jl")
+include("SpinWaveTheory/Large/HamiltonianOperator.jl")
 include("SpinWaveTheory/Large/Lanczos.jl")
 include("SpinWaveTheory/Large/SpinWaveTheoryLarge.jl")
 export SpinWaveTheoryLarge

@@ -582,7 +582,7 @@ end
         disp_ref = dispersion(SpinWaveTheory(sys_ref; measure=nothing), q)
         disp = dispersion(SpinWaveTheory(sys; measure=nothing), q)
         L = length(disp_ref)
-        # The vacancy block of the dynamical matrix is only the regularization
+        # The vacancy block of the Hamiltonian matrix is only the regularization
         # 1e-8, so the transformed eigenproblem has norm ~1e8 and the physical
         # bands carry a relative round-off of ~1e-8 that varies across BLAS
         # builds.
@@ -609,7 +609,7 @@ end
         swt = SpinWaveTheory(sys; measure=nothing)
         L = Sunny.nbands(swt)
         H = zeros(ComplexF64, 2L, 2L)
-        Sunny.dynamical_matrix!(H, swt, Sunny.Vec3(q))
+        Sunny.hamiltonian_matrix!(H, swt, Sunny.Vec3(q))
         return H
     end
 
@@ -629,53 +629,46 @@ end
 end
 
 
-@testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
+@testitem "Equivalence of dense and matrix-free Hamiltonians" begin
     using LinearAlgebra
 
-    # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
-    function simple_swt(mode)
-        cryst = Crystal(diagm([1, 1, 2]), [[0, 0, 0]], "P1")
-        sys = System(cryst, [1 => Moment(s=1, g=1)], mode; dims=(8, 1, 1))
-
-        K1 = diagm([2, -1, -1])
-        K2 = diagm([-1, -1, 2])
-        set_pair_coupling!(sys, (Si, Sj) -> -Si'*Sj + (Si'*K1*Si)*(Sj'*K2*Sj), Bond(1,1,[1,0,0]); extract_parts=true)
-        set_onsite_coupling!(sys, S -> S[3]^2, 1)
-        set_field!(sys, [0, 0, 0.1])
-
-        randomize_spins!(sys)
-        minimize_energy!(sys; maxiters=1_000)
-
+    # A triclinic cell with two atoms, an anisotropic g-tensor, exchange that
+    # includes a general biquadratic part, anisotropy, a field, and
+    # dipole-dipole interactions
+    function make_swt(mode)
+        latvecs = lattice_vectors(1.1, 0.9, 0.8, 92, 85, 95)
+        cryst = Crystal(latvecs, [[0, 0, 0], [0.3, 0.1, 0.2]], 1)
+        g = [2 0.1 0; 0.1 1.8 0; 0 0 2.2]
+        sys = System(cryst, [1 => Moment(s=3/2, g=2), 2 => Moment(s=3/2; g)], mode; dims=(3, 2, 1))
+        K = diagm([2, -1, -1])
+        set_pair_coupling!(sys, (Si, Sj) -> 0.3*Si'*Sj + 0.05*(Si'*K*Si)*(Sj'*K*Sj), Bond(1, 2, [0, 0, 0]); extract_parts=true)
+        set_onsite_coupling!(sys, S -> 0.2*S[3]^2, 1)
+        set_field!(sys, [0.5, 0.2, 2])
+        enable_dipole_dipole!(sys, 0.2; demag=Sunny.Mat3(I/3))
+        polarize_spins!(sys, [0, 0, 1])
+        minimize_energy!(sys; maxiters=10_000)
         return SpinWaveTheory(sys; measure=nothing)
     end
 
-    q = Sunny.Vec3(0.5, 0, 0)
+    # The columns of H(q) from the matrix-free products of SpinWaveTheoryLarge
+    function matrix_free(swt, q)
+        H = Sunny.set_wavevector!(Sunny.HamiltonianOperator(swt), q)
+        n = 2Sunny.nbands(swt)
+        return reduce(hcat, mul!(zeros(ComplexF64, n), H, (1:n) .== j) for j in 1:n)
+    end
 
-    for mode = (:dipole, :SUN)
-        # Construct Hamiltonian directly
-        swt = simple_swt(mode)
-        H1 = Sunny.dynamical_matrix(swt, q)
+    # Wavevectors on and off the lattice reciprocal to the supercell
+    for mode in (:dipole, :SUN)
+        swt = make_swt(mode)
+        for q in (Sunny.Vec3(0, 0, 0), Sunny.Vec3(0.37, -1.2, 0.11))
+            @test Sunny.hamiltonian_matrix(swt, q) ≈ matrix_free(swt, q)
 
-        # Construct Hamiltonian by sparse matrix-vector multiplies, as in
-        # SpinWaveTheoryLarge
-        L = Sunny.nbands(swt)
-        Hs = Sunny.SparseDynamicalMatrix(swt)
-        Hq = Sunny.values_at!(similar(Hs.vals), Hs, q)
-        H2 = mapreduce(hcat, 1:2L) do j
-            x = zeros(ComplexF64, 2L)
-            x[j] = 1
-            Sunny.mul_sparse!(zero(x), Hs, x, Hq)
-        end
-
-        @test H1 ≈ H2
-
-        # In mode :SUN, both are compiled from the quadratic boson monomials,
-        # which the 1/s corrections certify against exact diagonalization
-        if mode == :SUN
-            H3 = zeros(ComplexF64, 2L, 2L)
-            Sunny.accum_quadratic!(H3, Sunny.hamiltonian_monomials(swt.sys, swt.vacuum.frames, Val{2}()), q)
-            @test H1 ≈ H3 + swt.regularization * I
-            @test H1 == H1'
+            # The compiled table reproduces its monomials, and is exactly
+            # Hermitian
+            n = 2Sunny.nbands(swt)
+            H = Sunny.accum_table!(zeros(ComplexF64, n, n), swt.quadratic_table, q)
+            @test H ≈ Sunny.accum_quadratic!(zeros(ComplexF64, n, n), swt.monomials.quadratic, q)
+            @test H == H'
         end
     end
 end

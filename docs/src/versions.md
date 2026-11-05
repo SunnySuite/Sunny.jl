@@ -30,9 +30,10 @@
   correctness.
 * [`SpinWaveTheoryLarge`](@ref) replaces `SpinWaveTheoryKPM` for efficient
   calculations on large supercells. It now uses the Lanczos method with an
-  adaptive termination criterion. The revised [Tutorial 9](@ref "9. Spin waves
-  in disordered magnets") now calculates site dilution in the quasi-2D
-  antiferromagnet Rb₂MnF₄.
+  adaptive termination criterion. Long-range dipole-dipole interactions are
+  supported via FFT. The revised [Tutorial 9](@ref "9. Spin waves in disordered
+  magnets") now calculates site dilution in the quasi-2D antiferromagnet
+  Rb₂MnF₄.
 * Ewald summation for spin wave theory is greatly accelerated ([#514](@ref)).
   Correctness fix when sites have different spin magnitudes ([#521](@ref)).
 * [`SampledCorrelations`](@ref) supports `kernel` broadening ([#507](@ref)).

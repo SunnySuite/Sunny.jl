@@ -220,6 +220,6 @@ function cubic_vertex_vanishes(swt::SpinWaveTheory, terms3)
     isempty(terms3) && return true
     L = nbands(swt)
     H = zeros(ComplexF64, 2L, 2L)
-    dynamical_matrix!(H, swt, zero(Vec3))
+    hamiltonian_matrix!(H, swt, zero(Vec3))
     return maximum(abs(t.c) for t in terms3) < 1e-8 * norm(H)
 end

@@ -70,17 +70,18 @@ const SLOT_PERMUTATIONS = ntuple(slot_permutations, 4)
 nambu_conj(a, L) = mod1(a + L, 2L)
 
 # Accumulates quadratic monomials into the Nambu matrix H, in the convention
-# H₂ = (1/2) x†_𝐪 H_𝐪 x_𝐪 + const of `dynamical_matrix!`. Fourier
+# H₂ = (1/2) x†_𝐪 H_𝐪 x_𝐪 + const of `hamiltonian_matrix!`. Fourier
 # transforming a monomial as in `vertex!` gives
 #
 #     c Σ_𝐫 O_{a₁}(𝐫+𝐧₁) O_{a₂}(𝐫+𝐧₂) = Σ_𝐪 c φ x_𝐪[a₁] x_𝐪[ā₂]†,
 #
-# where φ = exp(2πi 𝐪⋅(𝐧₁-𝐧₂)) and ā = mod1(a+L, 2L) labels the adjoint. Up to a
-# constant from the commutator this is c φ x†[ā₂] x[a₁]. Since Σ_𝐪 x†_𝐪[α] x_𝐪[β]
-# is invariant under (α, β, φ) → (β̄, ᾱ, conj(φ)), the weight can be split evenly
-# between the two forms; that is what feeds a single b†b monomial into both the
-# (1,1) and the (2,2) Nambu block. Applied to the monomials of H₂ itself, the rule
-# reproduces every entry written by `dynamical_matrix!`.
+# where φ = exp(2πi 𝐪⋅(𝐧₁-𝐧₂)) and ā = mod1(a+L, 2L) labels the adjoint. Up
+# to a constant from the commutator this is c φ x†[ā₂] x[a₁]. Since Σ_𝐪
+# x†_𝐪[α] x_𝐪[β] is invariant under (α, β, φ) → (β̄, ᾱ, conj(φ)), the weight
+# can be split evenly between the two forms; that is what feeds a single b†b
+# monomial into both the (1,1) and the (2,2) Nambu block. Applied to the
+# monomials of H₂ itself, the rule reproduces every entry written by
+# `hamiltonian_matrix!`.
 #
 # The rule is covariant under taking adjoints, so a monomial list describing a
 # Hermitian operator yields a Hermitian matrix. Two monomials can nonetheless
@@ -103,7 +104,7 @@ end
 #
 # where x_𝐤 = [b_𝐤; b†_{-𝐤}] is the Nambu vector, so that every component of
 # x_𝐤 removes momentum 𝐤 and the momenta of a monomial sum to zero. This phase
-# convention agrees with `dynamical_matrix!`, whose b†_i b_j coefficient
+# convention agrees with `hamiltonian_matrix!`, whose b†_i b_j coefficient
 # carries `cis(2π 𝐪⋅𝐧)` for a bond offset 𝐧. Writing x_𝐤 = T_𝐤 y_𝐤 with
 # y_𝐤 = [α_𝐤; α†_{-𝐤}] then gives, for example,
 #

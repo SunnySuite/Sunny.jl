@@ -52,7 +52,6 @@ refinement of the kernel polynomial method, which was previously implemented as
 """
 struct SpinWaveTheoryLarge
     swt :: SpinWaveTheory
-    H :: SparseDynamicalMatrix
     tol :: Float64
     maxiters :: Int
 
@@ -61,7 +60,7 @@ struct SpinWaveTheoryLarge
         0 < tol < 1 || error("Require 0 < tol < 1")
         maxiters > 0 || error("Require maxiters > 0")
         swt = SpinWaveTheory(sys; measure, regularization)
-        return new(swt, SparseDynamicalMatrix(swt), tol, maxiters)
+        return new(swt, tol, maxiters)
     end
 end
 
@@ -126,7 +125,7 @@ end
 # 1. T. Chen, The Lanczos algorithm for matrix functions: a handbook for
 #    scientists (2024), Sec. 5.
 function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded, verbose)
-    (; swt, H, tol, maxiters) = swt_large
+    (; swt, tol, maxiters) = swt_large
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
 
@@ -134,26 +133,26 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
     fill!(data, zero(eltype(data)))
 
     Ncells = nsites(sys) / natoms(cryst)
-    n = size(H, 1)
+    n = 2nbands(swt)
     Nobs = num_observables(measure)
     rb = RetardedBroadening(energies; η, kernel, kT)
-    Λ = spectral_bound(swt)
+    Λ = spectral_scale(swt)
     # Lanczos steps of each run per wavevector, for the `verbose` report
     iters = [Int[] for _ in qpts.qs]
 
     newbuf() = (
-        u    = zeros(ComplexF64, n, Nobs),
-        Hq   = similar(H.vals),
+        u = zeros(ComplexF64, n, Nobs),
+        H = HamiltonianOperator(swt),
         corr = zeros(ComplexF64, length(measure.corr_pairs)),
     )
 
     function calc_iq!(buf, iq)
-        (; u, Hq, corr) = buf
+        (; u, H, corr) = buf
         q = qpts.qs[iq]
         q_global = cryst.recipvecs * q
         observable_vectors!(u, swt, q_global)
-        values_at!(Hq, H, to_supercell_rlu(sys, q))
-        mulS!(y, x) = mul_sparse!(y, H, x, Hq)
+        set_wavevector!(H, to_supercell_rlu(sys, q))
+        mulS!(y, x) = mul!(y, H, x)
 
         V = mul_Ĩ!(similar(u), u)
 

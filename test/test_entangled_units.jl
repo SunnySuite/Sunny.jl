@@ -465,9 +465,13 @@ end
     sdisp = sort(dispersion(SpinWaveTheory(essys; measure=nothing), qs); dims=1)
     @test isapprox(sdisp, golden; atol=1e-6)
 
-    # The matrix-free product of SpinWaveTheoryLarge does not yet support
-    # dipole-dipole interactions
-    @test_throws "Dipole-dipole interactions are not yet supported" SpinWaveTheoryLarge(edsys; measure=nothing, tol=0.1)
+    # The matrix-free product of SpinWaveTheoryLarge, for the unit that
+    # straddles the cell boundary
+    measure = ssf_trace(essys)
+    energies = range(0, 6, 31)
+    res1 = intensities(SpinWaveTheory(essys; measure), qs; energies, η=0.1)
+    res2 = intensities(SpinWaveTheoryLarge(essys; measure, tol=1e-8), qs; energies, η=0.1)
+    @test isapprox(res1.data, res2.data; rtol=1e-6)
 end
 
 @testitem "Model parameters for entangled units" begin
