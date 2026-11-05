@@ -650,11 +650,12 @@ end
         return SpinWaveTheory(sys; measure=nothing)
     end
 
-    # The columns of H(q) from the matrix-free products of SpinWaveTheoryLarge
-    function matrix_free(swt, q)
-        H = Sunny.set_wavevector!(Sunny.HamiltonianOperator(swt), q)
+    # The columns of H(q) from the matrix-free products of SpinWaveTheoryLarge,
+    # in precision FT
+    function matrix_free(swt, q, FT=Float64)
+        H = Sunny.set_wavevector!(Sunny.HamiltonianOperator(swt, FT), q)
         n = 2Sunny.nbands(swt)
-        return reduce(hcat, mul!(zeros(ComplexF64, n), H, (1:n) .== j) for j in 1:n)
+        return reduce(hcat, mul!(zeros(Complex{FT}, n), H, Complex{FT}.((1:n) .== j)) for j in 1:n)
     end
 
     # Wavevectors on and off the lattice reciprocal to the supercell
@@ -662,6 +663,7 @@ end
         swt = make_swt(mode)
         for q in (Sunny.Vec3(0, 0, 0), Sunny.Vec3(0.37, -1.2, 0.11))
             @test Sunny.hamiltonian_matrix(swt, q) ≈ matrix_free(swt, q)
+            @test isapprox(Sunny.hamiltonian_matrix(swt, q), matrix_free(swt, q, Float32); rtol=1e-6)
 
             # The compiled table reproduces its monomials, and is exactly
             # Hermitian

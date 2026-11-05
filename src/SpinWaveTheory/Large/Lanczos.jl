@@ -68,6 +68,10 @@
 # by the spectral theorem for ĨS, which is self-adjoint in this inner product.
 # With the same τ ≈ 1/u_m, the estimate is ‖e‖ ≈ β_m |x_m| (-Im τ / Im z)^{1/2}.
 #
+# The vectors may have a precision FT below Float64, e.g., Float32. Their
+# products are then in FT, while the sums and the recurrence for T remain in
+# Float64.
+#
 # Every step is one product with S, two passes over vectors of length n, one
 # pass per probe, and a pass over the nodes. The loops are written out, rather
 # than calling BLAS, because this runs in each of many threads and OpenBLAS
@@ -76,9 +80,9 @@
 # 1. T. Chen, The Lanczos algorithm for matrix functions: a handbook for
 #    scientists (2024), Sec. 3.
 # 2. G. Szegő, Orthogonal Polynomials (1939), Sec. 3.41.
-mutable struct LanczosResolvent{F}
+mutable struct LanczosResolvent{F, FT}
     const mulS!  :: F
-    const probes :: Matrix{ComplexF64}
+    const probes :: Matrix{Complex{FT}}
     const zs     :: Vector{ComplexF64}
     const near_zero :: BitVector        # Nodes close to z = 0 use the product for x₁
     const β₀     :: Float64
@@ -86,11 +90,11 @@ mutable struct LanczosResolvent{F}
     const c₀ₐ    :: Vector{ComplexF64}  # vₐ† Ĩ v for each probe
     # The current and previous Lanczos vectors, the current vector times S, and
     # the residual and its image under S
-    q            :: Vector{ComplexF64}
-    qprev        :: Vector{ComplexF64}
-    Sq           :: Vector{ComplexF64}
-    w            :: Vector{ComplexF64}
-    Sw           :: Vector{ComplexF64}
+    q            :: Vector{Complex{FT}}
+    qprev        :: Vector{Complex{FT}}
+    Sq           :: Vector{Complex{FT}}
+    w            :: Vector{Complex{FT}}
+    Sw           :: Vector{Complex{FT}}
     # The rows eliminated, the coupling β_m of the last to the next, and the
     # largest coupling so far
     nrows        :: Int
@@ -111,7 +115,7 @@ mutable struct LanczosResolvent{F}
     const s      :: Matrix{ComplexF64}
 end
 
-function LanczosResolvent(mulS!, v, probes, zs, Λ)
+function LanczosResolvent(mulS!, v::Vector{Complex{FT}}, probes::Matrix{Complex{FT}}, zs, Λ) where FT
     Sv = mulS!(similar(v), v)
     β₀² = real(dot_noblas(v, Sv))
     β₀² > 0 || throw(InstabilityError("S is not positive definite"))
@@ -122,7 +126,7 @@ function LanczosResolvent(mulS!, v, probes, zs, Λ)
     (nz, np) = (length(zs), size(probes, 2))
     z(dims...) = zeros(ComplexF64, dims...)
     near_zero = BitVector(abs.(zs) .< eps()^(1/4) * Λ)
-    return LanczosResolvent(mulS!, probes, zs, near_zero, β₀, c₀, c₀ₐ, v / β₀, zero(v), Sv / β₀, zero(v), zero(v),
+    return LanczosResolvent(mulS!, probes, zs, near_zero, β₀, c₀, c₀ₐ, v / FT(β₀), zero(v), Sv / FT(β₀), zero(v), zero(v),
                             0, 0.0, 0.0, 1.0, 0.0, 1.0, z(nz), z(nz), ones(ComplexF64, nz), z(nz), z(np, nz), z(np, nz))
 end
 
@@ -148,7 +152,7 @@ end
 # Eliminates rows of T up to `m` in total, or fewer if the Krylov space is
 # exhausted. Each row j is eliminated with α_j and the overlaps of q_j, and the
 # Lanczos step that follows gives the coupling β_j to the next row.
-function extend!(r::LanczosResolvent, m)
+function extend!(r::LanczosResolvent{F, FT}, m) where {F, FT}
     (; mulS!, probes, zs, near_zero, invu, invu′, g, x₁, h, s) = r
     n = length(r.q)
     L = n ÷ 2
@@ -199,7 +203,10 @@ function extend!(r::LanczosResolvent, m)
         mulS!(Sw, w)
         # A residual of negative norm means that S, the Hamiltonian matrix, is
         # not positive definite, so that the magnetic structure is unstable. A
-        # residual small relative to Ĩ S q exhausts the space.
+        # residual small relative to Ĩ S q exhausts the space. The cutoff is a
+        # fixed fraction of the scale, also for vectors in precision FT: the
+        # residual of an exhausted space is round-off, with β² of order
+        # eps(FT)² times the scale.
         β² = real(dot_noblas(w, Sw))
         scale = α^2 + β′^2 + abs(β²)
         β² < -sqrt(eps()) * scale && throw(InstabilityError("S is not positive definite"))

@@ -2,33 +2,55 @@ import LinearAlgebra: BlasInt
 
 # Storage for `bogoliubov!`, holding the transformation `T` and energies `ε`
 # that it produces, together with the LAPACK scratch space that `eigen!` would
-# otherwise allocate on every call.
-struct BogoliubovWorkspace
-    T     :: Matrix{ComplexF64}   # Transformation, as documented by `excitations!`
-    ε     :: Vector{Float64}      # Signed energies, in the same grouping
-    Tscr  :: Matrix{ComplexF64}   # Scratch for the reordering below
-    εscr  :: Vector{Float64}
-    work  :: Vector{ComplexF64}   # LAPACK scratch for zhegvd
-    rwork :: Vector{Float64}
+# otherwise allocate on every call. The precision is `FT`.
+struct BogoliubovWorkspace{FT}
+    T     :: Matrix{Complex{FT}}   # Transformation, as documented by `excitations!`
+    ε     :: Vector{FT}            # Signed energies, in the same grouping
+    Tscr  :: Matrix{Complex{FT}}   # Scratch for the reordering below
+    εscr  :: Vector{FT}
+    work  :: Vector{Complex{FT}}   # LAPACK scratch for zhegvd or chegvd
+    rwork :: Vector{FT}
     iwork :: Vector{BlasInt}
     info  :: Base.RefValue{BlasInt}
 end
 
-function BogoliubovWorkspace(L::Int)
+function BogoliubovWorkspace(L::Int, ::Type{FT}=Float64) where FT
     n = 2L
+    CT = Complex{FT}
     # Minimum scratch sizes documented for ZHEGVD with jobz = 'V' and n > 1
     # (always true here, since n = 2L).
-    return BogoliubovWorkspace(zeros(ComplexF64, n, n), zeros(n), zeros(ComplexF64, n, n), zeros(n),
-                               zeros(ComplexF64, 2n + n^2), zeros(1 + 5n + 2n^2), zeros(BlasInt, 3 + 5n),
+    return BogoliubovWorkspace(zeros(CT, n, n), zeros(FT, n), zeros(CT, n, n), zeros(FT, n),
+                               zeros(CT, 2n + n^2), zeros(FT, 1 + 5n + 2n^2), zeros(BlasInt, 3 + 5n),
                                Ref(BlasInt(0)))
+end
+
+# The generalized eigenproblem A t = λ B t, overwriting A with the eigenvectors
+# t and B with its Cholesky factor. This is `eigen!(Hermitian(A),
+# Hermitian(B))` with every allocation hoisted into `ws`.
+for (hegvd, FT) in ((:zhegvd_, :Float64), (:chegvd_, :Float32))
+    @eval function hegvd!(ws::BogoliubovWorkspace{$FT}, A, B)
+        (; ε, work, rwork, iwork, info) = ws
+        n = size(A, 1)
+        ccall((BLAS.@blasfunc($hegvd), LinearAlgebra.libblastrampoline), Cvoid,
+              (Ref{BlasInt}, Ref{UInt8}, Ref{UInt8}, Ref{BlasInt},
+               Ptr{Complex{$FT}}, Ref{BlasInt}, Ptr{Complex{$FT}}, Ref{BlasInt},
+               Ptr{$FT}, Ptr{Complex{$FT}}, Ref{BlasInt}, Ptr{$FT},
+               Ref{BlasInt}, Ptr{BlasInt}, Ref{BlasInt}, Ptr{BlasInt},
+               Clong, Clong),
+              1, 'V', 'U', n, A, n, B, n, ε, work, length(work), rwork,
+              length(rwork), iwork, length(iwork), info, 1, 1)
+        info[] < 0 && throw(ArgumentError("Invalid argument #$(-info[]) to LAPACK $($(string(hegvd)))"))
+        info[] > 0 && throw(PosDefException(info[]))
+    end
 end
 
 # Bogoliubov transformation that diagonalizes a quadratic bosonic Hamiltonian,
 # allowing for anomalous terms. The general procedure derives from Colpa,
-# Physica A, 93A, 327-353 (1978). Overwrites data in H. The returned energies
-# alias `ws.ε`, and so are valid only until the next call on the same workspace.
-function bogoliubov!(ws::BogoliubovWorkspace, H::Matrix{ComplexF64})
-    (; T, ε, Tscr, εscr, work, rwork, iwork, info) = ws
+# Physica A, 93A, 327-353 (1978). Overwrites data in H, if it has the precision
+# of `ws`, and otherwise rounds a copy. The returned energies alias `ws.ε`, and
+# so are valid only until the next call on the same workspace.
+function bogoliubov!(ws::BogoliubovWorkspace{FT}, H::Matrix{<:Complex}) where FT
+    (; T, ε, Tscr, εscr) = ws
     n = size(T, 1)
     L = div(n, 2)
     @assert size(H) == (n, n)
@@ -43,18 +65,10 @@ function bogoliubov!(ws::BogoliubovWorkspace, H::Matrix{ComplexF64})
         T[i+L, i+L] = -1
     end
 
-    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of T. This is
-    # `eigen!(Hermitian(T), Hermitian(H))` with every allocation hoisted into `ws`.
-    ccall((BLAS.@blasfunc(zhegvd_), LinearAlgebra.libblastrampoline), Cvoid,
-          (Ref{BlasInt}, Ref{UInt8}, Ref{UInt8}, Ref{BlasInt},
-           Ptr{ComplexF64}, Ref{BlasInt}, Ptr{ComplexF64}, Ref{BlasInt},
-           Ptr{Float64}, Ptr{ComplexF64}, Ref{BlasInt}, Ptr{Float64},
-           Ref{BlasInt}, Ptr{BlasInt}, Ref{BlasInt}, Ptr{BlasInt},
-           Clong, Clong),
-          1, 'V', 'U', n, T, n, H, n, ε, work, length(work), rwork,
-          length(rwork), iwork, length(iwork), info, 1, 1)
-    info[] < 0 && throw(ArgumentError("Invalid argument #$(-info[]) to LAPACK zhegvd"))
-    info[] > 0 && throw(PosDefException(info[]))
+    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of T. A
+    # copy of H in the precision of `ws` can use `Tscr`, which is needed only
+    # after the solve.
+    hegvd!(ws, T, H isa Matrix{Complex{FT}} ? H : copyto!(Tscr, H))
 
     # By Sylvester's theorem, "inertia" (sign signature) is invariant under a
     # congruence transform Ĩ → √H Ĩ √H, so exactly L of the λ are negative. LAPACK
@@ -98,7 +112,7 @@ end
 
 # Like `bogoliubov!`, but a Hamiltonian that is not positive definite throws an
 # `InstabilityError` with the message `msg()`, built only on failure
-function bogoliubov_or_throw!(msg, ws::BogoliubovWorkspace, H::Matrix{ComplexF64})
+function bogoliubov_or_throw!(msg, ws::BogoliubovWorkspace, H::Matrix{<:Complex})
     try
         return bogoliubov!(ws, H)
     catch err

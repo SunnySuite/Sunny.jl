@@ -29,6 +29,8 @@ import Spglib
 
 include("MathBasics.jl")
 include("Threading.jl")
+include("Devices.jl")
+export CPU
 export load_blas_for_threading
 
 include("Operators/Spin.jl")

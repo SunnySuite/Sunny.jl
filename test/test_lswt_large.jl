@@ -153,6 +153,20 @@ end
     @test isapprox(res1, res2; rtol=1e-6)
     @test isapprox(res1, res3; rtol=1e-3)
 
+    # Float32 requires an explicit regularization above round-off, about 10
+    # eps(Float32) times the bandwidth, for Cholesky and Lanczos to resolve the
+    # zero modes. Both calculators then agree with Float64.
+    device = CPU(Float32)
+    @test_throws "too small for Float32" SpinWaveTheory(sys; measure, device)
+    regularization = 1e-5
+    res4 = intensities(SpinWaveTheory(sys; measure, regularization), qs; energies, η=0.1, kT).data
+    res5 = intensities(SpinWaveTheory(sys; measure, regularization, device), qs; energies, η=0.1, kT).data
+    res6 = intensities(SpinWaveTheoryLarge(sys; measure, tol=1e-3, regularization, device), qs; energies, η=0.1, kT).data
+    @test isapprox(res4, res5; rtol=1e-4)
+    @test isapprox(res4, res6; rtol=1e-3)
+    @test_throws "not yet supported" SpinWaveTheory(sys; measure, device=Sunny.GPU(nothing))
+    @test SpinWaveTheory(sys; measure, regularization=0, device).regularization == 0
+
     # Exceeding the iteration cap is an error
     swt_capped = SpinWaveTheoryLarge(sys; measure, tol=1e-6, maxiters=5)
     @test_throws "Exceeded maxiters" intensities(swt_capped, qs; energies, η=0.1)

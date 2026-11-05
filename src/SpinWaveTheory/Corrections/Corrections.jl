@@ -52,4 +52,5 @@
 # directory are implemented
 function check_corrections_supported(swt::SpinWaveTheory)
     isnothing(swt.sys.ewald) || error("Corrected spin wave theory does not yet support Ewald interactions")
+    swt.device == CPU() || error("Corrected spin wave theory requires device=CPU(Float64)")
 end

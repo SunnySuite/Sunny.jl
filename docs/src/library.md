@@ -13,6 +13,7 @@ Modules = [Sunny]
 ```@docs
 BinningParameters
 Bond
+CPU
 Crystal
 FormFactor
 ImplicitMidpoint

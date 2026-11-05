@@ -42,7 +42,7 @@ function cached!(f, cache::MonomialCache, name::Symbol)
 end
 
 """
-    SpinWaveTheory(sys::System; measure, regularization=1e-8)
+    SpinWaveTheory(sys::System; measure, regularization=1e-8, device=CPU())
 
 Constructs an object to perform linear spin wave theory. The `measure` object
 specifies observable fields, ``𝐪``-dependent contractions, and form factors.
@@ -60,6 +60,9 @@ matrix to avoid numerical issues with quasi-particle modes of vanishing energy.
 Physically, this shift can be interpreted as application of an inhomogeneous
 field aligned with the magnetic ordering.
 
+The optional `device` selects the hardware and floating point precision; see
+[`CPU`](@ref).
+
 A `SpinWaveTheory` may carry a Gaussian vacuum other than the harmonic one; see
 `Sunny.to_hartree_fock_corrected_vacuum` and `Sunny.to_self_consistent_vacuum`.
 Its quadratic Hamiltonian then includes the vacuum's correction, which
@@ -70,6 +73,7 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     sys              :: System       # Private clone, immutable
     measure          :: MeasureSpec
     regularization   :: Float64
+    device           :: AbstractDevice
     vacuum           :: GaussianVacuum
 
     # Energy for `vacuum.frames`
@@ -85,11 +89,13 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     observable_coefs :: Array{ComplexF64, 3}
 end
 
-function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, energy_ϵ=nothing)
+function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, device=CPU(),
+                        energy_ϵ=nothing)
     if !isnothing(energy_ϵ)
         @warn "Keyword argument energy_ϵ is deprecated! Use `regularization` instead."
         regularization = energy_ϵ
     end
+    check_device_supported(device, "SpinWaveTheory")
 
     measure = @something measure empty_measurespec(sys)
     if num_lattice_dims(measure) != sys.dims || num_units_per_cell(measure) != natoms(sys.crystal)
@@ -100,19 +106,40 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     # bands are indexed by the sites of the whole system, and the wavevectors
     # by the reciprocal lattice of its magnetic cell; see `to_supercell_rlu`.
     sys = clone_system(sys)
-    return swt_build(sys, local_frames(sys), energy_per_site(sys), measure, regularization)
+    swt = swt_build(sys, local_frames(sys), energy_per_site(sys), measure, regularization, device)
+    check_regularization(swt)
+    return swt
+end
+
+# Round-off in the Bogoliubov problem is about eps Λ, for the energy scale Λ of
+# `spectral_scale`: 1e-13 Λ in Float64, which the default regularization 1e-8
+# exceeds in practice, and 1e-7 Λ in Float32. Below that, an exact zero mode
+# fails the Cholesky step, and Lanczos cannot resolve the gap that the shift
+# opens: at 1 eps Λ it needs thousands of steps, and at 10 eps Λ only tens. The
+# regularization is not raised quietly, because it sets the intensity of a
+# Goldstone mode. Zero is allowed, for a spectrum known to be gapped.
+function check_regularization(swt::SpinWaveTheory)
+    FT = float_type(swt.device)
+    (FT == Float64 || iszero(swt.regularization)) && return
+    floor = 10eps(FT) * spectral_scale(swt)
+    if swt.regularization < floor
+        reg_str = number_to_simple_string(swt.regularization; digits=3)
+        floor_str = number_to_simple_string(floor; digits=2)
+        error("Regularization $reg_str is too small for $FT. Consider regularization=$floor_str, which can \
+               modify soft mode intensities.")
+    end
 end
 
 # The theory of the model `sys` about the harmonic vacuum of the structure
 # `frames`, with classical energy per site `E`. Compiles everything that depends
 # on the structure.
-function swt_build(sys::System, frames, E, measure, regularization)
+function swt_build(sys::System, frames, E, measure, regularization, device)
     (ewald, field) = quadratic_ewald(sys, frames)
     terms2 = [hamiltonian_monomials(sys, frames, Val{2}()); field]
     table = QuadraticTable(terms2, nbands(sys))
     coefs = observable_coefficients(sys, frames, measure)
     vacuum = GaussianVacuum(frames, BosonMonomial{2}[], nothing, (;))
-    return SpinWaveTheory(sys, measure, regularization, vacuum, E, table, table, ewald, MonomialCache(terms2), coefs)
+    return SpinWaveTheory(sys, measure, regularization, device, vacuum, E, table, table, ewald, MonomialCache(terms2), coefs)
 end
 
 # The same model about the vacuum with the given fields, in place of the vacuum
@@ -122,25 +149,26 @@ end
 # energy minimum.
 function swt_with_vacuum(swt::SpinWaveTheory; frames=swt.vacuum.frames, correction=BosonMonomial{2}[],
                          grid=nothing, info=(;))
-    (; sys, measure, regularization) = swt
+    (; sys, measure, regularization, device) = swt
     vacuum = GaussianVacuum(frames, correction, grid, info)
     if frames !== swt.vacuum.frames
         tilted = clone_system(sys)
         for (i, site) in enumerate(eachsite(tilted))
             iszero(frames[i]) || set_dipole!(tilted, frames[i][:, 3], site)
         end
-        swt = swt_build(sys, frames, energy_per_site(tilted), measure, regularization)
+        swt = swt_build(sys, frames, energy_per_site(tilted), measure, regularization, device)
     end
     (; classical_energy, bare_table, ewald, monomials, observable_coefs) = swt
     table = isempty(vacuum.correction) ? bare_table :
         QuadraticTable([monomials.quadratic; vacuum.correction], nbands(swt))
-    return SpinWaveTheory(sys, measure, regularization, vacuum, classical_energy, table, bare_table,
+    return SpinWaveTheory(sys, measure, regularization, device, vacuum, classical_energy, table, bare_table,
                           ewald, monomials, observable_coefs)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     printstyled(io, "SpinWaveTheory ", mode_to_str(swt.sys), "\n"; bold=true, color=:underline)
     println(io, "  ", nsites(swt.sys), " sites")
+    swt.device == CPU() || println(io, "  Device ", swt.device)
     (; correction, grid, info) = swt.vacuum
     if !isempty(correction)
         println(io, "  Gaussian vacuum: ", isempty(info) ? "user correction" : join(("$k = $v" for (k, v) in pairs(info)), ", "),
@@ -189,7 +217,7 @@ function hamiltonian_matrix!(H, swt::SpinWaveTheory, q_supercell)
     if !isnothing(swt.ewald)
         accum_ewald!(H, swt.ewald, q_supercell)
         # Hermitian up to round-off errors, then exactly
-        @assert maxdiff(H, H') < 1e-12
+        @assert maxdiff(H, H') < 1e-12 * maximum(abs, H)
         hermitianpart!(H)
     end
 
@@ -396,7 +424,7 @@ given momentum transfer ``𝐪``.
 function excitations!(T, tmp, swt::SpinWaveTheory, q)
     L = nbands(swt)
     size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
-    ws = BogoliubovWorkspace(L)
+    ws = BogoliubovWorkspace(L, float_type(swt.device))
     energies = excitations!(ws, tmp, swt, q)
     copyto!(T, ws.T)
     return energies
@@ -512,7 +540,7 @@ function susceptibility_poles(swt::SpinWaveTheory, sys::System, measure::Measure
     data = zeros(eltype(measure), 2L, Nq)
 
     newbuf() = (
-        ws   = BogoliubovWorkspace(L),
+        ws   = BogoliubovWorkspace(L, float_type(swt.device)),
         H    = zeros(ComplexF64, 2L, 2L),
         u    = zeros(ComplexF64, 2L, Nobs),
         Avec = zeros(ComplexF64, Nobs),

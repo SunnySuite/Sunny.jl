@@ -1,5 +1,5 @@
 """
-    SpinWaveTheoryLarge(sys::System; measure, tol=1e-3, regularization=1e-8, maxiters=1000)
+    SpinWaveTheoryLarge(sys::System; measure, tol=1e-3, regularization=1e-8, maxiters=1000, device=CPU())
 
 A variant of [`SpinWaveTheory`](@ref) optimized for calculations on large
 magnetic cells. By avoiding direct matrix diagonalization, the computational
@@ -16,6 +16,9 @@ resolution. Exceeding `maxiters` iterations will throw an error.
 
 Pass `verbose=true` to `intensities` to print a progress bar and calculation
 statistics.
+
+The optional `device` selects the hardware and floating point precision; see
+[`CPU`](@ref).
 
 !!! tip "Numerical challenges with near-gapless spectra"
 
@@ -56,10 +59,11 @@ struct SpinWaveTheoryLarge
     maxiters :: Int
 
     function SpinWaveTheoryLarge(sys::System; measure::Union{Nothing, MeasureSpec},
-                                 regularization=1e-8, tol=1e-3, maxiters=1000)
+                                 regularization=1e-8, tol=1e-3, maxiters=1000, device=CPU())
         0 < tol < 1 || error("Require 0 < tol < 1")
         maxiters > 0 || error("Require maxiters > 0")
-        swt = SpinWaveTheory(sys; measure, regularization)
+        check_device_supported(device, "SpinWaveTheoryLarge")
+        swt = SpinWaveTheory(sys; measure, regularization, device)
         return new(swt, tol, maxiters)
     end
 end
@@ -68,6 +72,7 @@ function Base.show(io::IO, ::MIME"text/plain", swt_large::SpinWaveTheoryLarge)
     (; swt) = swt_large
     printstyled(io, "SpinWaveTheoryLarge ", mode_to_str(swt.sys), "\n"; bold=true, color=:underline)
     println(io, "  ", nsites(swt.sys), " sites")
+    swt.device == CPU() || println(io, "  Device ", swt.device)
 end
 
 function intensities(swt_large::SpinWaveTheoryLarge, qpts; energies, η=0.0, kernel=nothing, kT=0.0, threaded=false, verbose=false)
@@ -81,10 +86,11 @@ function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=0
     @assert size(data) == (length(energies), size(qpts.qs)...)
     η >= 0 || error("Require η ≥ 0")
     if iszero(η)
-        # The limit η → 0⁺, approximated by η = √ε × kernel width, for machine
-        # precision ε. A Lorentzian of half width η biases intensities by about
-        # η/width relative to the peak, here √ε, below any attainable `tol`. The
-        # floor is needed because, at kT > 0, the pole of 1 + n_B at ω = 0 is
+        # The limit η → 0⁺, approximated by η = √ε × kernel width, for the
+        # machine precision ε of Float64, in which χ is accumulated. A
+        # Lorentzian of half width η biases intensities by about η/width
+        # relative to the peak, here √ε, below any attainable `tol`. The floor
+        # is needed because, at kT > 0, the pole of 1 + n_B at ω = 0 is
         # evaluated at z = iη. There, χ(z) = -(c₀ + β₀² x₁)/z loses about ε
         # |c₀|/η to cancellation, i.e., √ε |c₀|/width, which is negligible.
         isnothing(kernel) && error("Specify a `kernel`, a broadening `η`, or both.")
@@ -96,7 +102,8 @@ function intensities!(data, swt_large::SpinWaveTheoryLarge, qpts; energies, η=0
         end
         η = sqrt(eps()) * minimum(ω -> kernel_fwhm(kernel, ω), energies)
     end
-    intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded, verbose)
+    FT = float_type(swt_large.swt.device)
+    intensities_lanczos!(data, swt_large, qpts, FT; energies, η, kernel, kT, threaded, verbose)
     return Intensities(orig_crystal(swt_large.swt.sys), qpts, collect(Float64, energies), data)
 end
 
@@ -124,7 +131,10 @@ end
 #
 # 1. T. Chen, The Lanczos algorithm for matrix functions: a handbook for
 #    scientists (2024), Sec. 5.
-function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, threaded, verbose)
+#
+# The products with H(𝐪) are in the precision `FT`, from vectors rounded to it.
+# The observable vectors, the sums, and the Lanczos recurrence are in Float64.
+function intensities_lanczos!(data, swt_large, qpts, ::Type{FT}; energies, η, kernel, kT, threaded, verbose) where FT
     (; swt, tol, maxiters) = swt_large
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
@@ -142,7 +152,7 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
 
     newbuf() = (
         u = zeros(ComplexF64, n, Nobs),
-        H = HamiltonianOperator(swt),
+        H = HamiltonianOperator(swt, FT),
         corr = zeros(ComplexF64, length(measure.corr_pairs)),
     )
 
@@ -162,10 +172,10 @@ function intensities_lanczos!(data, swt_large, qpts; energies, η, kernel, kT, t
             ks = findall(μ -> abs(μ) > 1e-12 * maximum(abs, μs), μs)
             μs = μs[ks]
             # Σₐ eₖₐ vₐ by broadcast, which avoids BLAS
-            starts = [sum(es[a, k] .* view(V, :, a) for a in 1:Nobs) for k in ks]
+            starts = [Complex{FT}.(sum(es[a, k] .* view(V, :, a) for a in 1:Nobs)) for k in ks]
             cross = false
         else
-            starts = collect(eachcol(V))
+            starts = [Complex{FT}.(v) for v in eachcol(V)]
             cross = true
         end
 
@@ -238,7 +248,7 @@ end
 # value at zero. The steps between checks grow by 25%, so that the overhead of
 # checks is a fixed fraction.
 function lanczos_correlations(mulS!, vs, rb; cross, Λ, tol, maxiters)
-    probes = cross ? reduce(hcat, vs) : zeros(ComplexF64, length(vs[1]), 0)
+    probes = cross ? reduce(hcat, vs) : similar(vs[1], length(vs[1]), 0)
     As = [zeros(ComplexF64, size(rb.W, 1), 1 + size(probes, 2)) for _ in vs]
     norms = [sqrt(real(dot_noblas(v, v))) for v in vs]
     ks = findall(>(sqrt(eps()) * maximum(norms)), norms)
