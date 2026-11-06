@@ -21,8 +21,8 @@ function Ewald(sys::System{N}, μ0_μB², demag; excluded=[]) where N
     Fϕ = zeros(CVec3, sz_rft..., na)
 
     mock_spins = zeros(3, dims..., na)
-    plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
-    ift_plan = FFTW.plan_irfft(reinterpret(reshape, ComplexF64, Fμ), dims[1], 2:4; flags=FFTW.MEASURE)
+    plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE, num_threads=1)
+    ift_plan = FFTW.plan_irfft(reinterpret(reshape, ComplexF64, Fμ), dims[1], 2:4; flags=FFTW.MEASURE, num_threads=1)
 
     return Ewald(cache, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
 end

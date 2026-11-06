@@ -100,17 +100,11 @@ end
 Create a copy of a `SampledCorrelations`.
 """
 function clone_correlations(sc::SampledCorrelations)
-    dims = size(sc.data)[2:4]
-    # Avoid copies/deep copies of C-generated data structures
-    space_fft! = 1/√prod(dims) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
-    time_fft! = FFTW.plan_fft!(sc.samplebuf, 6)
-    corr_fft! = FFTW.plan_fft!(sc.corrbuf, 4)
-    corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations(
         copy(sc.data), M, sc.recipvecs_supercell, sc.origin_crystal, sc.Δω, sc.measure,
         copy(sc.positions_supercell), copy(sc.integrator), sc.measperiod, sc.nsamples,
-        copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
+        copy(sc.samplebuf), copy(sc.corrbuf), sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!
     )
 end
 
@@ -240,10 +234,10 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     # can't be applied in the same way because the number of estimates varies
     # with Δt. These conventions ensure consistency with this spec:
     # https://sunnysuite.github.io/Sunny.jl/dev/structure-factor.html
-    space_fft! = 1/√prod(sys.dims) * FFTW.plan_fft!(samplebuf, (2,3,4))
-    time_fft!  = FFTW.plan_fft!(samplebuf, 6)
-    corr_fft!  = FFTW.plan_fft!(corrbuf, 4)
-    corr_ifft! = FFTW.plan_ifft!(corrbuf, 4)
+    space_fft! = 1/√prod(sys.dims) * FFTW.plan_fft!(samplebuf, (2,3,4); num_threads=1)
+    time_fft!  = FFTW.plan_fft!(samplebuf, 6; num_threads=1)
+    corr_fft!  = FFTW.plan_fft!(corrbuf, 4; num_threads=1)
+    corr_ifft! = FFTW.plan_ifft!(corrbuf, 4; num_threads=1)
 
     # Initialize nsamples to zero. Make an array so can update dynamically
     # without making struct mutable.
