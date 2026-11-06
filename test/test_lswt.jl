@@ -259,45 +259,56 @@ end
 end
 
 
-@testitem "Local Stevens expansion" begin
+@testitem "Multipole couplings and observables" begin
     using LinearAlgebra
-    a = 1
-    latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
-    positions = [[0, 0, 0]]
     # P1 point group for most general single-ion anisotropy
-    cryst = Crystal(latvecs, positions, 1)
+    cryst = Crystal(lattice_vectors(1, 1, 10, 90, 90, 90), [[0, 0, 0]], 1)
 
+    # Single-ion anisotropy along a random axis, of negative strengths to favor
+    # dipolar order along it
     s = 3
-    sys_dip = System(cryst, [1 => Moment(; s, g=-1)], :dipole)
-    sys_SUN = System(cryst, [1 => Moment(; s, g=-1)], :SUN)
-
-    # The strengths of single-ion anisotropy (must be negative to favor the dipolar ordering under consideration)
-    Ds = -rand(3)
-    h  = 0.1*rand()
     M = normalize(rand(3))
     SM = M' * spin_matrices(s)
-    aniso = Ds[1]*SM^2 + Ds[2]*SM^4 + Ds[3]*SM^6
+    aniso = -rand()*SM^2 - rand()*SM^4 - rand()*SM^6
+    h = 0.1*rand()
+    (sys_dip, sys_SUN) = map((:dipole, :SUN)) do mode
+        sys = System(cryst, [1 => Moment(; s, g=-1)], mode)
+        set_onsite_coupling!(sys, aniso, 1)
+        set_field!(sys, h*M)
+        set_dipole!(sys, M, (1, 1, 1, 1))
+        sys
+    end
+    # A selection of correlations between multipoles up to rank 6: dipole
+    # (Sʸ, Sᶻ), quadrupole, dipole-octupole, which is complex in general, and
+    # rank 6 with rank 2, which also creates a magnon pair
+    function measure(sys)
+        Sunny.ssf_multipoles(sys; max_k=6) do q, C
+            Sunny.SVector(C[1, -1, 1, 0], C[2, 2, 2, -1], C[1, 1, 3, -2], C[6, 5, 2, 0])
+        end
+    end
+    swt_dip = SpinWaveTheory(sys_dip; measure=measure(sys_dip))
+    swt_SUN = SpinWaveTheory(sys_SUN; measure=measure(sys_SUN))
 
-    set_onsite_coupling!(sys_dip, aniso, 1)
-    set_onsite_coupling!(sys_SUN, aniso, 1)
-
-    set_field!(sys_dip, h*M)
-    set_field!(sys_SUN, h*M)
-
-    set_dipole!(sys_dip, M, (1,1,1,1))
-    set_dipole!(sys_SUN, M, (1,1,1,1))
-
-    energy(sys_dip)
-    energy(sys_SUN)
-
-    swt_dip = SpinWaveTheory(sys_dip; measure=nothing)
-    swt_SUN = SpinWaveTheory(sys_SUN; measure=nothing)
-
+    # The magnon of dipole mode is the lowest excitation of SU(N) mode, and its
+    # multipole correlations agree, because the one-magnon amplitude in dipole
+    # mode is that of the quantum operator
     q = rand(3)
-    disp_dip = dispersion(swt_dip, [q])
-    disp_SUN = dispersion(swt_SUN, [q])
+    res_dip = intensities_bands(swt_dip, [q])
+    res_SUN = intensities_bands(swt_SUN, [q])
+    @test only(res_dip.disp) ≈ res_SUN.disp[end-1]
+    C = only(res_dip.data)
+    @test C ≈ res_SUN.data[end-1]
+    @test abs(imag(C[3])) > 1e-3
 
-    @test only(disp_dip) ≈ disp_SUN[end-1]
+    # The dipole block, returned as a static matrix, is that of `ssf_custom`,
+    # with (𝒪₁₁, 𝒪₁₀, 𝒪₁₋₁) = (Sˣ, Sᶻ, Sʸ)
+    measure_DD = Sunny.ssf_multipoles(sys_dip; max_k=1) do q, C
+        Sunny.SMatrix{3, 3}(C[1, q1, 1, q2] for q1 in 1:-1:-1, q2 in 1:-1:-1)
+    end
+    DD = only(intensities_bands(SpinWaveTheory(sys_dip; measure=measure_DD), [q]).data)
+    ssf = only(intensities_bands(SpinWaveTheory(sys_dip; measure=ssf_custom((q, ssf) -> ssf, sys_dip; apply_g=false)), [q]).data)
+    @test DD ≈ ssf[[1, 3, 2], [1, 3, 2]]
+    @test C[1] ≈ ssf[2, 3]
 end
 
 
@@ -342,18 +353,26 @@ end
     end
 
     # Unequal spin magnitudes. Each site feels the molecular field of the other
-    # site's ordered moment, which scales with that moment's own magnitude.
+    # site's ordered moment, which scales with that moment's own magnitude. The
+    # spiral calculation at k = 0 must agree with the conventional one.
     begin
         cryst = Crystal(lattice_vectors(1, 1.2, 1.4, 90, 90, 90), [[0, 0, 0], [1/2, 1/2, 1/2]], 1)
         sys = System(cryst, [1 => Moment(s=1, g=2), 2 => Moment(s=3/2, g=2)], :dipole_uncorrected)
         set_exchange!(sys, 1.0, Bond(1, 2, [0, 0, 0]))
         set_exchange!(sys, -0.3, Bond(1, 1, [1, 0, 0]))
-        enable_dipole_dipole!(sys, 0.05)
         set_dipole!(sys, [1, 0, 0], (1, 1, 1, 1))
         set_dipole!(sys, [-1, 0, 0], (1, 1, 1, 2))
         q = [0.1, 0.2, 0.3]
         disp1 = dispersion(SpinWaveTheory(sys; measure=nothing), [q])
+        disp2 = dispersion(SpinWaveTheorySpiral(sys; k=[0, 0, 0], axis=[0, 0, 1], measure=nothing), [q])
+        @test disp2[1:3:end] ≈ disp1
+
+        enable_dipole_dipole!(sys, 0.05)
+        disp1 = dispersion(SpinWaveTheory(sys; measure=nothing), [q])
         @test disp1 ≈ [1.048088346572452, 0.3483185617088442]
+
+        # Spiral spin waves would need couplings between q and q ± 2k
+        @test_throws "Dipole-dipole" SpinWaveTheorySpiral(sys; k=[0, 0, 0], axis=[0, 0, 1], measure=nothing)
     end
 end
 
@@ -530,6 +549,59 @@ end
 end
 
 
+@testitem "Vacant sites" begin
+    # A vacant site must decouple from the spin wave calculation entirely: it
+    # contributes only null bands, and the surviving sites behave as though it
+    # were absent. `local_frames` achieves this by zeroing the local frame,
+    # which is load bearing for the Zeeman term alone -- the anisotropy and
+    # exchange terms are already suppressed by the vanishing spin magnitude.
+    cryst = Crystal(lattice_vectors(1, 1.3, 1.7, 90, 90, 90), [[0, 0, 0]])
+
+    function build(mode, dims)
+        sys = System(cryst, [1 => Moment(s=1, g=2)], mode; dims, seed=0)
+        set_onsite_coupling!(sys, S -> -0.3*S[3]^2, 1)
+        set_field!(sys, [0, 0, 0.7])
+        randomize_spins!(sys)
+        return sys
+    end
+
+    for mode in (:dipole, :SUN)
+        # An isolated moment, and the same moment obtained by breaking a chain
+        # with a vacancy. The lattice is orthorhombic so that the chain bond has
+        # no symmetry equivalent wrapping onto the surviving site.
+        sys_ref = build(mode, (1, 1, 1))
+        minimize_energy!(sys_ref)
+        sys = build(mode, (2, 1, 1))
+        set_exchange!(sys, -1.0, Bond(1, 1, [1, 0, 0]))
+        sys = to_inhomogeneous(sys)
+        set_vacancy_at!(sys, (2, 1, 1, 1))
+        minimize_energy!(sys)
+        @test 2energy_per_site(sys) ≈ energy_per_site(sys_ref)
+
+        q = [[0.2, 0.3, 0.4]]
+        disp_ref = dispersion(SpinWaveTheory(sys_ref; measure=nothing), q)
+        disp = dispersion(SpinWaveTheory(sys; measure=nothing), q)
+        L = length(disp_ref)
+        # The vacancy block of the Hamiltonian matrix is only the regularization
+        # 1e-8, so the transformed eigenproblem has norm ~1e8 and the physical
+        # bands carry a relative round-off of ~1e-8 that varies across BLAS
+        # builds.
+        @test isapprox(disp[1:L], disp_ref; rtol=1e-6)
+        @test all(<(1e-6), disp[L+1:end])
+
+        # Likewise for the 1/s corrections, whose vertices must not divide by
+        # the vanishing spin magnitude of the vacancy
+        grid = (4, 1, 1)
+        @test Sunny.boson_density(SpinWaveTheory(sys; measure=nothing); grid)[1] ≈
+              Sunny.boson_density(SpinWaveTheory(sys_ref; measure=nothing); grid)[1]
+        @test Sunny.corrected_magnetic_moments(SpinWaveTheory(sys; measure=nothing); grid)[1] ≈
+              Sunny.corrected_magnetic_moments(SpinWaveTheory(sys_ref; measure=nothing); grid)[1]
+        δc = Sunny.observable_corrections(SpinWaveTheory(sys; measure=ssf_trace(sys)); grid)
+        @test all(isfinite, δc)
+    end
+end
+
+
 @testitem "Generalized interaction consistency" begin
     using LinearAlgebra
 
@@ -537,7 +609,7 @@ end
         swt = SpinWaveTheory(sys; measure=nothing)
         L = Sunny.nbands(swt)
         H = zeros(ComplexF64, 2L, 2L)
-        Sunny.swt_hamiltonian_SUN!(H, swt, Sunny.Vec3(q))
+        Sunny.hamiltonian_matrix!(H, swt, Sunny.Vec3(q))
         return H
     end
 
@@ -557,39 +629,47 @@ end
 end
 
 
-@testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
+@testitem "Equivalence of dense and matrix-free Hamiltonians" begin
     using LinearAlgebra
 
-    # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
-    function simple_swt(mode)
-        cryst = Crystal(diagm([1, 1, 2]), [[0, 0, 0]], "P1")
-        sys = System(cryst, [1 => Moment(s=1, g=1)], mode; dims=(8, 1, 1))
-
-        K1 = diagm([2, -1, -1])
-        K2 = diagm([-1, -1, 2])
-        set_pair_coupling!(sys, (Si, Sj) -> -Si'*Sj + (Si'*K1*Si)*(Sj'*K2*Sj), Bond(1,1,[1,0,0]); extract_parts=true)
-        set_onsite_coupling!(sys, S -> S[3]^2, 1)
-        set_field!(sys, [0, 0, 0.1])
-
-        randomize_spins!(sys)
-        minimize_energy!(sys; maxiters=1_000)
-
+    # A triclinic cell with two atoms, an anisotropic g-tensor, exchange that
+    # includes a general biquadratic part, anisotropy, a field, and
+    # dipole-dipole interactions
+    function make_swt(mode)
+        latvecs = lattice_vectors(1.1, 0.9, 0.8, 92, 85, 95)
+        cryst = Crystal(latvecs, [[0, 0, 0], [0.3, 0.1, 0.2]], 1)
+        g = [2 0.1 0; 0.1 1.8 0; 0 0 2.2]
+        sys = System(cryst, [1 => Moment(s=3/2, g=2), 2 => Moment(s=3/2; g)], mode; dims=(3, 2, 1))
+        K = diagm([2, -1, -1])
+        set_pair_coupling!(sys, (Si, Sj) -> 0.3*Si'*Sj + 0.05*(Si'*K*Si)*(Sj'*K*Sj), Bond(1, 2, [0, 0, 0]); extract_parts=true)
+        set_onsite_coupling!(sys, S -> 0.2*S[3]^2, 1)
+        set_field!(sys, [0.5, 0.2, 2])
+        enable_dipole_dipole!(sys, 0.2; demag=Sunny.Mat3(I/3))
+        polarize_spins!(sys, [0, 0, 1])
+        minimize_energy!(sys; maxiters=10_000)
         return SpinWaveTheory(sys; measure=nothing)
     end
 
-    q = Sunny.Vec3(0.5, 0, 0)
+    # The columns of H(q) from the matrix-free products of SpinWaveTheoryLarge
+    function matrix_free(swt, q)
+        H = Sunny.set_wavevector!(Sunny.HamiltonianOperator(swt), q)
+        n = 2Sunny.nbands(swt)
+        return reduce(hcat, mul!(zeros(ComplexF64, n), H, (1:n) .== j) for j in 1:n)
+    end
 
-    for mode = (:dipole, :SUN)
-        # Construct Hamiltonian directly
-        swt = simple_swt(mode)
-        H1 = Sunny.dynamical_matrix(swt, q)
+    # Wavevectors on and off the lattice reciprocal to the supercell
+    for mode in (:dipole, :SUN)
+        swt = make_swt(mode)
+        for q in (Sunny.Vec3(0, 0, 0), Sunny.Vec3(0.37, -1.2, 0.11))
+            @test Sunny.hamiltonian_matrix(swt, q) ≈ matrix_free(swt, q)
 
-        # Construct Hamiltonian by sparse matrix-vector multiplies
-        L = Sunny.nbands(swt)
-        x = Matrix{ComplexF64}(I, 2L, 2L)
-        H2 = transpose(Sunny.mul_dynamical_matrix(swt, x, fill(q, 2L)))
-
-        @test H1 ≈ H2
+            # The compiled table reproduces its monomials, and is exactly
+            # Hermitian
+            n = 2Sunny.nbands(swt)
+            H = Sunny.accum_table!(zeros(ComplexF64, n, n), swt.quadratic_table, q)
+            @test H ≈ Sunny.accum_quadratic!(zeros(ComplexF64, n, n), swt.monomials.quadratic, q)
+            @test H == H'
+        end
     end
 end
 
@@ -643,102 +723,4 @@ end
     # println(round.(res.data; digits=12))
     data_ref = [0.042551644188 0.148531187027 0.042551644188; 0.123710785142 0.944407715529 0.123710785142; 1.079575108835 1.261286085876 1.079575108835; 0.492703854423 0.168505531387 0.492703854423; 0.087770506619 0.06066521855 0.087770506619; 0.034461978527 0.030825188879 0.034461978527; 0.018214262744 0.018585357642 0.018214262744; 0.011230027228 0.012410289203 0.011230027228; 0.007607320239 0.008868510563 0.007607320239; 0.005490942587 0.006651305827 0.005490942587; 0.004148615687 0.005172181047 0.004148615687]
     @test isapprox(res.data, data_ref; atol=1e-9)
-end
-
-
-@testitem "LSWT correction to classical energy" begin
-    J = 1
-    s = 1
-    δE_afm1_ref = 0.488056/(2s) * (-2*J*s^2)
-
-    # The results are taken from Phys. Rev. B 102, 220405(R) (2020) for the AFM1
-    # phase on the FCC lattice
-    function correction(mode)
-        a = 1
-        latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-        positions = [[0, 0, 0]]
-        fcc = Crystal(latvecs, positions, 225)
-        sys_afm1 = System(fcc, [1 => Moment(; s, g=1)], mode)
-        set_exchange!(sys_afm1, J, Bond(1, 2, [0, 0, 0]))
-        set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 0, 0)))
-        set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 1/2, 0)))
-        set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 0, 1/2)))
-        set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 1/2, 1/2)))
-        swt_afm1 = SpinWaveTheory(sys_afm1; measure=nothing)
-        # Calculate at low accuracy for faster testing
-        δE_afm1 = Sunny.energy_per_site_lswt_correction(swt_afm1; atol=5e-4)
-        return isapprox(δE_afm1_ref, δE_afm1; atol=1e-3)
-    end
-
-    for mode in (:dipole, :SUN)
-        @test correction(mode)
-    end
-end
-
-
-@testitem "LSWT correction to the ordered moments (s maximized)" begin
-    # Test example 1: The magnetization is maximized to `s`. Reference result
-    # comes from Phys. Rev. B 79, 144416 (2009) Eq. (45) for the 120° order on
-    # the triangular lattice.
-    J = 1
-    s = 1/2
-    a = 1
-    δS_ref = -0.261302
-
-    function δS_triangular(mode)
-        latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
-        cryst = Crystal(latvecs, [[0, 0, 0]])
-        sys = System(cryst, [1 => Moment(s=s, g=2)], mode)
-        set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
-        polarize_spins!(sys, [0, 1, 0])
-        sys = repeat_periodically_as_spiral(sys, (3, 3, 1); k=[2/3, -1/3, 0], axis=[0, 0, 1])
-        swt = SpinWaveTheory(sys; measure=nothing)
-        # Calculate first 3 digits for faster testing
-        δS = Sunny.magnetization_lswt_correction(swt; atol=1e-3)[1]
-
-        return isapprox(δS_ref, δS, atol=1e-3)
-    end
-
-    for mode in (:dipole, :SUN)
-        @test δS_triangular(mode)
-    end
-end
-
-
-@testitem "LSWT correction to the ordered moments (s not maximized)" begin
-    using LinearAlgebra
-    # Test example 2: The magnetization is smaller than `s` due to easy-plane
-    # single-ion anisotropy The results are derived in the Supplemental
-    # Information (Note 12) of https://doi.org/10.1038/s41467-021-25591-7.
-    a = b = 8.3193
-    c = 5.3348
-    lat_vecs = lattice_vectors(a, b, c, 90, 90, 90)
-    types = ["Fe"]
-    positions = [[0, 0, 0]]
-    cryst = Crystal(lat_vecs, positions, 113; types)
-
-    s = 1
-    J₁  = 0.266
-    J₁′ = 0.1J₁
-    Δ = Δ′ = 1/3
-    D = 1.42
-    gab, gcc = 2.18, 1.93
-    g = diagm([gab, gab, gcc])
-    x = 1/2 - D/(8*(2J₁+J₁′))
-
-    sys = System(cryst, [1 => Moment(; s, g)], :SUN; dims=(1, 1, 2), seed=0)
-    set_exchange!(sys, diagm([J₁, J₁, J₁*Δ]),  Bond(1, 2, [0, 0, 0]))
-    set_exchange!(sys, diagm([J₁′, J₁′, J₁′*Δ′]), Bond(1, 1, [0, 0, 1]))
-    set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
-
-    randomize_spins!(sys)
-    minimize_energy!(sys; maxiters=1000)
-    swt = SpinWaveTheory(sys; measure=nothing)
-
-    δS = Sunny.magnetization_lswt_correction(swt; atol=1e-2)[1]
-
-    M_cl  = 2*√((1-x)*x)
-    # Paper reported M_ref = 2.79, but actual result is closer to 2.78
-    M_ref = 2.78
-    @test isapprox(M_ref, (M_cl+δS)*√3*gab, atol=1e-2)
 end

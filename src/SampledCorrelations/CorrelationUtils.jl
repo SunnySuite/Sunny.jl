@@ -13,8 +13,8 @@ function available_wave_vectors(sc::SampledCorrelations; counts=(1,1,1))
     hi = map(L -> L - div(L, 2), up) .- offsets
     lo = map(L -> 1 - div(L, 2), up) .- offsets
 
-    convert = sc.origin_crystal.recipvecs \ sc.recipvecs
-    return [convert * Vec3(lx/Ls[1], ly/Ls[2], lz/Ls[3]) for lx in lo[1]:hi[1], ly in lo[2]:hi[2], lz in lo[3]:hi[3]]
+    convert = sc.origin_crystal.recipvecs \ sc.recipvecs_supercell
+    return [convert * Vec3(lx, ly, lz) for lx in lo[1]:hi[1], ly in lo[2]:hi[2], lz in lo[3]:hi[3]]
 end
 
 """

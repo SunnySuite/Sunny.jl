@@ -1,7 +1,31 @@
-# Op is the type of a local observable operator. Either a Vec3 representing
-# `op⋅S` (:dipole mode) or a HermitianC64 representing the N×N matrix directly
-# (:SUN mode). The "parts" index is needed for entangled units.
-struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
+# Verify that `combiner` is real-linear in its correlation argument (i.e.,
+# linear in the space of Hermitian inputs). This property allows calculators to
+# apply `combiner` prior to performing other summations.
+function test_combiner_linearity(combiner, corr_pairs)
+    # Random correlation data of the kind a combiner actually receives.
+    function randn_corr(corr_pairs)
+        return [μ == ν ? complex(randn(Float64)) : randn(ComplexF64) for (μ, ν) in corr_pairs]
+    end
+
+    for q in [randn(Vec3) for _ in 1:10]
+        c1 = randn_corr(corr_pairs)
+        c2 = randn_corr(corr_pairs)
+        islinear = try
+            combiner(q, c1 + c2) ≈ combiner(q, c1) + combiner(q, c2)
+        catch
+            # Some q are illegal, e.g. outside a Blume-Maleev scattering plane
+            continue
+        end
+        islinear || error("Detected a nonlinear combiner function")
+    end
+end
+
+# Op is the type of a local observable operator. In the dipole modes, either a
+# Vec3 representing `op⋅S`, or a StevensExpansion for a general polynomial in S,
+# which only `SpinWaveTheory` accepts. In :SUN mode, a HermitianC64 representing
+# the N×N matrix directly. The "parts" index and `offsets` field is needed for
+# entangled units.
+struct MeasureSpec{Op <: Union{Vec3, StevensExpansion, HermitianC64}, F, Ret}
     observables :: Array{Op, 6}           # (nobs × d1 × d2 × d3 × nunits × nparts)
     formfactors :: Array{FormFactor, 3}   # (nobs × nunits × nparts)
     offsets     :: Array{Vec3, 2}         # (nunits × nparts)
@@ -11,6 +35,7 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     function MeasureSpec(observables::Array{Op, 6}, corr_pairs, combiner::F, formfactors::Array{FormFactor, 3}; offsets=nothing) where {Op, F}
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
+        test_combiner_linearity(combiner, corr_pairs)
         nobs    = size(observables, 1)
         nunits  = size(observables, 5)
         nparts  = size(observables, 6)
@@ -42,8 +67,41 @@ num_units_per_cell(measure::MeasureSpec) = size(measure.observables, 5)
 num_parts_per_unit(measure::MeasureSpec) = size(measure.observables, 6)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs)
 
-function empty_measurespec(sys)
-    observables = zeros(Vec3, 0, size(eachsite(sys))..., 1)
+# The Hermitian M(q) such that the combiner is tr(M C) for every Hermitian
+# correlation matrix C, given a real-valued combiner. Real-linearity makes this
+# exact, and M follows from probing with basis matrices of the Hermitian space.
+function combiner_matrix(measure::MeasureSpec, q_global)
+    p = num_observables(measure)
+    corr = zeros(ComplexF64, num_correlations(measure))
+    M = zeros(ComplexF64, p, p)
+    E = zeros(ComplexF64, p, p)
+    function f(E)
+        map!(((a, b),) -> E[a, b], corr, measure.corr_pairs)
+        return measure.combiner(q_global, corr)
+    end
+    for b in 1:p, a in 1:b
+        if a == b
+            E[a, a] = 1
+            M[a, a] = f(E)
+            E[a, a] = 0
+        else
+            # With m = M[a, b], tr(M E) is 2 Re m for E[a, b] = E[b, a] = 1, and
+            # 2 Im m for E[a, b] = -E[b, a] = i
+            (E[a, b], E[b, a]) = (1, 1)
+            x = f(E)
+            (E[a, b], E[b, a]) = (im, -im)
+            y = f(E)
+            (E[a, b], E[b, a]) = (0, 0)
+            M[a, b] = (x + im*y) / 2
+            M[b, a] = conj(M[a, b])
+        end
+    end
+    return Hermitian(M)
+end
+
+function empty_measurespec(sys::System{N}) where N
+    Op = iszero(N) ? Vec3 : HermitianC64
+    observables = Array{Op, 6}(undef, 0, size(eachsite(sys))..., 1)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
     formfactors = zeros(FormFactor, 0, natoms(sys.crystal), 1)
@@ -143,6 +201,98 @@ end
 
 CRC.@non_differentiable MeasureSpec(observables, corr_pairs, combiner, formfactors)
 CRC.@non_differentiable ssf_custom(f, sys)
+
+
+"""
+    ssf_multipoles(f, sys::System; max_k)
+
+Specify measurement of a spin structure factor involving multipoles up to rank
+``k_\\mathrm{max}``. The multipoles of rank ``k`` are the Stevens operators
+``𝒪_{k,q}`` of [`stevens_matrices`](@ref), applied identically at every site in
+the global frame. Rank 1 holds the spin components, ``(𝒪_{1,1}, 𝒪_{1,0},
+𝒪_{1,-1}) = (S_x, S_z, S_y)``, rank 2 holds the quadrupoles, ``(S_x^2 - S_y^2,
+…)`` and so on.
+
+The function `f` accepts a wavevector ``𝐪`` in global Cartesian coordinates and
+the correlations `C`, and returns any number or `isbits` type. Index `C[k1, q1,
+k2, q2]` to obtain the correlation of ``𝒪_{k_1,q_1}`` and ``𝒪_{k_2,q_2}``. The
+object `C` is valid only during the call to `f`. To measure several
+correlations, return them as a static array.
+
+A site of spin ``s`` has multipoles only up to rank ``2s``; higher ranks give
+zero. In dipole mode, the measure is supported by [`SpinWaveTheory`](@ref), but
+not by classical [`SampledCorrelations`](@ref), whose dynamics track only the
+spin dipole; use [`ssf_custom`](@ref) there. Mode `:dipole_uncorrected` is not
+supported. No form factors are applied, since the radial form factor of a
+multipole depends on its rank.
+
+# Examples
+
+```julia
+# The quadrupole-quadrupole correlation ⟨𝒪₂₋₁ 𝒪₂₁⟩
+measure = ssf_multipoles(sys; max_k=2) do q, C
+    real(C[2, -1, 2, 1])
+end
+
+# The dipole-quadrupole block, as a static matrix
+measure = ssf_multipoles(sys; max_k=2) do q, C
+    SMatrix{3, 5}(C[1, q1, 2, q2] for q1 in 1:-1:-1, q2 in 2:-1:-2)
+end
+```
+"""
+function ssf_multipoles(f, sys::System; max_k)
+    if is_entangled(sys)
+        (; uncontracted) = get_entanglement(sys)
+        measure_atom = ssf_multipoles(f, uncontracted; max_k)
+        return entangled_measure(measure_atom, sys)
+    end
+    sys.mode == :dipole_uncorrected && error("Mode :dipole_uncorrected is not supported")
+    1 ≤ max_k ≤ 6 || error("Require 1 ≤ max_k ≤ 6")
+
+    # The observables 𝒪_{k,q}, rank by rank with q = k…-k, so that 𝒪_{k,q} is
+    # observable k² + k - q. In mode :SUN, the matrix itself, and in dipole
+    # mode a Stevens expansion with a single coefficient.
+    n = max_k * (max_k + 2)
+    Op = sys.mode == :SUN ? HermitianC64 : StevensExpansion
+    observables = Array{Op, 6}(undef, n, size(eachsite(sys))..., 1)
+    for site in eachsite(sys), k in 1:max_k, i in 1:2k+1
+        observables[k^2 - 1 + i, site, 1] = sys.mode == :SUN ? stevens_matrices_of_dim(k; N=sys.Ns[site])[i] :
+                                            stevens_expansion_of_single_rank(ntuple(j -> Float64(j == i), 2k+1))
+    end
+
+    # Every pair once, as the upper triangle. The `combiner` function maps to a
+    # matrix M(q) via `combiner_matrix`. For typical scattering intensities,
+    # this matrix has low rank, even with many local observables. TODO:
+    # SpinWaveTheoryLarge already leverages the low rank of M(q), but it could
+    # also be used to accelerate `corrected_intensities`. This becomes
+    # especially important when the list of multipole observables grows large.
+    corr_pairs = [(μ, ν) for ν in 1:n for μ in 1:ν]
+    combiner(q, corr) = f(q, MultipoleCorrelations(corr, max_k))
+
+    ffs = fill(one(FormFactor), n, natoms(sys.crystal), 1)
+    return MeasureSpec(observables, corr_pairs, combiner, ffs)
+end
+
+CRC.@non_differentiable ssf_multipoles(f, sys)
+
+# The correlations of `ssf_multipoles`, a view of the calculator's buffer of
+# pair correlations in the order of the upper triangle. The rank `max_k` is a
+# field, not a type parameter, so that callbacks of any rank compile once.
+struct MultipoleCorrelations{V <: AbstractVector}
+    corr  :: V
+    max_k :: Int
+end
+
+function Base.getindex(C::MultipoleCorrelations, k1::Int, q1::Int, k2::Int, q2::Int)
+    @boundscheck begin
+        (1 ≤ k1 ≤ C.max_k && 1 ≤ k2 ≤ C.max_k) || error("Ranks must be between 1 and $(C.max_k)")
+        (abs(q1) ≤ k1 && abs(q2) ≤ k2) || throw(BoundsError(C, (k1, q1, k2, q2)))
+    end
+    μ = k1^2 + k1 - q1
+    ν = k2^2 + k2 - q2
+    # The index of the pair (μ, ν) in the upper triangle
+    return μ ≤ ν ? C.corr[μ + ν*(ν-1) ÷ 2] : conj(C.corr[ν + μ*(μ-1) ÷ 2])
+end
 
 """
     ssf_custom_bm(f, sys::System; u, v, apply_g=true, formfactors=nothing)

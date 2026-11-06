@@ -108,7 +108,7 @@ function mode_to_str(sys::System{N}) where N
 end
 
 function supercell_to_str(dims, cryst)
-    return "Supercell (" * join(dims, "×") * ")×" * string(natoms(cryst))
+    return "(" * join(dims, "×") * ")×" * string(natoms(cryst))
 end
 
 function energy_to_str(sys::System)
@@ -120,12 +120,12 @@ function energy_to_str(sys::System)
 end
 
 function Base.show(io::IO, sys::System{N}) where N
-    print(io, "System($(mode_to_str(sys)), $(supercell_to_str(sys.dims, sys.crystal)), $(energy_to_str(sys)))")
+    print(io, "System($(mode_to_str(sys)), Supercell $(supercell_to_str(sys.dims, sys.crystal)), $(energy_to_str(sys)))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     printstyled(io, "System $(mode_to_str(sys))\n"; bold=true, color=:underline)
-    println(io, supercell_to_str(sys.dims, sys.crystal))
+    println(io, "Supercell ", supercell_to_str(sys.dims, sys.crystal))
     if !isnothing(sys.origin) && cell_shape(sys) != cell_shape(sys.origin)
         shape = number_to_math_string.(cell_shape(sys))
         println(io, formatted_matrix(shape; prefix="Reshaped cell "))
@@ -164,27 +164,11 @@ function clone_system(sys::System{N}) where N
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
-    entanglement_clone = clone_entanglement(entanglement)
-
     ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
-                 params_clone, copy(active_labels), interactions_clone, nothing,
+                 params_clone, copy(active_labels), interactions_clone, clone_ewald(ewald),
                  copy(extfield), copy(dipoles), copy(coherents),
-                 empty_dipole_buffers, empty_coherent_buffers, copy(rng), entanglement_clone)
-
-    if !isnothing(ewald)
-        # At the moment, clone_ewald is unavailable, so instead rebuild the
-        # Ewald data structures from scratch. This might be fixed eventually.
-        # See https://github.com/JuliaMath/FFTW.jl/issues/261.
-        (; μ0_μB², demag) = ewald.cache
-        enable_dipole_dipole!(ret, μ0_μB²; demag)
-    end
-
-    # The same rebuild on the uncontracted system restores the intra-unit
-    # dipole couplings, which entanglement had folded into the onsite term
-    if is_entangled(ret)
-        (; uncontracted, units) = get_entanglement(ret)
-        contract_ewald!(ret, uncontracted, units)
-    end
+                 empty_dipole_buffers, empty_coherent_buffers, copy(rng),
+                 clone_entanglement(entanglement))
 
     return ret
 end
@@ -214,6 +198,7 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 # Split a site `site` into its cell and sublattice parts
 @inline to_cell(site) = (site[1], site[2], site[3])
 @inline to_atom(site) = site[4]
+@inline to_cell_atom(site) = (to_cell(site), to_atom(site))
 
 # Like mod1(x, L), but short-circuits early in the common case. See
 # https://github.com/SunnySuite/Sunny.jl/pull/184 for discussion.
@@ -361,13 +346,6 @@ function map_atom_to_other_crystal(cryst::Crystal, i, other_cryst::Crystal)
     global_r = cryst.latvecs * cryst.positions[i]
     orig_r = other_cryst.latvecs \ global_r
     return position_to_atom(other_cryst, orig_r)
-end
-
-# Maps atom `i` in `cryst` to the corresponding site in `other_sys`
-function map_atom_to_other_system(cryst::Crystal, i, other_sys::System)
-    global_r = cryst.latvecs * cryst.positions[i]
-    other_r = orig_crystal(other_sys).latvecs \ global_r
-    return position_to_site(other_sys, other_r)
 end
 
 
