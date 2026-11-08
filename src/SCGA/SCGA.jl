@@ -41,7 +41,7 @@ struct SCGA
         sys.dims == (1, 1, 1) || error("Use system with dims=(1, 1, 1) for efficiency")
 
         measure = @something measure empty_measurespec(sys)
-        measure isa MeasureSpec{StevensExpansion} && error("SCGA measures only spin dipoles")
+        require_dipole_observables(measure, "SCGA")
         if num_lattice_dims(measure) != sys.dims || num_units_per_cell(measure) != natoms(sys.crystal)
             error("Size mismatch. Check that measure is built using consistent system.")
         end
@@ -415,24 +415,19 @@ function CRC.rrule(::typeof(SCGA), sys::System; measure, kT, dq)
     return scga, pullback
 end
 
-# Evaluate pullback for d = combiner(q_global, corr) given cotangent Δd,
-# assuming linearity in corr.
+# Pullback of d = combiner(q_global, corr) for the cotangent Δd. The combiner is
+# real-linear, so the derivatives with respect to the real and imaginary parts
+# of corr[i] follow from probes eᵢ and i eᵢ.
 function combiner_ad(combiner, q_global, corr, Δd)
-    Δcorr = similar(corr)
-    e = zeros(Float64, length(corr))
-    for i in 1:length(corr)
-        fill!(e, 0.0)
-        e[i] = 1.0
-        Δcorr[i] = dot(combiner(q_global, e), Δd)
+    e = zero(corr)
+    return map(eachindex(corr)) do i
+        e[i] = 1
+        x = real(dot(Δd, combiner(q_global, e)))
+        e[i] = im
+        y = real(dot(Δd, combiner(q_global, e)))
+        e[i] = 0
+        return x + im*y
     end
-
-    # Test correctness of the adjoint, which depends on real-linearity of the
-    # combiner. The probe must be real; a complex one may fail for a combiner
-    # that is real- but not complex-linear, such as the `ssf_perp` contraction.
-    r = randn(Float64, length(corr))
-    @assert dot(Δd, combiner(q_global, r)) ≈ dot(Δcorr, r) "Detected nonlinear combiner"
-
-    return Δcorr
 end
 
 function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA, qpts; measure=nothing)

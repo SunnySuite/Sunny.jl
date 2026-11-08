@@ -2,37 +2,27 @@
     using LinearAlgebra, Random
 
     # Lanczos with A = Ĩ in the inner product of S approximates χ = v† S (z -
-    # ĨS)⁻¹ v / β₀² by the leading entry x₁ of the resolvent of T, and the probe
-    # products vₐ† S (z - ĨS)⁻¹ v / β₀ by the sums sₐ. The error estimates are
-    # approximate for x₁, and a Cauchy–Schwarz bound for sₐ, which shares the
-    # approximation, and so holds within the factor 2 margin of `tol`. Once the
-    # Krylov space is exhausted, the estimates vanish and the results are exact.
+    # ĨS)⁻¹ v / β₀² by the leading entry x₁ of the resolvent of T. The error
+    # estimate is approximate. Once the Krylov space is exhausted, it vanishes
+    # and the result is exact.
     Random.seed!(0)
     n = 12
     L = n ÷ 2
     S = let X = randn(ComplexF64, n, n); Hermitian(X'*X/n + I) end
     Ĩ = Diagonal([ones(L); -ones(L)])
-    (v, probes) = (randn(ComplexF64, n), randn(ComplexF64, n, 2))
+    v = randn(ComplexF64, n)
     mulS!(y, x) = (y .= S * x)
     zs = [0.3 + 0.1im, -1.2 + 0.01im]
 
     Λ = opnorm(S)
-    r = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, probes, zs, Λ), 4)
-    r_exact = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, probes, zs, Λ), n + 1)
+    r = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, zs, Λ), 4)
+    r_exact = Sunny.extend!(Sunny.LanczosResolvent(mulS!, v, zs, Λ), n + 1)
     @test (r.nrows, r_exact.nrows) == (4, n)
     @test Sunny.exhausted(r_exact)
     for (i, z) in enumerate(zs)
-        R = S * inv(z*I - Ĩ * S) * v
-        @test r.β₀^2 * r_exact.x₁[i] ≈ v' * R
-        @test r.β₀ * r_exact.s[:, i] ≈ probes' * R
-        @test Sunny.error_estimates(r_exact, i) == (0, 0)
-
-        (δx, δe) = Sunny.error_estimates(r, i)
-        @test 0.1 < abs(δx) / abs(r_exact.x₁[i] - r.x₁[i]) < 10
-        for a in 1:2
-            normS = sqrt(real(probes[:, a]' * S * probes[:, a]))
-            @test abs(r_exact.s[a, i] - r.s[a, i]) <= 2 * normS * δe
-        end
+        @test r.β₀^2 * r_exact.x₁[i] ≈ v' * S * inv(z*I - Ĩ * S) * v
+        @test Sunny.error_estimate(r_exact, i) == 0
+        @test 0.1 < abs(Sunny.error_estimate(r, i)) / abs(r_exact.x₁[i] - r.x₁[i]) < 10
     end
 end
 
@@ -88,15 +78,13 @@ end
         res2 = intensities(swt_large, [q]; energies=energies0, kernel, kT=0.3)
         @test maximum(abs, res1.data - res2.data) < 1e-6 * maximum(abs, res1.data)
 
-        # A matrix-valued combiner needs all correlations, including the
-        # off-diagonal ones
-        measure = ssf_custom((q, ssf) -> ssf, sys; formfactors)
+        # A measure that is not real-valued is evaluated per real component
+        measure = ssf_custom((q, ssf) -> ssf[1, 2], sys; formfactors)
         swt = SpinWaveTheory(sys; measure)
         swt_large = SpinWaveTheoryLarge(sys; measure, tol=1e-10)
         res1 = intensities(swt, [q]; energies, η=0.05, kernel, kT=0.3)
         res2 = intensities(swt_large, [q]; energies, η=0.05, kernel, kT=0.3)
         @test isapprox(res1.data, res2.data, rtol=1e-6)
-        @test_throws "Specify a broadening η > 0" intensities(swt_large, [q]; energies, kernel, kT=0.3)
 
         # Dipole-dipole interactions, which the matrix-free products apply by
         # FFT over the cells of a 2×2 supercell
@@ -168,30 +156,6 @@ end
     res1 = intensities(swt, qs; energies, η=0.01, kernel, kT).data
     res2 = intensities(swt_large, qs; energies, η=0.01, kernel, kT).data
     @test isapprox(res1, res2; rtol=1e-6)
-
-    # A matrix-valued combiner obtains cross correlations from probes, whose
-    # convergence is slower. Near the soft modes, at kT > 0, the thermal factor
-    # amplifies their error, which a check of the diagonal alone would miss.
-    sys = System(cryst, [1 => Moment(s=1/2, g=1)], :dipole; dims=(1, 1, 1), seed=0)
-    J = diagm([1, 1, 0.95])
-    set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
-    sys = to_inhomogeneous(repeat_periodically(sys, (9, 9, 1)))
-    for (s1, s2, offset) in symmetry_equivalent_bonds(sys, Bond(1, 1, [1, 0, 0]))
-        set_exchange_at!(sys, (1.0 + randn(sys.rng)/3) * J, s1, s2; offset)
-    end
-    for site in eachsite(sys)
-        θ = 2π/3 * mod(site[1] - site[2], 3)
-        set_dipole!(sys, [cos(θ), sin(θ), 0], site)
-    end
-    minimize_energy!(sys; maxiters=10_000)
-    measure = ssf_custom((q, ssf) -> ssf, sys)
-    kernel = gaussian(fwhm=0.4)
-    qs = [[0.1, 0.2, 0], [0.3, 0.3, 0], [0.2, 0.05, 0]]
-    swt = SpinWaveTheory(sys; measure)
-    swt_large = SpinWaveTheoryLarge(sys; measure, tol=1e-2)
-    res1 = intensities(swt, qs; energies, η=0.05, kernel, kT).data
-    res2 = intensities(swt_large, qs; energies, η=0.05, kernel, kT).data
-    @test maximum(x -> maximum(abs, x), res1 - res2) < 1e-2 * maximum(x -> maximum(abs, x), res1)
 end
 
 

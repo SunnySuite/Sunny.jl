@@ -5,10 +5,9 @@ Analogous to [`SpinWaveTheory`](@ref), but interprets the provided system as
 having a generalized spiral order. This order is described by a single
 propagation wavevector `k` (in reciprocal lattice units, RLU) and an `axis`
 vector that is normal to the polarization plane (in global Cartesian
-coordinates).
-Typically the spin configuration in `sys` and the propagation wavevector `k`
-will be optimized using [`minimize_spiral_energy!`](@ref). In contrast, `axis`
-will typically be determined from symmetry considerations.
+coordinates). Typically the spin configuration in `sys` and the propagation
+wavevector `k` will be optimized using [`minimize_spiral_energy!`](@ref). In
+contrast, `axis` will typically be determined from symmetry considerations.
 
 The resulting object can be used to calculate the spin wave
 [`dispersion`](@ref), or the structure factor via [`intensities_bands`](@ref)
@@ -30,6 +29,7 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     k_supercell :: Vec3    # The same in RLU of the magnetic cell
     axis :: Vec3           # Axis for polarization plane
     table :: QuadraticTable # Hamiltonian in the frame that co-rotates with the spiral
+    observable_coefs :: Vector{Array{ComplexF64, 3}} # For scattering q + m k with m = -1, 0, 1
 
     function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
         if !(sys.mode in (:dipole, :dipole_uncorrected))
@@ -43,8 +43,28 @@ struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
 
         swt = SpinWaveTheory(sys; measure, regularization)
         k_supercell = to_supercell_rlu(sys, k)
-        return new(swt, swt.sys, k, k_supercell, axis, spiral_table(swt, k_supercell, axis))
+        table = spiral_table(swt, k_supercell, axis)
+        return new(swt, swt.sys, k, k_supercell, axis, table, spiral_observable_coefficients(swt, axis))
     end
+end
+
+# The observable coefficients of `observable_coefficients`, split into parts of
+# angular momentum m = -1, 0, 1 about the axis. Part m scatters at q + m k.
+# Rotating every local frame by θ multiplies part m by exp(i m θ), so the parts
+# follow from a discrete Fourier transform over three rotations. A multipole of
+# rank k would also scatter at q + m k for 1 < |m| ≤ k, so only spin dipoles
+# are supported.
+function spiral_observable_coefficients(swt::SpinWaveTheory, axis)
+    (; sys, measure) = swt
+    if measure isa MeasureSpec{StevensExpansion} && any(O -> O.kmax > 1, measure.observables)
+        error("SpinWaveTheorySpiral supports only spin dipole observables. For multipoles, use SpinWaveTheory on a commensurate magnetic cell.")
+    end
+    θs = 2π * (0:2) / 3
+    Cs = map(θs) do θ
+        R = axis_angle_to_matrix(axis, θ)
+        observable_coefficients(sys, [R * F for F in swt.vacuum.frames], measure)
+    end
+    return [sum(cis(-m*θ) * C for (θ, C) in zip(θs, Cs)) / 3 for m in -1:1]
 end
 
 # The quadratic Hamiltonian in the frame that co-rotates with the spiral. Bond
@@ -115,33 +135,28 @@ function dispersion(sswt::SpinWaveTheorySpiral, qpts)
 end
 
 
-# Observables must be the spin dipoles, optionally with g applied. Their
-# decomposition by angular momentum about the axis then selects the branches.
-function check_dipole_observables(sys::System, measure::MeasureSpec)
-    measure isa MeasureSpec{Vec3} && any(apply_g -> vec(measure.observables) ≈ vec(all_dipole_observables(sys; apply_g)), (true, false)) ||
-        error("General measurements not supported for spiral calculation")
-end
-
 # All 6L poles of χ(q, z), 2L from each of the three branches, with their
 # weights, as (pole × wavevector) matrices; see `susceptibility_poles` of
 # SpinWaveTheory. In descending order of energy, the 3L poles at positive energy
 # come first.
 function susceptibility_poles(sswt::SpinWaveTheorySpiral, qpts; threaded)
-    (; swt, k_supercell, axis) = sswt
-    (; sys, measure) = swt
-    num_observables(measure) == 0 && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
-    check_dipole_observables(sys, measure)
+    num_observables(sswt.swt.measure) == 0 && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
+    # The fields `sys` and `measure` are abstract, so the loop over wavevectors
+    # is behind a function barrier
+    return susceptibility_poles(sswt, sswt.sys, sswt.swt.measure, convert(AbstractQPoints, qpts); threaded)
+end
 
-    qpts = convert(AbstractQPoints, qpts)
+function susceptibility_poles(sswt::SpinWaveTheorySpiral, sys::System, measure::MeasureSpec, qpts::AbstractQPoints; threaded)
+    (; swt, k_supercell, observable_coefs) = sswt
+    Nobs = num_observables(measure)
     cryst = orig_crystal(sys)
     Ncells = nsites(sys) / natoms(cryst)
     L = nbands(swt)
     Nq = length(qpts.qs)
 
-    # Branch s carries the part of the observable with angular momentum s about
+    # Branch m carries the part of the observable with angular momentum m about
     # the axis. Branches of one class describe the same modes, and their
     # amplitudes add coherently.
-    P = spiral_projectors(axis)
     classes = spiral_classes(k_supercell)
 
     # All 2L poles of each of the three branches, at energies of either sign
@@ -149,28 +164,34 @@ function susceptibility_poles(sswt::SpinWaveTheorySpiral, qpts; threaded)
     data = zeros(eltype(measure), 6L, Nq)
 
     newbuf() = (
-        ws = BogoliubovWorkspace(L),
-        H  = zeros(ComplexF64, 2L, 2L),
-        u  = zeros(ComplexF64, 2L, 3),
+        ws   = BogoliubovWorkspace(L),
+        H    = zeros(ComplexF64, 2L, 2L),
+        u    = zeros(ComplexF64, 2L, Nobs),
+        Avec = zeros(ComplexF64, Nobs),
+        corr = zeros(ComplexF64, num_correlations(measure)),
     )
 
     function calc_iq!(buf, iq)
-        (; ws, H, u) = buf
+        (; ws, H, u, Avec, corr) = buf
         q = qpts.qs[iq]
         q_global = cryst.recipvecs * q
-        observable_vectors!(u, swt, q_global)
         for class in classes
             energies = excitations!(ws, H, sswt, q; branch=first(class)+2)
-            Pc = sum(P[s+2] for s in class)
+            fill!(u, 0)
+            for m in class
+                accum_observable_vectors!(u, sys, measure, observable_coefs[m+2], q_global)
+            end
             for band in 1:2L
-                A = Pc * CVec{3}(ntuple(μ -> dot(view(u, :, μ), view(ws.T, :, band)), 3))
-                corr = map(((μ, ν),) -> A[μ] * conj(A[ν]) / Ncells, measure.corr_pairs)
+                for μ in 1:Nobs
+                    Avec[μ] = dot(view(u, :, μ), view(ws.T, :, band))
+                end
+                map!(((μ, ν),) -> Avec[μ] * conj(Avec[ν]) / Ncells, corr, measure.corr_pairs)
                 # χ″ is a commutator, so a pole at negative energy has a
                 # negative weight
                 val = sign(energies[band]) * measure.combiner(q_global, corr) / length(class)
-                for s in class
-                    disp[band + (s+1)*2L, iq] = energies[band]
-                    data[band + (s+1)*2L, iq] = val
+                for m in class
+                    disp[band + (m+1)*2L, iq] = energies[band]
+                    data[band + (m+1)*2L, iq] = val
                 end
             end
         end

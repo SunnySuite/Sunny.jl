@@ -1033,17 +1033,18 @@ end
 
 
 @testitem "1/s corrections, end to end" setup=[CorrectionModels] begin
-    using .CorrectionModels: cluster, anisotropic_square
+    using .CorrectionModels: cluster, canted_square, anisotropic_square
 
-    # Two models pinned through the public entry point, so that any change to
-    # any part of the 1/s machinery moves a number here. Between them they carry
+    # Models pinned through the public entry point, so that any change to any
+    # part of the 1/s machinery moves a number here. Between them they carry
     # inequivalent sublattices, an off-diagonal Σ̂, a canted structure with a
     # nonzero tadpole, anisotropy words at two Stevens orders, a biquadratic
-    # exchange, unequal spins, nonzero bond offsets, a Stevens observable, and a
-    # triclinic cell with no site symmetry — there is no invariant being
-    # checked, only reproducibility. The two Stevens orders come from
-    # `anisotropic_square`, since the k > 2 words of `cluster_aniso` vanish
-    # identically at the small spins that keep the cluster cheap.
+    # exchange, unequal spins, nonzero bond offsets, a quadrupole observable in
+    # each of modes :dipole and :SUN, and a triclinic cell with no site
+    # symmetry — there is no invariant being checked, only reproducibility. The
+    # two Stevens orders come from `anisotropic_square`, since the k > 2 words
+    # of `cluster_aniso` vanish identically at the small spins that keep the
+    # cluster cheap.
     #
     # The mean fields are summed on the loop grid passed below, so no adaptive
     # cubature enters, and the pair measures are binned at η/10, tight enough
@@ -1084,6 +1085,17 @@ end
                 @test pinned(swt, [[0.21, -0.33, 0.12], [0.5, 0, 0]], range(0.1, 6.0, 120), 0.1, (1, 1, 1), scheme) ≈ ref rtol=1e-6
             end
         end
+    end
+
+    # A quadrupole in mode :SUN, whose observable words come from the matrix of
+    # the operator rather than its Stevens expansion. The correction moves the
+    # peak by half its height.
+    let sys = canted_square(1, 3; mode=:SUN)
+        quadrupole = Sunny.ssf_multipoles(sys; max_k=2) do q, C
+            real(C[2, 1, 2, 1])
+        end
+        swt = SpinWaveTheory(sys; measure=quadrupole)
+        @test pinned(swt, [[0.23, 0.11, 0], [0.4, 0.3, 0]], range(0.1, 8.0, 80), 0.2, (6, 6, 1), :one_loop) ≈ [1.6059079809365602, 0.13089496084709168] rtol=1e-6
     end
 
     let sys = anisotropic_square()

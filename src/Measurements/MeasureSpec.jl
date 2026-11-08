@@ -1,25 +1,3 @@
-# Verify that `combiner` is real-linear in its correlation argument (i.e.,
-# linear in the space of Hermitian inputs). This property allows calculators to
-# apply `combiner` prior to performing other summations.
-function test_combiner_linearity(combiner, corr_pairs)
-    # Random correlation data of the kind a combiner actually receives.
-    function randn_corr(corr_pairs)
-        return [μ == ν ? complex(randn(Float64)) : randn(ComplexF64) for (μ, ν) in corr_pairs]
-    end
-
-    for q in [randn(Vec3) for _ in 1:10]
-        c1 = randn_corr(corr_pairs)
-        c2 = randn_corr(corr_pairs)
-        islinear = try
-            combiner(q, c1 + c2) ≈ combiner(q, c1) + combiner(q, c2)
-        catch
-            # Some q are illegal, e.g. outside a Blume-Maleev scattering plane
-            continue
-        end
-        islinear || error("Detected a nonlinear combiner function")
-    end
-end
-
 # Op is the type of a local observable operator. In the dipole modes, either a
 # Vec3 representing `op⋅S`, or a StevensExpansion for a general polynomial in S,
 # which only `SpinWaveTheory` accepts. In :SUN mode, a HermitianC64 representing
@@ -35,7 +13,6 @@ struct MeasureSpec{Op <: Union{Vec3, StevensExpansion, HermitianC64}, F, Ret}
     function MeasureSpec(observables::Array{Op, 6}, corr_pairs, combiner::F, formfactors::Array{FormFactor, 3}; offsets=nothing) where {Op, F}
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         isbitstype(Ret) || error("Inferred data type $Ret is not `isbits`")
-        test_combiner_linearity(combiner, corr_pairs)
         nobs    = size(observables, 1)
         nunits  = size(observables, 5)
         nparts  = size(observables, 6)
@@ -44,7 +21,9 @@ struct MeasureSpec{Op <: Union{Vec3, StevensExpansion, HermitianC64}, F, Ret}
         end
         @assert (nunits, nparts) == size(offsets) "offsets must have shape (nunits, nparts)"
         @assert (nobs, nunits, nparts) == size(formfactors) "formfactors must have shape (nobs, nunits, nparts)"
-        return new{Op, F, Ret}(observables, formfactors, offsets, corr_pairs, combiner)
+        measure = new{Op, F, Ret}(observables, formfactors, offsets, corr_pairs, combiner)
+        check_combiner_forms(measure)
+        return measure
     end
 end
 
@@ -67,36 +46,106 @@ num_units_per_cell(measure::MeasureSpec) = size(measure.observables, 5)
 num_parts_per_unit(measure::MeasureSpec) = size(measure.observables, 6)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs)
 
-# The Hermitian M(q) such that the combiner is tr(M C) for every Hermitian
-# correlation matrix C, given a real-valued combiner. Real-linearity makes this
-# exact, and M follows from probing with basis matrices of the Hermitian space.
-function combiner_matrix(measure::MeasureSpec, q_global)
+# ---- The measure as real-linear forms ----
+#
+# At each wavevector, the combiner maps the correlation matrix C of the
+# observables, C[a, b] = ⟨A_a† A_b⟩, to the measured intensity. The intensity is
+# a list of real numbers: one for a real-valued measure, two for a complex one,
+# and so on. Because the combiner is linear in C, each of these real numbers is
+# tr(M C) for some Hermitian matrix M, the same for every C. Most calculators
+# simply call the combiner. Expensive calculators like SpinWaveTheoryLarge and
+# corrected_intensities instead extract the forms M once per wavevector, and
+# work only with the few combinations of observables that they involve.
+
+# The number of real components of a value of type T, which must be a Float64
+# or a composite of them, e.g. a ComplexF64 or a static array. Generated, so
+# that the check on T costs nothing at run time.
+@generated function num_real_components(::Type{T}) where T
+    is_real_composite(T) = T === Float64 || (isstructtype(T) && fieldcount(T) > 0 && all(is_real_composite, fieldtypes(T)))
+    is_real_composite(T) || return :(error("Expected a measure that returns Float64 or a composite of them, got $T"))
+    return sizeof(T) ÷ sizeof(Float64)
+end
+
+# The real components of x, and the value of type T with components xs
+real_components(x) = reinterpret(NTuple{num_real_components(typeof(x)), Float64}, (x,))
+from_real_components(::Type{T}, xs) where T = only(reinterpret(Tuple{T}, NTuple{num_real_components(T), Float64}(xs)))
+
+# The values of type T from an array whose first dimension holds their real
+# components
+measure_values(::Type{T}, xs::Array{Float64}) where T = collect(dropdims(reinterpret(T, xs); dims=1))
+
+# A real-valued measure for each real component of the value of `measure`, or
+# `measure` itself if real-valued
+function real_component_measures(@nospecialize(measure::MeasureSpec))
+    T = eltype(measure)
+    T == Float64 && return [measure]
+    (; observables, corr_pairs, combiner, formfactors, offsets) = measure
+    return [MeasureSpec(observables, corr_pairs, (q, corr) -> real_components(combiner(q, corr))[k], formfactors; offsets)
+            for k in 1:num_real_components(T)]
+end
+
+# The Hermitian matrices M_k such that real component k of the intensity is
+# tr(M_k C), for the correlations C of the observables at `q_global`. Each entry
+# is found by calling the combiner on a C with a single nonzero pair (a, b):
+# with m = M[a, b], tr(M C) is 2 Re m for C[a, b] = C[b, a] = 1, and 2 Im m for
+# C[a, b] = -C[b, a] = i.
+function measure_forms(@nospecialize(measure::MeasureSpec), q_global)
+    (; combiner, corr_pairs) = measure
     p = num_observables(measure)
-    corr = zeros(ComplexF64, num_correlations(measure))
-    M = zeros(ComplexF64, p, p)
-    E = zeros(ComplexF64, p, p)
-    function f(E)
-        map!(((a, b),) -> E[a, b], corr, measure.corr_pairs)
-        return measure.combiner(q_global, corr)
-    end
-    for b in 1:p, a in 1:b
-        if a == b
-            E[a, a] = 1
-            M[a, a] = f(E)
-            E[a, a] = 0
-        else
-            # With m = M[a, b], tr(M E) is 2 Re m for E[a, b] = E[b, a] = 1, and
-            # 2 Im m for E[a, b] = -E[b, a] = i
-            (E[a, b], E[b, a]) = (1, 1)
-            x = f(E)
-            (E[a, b], E[b, a]) = (im, -im)
-            y = f(E)
-            (E[a, b], E[b, a]) = (0, 0)
-            M[a, b] = (x + im*y) / 2
-            M[b, a] = conj(M[a, b])
+    Ms = [zeros(ComplexF64, p, p) for _ in 1:num_real_components(eltype(measure))]
+    corr = zeros(ComplexF64, length(corr_pairs))
+    for (i, (a, b)) in enumerate(corr_pairs)
+        corr[i] = 1
+        xs = real_components(combiner(q_global, corr))
+        corr[i] = im
+        ys = a == b ? xs : real_components(combiner(q_global, corr))
+        corr[i] = 0
+        for k in eachindex(Ms)
+            Ms[k][a, b] = a == b ? xs[k] : (xs[k] + im*ys[k]) / 2
+            Ms[k][b, a] = conj(Ms[k][a, b])
         end
     end
-    return Hermitian(M)
+    return Hermitian.(Ms)
+end
+
+# Errors unless the matrices of `measure_forms` reproduce the combiner on random
+# correlations, i.e., unless the combiner is linear in them. Calculators rely on
+# this to sum correlations before applying the combiner. Some q may be illegal,
+# e.g. outside a Blume-Maleev scattering plane, and are skipped.
+function check_combiner_forms(@nospecialize(measure::MeasureSpec))
+    (; combiner, corr_pairs) = measure
+    p = num_observables(measure)
+    for q in [randn(Vec3) for _ in 1:5]
+        Ms = try
+            measure_forms(measure, q)
+        catch
+            continue
+        end
+        X = randn(ComplexF64, p, p)
+        C = X * X'
+        expected = real_components(combiner(q, [C[a, b] for (a, b) in corr_pairs]))
+        actual = [real(dot(M, C)) for M in Ms]
+        isapprox(collect(expected), actual; rtol=1e-8, atol=1e-12 * norm(C)) || error("Detected a nonlinear combiner function")
+    end
+end
+
+# The few combinations of observables that the intensity at `q_global` depends
+# on (channels), and the matrices that act on their correlations (reduced
+# forms). The columns of B are an orthonormal basis for the combined range of
+# the matrices M_k of `measure_forms`, so that tr(M_k C) = tr(B† M_k B ⋅ B† C
+# B). Only the correlations B† C B of these r combinations are then needed, e.g.
+# r = 2 of the 3 spin components for `ssf_perp`.
+function measure_channels(@nospecialize(measure::MeasureSpec), q_global)
+    Ms = measure_forms(measure, q_global)
+    p = num_observables(measure)
+    (U, s, _) = svd(reduce(hcat, Ms; init=zeros(ComplexF64, p, 0)))
+    B = U[:, s .> 1e-12 * maximum(s; init=0.0)]
+    return (B, [Hermitian(B' * M * B) for M in Ms])
+end
+
+# For calculators that track only the classical spin dipole in dipole mode
+function require_dipole_observables(measure::MeasureSpec, calculator)
+    measure isa MeasureSpec{StevensExpansion} && error("$calculator in dipole mode supports only spin dipole observables")
 end
 
 function empty_measurespec(sys::System{N}) where N
@@ -220,8 +269,8 @@ object `C` is valid only during the call to `f`. To measure several
 correlations, return them as a static array.
 
 A site of spin ``s`` has multipoles only up to rank ``2s``; higher ranks give
-zero. In dipole mode, the measure is supported by [`SpinWaveTheory`](@ref), but
-not by classical [`SampledCorrelations`](@ref), whose dynamics track only the
+zero. In dipole mode, the measure is supported by spin wave theory, but not by
+classical [`SampledCorrelations`](@ref) or [`SCGA`](@ref), which track only the
 spin dipole; use [`ssf_custom`](@ref) there. Mode `:dipole_uncorrected` is not
 supported. No form factors are applied, since the radial form factor of a
 multipole depends on its rank.
@@ -249,9 +298,22 @@ function ssf_multipoles(f, sys::System; max_k)
     sys.mode == :dipole_uncorrected && error("Mode :dipole_uncorrected is not supported")
     1 ≤ max_k ≤ 6 || error("Require 1 ≤ max_k ≤ 6")
 
-    # The observables 𝒪_{k,q}, rank by rank with q = k…-k, so that 𝒪_{k,q} is
-    # observable k² + k - q. In mode :SUN, the matrix itself, and in dipole
-    # mode a Stevens expansion with a single coefficient.
+    # Every pair once, as the upper triangle. For typical scattering
+    # intensities, the forms of the combiner have low rank, even with many
+    # local observables, which `measure_channels` exploits.
+    n = max_k * (max_k + 2)
+    corr_pairs = [(μ, ν) for ν in 1:n for μ in 1:ν]
+    combiner(q, corr) = f(q, MultipoleCorrelations(corr, max_k))
+
+    ffs = fill(one(FormFactor), n, natoms(sys.crystal), 1)
+    return MeasureSpec(multipole_observables(sys, max_k), corr_pairs, combiner, ffs)
+end
+
+# The observables 𝒪_{k,q} of `ssf_multipoles`, rank by rank with q = k…-k, so
+# that 𝒪_{k,q} is observable k² + k - q. In mode :SUN, the matrix itself, and in
+# dipole mode a Stevens expansion with a single coefficient. Independent of the
+# callback, so that it compiles once.
+function multipole_observables(sys::System, max_k)
     n = max_k * (max_k + 2)
     Op = sys.mode == :SUN ? HermitianC64 : StevensExpansion
     observables = Array{Op, 6}(undef, n, size(eachsite(sys))..., 1)
@@ -259,18 +321,7 @@ function ssf_multipoles(f, sys::System; max_k)
         observables[k^2 - 1 + i, site, 1] = sys.mode == :SUN ? stevens_matrices_of_dim(k; N=sys.Ns[site])[i] :
                                             stevens_expansion_of_single_rank(ntuple(j -> Float64(j == i), 2k+1))
     end
-
-    # Every pair once, as the upper triangle. The `combiner` function maps to a
-    # matrix M(q) via `combiner_matrix`. For typical scattering intensities,
-    # this matrix has low rank, even with many local observables. TODO:
-    # SpinWaveTheoryLarge already leverages the low rank of M(q), but it could
-    # also be used to accelerate `corrected_intensities`. This becomes
-    # especially important when the list of multipole observables grows large.
-    corr_pairs = [(μ, ν) for ν in 1:n for μ in 1:ν]
-    combiner(q, corr) = f(q, MultipoleCorrelations(corr, max_k))
-
-    ffs = fill(one(FormFactor), n, natoms(sys.crystal), 1)
-    return MeasureSpec(observables, corr_pairs, combiner, ffs)
+    return observables
 end
 
 CRC.@non_differentiable ssf_multipoles(f, sys)

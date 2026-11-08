@@ -211,7 +211,7 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     integrator.dt = dt
 
     measure = isnothing(measure) ? ssf_trace(sys) : measure
-    measure isa MeasureSpec{StevensExpansion} && error("SampledCorrelations in dipole mode requires dipole observables")
+    require_dipole_observables(measure, "SampledCorrelations")
     validate_formfactors(measure)
 
     # Flatten the "bare" observable positions of the cell, in fractional

@@ -86,12 +86,16 @@ observable_words2(swt::SpinWaveTheory) =
 # include the corrections of `observable_pair_corrections`. The prefactor is
 # conjugated because the amplitude sought is that of creating a pair, whereas
 # `observable_prefactor` describes the observable as `observable_vectors!`
-# applies it, to the amplitude for the adjoint process.
-function observable_pair_monomials(swt::SpinWaveTheory, q_global; words2=observable_words2(swt))
+# applies it, to the amplitude for the adjoint process. Given `channels` B, the
+# lists are instead those of the combinations Σ_μ B[μ, c] A_μ, whose amplitudes
+# are Σ_μ conj(B[μ, c]) times those of A_μ.
+function observable_pair_monomials(swt::SpinWaveTheory, q_global, B=I(num_observables(swt.measure));
+                                   words2=observable_words2(swt))
     (; sys, measure) = swt
-    return map(1:num_observables(measure)) do μ
-        [BosonMonomial(conj(observable_prefactor(measure, μ, i, q_global, sys)) * c, as, ns)
-         for i in 1:nsites(sys) for (; c, as, ns) in words2[μ, i]]
+    prefs = [observable_prefactor(measure, μ, i, q_global, sys) for μ in 1:num_observables(measure), i in 1:nsites(sys)]
+    return map(axes(B, 2)) do c
+        [BosonMonomial(conj(B[μ, c] * prefs[μ, i]) * w.c, w.as, w.ns)
+         for μ in axes(prefs, 1) if !iszero(B[μ, c]) for i in axes(prefs, 2) for w in words2[μ, i]]
     end
 end
 

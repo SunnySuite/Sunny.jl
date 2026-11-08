@@ -8,16 +8,14 @@
 # with α_j = (S q_j)† Ĩ (S q_j). The real coefficients α_j and β_j are the
 # diagonal and subdiagonal of T = Q† S Ĩ S Q. Elimination from the first row, z
 # - T = L D Lᵀ, with pivots D = diag(u) and g = L⁻¹ e₁, gives the leading entry
-# x₁ = y₁, and the probe sums sₐ = dₐᵀ y for the overlaps dₐⱼ = vₐ† S q_j of the
-# columns vₐ of `probes`,
 #
-#     x₁ = Σⱼ gⱼ² / uⱼ,   sₐ = Σⱼ gⱼ hₐⱼ,   u_j = z - α_j - β_{j-1}² / u_{j-1},
-#     g_j = β_{j-1} g_{j-1} / u_{j-1},   hₐⱼ = (dₐⱼ + β_{j-1} hₐ,ⱼ₋₁) / u_j.
+#     x₁ = y₁ = Σⱼ gⱼ² / uⱼ,   u_j = z - α_j - β_{j-1}² / u_{j-1},
+#     g_j = β_{j-1} g_{j-1} / u_{j-1}.
 #
-# Each term depends only on the coefficients up to j, so the sums are
-# accumulated as the iteration proceeds, and need no history. For Im z > 0, Im
-# u_j ≥ Im z, so that no pivot vanishes. The Krylov space is exhausted when the
-# residual vanishes, which makes the sums exact.
+# Each term depends only on the coefficients up to j, so the sum is accumulated
+# as the iteration proceeds, and needs no history. For Im z > 0, Im u_j ≥ Im z,
+# so that no pivot vanishes. The Krylov space is exhausted when the residual
+# vanishes, which makes the sum exact.
 #
 # Near z = 0, the terms of the sum for x₁ cancel, losing about ε (Λ/|z|)² of
 # relative accuracy for a spectrum of ĨS in [-Λ, Λ] and machine precision ε.
@@ -61,29 +59,20 @@
 # p_{j-2}(0), at O(1) cost per row. In a gap at zero, pⱼ(0) grows exponentially,
 # and the bound vanishes.
 #
-# The probe sums converge more slowly, because a probe lies mostly outside the
-# Krylov space. In full space, the error of Q y is e = β_m x_m (z - ĨS)⁻¹
-# q_{m+1}, so that |δsₐ| = |vₐ† S e| ≤ ‖vₐ‖ ‖e‖ by Cauchy–Schwarz in the S inner
-# product. For S-normalized q, ‖(z - ĨS)⁻¹ q‖² = -Im[q† S (z - ĨS)⁻¹ q] / Im z,
-# by the spectral theorem for ĨS, which is self-adjoint in this inner product.
-# With the same τ ≈ 1/u_m, the estimate is ‖e‖ ≈ β_m |x_m| (-Im τ / Im z)^{1/2}.
-#
-# Every step is one product with S, two passes over vectors of length n, one
-# pass per probe, and a pass over the nodes. The loops are written out, rather
-# than calling BLAS, because this runs in each of many threads and OpenBLAS
-# scales poorly under Julia threads.
+# Every step is one product with S, two passes over vectors of length n, and a
+# pass over the nodes. The loops are written out, rather than calling BLAS,
+# because this runs in each of many threads and OpenBLAS scales poorly under
+# Julia threads.
 #
 # 1. T. Chen, The Lanczos algorithm for matrix functions: a handbook for
 #    scientists (2024), Sec. 3.
 # 2. G. Szegő, Orthogonal Polynomials (1939), Sec. 3.41.
 mutable struct LanczosResolvent{F}
     const mulS!  :: F
-    const probes :: Matrix{ComplexF64}
     const zs     :: Vector{ComplexF64}
     const near_zero :: BitVector        # Nodes close to z = 0 use the product for x₁
     const β₀     :: Float64
     const c₀     :: ComplexF64          # v† Ĩ v
-    const c₀ₐ    :: Vector{ComplexF64}  # vₐ† Ĩ v for each probe
     # The current and previous Lanczos vectors, the current vector times S, and
     # the residual and its image under S
     q            :: Vector{ComplexF64}
@@ -101,29 +90,23 @@ mutable struct LanczosResolvent{F}
     p₀           :: Float64
     p₀prev       :: Float64
     p₀sum        :: Float64
-    # Per node, 1/u_m, g_m, and the sums x₁ and sₐ, with hₐₘ for each probe, and
-    # 1/u′_m of T′
+    # Per node, 1/u_m, g_m, and the sum x₁, and 1/u′_m of T′
     const invu   :: Vector{ComplexF64}
     const invu′  :: Vector{ComplexF64}
     const g      :: Vector{ComplexF64}
     const x₁     :: Vector{ComplexF64}
-    const h      :: Matrix{ComplexF64}
-    const s      :: Matrix{ComplexF64}
 end
 
-function LanczosResolvent(mulS!, v, probes, zs, Λ)
+function LanczosResolvent(mulS!, v, zs, Λ)
     Sv = mulS!(similar(v), v)
     β₀² = real(dot_noblas(v, Sv))
     β₀² > 0 || throw(InstabilityError("S is not positive definite"))
     β₀ = sqrt(β₀²)
-    Ĩv = mul_Ĩ!(similar(v), v)
-    c₀ = dot_noblas(v, Ĩv)
-    c₀ₐ = [dot_noblas(view(probes, :, a), Ĩv) for a in axes(probes, 2)]
-    (nz, np) = (length(zs), size(probes, 2))
-    z(dims...) = zeros(ComplexF64, dims...)
+    c₀ = dot_noblas(v, mul_Ĩ!(similar(v), v))
     near_zero = BitVector(abs.(zs) .< eps()^(1/4) * Λ)
-    return LanczosResolvent(mulS!, probes, zs, near_zero, β₀, c₀, c₀ₐ, v / β₀, zero(v), Sv / β₀, zero(v), zero(v),
-                            0, 0.0, 0.0, 1.0, 0.0, 1.0, z(nz), z(nz), ones(ComplexF64, nz), z(nz), z(np, nz), z(np, nz))
+    node() = zeros(ComplexF64, length(zs))
+    return LanczosResolvent(mulS!, zs, near_zero, β₀, c₀, v / β₀, zero(v), Sv / β₀, zero(v), zero(v),
+                            0, 0.0, 0.0, 1.0, 0.0, 1.0, node(), node(), ones(ComplexF64, length(zs)), node())
 end
 
 exhausted(r::LanczosResolvent) = r.nrows > 0 && iszero(r.β)
@@ -149,18 +132,17 @@ end
 # exhausted. Each row j is eliminated with α_j and the overlaps of q_j, and the
 # Lanczos step that follows gives the coupling β_j to the next row.
 function extend!(r::LanczosResolvent, m)
-    (; mulS!, probes, zs, near_zero, invu, invu′, g, x₁, h, s) = r
+    (; mulS!, zs, near_zero, invu, invu′, g, x₁) = r
     n = length(r.q)
     L = n ÷ 2
     while r.nrows < m && !exhausted(r)
         (; q, qprev, Sq, w, Sw) = r
         β′ = r.β
-        # α_j = (S q_j)† Ĩ (S q_j), and the overlaps of the probes
+        # α_j = (S q_j)† Ĩ (S q_j)
         α = 0.0
         @inbounds for k in 1:n
             α += (k <= L ? 1 : -1) * abs2(Sq[k])
         end
-        d = [dot_noblas(view(probes, :, a), Sq) for a in axes(probes, 2)]
         j = r.nrows += 1
         @inbounds for i in eachindex(zs)
             if j > 1
@@ -177,10 +159,6 @@ function extend!(r::LanczosResolvent, m)
                 # Nodes away from zero can avoid a second complex division
                 # (about a third of the per-node cost)
                 x₁[i] += g[i]^2 * invu[i]
-            end
-            for a in eachindex(d)
-                h[a, i] = (d[a] + β′ * h[a, i]) * invu[i]
-                s[a, i] += g[i] * h[a, i]
             end
         end
 
@@ -221,8 +199,8 @@ function extend!(r::LanczosResolvent, m)
     return r
 end
 
-# The estimates of δx₁, with its phase, and of ‖e‖ at node i
-function error_estimates(r::LanczosResolvent, i)
+# The estimate of δx₁ at node i, with its phase
+function error_estimate(r::LanczosResolvent, i)
     (τ, xm) = (r.invu[i], r.g[i] * r.invu[i])
-    return (r.β^2 * xm^2 * τ, r.β * abs(xm) * sqrt(-imag(τ) / imag(r.zs[i])))
+    return r.β^2 * xm^2 * τ
 end

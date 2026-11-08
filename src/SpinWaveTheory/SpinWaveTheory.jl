@@ -294,7 +294,11 @@ local_spin_ops(sys::System, U, bi) = map(S -> Hermitian(U' * S * U), bare_spin_o
 # spin component 𝐎⋅𝐒 is stored as the column 𝐎, so that rotating 𝐒 into the
 # local frame left-multiplies 𝐎 by R'. A Stevens expansion rotates as the
 # onsite coupling does.
-function local_observable(sys::System, frames, measure::MeasureSpec, μ, i; part=1)
+#
+# This, `observable_coefficients` and `observable_monomials` run once per
+# setup, and never touch the combiner, so they take `measure` `@nospecialize`
+# and compile once rather than once per combiner.
+function local_observable(sys::System, frames, @nospecialize(measure::MeasureSpec), μ, i; part=1)
     O = reshape(measure.observables, num_observables(measure), nsites(sys), :)[μ, i, part]
     R = frames[i]
     return if O isa Vec3
@@ -320,7 +324,7 @@ end
 # phase or form factor that `observable_prefactor` supplies. These are the
 # amplitudes of LSWT, the leading order of the words of
 # `observable_monomials`.
-function observable_coefficients(sys::System, frames, measure::MeasureSpec)
+function observable_coefficients(sys::System, frames, @nospecialize(measure::MeasureSpec))
     C = zeros(ComplexF64, 2nbands(sys), num_observables(measure), num_parts_per_unit(measure))
     for p in axes(C, 3), μ in axes(C, 2), i in 1:nsites(sys)
         for (; c, as) in observable_monomials(sys, frames, measure, μ, i, Val{1}(); part=p, beyond_tree=false)

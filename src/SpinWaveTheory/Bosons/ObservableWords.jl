@@ -20,7 +20,7 @@
 # of its Stevens polynomial, whose words are read off at their leading power,
 # and also at the next for the 1/s corrections. Either way the stored
 # coefficients are those of the operator, without `rcs_factors`.
-function observable_monomials(sys::System, frames, measure, μ, i, ::Val{K}; part=1, beyond_tree=true) where K
+function observable_monomials(sys::System, frames, @nospecialize(measure::MeasureSpec), μ, i, ::Val{K}; part=1, beyond_tree=true) where K
     L = nbands(sys)
     O = local_observable(sys, frames, measure, μ, i; part)
     sys.mode == :SUN && return local_monomials(O, i, zero(Vec3), Val{K}(), nflavors(sys), L)

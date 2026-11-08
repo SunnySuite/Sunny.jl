@@ -1,7 +1,8 @@
-# Dynamical structure factor at O(1/s), S = (χ - χ†)/2πi at z = ω + iη. The
-# docstring of `corrected_intensities` states what each `scheme` gives; these
-# notes describe the construction and justify its claims. References [n] are to
-# the docstring's list.
+# Dynamical correlations of the observables at O(1/s), C = (χ - χ†)/2πi at z = ω
+# + iη, which contract to the intensities S. The docstring of
+# `corrected_intensities` states what each `scheme` gives; these notes describe
+# the construction and justify its claims. References [n] are to the docstring's
+# list.
 #
 # Collect the quasi-particles into y_𝐪 = [α_𝐪; α†_{-𝐪}], with metric Ĩ =
 # diagm([ones(L); -ones(L)]), and write w = T†u for the observable amplitudes (u
@@ -31,7 +32,7 @@
 # This is `:one_loop`. Exact at O(1/s) and the resolvent of a quadratic model,
 # it inherits that structure: Nambu symmetry, Goldstone protection (the static
 # and dynamic 1/ε divergences cancel in the full 2L inverse), η as a pure
-# Lorentzian, and the sum rule ∫dω S = w†Ĩw. It is positive at ω > 0, up to the
+# Lorentzian, and the sum rule ∫dω C = w†Ĩw. It is positive at ω > 0, up to the
 # O(η) tails of the mirror poles, whenever the model is stable, i.e. its static
 # magnon matrix |ε| + Σstat + K_mm, evaluated at iη, is positive semidefinite.
 # Where it is not, the 1/s correction to some mode is comparable to its harmonic
@@ -228,11 +229,11 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
     scheme in (:one_loop, :two_magnon_ladder, :one_loop_projected, :one_loop_on_shell) ||
         error("Unknown scheme :$scheme; use :one_loop, :two_magnon_ladder, :one_loop_projected or :one_loop_on_shell.")
 
-    (; sys, measure) = swt
+    (; sys) = swt
     cryst = orig_crystal(sys)
     L = nbands(swt)
-    Nobs = num_observables(measure)
     Ncells = nsites(sys) / natoms(cryst)
+    ncomp = num_real_components(eltype(swt.measure))
 
     energies = collect(Float64, energies)
     issorted(energies) || error("energies must be sorted")
@@ -254,9 +255,9 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
     end
     ol = OneLoop(swt; energies, η, grid)
 
-    chans = (; transverse = zeros(eltype(measure), length(energies), length(qpts.qs)),
-               cross = zeros(eltype(measure), length(energies), length(qpts.qs)),
-               direct = zeros(eltype(measure), length(energies), length(qpts.qs)))
+    chans = (; transverse = zeros(ncomp, length(energies), length(qpts.qs)),
+               cross = zeros(ncomp, length(energies), length(qpts.qs)),
+               direct = zeros(ncomp, length(energies), length(qpts.qs)))
     specfunc = spectral ? zeros(ComplexF64, L, L, length(energies), length(qpts.qs)) : nothing
     disp = zeros(L, length(qpts.qs))
     # On-shell decay rate of each band, for the `verbose` report
@@ -264,31 +265,39 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
     # Poles of `:one_loop_on_shell`: energies, half widths and intensities
     bands = scheme != :one_loop_on_shell ? nothing :
         (; disp = zeros(L, length(qpts.qs)), widths = zeros(L, length(qpts.qs)),
-           data = zeros(eltype(measure), L, length(qpts.qs)))
+           data = zeros(ncomp, L, length(qpts.qs)))
     # Not a `BitVector`, whose threaded writes would race within each 64-bit
     # chunk
     breakdown = fill(false, length(qpts.qs))
 
-    # Nambu indices of the magnon legs, and the rows of K for the direct
-    # amplitudes
+    # Nambu indices of the magnon legs
     p = 1:2L
-    d = 2L .+ (1:Nobs)
     Ĩ = Diagonal([ones(L); -ones(L)])
 
     function calc_iq!(iq)
-        corr = zeros(ComplexF64, num_correlations(measure))
         q = qpts.qs[iq]
         q_global = cryst.recipvecs * q
-        se = SelfEnergy(ol, q; ladder = scheme == :two_magnon_ladder)
+        # The measured intensity has real components tr(F_i C). Each form matrix
+        # F_i is Hermitian, and C is the correlation matrix of a few
+        # combinations (channels) of the observables. Only these channels are
+        # carried through the self-energy and bath.
+        (channels, forms) = measure_channels(swt.measure, q_global)
+        # Indices of K after the 2L magnon legs, one per channel, for the
+        # amplitudes of the channel to create a pair directly
+        d = 2L .+ axes(channels, 2)
+        ladder = (scheme == :two_magnon_ladder)
+        se = SelfEnergy(ol, q; channels, ladder)
         (; ε, w) = se
         view(disp, :, iq) .= view(ε, 1:L)
         E = Diagonal(abs.(ε))
         (; Σ, K, poles, stable) = dyson_model(se, scheme, zs)
 
-        # Contracts an Nobs×Nobs χ through the measure, taking S = (χ - χ†)/2πi
+        # The real components tr(F_i C) at one energy, with C = (χ - χ†)/2πi
         function accum_channel!(accum, iω, χ)
-            map!(((μ, ν),) -> (χ[μ, ν] - conj(χ[ν, μ])) / (2π*im*Ncells), corr, measure.corr_pairs)
-            accum[iω, iq] = measure.combiner(q_global, corr)
+            C = (χ - χ') / (2π*im*Ncells)
+            for (k, F) in enumerate(forms)
+                accum[k, iω, iq] = real(dot(F, C))
+            end
         end
 
         for iω in eachindex(energies)
@@ -324,10 +333,13 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
 
         if scheme == :one_loop_on_shell
             for n in 1:L
-                a = poles.U[:, n]' * w[1:L, :]
-                map!(((μ, ν),) -> conj(a[μ]) * a[ν] / Ncells, corr, measure.corr_pairs)
+                # The channel amplitudes of the pole, a = ⟨0|A_c|n⟩, whose
+                # correlations a a† contract with each form
+                a = vec(w[1:L, :]' * poles.U[:, n])
                 (bands.disp[n, iq], bands.widths[n, iq]) = (poles.λ[n], poles.Γ[n])
-                bands.data[n, iq] = measure.combiner(q_global, corr)
+                for (k, F) in enumerate(forms)
+                    bands.data[k, n, iq] = real(dot(a, F, a)) / Ncells
+                end
             end
         end
 
@@ -369,6 +381,10 @@ function corrected_channels(swt::SpinWaveTheory, qpts, scheme; energies, η,
         scheme in (:one_loop, :two_magnon_ladder) && println("  breakdown       $(count(breakdown)) of $(length(qpts.qs)) wavevectors (NaN near ω = 0)")
     end
 
+    # Values of the measure from their real components
+    T = eltype(swt.measure)
+    chans = map(xs -> measure_values(T, xs), chans)
+    isnothing(bands) || (bands = (; bands..., data=measure_values(T, bands.data)))
     return (; cryst, qpts, energies, chans..., specfunc, disp, breakdown, bands)
 end
 

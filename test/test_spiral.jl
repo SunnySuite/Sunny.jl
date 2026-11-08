@@ -316,4 +316,8 @@ end
     res = intensities(swt, qs; energies, kernel, kT=D/10)
     res3 = intensities(swt3, qs; energies, kernel, kT=D/10)
     @test res3.data ≈ res.data
+
+    # A quadrupole would also scatter at q ± 2k, so it is rejected
+    measure = Sunny.ssf_multipoles((q, C) -> real(C[2, 0, 2, 0]), sys; max_k=2)
+    @test_throws "only spin dipole" SpinWaveTheorySpiral(sys; measure, k, axis)
 end

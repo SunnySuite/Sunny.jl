@@ -367,7 +367,7 @@ function OneLoop(swt::SpinWaveTheory; energies=nothing, η, grid=auto_grid(swt, 
 end
 
 """
-    SelfEnergy(ol::OneLoop, q; ladder=false)
+    SelfEnergy(ol::OneLoop, q; channels=nothing, ladder=false)
 
 One-loop self-energy of the magnons at the wavevector `q` in RLU. Calling `Σ(z)`
 at a complex frequency `z` returns the ``2L×2L`` Nambu matrix of the static and
@@ -381,6 +381,10 @@ vacuum. The field `Σ.T` is the Bogoliubov matrix of the vacuum at `q`, and `Σ.
 the amplitudes of the observables, corrected at ``O(1/s)``, in the same basis.
 Evaluating `Σ(z)` is cheap, so that e.g. a pole equation ``\\det G^{-1}(ω) = 0``
 can be solved by root finding.
+
+Given a matrix `channels` B with one row per observable, the observables are
+replaced by the linear combinations Σ_μ B[μ, c] A_μ, one per column c. The
+amplitudes `Σ.w` and the bath then carry these channels instead.
 
 With `ladder=true` the measures also carry the channels of the two-magnon
 interaction that `:two_magnon_ladder` resums. `Σ(z)` is then the one-loop
@@ -399,12 +403,13 @@ struct SelfEnergy
     σ      :: Vector{Float64}
 end
 
-function SelfEnergy(ol::OneLoop, q; ladder=false)
+function SelfEnergy(ol::OneLoop, q; channels=nothing, ladder=false)
     (; swt, loop_grid, bin_width) = ol
     (; sys) = swt
     L = nbands(swt)
     q_supercell = to_supercell_rlu(sys, q)
     q_global = orig_crystal(sys).recipvecs * q
+    B = @something channels I(num_observables(swt.measure))
 
     ws = BogoliubovWorkspace(L)
     ε = copy(excitations_supercell!(ws, zeros(ComplexF64, 2L, 2L), swt, q_supercell))
@@ -414,10 +419,10 @@ function SelfEnergy(ol::OneLoop, q; ladder=false)
     u = zeros(ComplexF64, 2L, num_observables(swt.measure))
     observable_vectors!(u, swt, q_global)
     accum_observable_corrections!(u, swt, q_global, ol.δc)
-    w = T' * u
+    w = T' * u * B
 
     grid = loop_wavevectors(loop_grid, q_supercell)
-    words2 = observable_pair_monomials(swt, q_global; ol.words2)
+    words2 = observable_pair_monomials(swt, q_global, B; ol.words2)
     chans = ladder ? pair_channels(ol.terms4, q_supercell, L) : nothing
     (; decay, source) = pair_measures(swt, ol.terms3, q_supercell, grid; bin_width, words2, chans)
     return SelfEnergy(ol.η, ε, T, Σstat, w, decay, source, ladder ? chans.σ : Float64[])
