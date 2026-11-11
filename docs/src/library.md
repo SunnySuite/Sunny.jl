@@ -25,7 +25,7 @@ SampledCorrelationsStatic
 SCGA
 Site
 SpinWaveTheory
-SpinWaveTheoryKPM
+SpinWaveTheoryLarge
 SpinWaveTheorySpiral
 System
 Units

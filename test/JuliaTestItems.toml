@@ -1,0 +1,3 @@
+# The derivation tier of the 1/s corrections tests, see the top of
+# `test_lswt_corrections.jl`. Delete this line to run it.
+exclude = ["test_lswt_corrections_extra.jl"]

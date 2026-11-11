@@ -4,7 +4,6 @@ using LinearAlgebra
 
 import ChainRulesCore as CRC
 import DynamicPolynomials as DP
-import ElasticArrays: ElasticArray
 import FFTW
 import FiniteDiff
 import HCubature: hcubature
@@ -19,7 +18,7 @@ import ProgressMeter
 import Random: Random, randn!
 import SpecialFunctions: erf, erfc
 import Statistics
-import StaticArrays: SVector, SMatrix, SArray, SA
+import StaticArrays: SVector, SMatrix, SArray, SA, setindex
 
 # Specific to Symmetry/
 import Brillouin
@@ -67,6 +66,7 @@ include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
+include("System/FourierExchange.jl")
 export Moment, System, Site, clone_system, eachsite, nsites, position_to_site, global_positions,
     magnetic_moments, set_coherent!, set_dipole!, polarize_spins!, copy_spins!, randomize_spins!,
     set_spin_rescaling!, set_spin_s_at!, set_spin_rescaling_for_static_sum_rule!,
@@ -85,8 +85,10 @@ export entangle_system
 include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!, suggest_timestep
 
-include("Optimization.jl")
-export minimize_energy!
+include("Minimization/MinimizeEnergy.jl")
+include("Minimization/MinimizeSpiralEnergy.jl")
+include("Minimization/LuttingerTisza.jl")
+export minimize_energy!, minimize_spiral_energy!, spiral_energy, spiral_energy_per_site
 
 include("MagneticOrdering.jl")
 export print_wrapped_intensities, suggest_magnetic_supercell
@@ -101,27 +103,38 @@ include("Measurements/MeasureSpec.jl")
 include("Measurements/QPoints.jl")
 include("Measurements/IntensitiesTypes.jl")
 include("Measurements/Broadening.jl")
+include("Measurements/RetardedBroadening.jl")
 include("Measurements/RotationalAverages.jl")
 export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid,
     find_qs_along_path, lorentzian, gaussian, powder_average, domain_average
 
+include("SpinWaveTheory/Bogoliubov.jl")
+include("SpinWaveTheory/Bosons/Monomials.jl")
+include("SpinWaveTheory/Bosons/QuadraticTable.jl")
+include("SpinWaveTheory/Bosons/QuadraticEwald.jl")
+include("SpinWaveTheory/Bosons/StevensWords.jl")
 include("SpinWaveTheory/SpinWaveTheory.jl")
-include("SpinWaveTheory/HamiltonianDipole.jl")
-include("SpinWaveTheory/HamiltonianSUN.jl")
-include("SpinWaveTheory/DispersionAndIntensities.jl")
-include("SpinWaveTheory/LSWTCorrections.jl")
-export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands,
-    intensities_static
+include("SpinWaveTheory/Bosons/ExpansionDipole.jl")
+include("SpinWaveTheory/Bosons/ExpansionSUN.jl")
+include("SpinWaveTheory/Bosons/ObservableWords.jl")
+export SpinWaveTheory, excitations, excitations!, dispersion, intensities,
+    intensities_bands, intensities_static
 
-include("Spiral/LuttingerTisza.jl")
-include("Spiral/SpiralEnergy.jl")
-include("Spiral/SpinWaveTheorySpiral.jl")
-export minimize_spiral_energy!, spiral_energy, spiral_energy_per_site, SpinWaveTheorySpiral
+include("SpinWaveTheory/SpinWaveTheorySpiral.jl")
+export SpinWaveTheorySpiral
 
-include("KPM/Lanczos.jl")
-include("KPM/Chebyshev.jl")
-include("KPM/SpinWaveTheoryKPM.jl")
-export SpinWaveTheoryKPM
+include("SpinWaveTheory/Large/HamiltonianOperator.jl")
+include("SpinWaveTheory/Large/Lanczos.jl")
+include("SpinWaveTheory/Large/SpinWaveTheoryLarge.jl")
+export SpinWaveTheoryLarge
+
+include("SpinWaveTheory/Corrections/Corrections.jl")
+include("SpinWaveTheory/Corrections/Quadrature.jl")
+include("SpinWaveTheory/Corrections/ObservableCorrections.jl")
+include("SpinWaveTheory/Corrections/Vacuum.jl")
+include("SpinWaveTheory/Corrections/StaticCorrections.jl")
+include("SpinWaveTheory/Corrections/SelfEnergy.jl")
+include("SpinWaveTheory/Corrections/CorrectedIntensities.jl")
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
@@ -152,9 +165,6 @@ export squared_error, squared_error_fitted, squared_error_bands, make_loss_fn,
     with_hyperparams, uncertainty_matrix
 
 include("deprecated.jl")
-export set_external_field!, set_external_field_at!, dynamic_correlations,
-    instant_correlations, intensity_formula, reciprocal_space_path,
-    set_spiral_order_on_sublattice!, set_spiral_order!
 
 
 ### Initialize package extensions

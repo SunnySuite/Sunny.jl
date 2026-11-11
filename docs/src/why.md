@@ -34,8 +34,8 @@
 - [Spin wave theory](@ref SpinWaveTheory) (SWT) for low-temperature spin
   dynamics. Special support is provided for efficient calculations on
   [incommensurate spiral phases](@ref SpinWaveTheorySpiral) and on [very large
-  magnetic cells](@ref SpinWaveTheoryKPM). The [disordered system tutorial](@ref
-  "9. Disordered systems") demonstrates acceleration for large system sizes. The
+  supercells](@ref SpinWaveTheoryLarge). The [chemical disorder tutorial](@ref
+  "9. Spin waves in disordered magnets") illustrates the latter. The
   quantization of SU(N) coherent states yields a generalization of SWT to
   multi-flavor bosons. See the [FeI₂ tutorial](@ref "3. Multi-flavor spin wave
   simulations of FeI₂") as a showcase.

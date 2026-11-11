@@ -41,6 +41,7 @@ struct SCGA
         sys.dims == (1, 1, 1) || error("Use system with dims=(1, 1, 1) for efficiency")
 
         measure = @something measure empty_measurespec(sys)
+        require_dipole_observables(measure, "SCGA")
         if num_lattice_dims(measure) != sys.dims || num_units_per_cell(measure) != natoms(sys.crystal)
             error("Size mismatch. Check that measure is built using consistent system.")
         end
@@ -95,7 +96,7 @@ function make_q_grid(sys, dq)
     end
 
     qα = [w ? (0 : dq : 1-dq) : [0] for w in wraps]
-    return vec([to_standard_rlu(sys, Vec3(q_reshaped)) for q_reshaped in Iterators.product(qα...)])
+    return vec([from_supercell_rlu(sys, Vec3(q_supercell)) for q_supercell in Iterators.product(qα...)])
 end
 
 # If all sites are symmetry-equivalent, then solve for a single Lagrange
@@ -299,11 +300,10 @@ function intensities_static(scga::SCGA, qpts; measure=nothing)
     data = map(qpts.qs) do q
         any(isnan, q) && return NaN * zero(eltype(measure))
 
-        q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
         for i in 1:Na, μ in 1:Nobs
-            pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+            pref = observable_prefactor(measure, μ, i, q_global, sys)
             for α in 1:3
                 ur[α, i, μ] = pref * O[μ, i][α]
             end
@@ -415,30 +415,19 @@ function CRC.rrule(::typeof(SCGA), sys::System; measure, kT, dq)
     return scga, pullback
 end
 
-# Evaluate pullback for d = combiner(q_global, corr) given cotangent Δd,
-# assuming linearity in corr.
-function combiner_ad(rc::CRC.RuleConfig, combiner, q_global, corr, Δd)
-    Δcorr = similar(corr)
-    e = zeros(Float64, length(corr))
-    for i in 1:length(corr)
-        fill!(e, 0.0)
-        e[i] = 1.0
-        Δcorr[i] = dot(combiner(q_global, e), Δd)
+# Pullback of d = combiner(q_global, corr) for the cotangent Δd. The combiner is
+# real-linear, so the derivatives with respect to the real and imaginary parts
+# of corr[i] follow from probes eᵢ and i eᵢ.
+function combiner_ad(combiner, q_global, corr, Δd)
+    e = zero(corr)
+    return map(eachindex(corr)) do i
+        e[i] = 1
+        x = real(dot(Δd, combiner(q_global, e)))
+        e[i] = im
+        y = real(dot(Δd, combiner(q_global, e)))
+        e[i] = 0
+        return x + im*y
     end
-
-    # Test correctness of adjoint. Use Float64 for elements of r because some
-    # combiners (like in ssf_trace) require a real input.
-    r = randn(Float64, length(corr))
-    matches = dot(Δd, combiner(q_global, r)) ≈ dot(Δcorr, r)
-
-    # Fall back to much slower AD if needed
-    if !matches
-        @warn "Combiner appears nonlinear; falling back to generic AD"
-        _, pullback = CRC.rrule_via_ad(rc, combiner, q_global, corr)
-        _, _, Δcorr = pullback(Δd)
-    end
-
-    return Δcorr
 end
 
 function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA, qpts; measure=nothing)
@@ -488,11 +477,10 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
 
             ### REPEAT FORWARD CALCULATION (no tape to avoid memory costs)
 
-            q_reshaped = to_reshaped_rlu(sys, q)
             q_global = cryst.recipvecs * q
 
             for i in 1:Na, μ in 1:Nobs
-                pref = observable_prefactor(measure, μ, i, q_reshaped, q_global, sys)
+                pref = observable_prefactor(measure, μ, i, q_global, sys)
                 for α in 1:3
                     ur[α, i, μ] = pref * O[μ, i][α]
                 end
@@ -519,7 +507,7 @@ function CRC.rrule(rc::CRC.RuleConfig, ::typeof(intensities_static), scga::SCGA,
             ### BACKWARD CALCULATION
 
             # Pullback on: data = measure.combiner(corr)
-            Δcorr = combiner_ad(rc, measure.combiner, q_global, corr, Δd)
+            Δcorr = combiner_ad(measure.combiner, q_global, corr, Δd)
             Δcorr = CRC.unthunk(Δcorr)
             if Δcorr isa CRC.NoTangent || Δcorr isa CRC.AbstractZero || isnothing(Δcorr)
                 return

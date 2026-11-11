@@ -198,14 +198,11 @@ function suggest_magnetic_supercell_aux(ks)
 end
 
 
+# A wavevector is commensurate with the system when it is integer valued in RLU
+# of the supercell
 function check_commensurate(sys; k)
-    q_reshaped = sys.crystal.recipvecs \ orig_crystal(sys).recipvecs * k
-    commensurate = true
-    for i = 1:3
-        denom = denominator(rationalize(q_reshaped[i]))
-        commensurate = commensurate && iszero(mod(sys.dims[i], denom))
-    end
-    if !commensurate
+    k_supercell = to_supercell_rlu(sys, k)
+    if !all(x -> isapprox(x, round(x); atol=1e-12), k_supercell)
         @warn "Wavevector $(vec3_to_string(k)) is incommensurate with system."
     end
 end
