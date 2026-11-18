@@ -26,6 +26,12 @@ Changing the BLAS backend is especially recommended for [`SpinWaveTheory`](@ref)
 calculations whenever `threaded=true` is enabled. Although OpenBLAS is fast for
 serial workloads, it employs a global thread lock that can strongly bottleneck
 parallelized operations on small matrices.
+
+If Julia runs with multiple threads, MKL is restricted to one thread per call,
+via `BLAS.set_num_threads(1)`. Otherwise, each Julia thread would spawn its own
+MKL threads, and the oversubscription can slow threaded calculations several
+times over. To restore multi-threaded MKL, e.g., for operations on large
+matrices outside of threaded calculations, call `BLAS.set_num_threads(n)`.
 """
 function load_blas_for_threading()
     backend = threading_blas_backend()
@@ -38,7 +44,15 @@ function load_blas_for_threading()
     Base.eval(Main, :(using $backend))
     using_openblas() && error("Loaded $backend, but OpenBLAS is still the BLAS backend.")
 
-    println("Loaded $backend as the BLAS backend.")
+    # By default, MKL spawns threads within each call, also from each Julia
+    # thread. On a 24-core x86 host, this oversubscription slowed threaded
+    # SpinWaveTheory intensities by 5× relative to MKL_NUM_THREADS=1.
+    if backend == :MKL && Threads.nthreads() > 1
+        BLAS.set_num_threads(1)
+        println("Loaded $backend as the BLAS backend, with one thread per call.")
+    else
+        println("Loaded $backend as the BLAS backend.")
+    end
     return nothing
 end
 

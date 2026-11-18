@@ -15,6 +15,9 @@
   ([#507](@ref)).
 * One-dimensional paths supported in [`q_space_grid`](@ref). Labeling of plot
   axes in 1D and 2D is clarified ([#516](@ref)).
+* With multiple Julia threads, [`load_blas_for_threading`](@ref) restricts MKL
+  to one thread per call, avoiding oversubscription that slowed threaded
+  calculations several times over.
 
 ## v0.9.2
 (Jul 13, 2026)
