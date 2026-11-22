@@ -140,41 +140,50 @@ Set `verbose=true` to print a progress bar and diagnostics.
 
 !!! tip "Tradeoffs between the schemes"
 
-    `:one_loop` solves the Dyson–Beliaev equations [1, 2] in the full
-    particle–hole (Nambu) space, keeping every term at order ``1/s``. Its
-    guarantees, namely gapless Goldstone modes at all frequencies, conservation
-    of total spin, and the frequency sum rule, rest on cancellations between the
-    normal and anomalous self-energies, and between the one- and two-magnon
-    channels. The individual channels need not be positive; their sum is,
-    wherever the resummed propagator is stable.
+    `:one_loop` solves the Dyson equations [1, 2] in the full particle–hole (Nambu)
+    space. Once the one-loop self-energy is resummed, the Ward identities leave no
+    freedom: they require every Nambu block, the self-energy at the actual
+    frequency, and the interference between the one- and two-magnon channels. By
+    satisfying the Ward identities, `:one_loop` conserves total spin and respects
+    the frequency sum rule. Its artifacts are confined to where the expansion itself
+    breaks down, e.g. at low energies near certain Goldstone wavevectors. The net
+    intensity is positive wherever the resummed propagator is stable.
 
-    `:two_magnon_ladder` goes beyond one-loop order, in the spirit of the
-    truncated Hilbert space exact diagonalization of Ref. [7], but in the full
-    Nambu space. It is exact within the space of one- and two-magnon states; in
-    a noncollinear state, the leading omitted coupling is the cubic vertex
-    between a pair and three-magnon states. A static counterterm keeps the
-    magnon dispersion at ``ω = 0``, and so every Goldstone mode, equal to that
-    of `:one_loop`. Near a Goldstone mode, however, the bare vertices lack the
-    Adler zero required by the broken symmetry, which is why the ladder can bind
-    soft pairs spuriously.
+    The two alternative one-loop schemes agree with `:one_loop` on magnon energies
+    and widths through order ``1/s``. Both drop the anomalous self-energy [3–5],
+    which changes how higher orders are resummed. This choice ensures stability of
+    the dressed poles, but also hides any breakdown of perturbation theory. Dropping
+    the anomalous block also violates the Ward identities: near a soft mode, where
+    the anomalous self-energy is not small, the two schemes can produce spurious
+    intensity far from the magnon energy. Despite the Ward violations, all one-loop
+    schemes leave Goldstone modes gapless.
 
-    `:one_loop_on_shell` keeps only the first-order shift and width of each
-    pole, ``ε̃ - iΓ = ε + Σ(ε)`` [5, Eq. (35)], evaluating the width at the
-    shifted energy. This gives a clean dispersion and decay rate for each band,
-    but no off-shell structure: intensities remain those of linear spin wave
-    theory, and each line is Lorentzian, even where decay makes the true line
-    shape strongly asymmetric. Peak energies are singular where a magnon
-    crosses a van Hove singularity of the two-magnon continuum.
+    `:one_loop_on_shell` keeps only the first-order shift and width of each pole,
+    ``ε̃ - iΓ = ε + Σ(ε)`` [5, Eq. (35)], evaluating the width at the shifted
+    energy. This gives a clean dispersion and decay rate for each band, but no
+    off-shell structure: the residues of the poles are not corrected, and each line
+    is Lorentzian, even where decay makes the true line shape strongly asymmetric.
+    Peak energies are singular where a magnon crosses a van Hove singularity of the
+    two-magnon continuum.
 
-    `:one_loop_projected` drops the anomalous self-energy, which shifts an
-    isolated magnon pole only at second order, and adds the bare two-magnon
-    continuum without interference [3–6]. The spectrum is then positive by
-    construction, and magnon energies are correct at order ``1/s`` away from
-    soft modes. The cost is the cancellations above: near a Goldstone mode, it
-    overestimates the intensity above the magnon branch and in the continuum,
-    and it violates the conservation of total spin. As in Ref. [6], the
-    non-resonant "source" self-energy is evaluated on shell, which removes a
-    spurious branch near the ordering wavevector.
+    `:one_loop_projected` resums the Dyson equation within the particle block, and
+    adds the bare two-magnon continuum without interference. The spectrum is then
+    positive by construction. Near a Goldstone mode, it overestimates the intensity
+    above the magnon branch and in the continuum, and it violates the conservation
+    of total spin. The projection leaves open at which frequency each part of the
+    self-energy is evaluated. Sunny's implementation follows Ref. [6] and evaluates
+    the non-resonant "source" self-energy on shell, which removes a spurious branch
+    near the ordering wavevector.
+
+    `:two_magnon_ladder` is a ladder resummation beyond one-loop order [7]. It
+    generalizes the method of Ref. [8] to continuous momenta and works in the full
+    Nambu space. The two-magnon ladder is exact within the space of one- and
+    two-magnon states. In a noncollinear state, the leading omitted coupling is the
+    cubic vertex between a pair and three-magnon states. A static counterterm keeps
+    the magnon dispersion at ``ω = 0``, and so every Goldstone mode, equal to that
+    of `:one_loop`. Near a Goldstone mode, however, the bare vertices lack the Adler
+    zero required by the broken symmetry, so the ladder violates the Ward identities
+    and can bind soft pairs spuriously.
 
 ## References
 
@@ -197,7 +206,10 @@ Set `verbose=true` to print a progress bar and diagnostics.
 6. [M. Mourigal, W. T. Fuhrman, A. L. Chernyshev, and M. E. Zhitomirsky,
    _Dynamical structure factor of triangular-lattice antiferromagnet_, Phys.
    Rev. B **88**, 094407 (2013)](https://doi.org/10.1103/PhysRevB.88.094407).
-7. [Zhang et al. (2025) [arXiv:2508.21142]](https://arxiv.org/abs/2508.21142).
+7. [A.-K. Wu, D. A. Dahlbom, K. Barros, C. D. Batista, and H. Zhang, _Learning
+   spin Hamiltonians from interacting magnon spectra_, arXiv:2611.25321
+   (2026)](https://arxiv.org/abs/2611.25321).
+8. [Zhang et al. (2025) [arXiv:2508.21142]](https://arxiv.org/abs/2508.21142).
 """
 function corrected_intensities(swt::SpinWaveTheory, qpts, scheme; energies, η, kernel=nothing, kT=0,
                                grid=auto_grid(swt, η), mark_breakdown=true, threaded=false, verbose=false)
