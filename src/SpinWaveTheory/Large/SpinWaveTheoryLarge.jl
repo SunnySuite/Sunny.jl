@@ -52,8 +52,9 @@ refinement of the kernel polynomial method, which was previously implemented as
 
 1. [T. Chen, _The Lanczos algorithm for matrix functions: a handbook for
    scientists_ (2024) [arXiv:2410.11090]](https://arxiv.org/abs/2410.11090).
-2. [H. Lane et al., _Kernel Polynomial Method for Linear Spin Wave Theory_
-   (2023) [arXiv:2312.08349]](https://arxiv.org/abs/2312.08349).
+2. [H. Lane et al., _Kernel polynomial method for linear spin wave theory_,
+   SciPost Phys. **17**, 145
+   (2024)](https://doi.org/10.21468/SciPostPhys.17.5.145).
 """
 struct SpinWaveTheoryLarge
     swt :: SpinWaveTheory

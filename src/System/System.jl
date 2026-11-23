@@ -652,9 +652,10 @@ rescaling.
 
 ## References
 
-1. [T. Huberman et al., _A study of the quantum classical crossover in the spin
-   dynamics of the 2D S=5/2 antiferromagnet Rb₂MnF₄: neutron scattering,
-   computer simulations and analytic theories_, J. Stat. Mech. **P05017**
+1. [T. Huberman, D. A. Tennant, R. A. Cowley, R. Coldea, and C. D. Frost, _A
+   study of the quantum classical crossover in the spin dynamics of the 2D S=5/2
+   antiferromagnet Rb₂MnF₄: neutron scattering, computer simulations and
+   analytic theories_, J. Stat. Mech. **P05017**
    (2008)](https://doi.org/10.1088/1742-5468/2008/05/P05017).
 2. [D. Dahlbom et al., _Quantum-to-classical crossover in generalized spin
    systems: Temperature-dependent spin dynamics of FeI₂_, Phys. Rev. B **109**,

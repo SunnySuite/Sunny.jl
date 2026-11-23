@@ -70,9 +70,9 @@ See also [`lattice_vectors`](@ref).
 
 ## References
 
-1. [A. Togo, K. Shinohara, I. Tanaka, _Spglib: a software library for crystal
-   symmetry search_ (2018)
-   [arXiv:1808.01590]](https://arxiv.org/abs/1808.01590).
+1. [A. Togo, K. Shinohara, and I. Tanaka, _Spglib: a software library for
+   crystal symmetry search_, Sci. Technol. Adv. Mater.: Methods **4**, 2384822
+   (2024)](https://doi.org/10.1080/27660400.2024.2384822).
 2. [International Tables of Crystallography, Volume A
    (2016)](https://doi.org/10.1107/97809553602060000114).
 """

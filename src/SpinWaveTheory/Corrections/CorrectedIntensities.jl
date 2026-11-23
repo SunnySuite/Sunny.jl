@@ -209,7 +209,9 @@ Set `verbose=true` to print a progress bar and diagnostics.
 7. [A.-K. Wu, D. A. Dahlbom, K. Barros, C. D. Batista, and H. Zhang, _Learning
    spin Hamiltonians from interacting magnon spectra_, arXiv:2611.25321
    (2026)](https://arxiv.org/abs/2611.25321).
-8. [Zhang et al. (2025) [arXiv:2508.21142]](https://arxiv.org/abs/2508.21142).
+8. [H. Zhang et al., _Nonperturbative semiclassical spin dynamics for ordered
+   quantum magnets_, npj Quantum Mater. **11**, 75
+   (2026)](https://doi.org/10.1038/s41535-026-00873-9).
 """
 function corrected_intensities(swt::SpinWaveTheory, qpts, scheme; energies, η, kernel=nothing, kT=0,
                                grid=auto_grid(swt, η), mark_breakdown=true, threaded=false, verbose=false)

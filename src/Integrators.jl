@@ -49,9 +49,9 @@ the `damping` parameter varies subtly between `:dipole` and `:SUN` modes.
 
 ## References
 
-1. [D. Dahlbom et al., _Langevin dynamics of generalized spins as SU(N) coherent
-   states_, Phys. Rev. B **106**, 235154
-   (2022)](https://doi.org/10.1103/PhysRevB.106.235154).
+1. [D. Dahlbom, C. Miles, H. Zhang, C. D. Batista, and K. Barros, _Langevin
+   dynamics of generalized spins as SU(N) coherent states_, Phys. Rev. B
+   **106**, 235154 (2022)](https://doi.org/10.1103/PhysRevB.106.235154).
 """
 mutable struct Langevin <: AbstractIntegrator
     dt      :: Float64
@@ -85,7 +85,7 @@ Relative to the Heun integration method, the implicit midpoint method has a
 larger numerical cost, but can achieve much better statistical accuracy,
 especially in the limit of small `damping`.
 
-2. [D. Dahlbom et al, Phys. Rev. B 106, 054423
+2. [D. Dahlbom et al., Phys. Rev. B 106, 054423
    (2022)](https://arxiv.org/abs/2204.07563).
 =#
 

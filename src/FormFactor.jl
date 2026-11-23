@@ -181,9 +181,10 @@ point particle, while the second suppresses all contributions from that ion.
    documentation](https://mcphase.github.io/webpage/manual/node164.html#ffacts).
 3. [P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 _Magnetic Form
    Factors_ (2003)](https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html).
-4. [Lisher and Forsyth, _Analytic approximations to form factors_, Acta Cryst. A
-   **27**, 545-549 (1971)](https://doi.org/10.1107/S0567739471001219).
-5. [K. Kobayashi, T. Nagao, M. Ito, _Radial integrals for the magnetic form
+4. [E. J. Lisher and J. B. Forsyth, _Analytic approximations to form factors_,
+   Acta Cryst. A **27**, 545-549
+   (1971)](https://doi.org/10.1107/S0567739471001219).
+5. [K. Kobayashi, T. Nagao, and M. Ito, _Radial integrals for the magnetic form
    factor of 5d transition elements_, Acta Cryst. A **67**, 473–480
    (2011)](https://doi.org/10.1107/S010876731102633X).
 """
