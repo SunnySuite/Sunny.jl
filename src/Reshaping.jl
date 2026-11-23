@@ -70,31 +70,6 @@ function transfer_params_from_origin!(sys::System)
     return
 end
 
-# This function exists to support SpinWaveTheory reshaping from inhomogeneous
-# `src` to a homogeneous `sys` containing a single large cell.
-function transfer_interactions_from_inhomogeneous!(sys::System, src::System)
-    @assert is_homogeneous(sys) && !is_homogeneous(src)
-
-    empty!(sys.params)
-    new_ints = interactions_homog(sys)
-
-    for new_i in 1:natoms(sys.crystal)
-        site = map_atom_to_other_system(sys.crystal, new_i, src)
-        int = src.interactions_union[site]
-
-        new_ints[new_i].onsite = int.onsite
-
-        new_pc = PairCoupling[]
-        for pc in int.pair
-            new_bond = map_bond_to_other_crystal(src.crystal, pc.bond, sys.crystal, new_i)
-            push!(new_pc, PairCoupling(new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
-        end
-        new_pc = sort!(new_pc, by=pc->pc.isculled)
-        new_ints[new_i].pair = new_pc
-    end
-end
-
-
 function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTuple{3, Int}) where N
     # Allocate data for new system, but with an empty list of interactions
     new_na               = natoms(new_cryst)
@@ -120,17 +95,10 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
                      new_extfield, new_dipoles, new_coherents, new_dipole_buffers,
                      new_coherent_buffers, copy(sys.rng), nothing)
 
-    if is_homogeneous(sys)
-        # Transfer params from `new_sys.origin`, which will then be used to fill
-        # interactions.
-        transfer_params_from_origin!(new_sys)
-    else
-        # Inhomogeneous interactions must be transferred directly. This path
-        # only exists to support SpinWaveTheory reshaping.
-        @assert new_sys.dims == (1, 1, 1)
-        @assert nsites(new_sys) == nsites(sys)
-        transfer_interactions_from_inhomogeneous!(new_sys, sys)
-    end
+    # Transfer params from `new_sys.origin`, which will then be used to fill
+    # interactions.
+    @assert is_homogeneous(sys)
+    transfer_params_from_origin!(new_sys)
 
     # Copy per-site quantities
     for new_site in eachsite(new_sys)
@@ -145,9 +113,12 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTu
 
     # Restore dipole-dipole interactions if present. This involves pre-computing
     # an interaction matrix that depends on `new_dims`.
-    if !isnothing(sys.ewald)
+    if sys.ewald isa Ewald
         (; μ0_μB², demag) = sys.ewald.cache
-        enable_dipole_dipole!(new_sys, μ0_μB²; demag)
+        new_sys.ewald = Ewald(new_sys, μ0_μB², demag)
+    else
+        @assert sys.ewald isa Union{Nothing, EwaldDelegated}
+        new_sys.ewald = sys.ewald
     end
 
     # If the system is entangled, then we also need to update its internal data.

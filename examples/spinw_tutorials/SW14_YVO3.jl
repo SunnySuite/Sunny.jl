@@ -23,7 +23,7 @@ positions = [[0, 0, 0], [0, 0, 1/2]]
 types = ["V", "V"]
 cryst = Crystal(latvecs, positions, 1; types)
 
-# Create a system following the model of [C. Ulrich, et al. Phys. Rev. Lett.
+# Create a system following the model of [Ulrich et al., Phys. Rev. Lett.
 # **91**, 257202 (2003)](https://doi.org/10.1103/PhysRevLett.91.257202). The
 # mode `:dipole_uncorrected` avoids a [classical-to-quantum rescaling
 # factor](@ref "Interaction Renormalization") of anisotropy strengths, as needed

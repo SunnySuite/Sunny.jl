@@ -19,8 +19,8 @@ types = ["Cu"]
 cryst = Crystal(latvecs, positions, 139; types)
 view_crystal(cryst)
 
-# Build a spin system using the exchange parameters from [R. Coldea, Phys. Rev.
-# Lett. **86**, 5377 (2001)](https://doi.org/10.1103/PhysRevLett.86.5377).
+# Build a spin system using the exchange parameters from [Coldea et al., Phys.
+# Rev. Lett. **86**, 5377 (2001)](https://doi.org/10.1103/PhysRevLett.86.5377).
 
 sys = System(cryst, [1 => Moment(s=1/2, g=2)], :dipole; dims=(2, 2, 1))
 J   = 138.3

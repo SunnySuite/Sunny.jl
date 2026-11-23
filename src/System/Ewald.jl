@@ -1,10 +1,10 @@
 
-function Ewald(sys::System{N}, μ0_μB², demag) where N
+function Ewald(sys::System{N}, μ0_μB², demag; excluded=[]) where N
     (; crystal, dims) = sys
 
     # Collect pieces to build the Ewald interaction tensor A(q) cheaply. This
     # caching can accelerate spin wave theory.
-    cache = EwaldTensorCache(crystal, dims, μ0_μB², demag)
+    cache = EwaldTensorCache(crystal, dims, μ0_μB², demag; excluded)
 
     # Build and store the interaction tensor A(q=0). The imaginary part cancels
     # in the symmetric sum over ±k, so keep only the real part.
@@ -21,23 +21,18 @@ function Ewald(sys::System{N}, μ0_μB², demag) where N
     Fϕ = zeros(CVec3, sz_rft..., na)
 
     mock_spins = zeros(3, dims..., na)
-    plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
-    ift_plan = FFTW.plan_irfft(reinterpret(reshape, ComplexF64, Fμ), dims[1], 2:4; flags=FFTW.MEASURE)
+    plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE, num_threads=1)
+    ift_plan = FFTW.plan_irfft(reinterpret(reshape, ComplexF64, Fμ), dims[1], 2:4; flags=FFTW.MEASURE, num_threads=1)
 
     return Ewald(cache, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
 end
 
-# Ideally, this would clone all mutable state within Ewald. Note that `A`, `FA`
-# are immutable data. A blocker is that FFTW plans cannot currently be copied,
-# and it is not 100% clear whether they can be treated as immutable. For
-# example, they cache inverse plans, which may possibly lead to data races in a
-# multithreaded context. See discussion at
-# https://github.com/JuliaMath/FFTW.jl/issues/261.
+# FFTW plans are safe to share across threads. Allocate fresh scratch buffers.
 function clone_ewald(ewald::Ewald)
-    error("Not supported")
     (; cache, A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan) = ewald
-    return Ewald(cache, A, copy(μ), copy(ϕ), FA, copy(Fμ), copy(Fϕ), copy(plan), copy(ift_plan))
+    return Ewald(cache, A, zero(μ), zero(ϕ), FA, zero(Fμ), zero(Fϕ), plan, ift_plan)
 end
+clone_ewald(ewald::Union{Nothing, EwaldDelegated}) = ewald # Immutable
 
 # Outer product of 3-vectors as static Mat3
 (⊗)(a::Vec3, b::Vec3) = a * b'
@@ -51,7 +46,7 @@ end
 
 @inline cell_offset(cell) = Vec3(cell[1]-1, cell[2]-1, cell[3]-1)
 
-function EwaldTensorCache(cryst::Crystal, dims::NTuple{3,Int}, μ0_μB², demag::Mat3)
+function EwaldTensorCache(cryst::Crystal, dims::NTuple{3,Int}, μ0_μB², demag::Mat3; excluded=[])
     na = natoms(cryst)
 
     # Superlattice vectors and reciprocals for the full system volume
@@ -99,23 +94,27 @@ function EwaldTensorCache(cryst::Crystal, dims::NTuple{3,Int}, μ0_μB², demag:
         real_terms[cell, i, j] = terms
     end
 
-    return EwaldTensorCache(dims, cryst, μ0_μB², demag, σ², Tuple(mmax), kmax^2, Tuple(nmax), real_terms)
+    return EwaldTensorCache(dims, cryst, μ0_μB², demag, σ², Tuple(mmax), kmax^2, Tuple(nmax), real_terms, excluded)
 end
 
 # Calculate the Ewald interaction tensor A[cell, i, j] at the given wavevector q
-# in "reshaped" RLU. Here `cell` denotes a cell offset shifted by (1,1,1) to
-# suit Julia's 1-based indexing. The usual Ewald energy for a periodic system is
-# E = μᵢ Aᵢⱼ μⱼ / 2 at q=0. The generalization to nonzero q allows writing in
-# Fourier space E(q) = μᵢ(-q) Aᵢⱼ(-q) μⱼ(q) / 2, where μᵢ(q) is the Fourier
-# transform of μᵢ taken over the lattice of cells for atom i.
-function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
-    (; dims, cryst, μ0_μB², demag, σ², mmax, kmax², nmax, real_terms) = cache
+# in RLU of the supercell, which spans the `dims` cells. Here `cell` denotes a
+# cell offset shifted by (1,1,1) to suit Julia's 1-based indexing. The usual
+# Ewald energy for a periodic system is E = μᵢ Aᵢⱼ μⱼ / 2 at q=0. The
+# generalization to nonzero q allows writing in Fourier space E(q) = μᵢ(-q)
+# Aᵢⱼ(-q) μⱼ(q) / 2, where μᵢ(q) is the Fourier transform of μᵢ taken over the
+# lattice of cells for atom i.
+function ewald_interaction_tensor(cache::EwaldTensorCache, q_supercell::Vec3)
+    (; dims, cryst, μ0_μB², demag, σ², mmax, kmax², nmax, real_terms, excluded) = cache
     (; positions) = cryst
     na = natoms(cryst)
     recipvecs = cryst.recipvecs / diagm(Vec3(dims))
     V = abs(det(cryst.latvecs)) * prod(dims)
     self_energy = -Mat3(I) / (3(2π)^(3/2) * σ²^(3/2))
-    q0 = q_reshaped - round.(q_reshaped)
+    # Wavevectors that differ by a reciprocal lattice vector are equivalent,
+    # and q_supercell is often an integer only up to round-off
+    q_supercell = map(x -> is_integer(x; tol=1e-12) ? round(x) : x, q_supercell)
+    q0 = q_supercell - round.(q_supercell)
     A = zeros(CMat3, dims..., na, na)
 
     # The target tensor has the symmetry A(off, i, j) = A(-off, j, i)'. For the
@@ -181,7 +180,7 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
 
     # Assemble cached real_terms, applying q-dependent phase factors
     real_phases = ntuple(3) do a
-        [cis(2π * q_reshaped[a] * n) for n in OffsetArrays.centered(-nmax[a]:nmax[a])]
+        [cis(2π * q_supercell[a] * n) for n in OffsetArrays.centered(-nmax[a]:nmax[a])]
     end
     @inbounds for cell in CartesianIndices(dims), j in 1:na, i in 1:imax(cell, j)
         acc = A[cell, i, j] + demag_term
@@ -199,7 +198,50 @@ function ewald_interaction_tensor(cache::EwaldTensorCache, q_reshaped::Vec3)
         A[1, 1, 1, j, i] = A[1, 1, 1, i, j]'
     end
 
+    # The bond offset n wraps into the cell n mod dims, with a winding of
+    # fld(n, dims) magnetic cells
+    for (; bond, A_loc) in excluded
+        (; i, j, n) = bond
+        cell = CartesianIndex(Tuple(mod.(n, dims)) .+ 1)
+        A[cell, i, j] -= cis(2π * dot(q_supercell, Vec3(fld.(n, dims)))) * A_loc
+    end
+
     return A
+end
+
+# The Fourier-space coupling gᵢᵀ Aᵢⱼ gⱼ between the spins of site i and site j,
+# and all of its periodic images, where A = ewald_interaction_tensor(sys,
+# q_supercell). Sites (i, j) are by linear index. The cell offset Δ determines
+# both Aᵢⱼ and the supercell winding number w = fld(Δ, dims).
+# 
+# Typically Δ will be inferred from (i, j), but entangled systems require an
+# override. Here, Bloch phases follow the cells of the units rather than the
+# wrapped bare sites. This phase convention is a gauge choice for entangled
+# systems and must be applied consistently.
+function ewald_coupling(A, @nospecialize(sys::System), q_supercell, i, j, Δ=nothing)
+    (; dims, gs) = sys
+    (ci, ai) = to_cell_atom(eachsite(sys)[i])
+    (cj, aj) = to_cell_atom(eachsite(sys)[j])
+    Δ = something(Δ, cj .- ci)
+    return gs[i]' * ewald_tensor_at(A, dims, q_supercell, ai, aj, Δ) * gs[j]
+end
+
+# The Ewald tensor between atoms a and b at the cell displacement Δ, for A =
+# ewald_interaction_tensor(sys, q_supercell). The displacement wraps into the
+# cell Δ mod dims of A, with a winding fld(Δ, dims) of magnetic cells.
+function ewald_tensor_at(A, dims, q_supercell, a, b, Δ)
+    cell = CartesianIndex(mod.(Δ, dims) .+ 1)
+    w = Vec3(fld.(Δ, dims))
+    return cis(-2π * dot(q_supercell, w)) * A[cell, a, b]
+end
+
+# The Ewald interaction tensor Ac[cell, a, b] of `sys` at a wavevector in the
+# RLU of its magnetic cell. For an entangled system, this is the tensor of the
+# uncontracted system, which excludes the couplings within each unit.
+function ewald_interaction_tensor(@nospecialize(sys::System), q_supercell)
+    (; cache, A) = uncontracted_system(sys).ewald
+    # The value at q = 0 is stored
+    return iszero(q_supercell) ? A : ewald_interaction_tensor(cache, Vec3(q_supercell))
 end
 
 # The @nospecialize(sys) hint satisfies JET when Hilbert size N is not known

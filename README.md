@@ -30,12 +30,18 @@ Julia setup is described in the [Getting Started](https://github.com/SunnySuite/
 
 - **Symmetry-guided modeling**. Load CIF or mCIF files, enumerate [symmetry-allowed couplings](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html#Symmetry-analysis), and propagate interactions by symmetry equivalence.
 - **General operator couplings**. Specify [single-ion anisotropy](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_onsite_coupling!) in Stevens operators or spin polynomials. Arbitrary [multipolar coupling](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.set_pair_coupling!) on a bond is also supported.
-- **Spin-wave theory** for quantum spin excitations. The usual dipole formalism ([CoRh₂O₄ bands](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4.html)) generalizes to multipoles via multi-flavor bosons ([FeI₂ bands](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html)). Special calculators are available for incommensurate spiral order ([Ba₃NbFe₃Si₂O₁₄ spiral](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html)) and for linear-scaling on very large systems ([KPM solver](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SpinWaveTheoryKPM)).
+- **Spin-wave theory** for quantum spin excitations. The usual dipole formalism ([CoRh₂O₄ bands](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4.html)) generalizes to multipoles via multi-flavor bosons ([FeI₂ bands](https://sunnysuite.github.io/Sunny.jl/stable/examples/03_LSWT_SU3_FeI2.html)). Special calculators are available for incommensurate spiral order ([Ba₃NbFe₃Si₂O₁₄ spiral](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW15_Ba3NbFe3Si2O14.html)) and for linear-scaling on very large systems ([large-system solver](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SpinWaveTheoryLarge)).
 - **Finite-temperature dynamics**. The usual Landau-Lifshitz dipole dynamics ([CoRh₂O₄ dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/02_LLD_CoRh2O4.html)) generalizes to multipoles via SU(_N_) coherent states ([FeI₂ dynamics](https://sunnysuite.github.io/Sunny.jl/stable/examples/04_GSD_FeI2.html)). Use with parallel tempering to accelerate equilibrium sampling ([Advanced MC]((https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra/Advanced_MC))).
-- **Self-consistent Gaussian approximation** [(SCGA)](https://sunnysuite.github.io/Sunny.jl/stable/library.html#Sunny.SCGA) for static observables in the paramagnetic-phase, e.g., susceptibility and diffuse scattering.
 - **Long-range dipole-dipole interactions** with Ewald summation and customizable demagnetization tensor ([Pyrochlore Ewald](https://sunnysuite.github.io/Sunny.jl/stable/examples/07_Dipole_Dipole.html)).
-- **Quenched disorder** to model chemical impurities ([Disordered intensities](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_KPM.html)).
-- **Model fitting tools**. Examples include fitting to magnon bands ([LuVO₃ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW35_LuVO3-fitting.html)), inelastic powder data ([β-Na₂PrO₃ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/11_Powder_fitting.html)), and diffuse scattering data ([MgCr₂O₄ fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/10_SCGA_fitting.html)).
+- **Quenched disorder** to model chemical impurities ([Doped
+  Rb₂MnF₄](https://sunnysuite.github.io/Sunny.jl/stable/examples/09_Disorder_LSWT.html)).
+- **Model fitting tools**. Examples include fitting to magnon bands ([LuVO₃
+  fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW35_LuVO3-fitting.html))
+  and inelastic powder data ([β-Na₂PrO₃
+  fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/11_Powder_fitting.html)).
+- **Self-consistent Gaussian approximation** (SCGA) for static observables in
+the paramagnetic-phase, e.g., susceptibility and diffuse scattering ([MgCr₂O₄
+fitting](https://sunnysuite.github.io/Sunny.jl/stable/examples/10_SCGA_fitting.html)).
 - **Entangled units** to capture the local entanglement between strongly-coupled groups of spins ([Ba₃Mn₂O₈ fitting](https://sunnysuite.github.io/Sunny.jl/dev/examples/12_Entangled_fitting.html)).
 
 See [**Release Notes**](https://sunnysuite.github.io/Sunny.jl/stable/versions) for new features and breaking changes.

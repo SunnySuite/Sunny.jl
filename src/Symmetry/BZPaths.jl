@@ -39,8 +39,8 @@ high-symmetry paths.
 
 ## References
 
-1. [Y. Hinuma, G. Pizzi, Y. Kumagai, F. Oba, I. Tanaka, _Band structure diagram
-   paths based on crystallography_, Comp. Mat. Sci. **128**, 140
+1. [Y. Hinuma, G. Pizzi, Y. Kumagai, F. Oba, and I. Tanaka, _Band structure
+   diagram paths based on crystallography_, Comp. Mat. Sci. **128**, 140
    (2017)](https://doi.org/10.1016/j.commatsci.2016.10.015).
 """
 function print_irreducible_bz_paths(cryst::Crystal)

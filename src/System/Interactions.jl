@@ -202,11 +202,12 @@ function enable_dipole_dipole!(sys::System, μ0_μB²=nothing; demag=1/3)
         @warn "Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV, :angstrom)`."
         μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
     end
+    isnothing(sys.origin) || enable_dipole_dipole!(sys.origin, μ0_μB²; demag)
     if !is_entangled(sys)
         sys.ewald = Ewald(sys, μ0_μB², Mat3(demag * I))
     else
-        # For an entangled system, the magnetic moments live on `uncontracted`
-        enable_dipole_dipole!(get_entanglement(sys).uncontracted, μ0_μB²; demag)
+        sys.ewald = EwaldDelegated(μ0_μB², Mat3(demag * I))
+        build_entangled_ewald!(sys)
     end
     return
 end
@@ -756,15 +757,16 @@ function set_energy_grad_coherents_aux!(∇E, Z::Array{CVec{N}, 4}, int::Interac
     end
 end
 
-# Extract a characteristic energy scale from the magnitude of the energy
-# gradient on a typical site. This works well because ∇E retains a component
-# parallel to the spin (or coherent state).
-function characteristic_energy_scale(sys::System{0})
+# A characteristic magnitude for the energy gradient ∇E, which sets a scale for
+# the g_abstol in energy minimization. Note that ∇E is typically non-vanishing
+# even at a stationary point, because it will retain a component parallel to the
+# spin (or coherent state) direction.
+function characteristic_gradient_scale(sys::System{0})
     ∇Es, = get_dipole_buffers(sys, 1)
     set_energy_grad_dipoles!(∇Es, sys.dipoles, sys)
     return norm(∇E*κ for (∇E, κ) in zip(∇Es, sys.κs)) / sqrt(length(∇Es))
 end
-function characteristic_energy_scale(sys::System{N}) where N
+function characteristic_gradient_scale(sys::System{N}) where N
     ∇Es, = get_coherent_buffers(sys, 1)
     set_energy_grad_coherents!(∇Es, sys.coherents, sys)
     return norm(∇E*sqrt(κ) for (∇E, κ) in zip(∇Es, sys.κs)) / sqrt(length(∇Es))
