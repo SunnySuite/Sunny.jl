@@ -539,7 +539,7 @@ function susceptibility_poles(swt::SpinWaveTheory, sys::System, measure::Measure
         mul!(A, u', T)
         for band in 1:2L
             map!(corr, measure.corr_pairs) do (μ, ν)
-                # Pair correlations ⟨0|Â_μ(q)†|n⟩⟨n|Â_ν(q)|0⟩
+                # Pair correlations ⟨0|Â_μ(q)†|n⟩⟨n|Â_ν(q)|0⟩
                 A[μ, band] * conj(A[ν, band]) / Ncells
             end
             # χ″ is a commutator, so a pole at negative energy has a
