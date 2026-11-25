@@ -167,12 +167,12 @@ function susceptibility_poles(sswt::SpinWaveTheorySpiral, sys::System, measure::
         ws   = BogoliubovWorkspace(L),
         H    = zeros(ComplexF64, 2L, 2L),
         u    = zeros(ComplexF64, 2L, Nobs),
-        Avec = zeros(ComplexF64, Nobs),
+        A    = zeros(ComplexF64, Nobs, 2L),
         corr = zeros(ComplexF64, num_correlations(measure)),
     )
 
     function calc_iq!(buf, iq)
-        (; ws, H, u, Avec, corr) = buf
+        (; ws, H, u, A, corr) = buf
         q = qpts.qs[iq]
         q_global = cryst.recipvecs * q
         for class in classes
@@ -181,11 +181,9 @@ function susceptibility_poles(sswt::SpinWaveTheorySpiral, sys::System, measure::
             for m in class
                 accum_observable_vectors!(u, sys, measure, observable_coefs[m+2], q_global)
             end
+            mul!(A, u', ws.T)
             for band in 1:2L
-                for μ in 1:Nobs
-                    Avec[μ] = dot(view(u, :, μ), view(ws.T, :, band))
-                end
-                map!(((μ, ν),) -> Avec[μ] * conj(Avec[ν]) / Ncells, corr, measure.corr_pairs)
+                map!(((μ, ν),) -> A[μ, band] * conj(A[ν, band]) / Ncells, corr, measure.corr_pairs)
                 # χ″ is a commutator, so a pole at negative energy has a
                 # negative weight
                 val = sign(energies[band]) * measure.combiner(q_global, corr) / length(class)
