@@ -519,12 +519,12 @@ function susceptibility_poles(swt::SpinWaveTheory, sys::System, measure::Measure
         ws   = BogoliubovWorkspace(L),
         H    = zeros(ComplexF64, 2L, 2L),
         u    = zeros(ComplexF64, 2L, Nobs),
-        Avec = zeros(ComplexF64, Nobs),
+        A    = zeros(ComplexF64, Nobs, 2L),
         corr = zeros(ComplexF64, Ncorr),
     )
 
     function calc_iq!(buf, iq)
-        (; ws, H, u, Avec, corr) = buf
+        (; ws, H, u, A, corr) = buf
         T = ws.T
         q = qpts.qs[iq]
         q_supercell = to_supercell_rlu(sys, q)
@@ -535,14 +535,12 @@ function susceptibility_poles(swt::SpinWaveTheory, sys::System, measure::Measure
         observable_vectors!(u, swt, sys, measure, q_global)
 
         # Fill `intensity` array
+        # Left matrix amplitudes A[μ, n] = ⟨0|Â_μ(q)†|n⟩ of all bands, by one GEMM
+        mul!(A, u', T)
         for band in 1:2L
-            for μ in 1:Nobs
-                # Left matrix amplitude ⟨0|Â_μ(q)†|n⟩
-                Avec[μ] = dot(view(u, :, μ), view(T, :, band))
-            end
             map!(corr, measure.corr_pairs) do (μ, ν)
                 # Pair correlations ⟨0|Â_μ(q)†|n⟩⟨n|Â_ν(q)|0⟩
-                Avec[μ] * conj(Avec[ν]) / Ncells
+                A[μ, band] * conj(A[ν, band]) / Ncells
             end
             # χ″ is a commutator, so a pole at negative energy has a
             # negative weight
